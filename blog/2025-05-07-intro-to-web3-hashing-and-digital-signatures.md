@@ -1,0 +1,101 @@
+---
+slug: web3-intro-hashing-and-digital-signatures
+title: Learning Web3 from the Ground Up- Hash Functions & Digital Signatures
+authors: samantha
+tags: [intro, blockchain, beginner, web3]
+---
+# Learning Web3 from the Ground Up: Hash Functions & Digital Signatures
+
+I'm still at the beginning of my [Web3 journey](https://docs.midnight.network/blog/web3-intro), and already it’s clear: before you can build the future, you have to understand the foundations. This week, I focused on two key cryptographic building blocks: hash functions and digital signatures.
+
+These concepts might initially sound intimidating, but they're at the core of blockchain, ensuring data integrity, authenticity, and security. I learned about them through the "Intro to Blockchain" section of the [Cardano Academy](https://academy.cardanofoundation.org/)—a fantastic first stop on my learning journey. Here's a breakdown of what I took away.
+
+## Hash Functions – The Digital Fingerprints of Blockchain
+
+Hash functions are everywhere in a blockchain—they link blocks, verify data, and secure transactions. Think of a hash function as a digital fingerprint: it takes an input of any size and produces a fixed-length string (called a **hash digest**) that uniquely represents that input.
+
+### Key Properties of Cryptographic Hash Functions
+
+To be helpful in a blockchain or cryptographic setting, hash functions must possess several specific properties that ensure their security and reliability. Some of the most important properties include:
+
+- **One-way**: You can go from input to hash, but not vice versa.  
+    
+- **Deterministic**: The same input will always produce the same output.  
+    
+- **Avalanche Effect**: A tiny input change causes a massive output change.  
+    
+- **Preimage Resistance**: You can't guess the input just by looking at the hash.  
+    
+- **Collision Resistance**: It's nearly impossible to find two different inputs that give the same hash.
+
+These properties are critical for ensuring that once data is recorded—like a transaction—it can't be altered without detection.
+
+### Real-World Use Cases
+
+Hash functions aren’t just theoretical—they’re used all the time in real-world systems to keep data secure. Here are a few practical ways they show up:
+
+- **Password storage**: Systems store hashes, not the actual passwords.  
+    
+- **Data integrity**: Hashes are used to check if data has been altered.
+
+**Blockchain linking**: Every block contains the previous block's hash—alter one, and the whole chain breaks.
+
+Popular hash functions include SHA-256 (used by Bitcoin), SHA-3, and RIPEMD-160. Some older algorithms, such as MD5 and SHA-1, are now considered insecure due to collision vulnerabilities.
+
+## Digital Signatures – Proving Who Sent What (and That It Wasn't Changed)
+
+If hash functions are about verifying data *hasn't changed*, digital signatures go a step further by proving **who sent the data**. This gives us **authenticity** and **non-repudiation**.
+
+### How They Work (In a Nutshell)
+
+The digital signature process cleverly combines hashing and encryption to guarantee both authenticity and integrity. Here's a high-level overview of how it works: 
+
+1. **Signing**: The sender hashes the original message and encrypts that hash using their private key, creating the **digital signature**.  
+     
+2. **Verifying**: The recipient uses the sender's public key to decrypt the signature and then checks if the result matches the hash of the received message.  
+     
+3. If the hashes match, the message is verified. If not, it's been tampered with.
+
+Now, let’s make this less abstract. Think of it like sending a secure email using [PGP (Pretty Good Privacy)](https://www.varonis.com/blog/pgp-encryption):  
+When you send an encrypted email using PGP, your email client uses your private key to sign the message. Anyone who receives it can use your public key to confirm it was really you who sent it, and that the content hasn’t been changed in transit. The same principles apply to digital signatures on the blockchain: the sender signs a message or transaction, and anyone with the public key can verify it. While the tools and context differ, the underlying idea remains familiar: use cryptographic keys to establish trust without relying on a centralized authority.
+
+### Why This Matters
+
+- Only the private key can create a valid signature.  
+    
+- Anyone can use the public key to verify it.  
+    
+- If someone tampers with the message, the signature will fail verification.
+
+### Types of Digital Signature Algorithms
+
+Different blockchains and cryptographic systems utilize various signature algorithms, depending on their specific security and performance requirements. A few notable examples are:
+
+- **RSA**: Based on the difficulty of factoring large numbers.  
+    
+- **DSA**: Based on the discrete log problem.  
+    
+- **ECDSA**: A more efficient elliptic curve version used by Bitcoin.  
+    
+- **Ed25519**: The one used by Cardano, known for its speed, security, and small key sizes.
+
+### Wallets: Where the Magic Happens
+
+Most of us don’t interact directly with private keys or raw cryptographic operations. Wallets make it manageable by handling keys and signing transactions securely in the background.
+
+There are two main types of wallets:
+
+- **Custodial wallets**: A third party, such as an exchange, manages your keys.  
+    
+- **Non-custodial wallets**: You control your own keys—more responsibility, but more control.
+
+Wallets also fall into two categories: hot (online) and cold (offline) storage. Hardware wallets, such as Ledger or Trezor, are considered cold storage because they keep your keys offline. Cold wallets are generally preferred for long-term or high-value holdings due to their increased security.
+
+
+## Conclusion
+
+Hash functions and digital signatures are like the grammar and punctuation of blockchain. They quietly enable much of what makes the ecosystem secure and trustless. Learning about them provided a clearer understanding of how blockchains, such as Cardano, and tools like Midnight operate under the hood.
+
+I highly recommend checking out [Cardano Academy](https://academy.cardanofoundation.org/). It's approachable and well-structured. I also suggest doing your own research and diving into the Midnight documentation and Dev Diaries for more technical depth. Be sure to check out [last week’s blog post](https://docs.midnight.network/blog/web3-intro) on blockchain fundamentals.
+
+If you're learning Web3 with me, I'd love to hear what's helped you, what's tripped you up, and what topics you'd like to see explored next. More foundational concepts to come next week!  

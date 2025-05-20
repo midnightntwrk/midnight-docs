@@ -1,0 +1,125 @@
+name: Vercel Preview Playwright Visual Regression Tests
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: false
+        type: string
+    secrets:
+      token:
+        required: false
+
+jobs:
+  visual-regression:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Install Playwright
+        run: npx playwright install
+
+      - name: Vercel Preview URL
+        id: vercel_preview_url
+        uses: zentered/vercel-preview-url@v1.1.9
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        with:
+          vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel_team_id: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Read paths from file and generate full URLs
+        id: read-urls
+        run: |
+          base_url="https://${{ steps.vercel_preview_url.outputs.preview_url }}"
+          full_urls=""
+          paths=$(jq -r '.paths[]' packages/tests/pipelines-urls.json)
+          for path in $paths; do
+            full_url="${base_url}${path}"
+            full_urls="${full_urls}${full_url}\n"
+          done
+          echo -e "The following URLs will be processed:\n$full_urls"
+          echo "urls<<EOF" >> $GITHUB_ENV
+          echo -e "$full_urls" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Verify Snapshot Directory
+        run: ls -la packages/tests/visual-regression.test.ts-snapshots
+
+      - name: Run Playwright Visual Regression Tests
+        continue-on-error: true
+        env:
+          BASE_URL: "https://${{ steps.vercel_preview_url.outputs.preview_url }}"
+          VERCEL_BYPASS_TOKEN: ${{ secrets.VERCEL_BYPASS_TOKEN }}
+        run: npx playwright test packages/tests/visual-regression.test.ts --config=packages/tests/playwright.config.ts --reporter=list
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        id: upload-report
+        with:
+          name: test-report
+          path: |
+            test-results/*
+
+      - name: Format Playwright message
+        id: format_playwright_message
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const artifactUrl = '${{ steps.upload-report.outputs.artifact-url }}';
+
+            let commentArray;
+
+            if (artifactUrl && artifactUrl !== 'null') {
+              commentArray = [
+                `🔴 Visual comparisons failed. Differences detected. [Download report](${artifactUrl}).`, 
+                `If this change was expected push updated snapshots by running`,
+                `yarn playwright-snapshots:update`
+              ];
+            } else {
+              commentArray = [
+                `🟢 Visual comparisons passed for pages:`, 
+                `${{ env.urls }}`
+              ];
+            }
+            const comment = commentArray.join('\n');
+            core.setOutput("comment", comment);
+
+      - name: Update PR Comment with Results
+        uses: marocchino/sticky-pull-request-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          number: ${{ github.event.issue.number }}
+          header: Playwright snapshot Results
+          message: |
+            ${{ steps.format_playwright_message.outputs.comment }}
+
+      - name: Send Playwright Report to Slack
+        if: success() || failure()
+        env:
+          pr_url: ${{ github.event.pull_request.html_url }}
+          comment: ${{ steps.format_playwright_message.outputs.comment }}
+          repo_name: ${{ github.repository }}
+        run: |
+          repo_name=$(echo "$repo_name" | cut -d'/' -f2)
+
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "text": "Playwright Visual Regression Tests completed for <'"$pr_url"'|PR #${{ github.event.pull_request.number }}> on '"$repo_name"'. \nTest Summary: \n'"$comment"'"
+          }' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}

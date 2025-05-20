@@ -1,0 +1,125 @@
+---
+---
+
+# Step 4. Run a Midnight node in Validator Mode
+
+## Requirements
+
+The Midnight-node relies on a persistant connection to the Postgres PORT. This allows Midnight-node to follow the Cardano chain.
+
+🗹 `Postres` PORT should be accessible to the Midnight-node  and Cardano-db-sync should be fully synced (Step 2).
+
+🗹 Midnight node is available as a Docker image *at this time*. Therefore, Docker/ Docker Compose is required.
+    - [Installing Docker/ Docker Compose](https://docs.docker.com/compose/install/).
+
+🗹 `./data/chains/testnet` is available to the Midnight-node (via a docker volume).
+
+If `./data/chains/testnet` is still on the partner-chains deps server, then simply copy it over to the Midnight-node instance.
+
+<details>
+<summary><b>Optional: Copying files between instances using Magic Womrhole</b></summary>
+
+Install 
+```shell
+sudo apt install magic-wormhole # install magic wormhole on each instance.
+
+wormhole send ./data/chains/testnet # returns a recieve command to copy and paste on the other instance
+
+# on the intended midnight-node copy the recieve command
+
+wormhole recieve <secret words>
+
+# verify the directory and contents were copied over
+sudo apt install tree
+tree testnet/
+```
+</details>
+
+## 4a. `docker-compose up` Midnight node in validator mode
+
+1. **Clone [midnight-node-docker](https://github.com/midnightntwrk/midnight-node-docker) Repo**:
+
+```shell
+git clone git@github.com:midnightntwrk/midnight-node-docker.git # clone the repo
+cd midnight-node-docker # enter the project
+ls . # list contents
+```
+
+2. **Configure Postgres connection**:
+
+The Midnight-node needs a persistant connection to Postgres to  follow the Cardano chain. If this connection is not established, then the node will fail.
+
+- Open the `.env` file in a shell editor or VSCode.
+
+- Update the `POSTGRES` environment variables to your unique values:
+
+```
+POSTGRES_HOST="x.x.x.x" # Replace x.x.x.x with IP or host to postgres connection
+POSTGRES_PORT="xxxxxxx"
+POSTGRES_USER="xxxxxx"
+POSTGRES_PASSWORD="xxxxxxxxx"
+POSTGRES_DB="xxxxxxxxx"
+DB_SYNC_POSTGRES_CONNECTION_STRING="psql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB"
+```
+
+3. Configure node's docker volume:
+
+- Edit the `compose.yml` file and configure the midnight-node's docker volume with the absolute path to your `testnet` directory which contains your network key.
+
+For example, 
+
+```
+testnet
+├── chain
+│   └── chains
+│       └── testnet-02
+│           ├── keystore
+│           ├── network
+│           └── paritydb
+│               └── full
+└── partner_chains_template
+    ├── keystore
+    └── network
+```
+
+- Edit the compose.yml file with the absolute path to testnet directory.
+
+```
+volumes:
+    - /PATH_TO/testnet:/node
+```
+
+3. **`docker-compose up` midnight-node**:
+
+- Within the same directory as `compose.yml`, simply invoke `docker compose up` to start the node.
+
+    ```shell
+    docker-compose up
+    # docker-compose up -d to run in detatched mode
+    ```
+
+The node should begin to sync with the testnet.
+
+```shell
+⚙️ Syncing  2.6 bps, target=#474962 (8 peers), best: #3967 (0xf620…d752), finalized #3584 (0x56d5…f7bd), ⬇ 0.8kiB/s ⬆ 0.2kiB/s    
+```
+
+In the above log example; the node is syncing and peering with the network (8). The currenct synced block is 3967, but the sync target is 474962.
+
+When the node is fully synced, then you should be participating in block production. For example: 
+
+```shell
+✨ Imported #12345 (0xabc1…def2)
+💤 Idle (5 peers), best: #12345 (0xabc1…def2), finalized #12343 (0x789a…bcd3)
+🏆 Prepared block for proposing at #12346 (block time = 6s)
+🔖 Pre-sealed block for proposal at #12346. Hash: 0xdef3…ghi4
+✨ Successfully proposed block #12346 (0xdef3…ghi4)
+✨ Imported #12346 (0xdef3…ghi4)
+💤 Idle (5 peers), best: #12346 (0xdef3…ghi4), finalized #12344 (0x456b…def7)
+```
+
+- "Prepared block for proposing": This line indicates that your node has prepared a block to propose at a specific block height (e.g., #12346). This is a strong sign that your node is actively participating in block production.
+- "Pre-sealed block for proposal": This shows the block is ready to be proposed to the network, including its hash.
+- "Successfully proposed block": This confirms that your node successfully proposed the block to the network.
+- "Imported": This means the block your node produced (or another block at that height) has been imported into the chain. If the hash matches your proposed block, it’s a clear sign your node’s block was accepted.
+- Block Number Incrementing: If the best block number keeps increasing and aligns with your proposed blocks, your node is contributing to the chain’s progress.
