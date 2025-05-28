@@ -1,0 +1,320 @@
+---
+title: Wallet SDK 4.0.0
+displayed_sidebar: sidebar
+---
+
+# Wallet SDK 4.0.0
+
+Midnight Wallet SDK is the SDK of the digital wallet designed for the Midnight blockchain, enabling users to securely store private keys, manage assets, and interact with decentralized applications.
+
+[Link to related documentation](../../learn/introduction/wallets)
+
+---
+
+<div 
+  style={{
+    marginTop: '0',
+    fontSize: '1rem',
+    fontWeight: 'normal',
+    marginBottom: '0.5rem'
+  }}
+>
+  2 April 2025
+</div>
+
+## Midnight Wallet SDK 4.0 Release Notes
+
+### Stable Release
+
+* **Version**: 4.0.0
+* **Audience**: Wallet developers, integration engineers, node operators
+* **Environment**: Production-ready
+
+:::important
+If you upgrade to `wallet-4.0.0`, the balances inside the wallets will no longer be visible. Please ensure you have backed up any critical data or completed necessary transactions before upgrading
+:::
+
+This release (4.0.0) is considered stable and production-ready. It can safely be deployed in public and production environments.
+
+### Key Changes & Highlights
+
+* **Secret Keys separated from state**: Previously, when building the wallet, the secret keys were part of the state. When the wallet state was serialized, the secret keys were included - which was a security issue.
+* **Bech32m address format**: `Bech32m` is the default address format for this release. The legacy (`hex`) format is still supported but will be removed in future versions.
+* **HD Wallet**: We ship a package with this version that allows you to derive HD wallet keys from your seed key which then can be used to instantiate the wallet instance.
+* **New transaction balancer**: The balancer is written in typescript and solves many previous issues with balancing.
+* **Indexer URL full path required**: Previously, when building a wallet, you could pass only the host url of the indexer and the wallet would autocomplete the remaining parts. This has caused issues with dapps and other dependent packages when this url was provided as a downstream dependency.
+* **Proving retries**: When proving a transaction, if it fails the first time, the wallet retries 3 times before failing. This ensures that any network related issues are mitigated.
+* **Ledger key derivation**: This version of the wallet uses the new ledger key derivation.
+
+### Changelog
+
+#### Breaking Changes
+
+
+*Secret keys no longer are part of serialized wallet state*
+
+   * **Impact**: Serialized state from wallet versions`<=3.7.6` are not compatible with `v4.0.0`
+   * **Action Required**: Drop any existing serialized state when using `v4.0.0`
+
+*`.build` method requires a seed as a parameter*
+
+   * **Impact:** Previously, the `WalletBuilder.build` generated a random seed for you, this is no longer the case and it requires a seed to be passed on as a parameter.
+   * **Action Required:** See the code snippets below:
+
+Old API:
+
+```
+const wallet = await WalletBuilder.build(
+
+  'indexer-url',
+
+  'indexer-ws-url',
+
+  'proving-server-url',
+
+  'node-url',
+
+   networkId
+
+); 
+```
+
+New API:
+
+```
+const wallet = await WalletBuilder.build(
+
+  'indexer-url',
+
+  'indexer-ws-url',
+
+  'proving-server-url',
+
+  'node-url',
+
+  'seed' // <= breaking change
+
+   networkId
+
+);
+```
+
+*`.buildFromSeed` method is deprecated*
+
+   * **Impact:** The `.build` API is now effectively what `.buildFromSeed` was - which made this API redundant. While it is currently available, it will be removed in future versions.
+   * **Action Required:** Use `.build` instead
+
+*`.restore` method requires the seed associated with the serialized state as a parameter*
+
+   * **Impact:** Previously, the secret keys of a particular seed were part of the serialized state, now that they aren’t anymore, the associated seed must be passed as a parameter.
+   * **Action Required:** See the code snippets below:
+
+Old API:
+
+```
+const wallet = await WalletBuilder.restore(
+
+  'indexer-url',
+
+  'indexer-ws-url',
+
+  'proving-server-url',
+
+  'node-url',
+
+  'serializedState'
+
+   networkId
+
+);
+```
+
+New API:
+
+```
+const wallet = await WalletBuilder.build(
+
+  'indexer-url',
+
+  'indexer-ws-url',
+
+  'proving-server-url',
+
+  'node-url',
+
+  'seed' // <= breaking change - the associated seed of the serialized state below
+
+  'serializedState' // the serialized state must be from version >=4.0.0
+
+   networkId
+
+);
+```
+
+*Ledger key derivation*
+
+   * **Impact:** Due to using the new key derivation provided by the ledger, any funds that were available in your wallet on version `<=3.7.5` won’t be available.
+   * **Action required:** You can either:
+
+      - Transfer your funds from your old wallet to the new one
+      - Request new funds from the faucet (recommended)
+
+*Indexer URL full path required*
+
+   * **Impact:** Previously, when building a wallet, you could pass only the host url of the indexer and the wallet would autocomplete the remaining parts. This has caused issues with dApps and other dependent packages when this url was provided as a downstream dependency.
+   * **Action required:** See the code snippets below:
+
+Old API:
+
+```
+const wallet = await WalletBuilder.build(
+
+  'https://indexer.testnet-02.midnight.network',
+
+  'wss://indexer.testnet-02.midnight.network',
+
+   ... rest of params
+
+);
+```
+
+New API:
+
+```
+const wallet = await WalletBuilder.build(
+
+  'https://indexer.testnet-02.midnight.network/api/v1/graphql', // <= full path required
+
+  'wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws', // <= full path required
+
+   ... rest of params
+
+);
+```
+
+### New Features
+
+
+*Bech32m Address Format*
+
+   * **Description:** The address format allows users to distinguish addresses, public keys and private keys based on the network they’re generated for (undeployed, devnet, testnet, mainnet) and the type of address this is, i.e a shielded address or unshielded address.
+   * **Usage/Configuration:** See the code snippets below:
+
+Old API:
+
+```
+export type WalletState = {
+
+  ...other wallet state properties
+
+  readonly coinPublicKey: CoinPublicKey; // Legacy (HEX) format
+
+  readonly encryptionPublicKey: EncPublicKey; // Legacy (HEX) format
+
+  readonly address: Address; // Legacy (HEX) format
+
+};
+```
+
+New API:
+
+```
+export type WalletState = {
+
+  ...other wallet state properties
+
+  readonly coinPublicKey: CoinPublicKey; // New (Bech32m) format
+
+  readonly coinPublicKeyLegacy: CoinPublicKeyLegacy; // Legacy (HEX) format
+
+  readonly encryptionPublicKey: EncPublicKey; // New (Bech32m) format
+
+  readonly encryptionPublicKeyLegacy: EncPublicKey; // Legacy (HEX) format
+
+  readonly address: Address; // New (Bech32m) format
+
+  readonly addressLegacy: Address; // Legacy (HEX) format
+
+};
+```
+
+### Impacted components
+
+
+Midnight.js 1.0.0 is required to work with this version. When using the ledger APIs `encryptionPublicKey` and `coinPublicKey` need to be provided in the `hex` format, to deal with this, `midnight.js` needs to use a package the wallet provides named `@midnight-ntwrk/wallet-sdk-address-format` which has a very simple API allowing it to decode the `bech32m` format to `hex`. Alternatively as a quick measure, `midnight.js` can use the `encryptionPublicKeyLegacy` and `coinPublicKeyLegacy`.
+
+#### HD Wallet
+
+* **Description:** In this version of the wallet, we have introduced a new packaged name `@midnight-ntwrk/wallet-sdk-hd` which allows you to deterministically derive different keys covering features of midnight.
+
+* **Usage/Configuration:**
+
+```
+import { generateRandomSeed, HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+
+import { NetworkId } from '@midnight-ntwrk/zswap';
+
+import { WalletBuilder } from '@midnight-ntwrk/wallet';
+
+const seed = generateRandomSeed();
+
+const generatedWallet = HDWallet.fromSeed(seed);
+
+if (generatedWallet.type == 'seedOk') {
+
+  const zswapKey = generatedWallet.hdWallet.selectAccount(0).selectRole(Roles.Zswap).deriveKeyAt(0);
+
+  if (zswapKey.type === 'keyDerived') {
+
+    const wallet = WalletBuilder.buildFromSeed(
+
+      'http://localhost:8088/api/v1/graphql',
+
+      'ws://localhost:8088/api/v1/graphql/ws',
+
+      'http://localhost:8088/api/v1/graphql',
+
+      'ws://localhost:8088/api/v1/graphql/ws',
+
+      zswapKey.key.toString(),
+
+      NetworkId.Undeployed,
+
+    );
+
+  } else {
+
+    console.error('Error deriving key');
+
+  }
+
+} else {
+
+  console.error('Error generating HDWallet');
+
+}
+```
+
+
+### Upgrade/Installation/Migration Instructions
+
+#### Prerequisites
+
+None.
+
+#### Step-by-Step Instructions
+
+Upgrade your wallet version to `@midnight-ntwrk/wallet@4.0.0-rc.1` use `@midnight-ntwrk/wallet-sdk-hd@1.0.0-rc.1` and `@midnight-ntwrk/wallet-sdk-address-format@1.0.0-rc.1` if needed in your component.
+
+#### Post-Upgrade Verification
+
+You have the above versions installed.
+
+### Compatibility
+
+*  **Operating Systems**: **None**
+
+* **Third-Party Tools**: `Node.js >=v18`
+
+* **Midnight Ecosystem Compatibility**: Midnight.js and tests need to be updated to support the new APIs. In addition, anyone using the wallet will have to update and accommodate the breaking changes above.
+

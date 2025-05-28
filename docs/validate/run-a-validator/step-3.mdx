@@ -1,0 +1,612 @@
+---
+---
+
+# Step 3. Register SPO as a candidate in the block producer committee
+
+### Requirements
+
+🗹 Operate a Cardano SPO [(Step 1)](./step-1) and have the following Cardano keys handy:
+  - The SPO `cold.skey`.
+  - A valid UTXO with associated `payment.vkey` and `payment.skey`.
+
+:::note
+
+Extended BIP32-Ed25519 keys are not supported at this time.
+
+:::
+
+🗹 Partner-chain-dependencies are fully synced [(Step 2)](./step-2):
+  - Ports to  `Ogmios`, `Kupo`, and `Postgres` must be accessible.
+  - Cardano-node `node.socket` and `cardano-cli` must be accessible.
+
+:::tip
+
+It's easier to perform the registration on the same instance as the partner-chain-dependencies. Especially if you're using the provided compose files within this guide.
+
+:::
+
+## 3a. Install `Partner-chains`.
+
+:::info
+
+Midnight Testnet currently uses Partner-chains version [`1.2.0`](https://github.com/input-output-hk/partner-chains/releases/tag/v1.2.0).
+
+:::
+
+1. **Download `partner-chains`**
+
+`Partner-chains-cli` is an open-source CLI tool to help interface with the Midnight partner-chain scripts that reside on the Cardano chain. 
+
+```shell
+#!/bin/bash
+
+# Create and enter partner-chains directory
+mkdir partner-chains
+cd partner-chains
+
+# Download and set up partner-chains-cli (v1.2.0)
+curl -L -o partner-chains-cli https://github.com/input-output-hk/partner-chains/releases/download/v1.2.0/partner-chains-cli-v1.2.0-x86_64-linux && chmod +x partner-chains-cli
+
+# Download and set up partner-chains-node (v1.2.0)
+curl -L -o partner-chains-node https://github.com/input-output-hk/partner-chains/releases/download/v1.2.0/partner-chains-node-v1.2.0-x86_64-linux && chmod +x partner-chains-node
+
+# Download pc-contracts-cli (v6.2.2)
+curl -L -o pc-contracts-cli.zip https://github.com/input-output-hk/partner-chains-smart-contracts/releases/download/v6.2.2/pc-contracts-cli-v6.2.2.zip
+
+# Unzip the file
+sudo apt install unzip
+unzip pc-contracts-cli.zip
+
+# Ensure pc-contracts-cli has executible permission
+chmod +x pc-contracts-cli
+
+# Define the JSON content
+json_content=$(cat <<EOF
+{
+    "cardano": {
+        "network": 2,
+        "security_parameter": 432,
+        "active_slots_coeff": 0.05,
+        "first_epoch_number": 0,
+        "first_slot_number": 0,
+        "epoch_duration_millis": 86400000,
+        "first_epoch_timestamp_millis": 1666656000000
+    },
+    "chain_parameters": {
+        "chain_id": 47,
+        "genesis_committee_utxo": "d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3f604#0",
+        "threshold_numerator": 2,
+        "threshold_denominator": 3,
+        "governance_authority": "93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6"
+    },
+    "cardano_addresses": {
+        "committee_candidates_address": "addr_test1wrtrt7v002utktsuhsnm3nlzrrxg94z32zhw4nmtseangrs5l5x9p",
+        "d_parameter_policy_id": "51a8d059b9b3d831bad5640ed70c54b2c27f051e6eef3d6faa0be6f1",
+        "permissioned_candidates_policy_id": "82b78bff2f2409c778e0faf2a36a7814b886ead316d5110387772f8c"
+    },
+    "native_token": {
+        "asset": {
+            "asset_name": "0x",
+            "policy_id": "0x00000000000000000000000000000000000000000000000000000000"
+        },
+        "illiquid_supply_address": "addr_test1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+}
+EOF
+)
+
+# Create the JSON config file
+echo "$json_content" > partner-chains-cli-chain-config.json
+
+# Check if the file was created successfully
+if [ -f partner-chains-cli-chain-config.json ]; then
+    echo "File 'partner-chains-cli-chain-config.json' has been created successfully."
+else
+    echo "Failed to create the file."
+fi
+```
+
+This script:
+* Creates a `partner-chains` directory.
+* Downloads and sets excutible permissions.
+* Creates and writes the JSON configuration file `partner-chains-cli-chain-config.json` with Midnight testnet parameters.`
+
+2. **Using `Partner-chains-cli`**:
+
+  - Invoke `./partner-chains-cli` within the `partner-chains` directory:
+  ```shell
+  ./partner-chains-cli --help
+  ```
+
+<details>
+  <summary>Example output</summary>
+
+```shell
+Usage: partner-chains-cli <COMMAND>
+
+Commands:
+  generate-keys           This wizard generates the keys required for operating a partner-chains node, stores them in the keystore directory, and prints the public keys and keystore location
+  prepare-configuration   Wizard to obtain the configuration needed for the partner-chain governance authority. This configuration should be shared with chain participants and used to create the chain spec json file
+  create-chain-spec       Wizard for creating a chain spec json file based on the chain configuration (see `prepare-configuration`)
+  setup-main-chain-state  Wizard for setting D-parameter and Permissioned Candidates list on the main chain. Uses 'chain config' obtained after running `prepare-configuration`
+  start-node              Wizard for starting a substrate node in the environment set up by `generate-keys`, `prepare-config`, and `create-chain-spec`. It also assits in setting the `resources configuration`
+  register1               The first step of registering as a committee candidate. Registration is split into three steps to allow the user to use their cold keys on a cold machine
+  register2               The second step of registering as a committee candidate, using cold keys
+  register3               The final step of registering as a committee candidate, not using cold keys
+  help                    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                           Command groups by role                               ║
+╠════════════════════════════════════════════════════════════════════════════════╣
+║ The following sections outline the typical sequence of commands for each role. ║
+║ The numbering indicates the recommended order of execution. Please note that   ║
+║ this order may vary depending on specific deployment scenarios.                ║
+╟────────────────────────────────────────────────────────────────────────────────╢
+║ Governance Authority:                                                          ║
+║   1. generate-keys         : generate necessary cryptographic keys             ║
+║   2. prepare-configuration : set up the partner chain configuration            ║
+║   3. create-chain-spec     : create the chain specification file               ║
+║   4. setup-main-chain-state: configure the main chain parameters               ║
+║   5. start-node            : start the validator node                          ║
+╟────────────────────────────────────────────────────────────────────────────────╢
+║ Registered Validator:                                                          ║
+║   1. generate-keys         : generate validator keys                           ║
+║   2. register1             : initiate the registration process                 ║
+║   3. register2             : complete registration with cold keys              ║
+║   4. register3             : finalize registration                             ║
+║   5. start-node            : start the validator node                          ║
+║                                                                                ║
+║   Note: This sequence assumes that the chain-spec.json and                     ║
+║         partner-chains-cli-chain-config.json files have been obtained from     ║
+║         the Governance Authority and are present in the working directory.     ║
+╟────────────────────────────────────────────────────────────────────────────────╢
+║ Permissioned Validator:                                                        ║
+║   1. generate-keys         : generate validator keys                           ║
+║   2. start-node            : start the validator node                          ║
+║                                                                                ║
+║   Note: After executing 'generate-keys', the generated keys must be shared     ║
+║         with the Governance Authority. The 'start-node' command can only be    ║
+║         executed after the Governance Authority has established the partner    ║
+║         chain on the main network. This sequence assumes that the              ║
+║         chain-spec.json and partner-chains-cli-chain-config.json files have    ║
+║         been obtained from the Governance Authority and are present in the     ║
+║         working directory.                                                     ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+```
+</details>
+
+## 3b. Generate Partner-chain keys
+
+The `generate-keys` wizard streamlines the setup for new partner chains node users by creating essential keys:
+
+- ECDSA cross-chain key
+- ED25519 Grandpa key
+- SR25519 Aura key
+
+It will prompt to overwrite if keys already exist and can generate a network key if required.
+
+1. Generate Partner-chain keys:
+
+    - Invoke `./partner-chains-cli generate-keys` and follow the prompts to generate-keys:
+    
+<details>
+<summary><b>Example output (generate-keys)</b></summary>
+```shell
+./partner-chains-cli generate-keys
+This 🧙 wizard will generate the following keys and save them to your node's keystore:
+→  an ECDSA Cross-chain key
+→  an ED25519 Grandpa key
+→  an SR25519 Aura key
+It will also generate a network key for your node if needed.
+
+> node base path ./data
+
+⚙️ Generating Cross-chain (ecdsa) key
+running external command: ./partner-chains-node key generate --scheme ecdsa --output-type json
+💾 Inserting Cross-chain (ecdsa) key
+running external command: ./partner-chains-node key insert --base-path ./data --scheme ecdsa --key-type crch --suri 'stool grace post demise peanut father town urban blast park drastic december'
+💾 Cross-chain key stored at ./data/chains/partner_chains_template/keystore/637263680x022819ea59be6b9c88cb80855dc949f07eb572c8034780bb2e0829aa004c02f11c
+
+⚙️ Generating Grandpa (ed25519) key
+running external command: ./partner-chains-node key generate --scheme ed25519 --output-type json
+💾 Inserting Grandpa (ed25519) key
+running external command: ./partner-chains-node key insert --base-path ./data --scheme ed25519 --key-type gran --suri 'brick major burden pencil vibrant original eager safe luxury black nominee clock'
+💾 Grandpa key stored at ./data/chains/partner_chains_template/keystore/6772616e0x6759f8654a090cf97dcd2fce4c447d01de6c2656180a066c5a1174f7f81437e7
+
+⚙️ Generating Aura (sr25519) key
+running external command: ./partner-chains-node key generate --scheme sr25519 --output-type json
+💾 Inserting Aura (sr25519) key
+running external command: ./partner-chains-node key insert --base-path ./data --scheme sr25519 --key-type aura --suri 'permit market squirrel glance say volume special admit art reject thank jungle'
+💾 Aura key stored at ./data/chains/partner_chains_template/keystore/617572610xe076f823767754eed012ffbbe80de0133d78d4875bdf79d627bcd86d0e934162
+
+🔑 The following public keys were generated and saved to the partner-chains-public-keys.json file:
+    {
+      "sidechain_pub_key": "0x022819ea59be6b9c88cb80855dc949f07eb572c8034780bb2e0829aa004c02f11c",
+      "aura_pub_key": "0xe076f823767754eed012ffbbe80de0133d78d4875bdf79d627bcd86d0e934162",
+      "grandpa_pub_key": "0x6759f8654a090cf97dcd2fce4c447d01de6c2656180a066c5a1174f7f81437e7"
+    }
+You may share them with your chain governance authority
+if you wish to be included as a permissioned candidate.
+
+⚙️ Generating network key
+running external command: ./partner-chains-node key generate-node-key --base-path ./data
+command output: Generating key in "./data/chains/partner_chains_template/network/secret_ed25519"
+command output: 12D3KooWSMEFnGDRmcUxyuf2fB4qQhGeq7ZYrifDhSYgL9phywzE
+```
+</details>
+
+The partner-chains/ directory will now have a file structure like so:
+
+```shell
+~/partner-chains$ tree data/
+data/
+└── chains
+    └── partner_chains_template
+        ├── keystore
+        │   ├── 6175728281...# sidechain key
+        │   ├── 63726367cd...# aura key
+        │   └── 677a322ca6...# grandpa key
+        └── network
+            └── secret_ed25519 # network (node) key
+```
+
+This `data/` directory will be used for the Midnight-node in [(Step 4)](./step-4).
+
+- Let's move the keys from the generic partner chains directory to a keystore our node can find on a docker volume.
+
+```shell
+cp -R ./data/chains/partner_chains_template/ ./data/chains/testnet
+ls -d ./data/chain/chains/testnet # verify it was successful 
+```
+
+## 3c. Register as a candidate in validator committee
+
+:::important 
+
+As mentioned in requirements at the top of this page, the registration process will need 
+- the **absolute** path to SPO `cold.skey`, 
+- **absolute** path to `payment.skey` that has a valid UTXO that can be spent on transaction fee, 
+- **absolute** path to Cardano-node's `node.socket`, and 
+- accessible ports to `Ogmios`, `Kupo`, and `Postgres-db-syc`.
+
+:::
+
+
+If using docker container for cardano-node, then you may need to copy secrets to the container so that `cardano-cli` can access them:
+
+```shell
+docker cp /home/priv/payment.vkey cardano-node:/data/payment.vkey
+docker cp /home/priv/payment.skey cardano-node:/data/payment.skey
+docker cp /home/priv/cold.skey cardano-node:/data/cold.skey
+```
+
+How to remove these secrets from the container:
+
+```shell
+docker exec cardano-node rm -f /data/payment.vkey
+docker exec cardano-node rm -f /data/payment.skey
+docker exec cardano-node rm -f /data/cold.skey
+```
+
+1. **Create registration UTXO:**
+
+If using the provided docker-compose setup for partner-chain-dependencies, then the `node.socket` IPC path is available at `docker exec cardano-node ls -l /ipc/node.socket`.
+
+- Invoke `./partner-chains-cli register1` and follow the prompts:
+
+<details>
+<summary><b>Example output (register1)</b></summary>
+```
+./partner-chains-cli register1
+⚙️ Registering as a committee candidate (step 1/3)
+> cardano cli executable docker exec cardano-node cardano-cli
+> path to the cardano node socket file docker exec cardano-node ls -l /ipc/node.socket
+⚙️ Set `CARDANO_NODE_SOCKET_PATH` environment variable to `docker exec cardano-node ls -l /ipc/node.socket`
+> path to the payment verification file /data/payment.vkey
+⚙️ Deriving address...
+running external command: docker exec cardano-node cardano-cli address build --payment-verification-key-file /data/payment.vkey --testnet-magic 2
+⚙️ Address: addr_test1vruy23mdu8fcdqnw02w72dxg6zt4hnhm2axv6tpjx6t893sygyqe7
+⚙️ Querying UTXOs...
+running external command: docker exec cardano-node cardano-cli query utxo --out-file /dev/stdout --address addr_test1vruy23mdu8fcdqnw02w72dxg6zt4hnhm2axv6tpjx6t893sygyqe7 --testnet-magic 2
+> Select UTXO to use for registration 19a33eaebeedc476f680b98dcd24edef7070431f8280fb6d73aea6cef5a48776#1 (9991566037 l
+ovelace)
+Please do not spend this UTXO, it needs to be consumed by the registration transaction.
+
+Run the following command to generate signatures on the next step. It has to be executed on the machine with your SPO cold signing key.
+
+./partner-chains-cli register2 \
+ --chain-id 47 \
+ --threshold-numerator 2 \
+ --threshold-denominator 3 \
+ --governance-authority 0x93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6 \
+ --genesis-committee-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3f604#0 \
+ --registration-utxo 19a33eaebeedc476f680b98dcd24edef7070431f8280fb6d73aea6cef5a48776#1 \
+ --aura-pub-key 0x882812d0e9b4f5ec59e39c15f463c223b1d0f1f8bdb9395d30dcbc30ce32446e \
+ --grandpa-pub-key 0xa322ca606f93e95b3e0df14c53f033f3552098c9869d77b52bfd8efc4dd856be \
+ --sidechain-pub-key 0x02ef7cdacc91046f70e77c9e247592be0ac720d14946f6106530efb474f96f74f9 \
+ --sidechain-signature 291b0a681fc84628d16688455c088cb37ae37a03ce731421390178034d815e06140ef659588a5d7dce331ac55358b60f16b6555fac87d8280b95d0572cf6a504
+```
+</details>
+
+<details>
+<summary><b>Common Errors</b></summary>
+
+1. **Error: "⚠️ No UTXOs found for the given address"**
+   - **Cause:** 
+     - The address derived from `payment.vkey` has no unspent transaction outputs (UTXOs), meaning it hasn’t been funded with testnet Ada (tAda).
+     - The Cardano node might not be fully synced, so it can’t retrieve the latest balance.
+   - **Solution:**
+     - **Fund the Address:** Send tAda to your payment address using a faucet (e.g., Cardano testnet faucet) or another funded wallet.
+     - **Check Node Sync:** Verify the node is fully synced by running:
+       ```bash
+       docker exec cardano-node cardano-cli query tip --testnet-magic 2
+       ```
+       Ensure the `syncProgress` is `100%`. If not, wait for it to sync.
+
+2. **Error: "Cannot connect to node socket" or "Socket path not found"**
+   - **Cause:** The path to `node.socket` (e.g., `/home/stev/ipc/node.socket`) is incorrect or inaccessible.
+   - **Solution:**
+     - Confirm the socket file exists:
+       ```bash
+       ls -l /home/YOUR_USER_NAME/ipc/node.socket
+       ```
+     - If it’s missing, ensure the `cardano-node` container is running (`docker ps`) and the path matches your setup. Adjust the path in the command if needed.
+
+3. **Error: "Permission denied" when accessing files"**
+   - **Cause:** The user running `partner-chains-cli` lacks permission to read `payment.vkey` or the socket file.
+   - **Solution:**
+     - Check file permissions:
+       ```bash
+       ls -l /home/payment.vkey
+       ls -l /home/YOUR_USER_NAME/ipc/node.socket
+       ```
+     - Fix permissions (replace `YOUR_USER_NAME` with your actual username):
+       ```bash
+       sudo chown YOUR_USER_NAME /home/payment.vkey /home/YOUR_USER_NAME/ipc/node.socket
+       ```
+
+4. **Error: "Command failed: docker exec cardano-node..."**
+   - **Cause:** The `cardano-node` container isn’t running or has a different name.
+   - **Solution:**
+     - Verify the container is active:
+       ```bash
+       docker ps -a
+       ```
+     - If it’s not running, start it:
+       ```bash
+       docker start cardano-node
+       ```
+     - If the container name differs (e.g., `cardano-node-1`), update the command:
+       ```bash
+       ./partner-chains-cli register1
+       # Then input: docker exec cardano-node-1 cardano-cli
+       ```
+</details>
+
+The `register1` command will return the next command when invoking register2. You simply need to copy and paste this. 
+
+
+2. **Generate registration signature**:
+
+:::note
+SPO's `cold.skey` will be needed for **register2** and ideally performerd on an offline machine for mainnet.
+:::
+
+- Copy and paste the `register2` command generated from the previous step:
+
+<details>
+<summary><b>Example output (register2)</b></summary>
+```shell
+./partner-chains-cli register2 \
+ --chain-id 47 \
+ --threshold-numerator 2 \
+ --threshold-denominator 3 \
+ --governance-authority 0x93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6 \
+ --genesis-committee-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3f604#0 \
+ --registration-utxo 19a33eaebeedc476f680b98dcd24edef7070431f8280fb6d73aea6cef5a48776#1 \
+ --aura-pub-key 0x882812d0e9b4f5ec59e39c15f463c223b1d0f1f8bdb9395d30dcbc30ce32446e \
+ --grandpa-pub-key 0xa322ca606f93e95b3e0df14c53f033f3552098c9869d77b52bfd8efc4dd856be \
+ --sidechain-pub-key 0x02ef7cdacc91046f70e77c9e247592be0ac720d14946f6106530efb474f96f74f9 \
+ --sidechain-signature 291b0a681fc84628d16688455c088cb37ae37a03ce731421390178034d815e06140ef659588a5d7dce331ac55358b60f16b6555fac87d8280b95d0572cf6a504
+⚙️ Register as a committee candidate (step 2/3)
+  This command will use SPO cold signing key for signing the registration message.
+> Path to mainchain signing key file /home/stev/cardano-keys/cold.skey
+To finish the registration process, run the following command on the machine with the partner chain dependencies running:
+
+./partner-chains-cli register3 \
+--chain-id 47 \
+--threshold-numerator 2 \
+--threshold-denominator 3 \
+--governance-authority 0x93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6 \
+--genesis-committee-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3f604#0 \
+--registration-utxo 19a33eaebeedc476f680b98dcd24edef7070431f8280fb6d73aea6cef5a48776#1 \
+--aura-pub-key 0x882812d0e9b4f5ec59e39c15f463c223b1d0f1f8bdb9395d30dcbc30ce32446e \
+--grandpa-pub-key 0xa322ca606f93e95b3e0df14c53f033f3552098c9869d77b52bfd8efc4dd856be \
+--sidechain-pub-key 0x02ef7cdacc91046f70e77c9e247592be0ac720d14946f6106530efb474f96f74f9 \
+--sidechain-signature 291b0a681fc84628d16688455c088cb37ae37a03ce731421390178034d815e06140ef659588a5d7dce331ac55358b60f16b6555fac87d8280b95d0572cf6a504 \
+--spo-public-key d5f8d2a11f95ffa5bd2a7983f7143ccc94f53d303ab7daa4554b3d143a3b9dc1 \
+--spo-signature ebf97a6f4d2c73ef0d523aef8fc8b2799db07d733de05ee5104525552a50b714243853ff349adb5b79b576de5748680f1ef5e56f56155b73b914b109ae0df009
+```
+</details>
+
+The `register2` command will return the `register3` command that you may simply copy and paste.
+
+
+2. **Submit registration**:
+
+:::note
+`Kupo`, `Ogmios`, and `Postgres-db-sync` ports will be needed for **register3**.
+:::
+
+- Simply copy and paste the **register3** command and follow the prompts to submit registration:
+
+:::warning
+
+There is a known issue with the `register3`. Upon your first try, you will get an error such as `"command output: Invalid option `--atms-kind'"`. There is an easy workaround, just run the `register3` command with the error and continue following the guide.
+
+:::
+
+<details>
+<summary>Example output (register3)</summary>
+```shell
+./partner-chains-cli register3 \
+--chain-id 47 \
+--threshold-numerator 2 \
+--threshold-denominator 3 \
+--governance-authority 0x93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6 \
+--genesis-committee-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3f604#0 \
+--registration-utxo 19a33eaebeedc476f680b98dcd24edef7070431f8280fb6d73aea6cef5a48776#1 \
+--aura-pub-key 0x882812d0e9b4f5ec59e39c15f463c223b1d0f1f8bdb9395d30dcbc30ce32446e \
+--grandpa-pub-key 0xa322ca606f93e95b3e0df14c53f033f3552098c9869d77b52bfd8efc4dd856be \
+--sidechain-pub-key 0x02ef7cdacc91046f70e77c9e247592be0ac720d14946f6106530efb474f96f74f9 \
+--sidechain-signature 291b0a681fc84628d16688455c088cb37ae37a03ce731421390178034d815e06140ef659588a5d7dce331ac55358b60f16b6555fac87d8280b95d0572cf6a504 \
+--spo-public-key d5f8d2a11f95ffa5bd2a7983f7143ccc94f53d303ab7daa4554b3d143a3b9dc1 \
+--spo-signature ebf97a6f4d2c73ef0d523aef8fc8b2799db07d733de05ee5104525552a50b714243853ff349adb5b79b576de5748680f1ef5e56f56155b73b914b109ae0df009
+⚙️ Register as a committee candidate (step 3/3)
+This command will submit the registration message to the mainchain.
+To proceed with the next command, a payment signing key is required. Please note that this key will not be stored or communicated over the network.
+> Path to mainchain payment signing key file /home/stev/cardano-keys/payment.skey
+Partner Chains Smart Contracts require access to Kupo and Ogmios. Please provide their configuration.
+> Kupo protocol (http/https) http
+> Kupo hostname localhost
+> Kupo port 1442
+> Ogmios protocol (http/https) http
+> Ogmios hostname localhost
+> Ogmios port 1337
+running external command: ./pc-contracts-cli register --network testnet --sidechain-id 47 --genesis-committee-hash-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3f604#0 --threshold-numerator 2 --threshold-denominator 3 --governance-authority 0x93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6 --atms-kind plain-ecdsa-secp256k1 --registration-utxo 19a33eaebeedc476f680b98dcd24edef7070431f8280fb6d73aea6cef5a48776#1 --sidechain-public-keys 0x02ef7cdacc91046f70e77c9e247592be0ac720d14946f6106530efb474f96f74f9:0x882812d0e9b4f5ec59e39c15f463c223b1d0f1f8bdb9395d30dcbc30ce32446e:0xa322ca606f93e95b3e0df14c53f033f3552098c9869d77b52bfd8efc4dd856be --sidechain-signature 291b0a681fc84628d16688455c088cb37ae37a03ce731421390178034d815e06140ef659588a5d7dce331ac55358b60f16b6555fac87d8280b95d0572cf6a504 --spo-public-key d5f8d2a11f95ffa5bd2a7983f7143ccc94f53d303ab7daa4554b3d143a3b9dc1 --spo-signature ebf97a6f4d2c73ef0d523aef8fc8b2799db07d733de05ee5104525552a50b714243853ff349adb5b79b576de5748680f1ef5e56f56155b73b914b109ae0df009 --ada-based-staking --kupo-host localhost --kupo-port 1442  --ogmios-host localhost --ogmios-port 1337  --payment-signing-key-file /home/stev/cardano-keys/payment.skey
+command output: Invalid option `--atms-kind'
+command output: 
+command output: Usage: pc-contracts-cli register (-k|--payment-signing-key-file /absolute/path/to/payment.skey)
+command output:                                  [-K|--stake-signing-key-file /absolute/path/to/stake.skey]
+command output:                                  (-i|--sidechain-id 1)
+command output:                                  (-c|--genesis-committee-hash-utxo TX_ID#TX_IDX)
+command output:                                  (-g|--governance-authority PUB_KEY_HASH)
+command output:                                  --threshold-numerator INT
+command output:                                  --threshold-denominator INT
+command output:                                  --sidechain-public-keys SIDECHAIN_KEY:AURA_KEY:GRANDPA_KEY
+command output:                                  --sidechain-signature SIGNATURE
+command output:                                  --registration-utxo TX_ID#TX_IDX
+command output:                                  (--ada-based-staking
+command output:                                  --spo-public-key PUBLIC_KEY
+command output:                                  --spo-signature SIGNATURE |
+command output:                                  --native-token-based-staking)
+command output:                                  [--ogmios-host localhost]
+command output:                                  [--ogmios-path some/path] [--ogmios-port 1234]
+command output:                                  [--ogmios-secure] [--kupo-host localhost]
+command output:                                  [--kupo-path some/path] [--kupo-port 1234]
+command output:                                  [--kupo-secure] --network NETWORK
+command output:   Register a committee candidate
+Running executable failed with status exit status: 1
+Error: Failed to run command
+```
+</details>
+
+To workaround the error, remove the `--atms-kind plain-ecdsa-secp256k1` argument from the register3 command. You can find the register3 command right before the error. For example:
+
+```shell
+> Kupo port 1442
+> Ogmios protocol (http/https) http
+> Ogmios hostname localhost
+> Ogmios port 1337
+running external command: ./pc-contracts-cli register --network testnet --sidechain-id 47 --genesis-committee-hash-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3...# The rest of the register 3 command.
+```
+
+Run `register3` without the `atms-kind` argument to complete registration:
+
+```shell
+./pc-contracts-cli register --network testnet --sidechain-id 47 --genesis-committee-hash-utxo d8774f03b4d44eddca22554fbb24f06bde27f8b7c29c979d79058f76b1e3...# The rest of the register 3 command.
+```
+
+## 3d. Verifying registration
+
+The registration is valid in `n` + 2 mainchain epochs. Get the current epoch after registering:
+
+```bash
+curl -L -X POST -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0",
+      "method": "sidechain_getStatus",
+      "params": [],
+      "id": 1
+    }' https://rpc.testnet-02.midnight.network | jq
+```
+
+Example output:
+
+```bash
+curl -L -X POST -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0",
+      "method": "sidechain_getStatus",
+      "params": [],
+      "id": 1
+    }' https://rpc.testnet-02.midnight.network | jq
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100   297  100   193  100   104    395    213 --:--:-- --:--:-- --:--:--   608
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "sidechain": {
+      "epoch": 239830,
+      "slot": 287797102,
+      "nextEpochTimestamp": 1726783200000
+    },
+    "mainchain": {
+      "epoch": 695,
+      "slot": 60126536,
+      "nextEpochTimestamp": 1726790400000
+    }
+  },
+  "id": 1
+}
+```
+
+- Query validator commitee for `n` + 2 epochs. 
+
+```
+curl -L -X POST -H "Content-Type: application/json" -d '{
+      "jsonrpc": "2.0",
+      "method": "sidechain_getAriadneParameters",
+      "params": [697],
+      "id": 1
+    }' https://rpc.testnet-02.midnight.network | jq
+```
+
+Look for your registration under `"candidateRegistrations": {)`. Ensure you see your Partner-chain keys in the registration and  `"isValid": true`
+
+🥳 At this point you are now registered as a candidate in the validator committee! Now, it's time to run a **midnight-node** in validator mode to produce Midnight blocks.
+
+## Deregister
+
+Deregistration can be performed using the `./pc-contracts-cli` binary that's packaged with the `partner-chain-cli`. Deregister function will soon be included as part of `partner-chain-cli` in a near update.`.
+
+1. **Submit deregistration:**
+      - Invoke `./pc-contracts-cli deregister`
+
+      ```shell
+      ./pc-contracts-cli deregister \
+      --payment-signing-key-file payment.skey \
+      --sidechain-id 47 \
+      --sidechain-genesis-hash 0x2b191cf0c368b79b4c7b4665f3d0b096b2d8c9a152f6f4904a76a1aa94a49831 \
+      --genesis-committee-hash-utxo f44d20261bd3e079cc76b4d9b32b3330fea793b465c490766df71be90e577d8a#0 \
+      --governance-authority 0x93f21ad1bba9ffc51f5c323e28a716c7f2a42c5b51517080b90028a6 \
+      --atms-kind plain-ecdsa-secp256k1 \
+      --threshold-numerator 2 \	
+      --threshold-denominator 3 \
+      --ada-based-staking \
+      --spo-public-key 53b0d8c9f… \
+      --ogmios-host localhost \
+      --ogmios-port 1337 \
+      --kupo-host localhost \
+      --kupo-port 1442 
+      ```
+
+:::important 
+
+The `payment-signing-key-file` has to be the same one used for the registration.
+
+:::

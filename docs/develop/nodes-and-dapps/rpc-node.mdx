@@ -1,0 +1,88 @@
+---
+id: rpc-node
+title: Setting up RPC Nodes
+sidebar_label: Setting up RPC Nodes
+description: A reference on setting up RPC nodes for Midnight.
+keywords: [node]
+---
+
+# Setting up RPC Nodes for Midnight
+
+RPC nodes play a critical role in the Midnight network by exposing APIs that allow developers to interact with the blockchain programmatically. These nodes enable applications to submit transactions, query blockchain data, and more, serving as the bridge between the network and dApp infrastructure.
+
+## RPC Node
+
+An **RPC node** is a specialized type of node that exposes an HTTP or WebSocket-based API, enabling applications and developers to interact with the Midnight blockchain. Unlike full or archive nodes, RPC nodes prioritize external accessibility and API performance.
+
+## Prerequisites
+
+Before setting up your Midnight RPC node, ensure you have the following:
+
+* [Docker](https://docs.docker.com/engine/install/) installed and configured.
+* [Cardano-db-sync instance set up](./cardano-db-sync) with accessible PostgreSQL port.
+* Sufficient resources (CPU, memory, and storage).
+
+## Setting Up an RPC Node
+
+### Step 1: Configure PostgreSQL Database
+
+Set up a Cardano-db-sync/ PostgreSQL instance with the following parameters:
+
+* **Host:** PostgreSQL server address.
+* **Port:** Default 5432.
+* *Username:** Database user.
+* **Password:** Database password.
+* **Database Name:** Name of the database (e.g., cexplorer).
+
+### Step 2: Run the Docker Command for an RPC Node
+
+Use the following Docker command to set up your RPC node:
+
+```bash
+docker run \
+  --name midnight-rpc-node \
+  --platform linux/amd64 \
+  -p 9944:9944 \
+  -p 30333:30333 \
+  -v midnight-data:/node \
+  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:<VERSION>" \
+  -e BASE_PATH="./node/chain/" \
+  -e CFG_PRESET="testnet-02" \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/testnet-02/testnetRaw.json \
+  --rpc-methods=Safe \
+  --rpc-cors=all \
+  --rpc-external \
+  --ws-external
+```
+
+Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/comp-matrix).
+
+
+## Verifying the Node
+
+### Check Logs
+
+Monitor the node's logs to ensure it syncs with the network:
+
+```bash
+docker logs -f <node-name>
+```
+
+### Test Connectivity
+
+Ensure the node's P2P port (default: `30333`) is open and reachable for network communication. Use tools like `telnet`, `netcat`, or `nmap` to verify the port status and ensure the node is properly connected to the network.
+
+Additionally, to preview the available RPC methods, run the following curl command, which lists all endpoints exposed by the node:
+
+```bash
+curl -H "Content-Type: application/json" \
+     -X POST \
+     -d '{
+           "jsonrpc":"2.0",
+           "id":1,
+           "method":"rpc_methods",
+           "params":[]
+         }' \
+     http://127.0.0.1:9944
+```

@@ -1,0 +1,25 @@
+[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+
+***
+
+[@midnight-ntwrk/compact-runtime](../globals.md) / alignedConcat
+
+# Function: alignedConcat()
+
+```ts
+function alignedConcat(...values): AlignedValue;
+```
+
+**`Internal`**
+
+Concatenates multiple [ocrt.AlignedValue](../type-aliases/AlignedValue.md)s
+
+## Parameters
+
+### values
+
+...[`AlignedValue`](../type-aliases/AlignedValue.md)[]
+
+## Returns
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)

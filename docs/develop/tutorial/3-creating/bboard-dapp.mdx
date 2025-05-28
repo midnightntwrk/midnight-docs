@@ -1,0 +1,370 @@
+---
+sidebar_label: "3.3 Bulletin board DApp"
+---
+
+# Bulletin board DApp
+
+What remains to be done, in order to have a working bulletin board
+DApp, is to complete the TypeScript code.  For the sake of simplicity,
+the initial version of the DApp will have text-based menu prompts
+(making it look like something out of the early 1980s).  The creation
+of a web GUI is left for a later part of the developer tutorial.
+
+To get you started, most of the code is already written for you,
+including the interactive menu prompts.  However, most of the parts that manipulate 
+the contract and the private state are missing.
+Filling in those missing parts is your work for this part of the
+tutorial.
+
+At this point, you should already have the contract in its `contract/src`
+subdirectory.  Following the instructions on the preceding pages, you
+have compiled the contract, producing the contract's TypeScript API
+and other material in the `managed` subdirectory.
+
+Most of the TypeScript code you need is already written for you, in
+the `contract/src`, `api/src`, and `bboard-cli/src` directories.  As with the
+counter application, `bboard-cli/src/index.ts` contains the main run loop of the application
+while `api/src/index.ts` contains convenient abstractions for implementing the application.  But, two
+files in the project are incomplete:
+- `contract/src/witnesses.ts`
+- `api/src/index.ts`
+
+Open these in your favorite TypeScript editor and get ready to fill in
+the missing pieces.  (The discussion below sometimes refers to code in
+the file without displaying it on this page, so you *must* follow
+along in the code in your own editor to understand what's being said.)
+
+## Exercise 1: define the private state
+
+Down at line 18 of `witnesses.ts`, you will find a comment identifying
+the place where you need to fill in some code for exercise 1.  Look at
+its context in your editor.
+
+The public state of the contract is stored in the blockchain and can
+be seen by anyone, but the private state is entirely local to the DApp
+and may be completely different for each user.  A contract only
+*declares the types* of the functions for accessing and changing the
+private state; the contract *does not define* the functions, nor does
+it say anything about the type or structure of the private state
+itself.  Thus, some parts of the generated contract API are
+parameterized by the type of the private state.
+
+A good practice is to define an interface or type alias for the
+private state.
+
+Now ask yourself: *what should be held in the user's private state for
+the bulletin board?*  Hint: In this example, the private state does
+not evolve.  It is simply a value that can be fetched through the
+`local_secret_key()` witness that the contract declared.
+
+If you answered, 'the secret key,' you were right.  The bulletin board
+contract declared the type of the secret key data to be a byte array,
+which corresponds to the TypeScript type `Uint8Array`, so fill in the
+missing code, defining the `BBoardPrivateState` type to have a
+`secretKey` property of type `Uint8Array`, like this:
+
+```tsx
+export type BBoardPrivateState = {
+  readonly secretKey: Uint8Array;
+};
+```
+
+The next code in `witnesses.ts` defines a helpful function to create
+objects of type `BBoardPrivateState`, given a secret key.  Fill in
+that code, too, so that it matches the type you just defined.  When
+you are done, it should look like this:
+
+```tsx
+export const createBBoardPrivateState = (secretKey: Uint8Array) => ({
+  secretKey,
+});
+```
+
+## Exercise 2: initialize the private oracle
+
+In the research literature about zero-knowledge proofs, the part of
+the system that is consulted to access private state is called an
+*oracle*, so you will sometimes find that term appearing in the
+Midnight API and documentation.  The next exercise is to create an
+object to represent the bulletin board DApp's private oracle: its set
+of witness functions.
+
+Below the code you edited in exercise 1, you will find the definition
+of the `witnesses` object.  The object must have a property (or
+method) for each of the contract's declared witness functions.
+Recall that `bboard.compact` declared only one witness function:
+`local_secret_key`.  The type and outer structure of the function is
+already written for you.  Exercise 2 is to fill in the missing return
+values.
+
+Look carefully at the function's type:
+- It takes a single argument, which is a `WitnessContext`.  If the
+  contract had declared additional parameters for the witness
+  function, they would appear here as additional parameters, after the
+  `WitnessContext`.
+- It returns two values: a new overall state for the private oracle
+  and a value corresponding to the declared return type of the witness
+  function in the Compact code.
+
+The `WitnessContext` type is parameterized by the ledger type `L` and
+private state type `PS`, so that it has three fields:
+- `ledger: T`
+- `privateState: PS`
+- `contractAddress: string`
+
+You can see that the `WitnessContext` type in this file is
+instantiated with the `Ledger` type imported from the API that the
+Compact compiler generated for the bulletin board contract, plus the
+private state type `BBoardPrivateState` that you defined in
+exercise 1.  This means that the `privateState` field in the
+`WitnessContext` will be of type `BBoardPrivateState`.  This is the
+only field needed from the `WitnessContext`, so the definition uses
+TypeScript's parameter destructuring notation to name only the
+`privateState` from the context and ignore the `ledger` and
+`contractAddress`.
+
+Now fill in the two values that `local_secret_key` should return.
+First, what is the new private state?  Hint: `local_secret_key` does
+not change the private state.
+
+The correct answer is that the new private state is the same as the
+old private state: simply the value `privateState`.
+
+Now what about the 'interesting' return value, the one declared in the
+contract?  The purpose of this function is to get the user's secret
+key, so that the contract can use it to generate and verify a public
+hash.  For the second return value, extract the secret key from the
+private state.  (You defined the contents of the private state in
+exercise 1.)
+
+Putting these together, your solution should look like this:
+
+```tsx
+export const witnesses = {
+  local_secret_key: ({ privateState }: WitnessContext<Ledger, BBoardPrivateState>): [BBoardPrivateState, Uint8Array] => [
+    privateState,
+    privateState.secretKey,
+  ],
+};
+```
+
+The bulletin board never needs to change the private state, but more
+complex contracts will need to update the private state.  The way to
+do that is *not* to mutate the state in place, but to return a new
+state value from a witness function.
+
+:::caution
+
+Do not use a global variable to hold or access the private state;
+always use the value passed to the witness function.
+
+:::
+
+
+The file `witnesses.ts` is complete.  Look now at the file
+containing the main logic of the bulletin board DApp:
+`api/src/index.ts`.
+
+In the remaining exercises, you will call the `post` and
+`take_down` circuits you defined in the bulletin board contract
+and then write the code to deploy the contract to the Midnight network.
+
+## Exercise 3: invoke the post circuit
+
+Find the comment that identifies the missing code for exercise 3, at
+about line 122.  It's in a `post` function.  You can see that the
+declaration of the return values is already in place.  The task for
+exercise 3 is write the code that creates and submits a `post`
+transaction on the contract.
+
+There is only a small amount of code to write, but it requires a few
+steps to explain it.  First, notice that `post` function is actually a
+method in the `BBoardAPI` class.  The class's constructor takes a
+`DeployedBBoardContract` as its first argument, implicitly making the
+value available as a `deployedContract` field in the object.  The type
+`DeployedBBoardContract` is defined in the adjacent file
+`common-types.ts` as an alias of [`FoundContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract).
+
+`FoundContract` is the base abstraction Midnight.js provides for creating
+and submitting transactions for smart contracts that have already been
+deployed to the blockchain.  It is called `FoundContract` because it works
+with contracts that have been "found" on-chain.  In other words, `FoundContract`
+is indifferent to _who_ deployed the contract for which it submits transactions.
+
+There is a subtype of `FoundContract` called [`DeployedContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract) which offers
+the same transaction builders but works with contracts that were deployed specifically by
+your application.  Consequentially, `DeployedContract` contains private information
+related to the contract deployment that `FoundContract` does not contain.
+Since this application doesn't make use of said private deployment information,
+`DeployedBBoardContract` is defined in terms of the more general `FoundContract` type.
+
+A `FoundContract` has a `callTx` property of type `CircuitCallTxInterface`.
+Through a bit of TypeScript magic, the `CircuitCallTxInterface` type contains, for each
+circuit defined in your contract, a function that will create and submit a call transaction for that
+circuit.  Putting all that together, the code to post a new message to the
+bulletin board looks like this:
+
+```tsx
+const txData = await this.deployedContract.callTx.post(message)
+```
+
+What if the user tries to post a message to a non-empty bulletin
+board?  The transaction will fail, and the code will throw an
+exception.  The current bulletin board DApp lets the exception
+propagate out to the main `run` function in `bboard-cli/src/index.ts`,
+so that the DApp exits.
+Once you have completed the DApp and tested it successfully, you could
+come back here and add an appropriate `try` / `catch` around the call
+to report the transaction failure in a more helpful way.
+
+## Exercise 4: invoke the take-down circuit
+
+In the `takeDown` function, just after the `post` function, you'll
+find the comment identifying the destination for exercise 4's code.
+(After you have completed exercise 3, the marker for exercise 4 should
+be near line 148.)
+
+You might not have figured out the answer to exercise 3 on your own,
+but after completing it, you can probably do exercise 4 without much
+help.  Try writing the code yourself before looking at the answer
+below.  (The `take_down` circuit is defined to return the old message,
+but this program doesn't need it, so you can ignore it and simply
+report that the transaction was submitted.)
+
+Here is a solution:
+
+```tsx
+const txData = await this.deployedContract.callTx.take_down();
+```
+
+## Exercise 5: deploy a new bulletin board contract
+
+You have seen that the code to invoke one of your contract's circuits
+and submit a corresponding transaction to the Midnight network is quite simple.
+The code to deploy a new contract is a little more complicated, but
+still short.
+
+Find the comment that identifies the missing code for exercise 5, at
+about line 172 after completing the preceding exercises.  It's in a
+`deploy` function.  You can see that the call to `deployContract` is
+started for you.  The task for exercise 5 is to fill in the arguments
+correctly.
+
+The `deployContract` function requires two arguments.  They
+are:
+1. A `MidnightProviders` object containing implementations of all the
+   necessary providers (refer back to
+   [the discussion of providers](/docs/develop/tutorial/2-building/dapp-details.mdx#providers)
+   in part 2 of the tutorial if necessary)
+2. A `DeployContractOptions` object containing configuration parameters
+   for the deployment.
+
+For the bulletin board contract, `DeployContractOptions` requires only three properties:
+1. `privateStateKey` - The name of the key at which the private state is stored in the
+   `PrivateStateProvider` given in the first `providers` argument.
+2. `contract` - The `Contract` object containing the executable JavaScript of the contract
+    being deployed.
+3. `initialPrivateState` - The initial private state for the contract, whose type matches the
+   state stored under the `privateStateKey`.
+
+You can fill in the first argument to `deployContract` easily because
+the `deploy` function already has a `providers` parameter.
+
+```tsx
+  providers,
+```
+
+The second argument to `deployContract` is the configuration object.
+
+```tsx
+{
+  contract: bboardContractInstance,
+  privateStateKey: 'bboardPrivateState',
+  initialPrivateState: createBBoardPrivateState(utils.randomBytes(32))
+}
+````
+
+To understand the deployment configuration, let's look at its entries one by one. The first entry,
+
+```tsx
+contract: bboardContractInstance,
+````
+
+is defined in terms of a constant `bboardContractInstance`,
+
+```tsx
+const bboardContractInstance: BBoardContract = new Contract(witnesses);
+```
+
+which is just an instance of `Contract` (which is generated by `compactc`) constructed
+with the witnesses you defined at the beginning of the tutorial.
+
+The second entry
+
+```tsx
+privateStateKey: 'bboardPrivateState',
+````
+
+indicates that the `FoundContract` returned from `deployContract` should
+store its private state at key `bboardPrivateState` in the private state provider given in the `providers` argument.
+Furthermore, because `providers.privateStateProvider` is of type `PrivateStateProvider<PrivateStates>`, the private
+state of the contract must be an object of type `BBoardPrivateState`.
+
+The third entry
+
+```tsx
+initialPrivateState: createBBoardPrivateState(utils.randomBytes(32)),
+```
+
+is defined using the function `createBBoardPrivateState` you wrote in the second half of exercise 1 to construct the private
+state for the bulletin board contract. The initial secret key is created from the `randomBytes` function provided for you in `api/src/utils/index.ts`.
+It is called with the number of bytes you need: 32.
+
+Putting all that together, the call to `deployContract` should look
+like this when you are done:
+
+```tsx
+  const deployedBBoardContract = await deployContract(providers, {
+    contract: bboardContractInstance,
+    privateStateKey: "bboardPrivateState",
+    initialPrivateState: createBBoardPrivateState(utils.randomBytes(32))
+  });
+```
+
+That's remarkably little code to deploy an entirely new contract to
+the Midnight blockchain.
+
+The code for joining an existing contract is similar to the code for
+deploying a new one.  You might want to look now at the code in the
+`join` function (just below the definition of `deploy`) and compare
+it to the code in `deploy`.
+
+You can explore the documentation for Midnight library functions,
+such as `deployContract` and `findDeployedContract`, in the Midnight.js
+reference documentation.  For your convenience, here are links to the
+documentation for those two functions:
+- [`deployContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/functions/deployContract)
+- [`findDeployedContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/functions/findDeployedContract)
+
+## Compiling and running the DApp
+
+If you have completed all the exercises, then your bulletin board DApp
+is ready to be compiled.  Go back to the `bboard-tutorial` directory
+(the one containing `contract`, `api`, and `bboard-cli`) and run:
+
+```shell
+npx turbo build
+```
+
+If the project does not build successfully, you must have made a
+mistake along the way.  Go back and check your work, or
+[ask for help](/docs/develop/getting-help.mdx).
+
+Also, adjacent to the `bboard-tutorial` directory in the examples
+package, there is a `bboard` directory with working answers for every
+exercise.  If you think there is a mistake in this documentation,
+check the contents of `bboard`, because that code is tested regularly
+to be sure it works with the current Midnight TestNet.
+
+Once the project is built, go on to the next page to learn how to test
+your code without touching the live Midnight network.

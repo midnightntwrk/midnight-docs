@@ -1,0 +1,195 @@
+---
+---
+
+# Step 2. Setup partner-chain dependencies
+
+Now that a Cardano SPO is set up, it is time to configure partner-chain dependencies such as **Ogmios**, **Kupo**, **Cardano-db-sync**, **Postgres**, and **Cardano-node**. To simplify the process, a `compose-partner-chains.yml` file is provided to easily start these services using [Docker Compose](https://docs.docker.com/compose/). Alternatively, one may choose to build these dependencies from source.
+
+## Minimum system requirements
+
+See [Partner-chain dependencies server requirements](/validate/run-a-validator/#2-partner-chain-dependencies-server).
+
+### Important notice for Ubuntu users:
+
+Ubuntu sometimes ignores Docker's UFW rules, which can compromise your server's security. To address this:
+
+- **Enable Docker to Work with UFW**: Run `sudo apt-get install docker-compose ufw` followed by `sudo ufw allow 22/tcp` for SSH access, and `sudo ufw allow 80/tcp` if you're exposing web services.
+- **Configure Docker to Use UFW**: Add these lines to `/etc/docker/daemon.json`:
+
+```json
+{
+  "iptables": false
+}
+```
+
+- Then, restart Docker with `sudo systemctl restart docker`.
+- **Verify**: After setup, ensure your firewall rules are in place by running `sudo ufw status`.
+
+## 2a. `docker-compose up` Partner-chain dependencies
+
+1. **Clone the `midnight-node-docker` repo and navigate to `compose-partner-chains.yml` file:**
+
+   ```shell
+   git clone git@github.com:midnightntwrk/midnight-node-docker.git
+   cd midnight-node-docker
+   ```
+
+2. **Edit `compose-partner-chains.yml` file:**
+   
+   - Edit the `compose-partner-chains.yml` file using [VSCode](https://code.visualstudio.com/download) or a shell editor such as [vim](https://www.redhat.com/sysadmin/beginners-guide-vim). 
+   
+   For example, with vim:
+   
+   ```shell
+   vim compose-partner-chains.yml
+   ```
+
+   - Enter `I` key to enter *insert* mode.
+   - Navidate using arrow keys and locate `POSTGRES_*` environment variables.
+
+   ```shell
+   - POSTGRES_HOST=postgres
+   - POSTGRES_PORT=5432
+   - POSTGRES_DB=cexplorer
+   - POSTGRES_USER=postgres
+   - POSTGRES_PASSWORD=password123
+   ```
+
+  :::danger
+
+  Security Warning: The default `POSTGRES_USER` (`postgres`), `POSTGRES_PASSWORD` (`password123`), and `POSTGRES_PORT` (`5432`) shown above are insecure and predictable. These **must** be changed to protect your database from unauthorized access and potential attacks.
+
+  :::
+
+   - If using `vim` editor, make changes, then `ESC` + `:wq` to save changes to file.
+
+3. **`docker-compose up` partner-chain dependencies:**
+
+   - Within the same directory as the `compose-partner-chains.yml`, launch partner-chain dependencies in detatched mode.
+
+   ```shell
+   docker compose -f compose-partner-chains.yml up -d
+   ```
+
+   Example output:
+
+   ```shell
+   [+] Running 5/5
+   ✔ Container postgres      H...                                 5.7s 
+   ✔ Container cardano-node  Started                              0.1s 
+   ✔ Container ogmios        Sta...                               0.2s 
+   ✔ Container kupo          Start...                             0.2s 
+   ✔ Container db-sync       St...                                5.8s
+   ```
+
+   :::important
+
+   ⌛ Allow partner-chain dependencies to sync 100% with the Cardano network. This can take a few hours.
+
+   :::
+
+### 2b. Manage and monitor partner-chain dependencies
+
+1. **Verify status of services and ports:**
+
+   - List active Docker containers along with their status, ports, and container IDs:
+
+   ```bash
+   docker container list
+   ```
+
+   Example output:
+
+   ```shell
+   CONTAINER ID   IMAGE                                           COMMAND                  CREATED         STATUS                   PORTS                                       NAMES
+   aeddf39b71f7   ghcr.io/intersectmbo/cardano-db-sync:13.5.0.2   "/nix/store/mvypj83y…"   9 minutes ago   Up 9 minutes                                                         db-sync
+   61a6eb0ed321   cardanosolutions/ogmios:v6.5.0                  "/bin/ogmios --node-…"   9 minutes ago   Up 9 minutes (healthy)   0.0.0.0:1337->1337/tcp, :::1337->1337/tcp   ogmios
+   b514a818da45   postgres:15.3                                   "docker-entrypoint.s…"   9 minutes ago   Up 9 minutes (healthy)   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   db-sync-postgres
+   558d2b49eddc   ghcr.io/intersectmbo/cardano-node:10.1.2        "entrypoint"             9 minutes ago   Up 9 minutes             0.0.0.0:3001->3001/tcp, :::3001->3001/tcp   cardano-node
+   ```
+
+2. **View logs of specific containers:**
+
+   To view logs of a particular container, use `docker logs` followed by the container name or ID:
+
+   ```bash
+   docker logs db-sync
+   docker logs kupo
+   docker logs ogmios
+   docker logs db-sync-postgres
+   docker logs cardano-node
+   ```
+
+   Replace `db-sync`, `ogmios`, etc., with the actual container names or container IDs you want to inspect.
+
+3. **Useful docker-compose commands:**
+
+   To learn more about Docker Compose, visit the official [Docker Compose documentation](https://docs.docker.com/compose/). However, here are some common commands:
+
+   ```shell
+   docker-compose stop # stop containers
+   docker-compose start # start containers
+   docker-compose restart # restart containers
+   docker-compose down # stop and remove containers
+   docker-compose stats # display resource usage statistics
+   ```
+
+4. **Monitor Ogmios service:**
+
+   - View Ogmios dashboard at http://localhost:1337/. If Ogmios is running on a remote service then simply visit http://x.x.x.x:1337 in a browser with the respective IP address and PORT.
+   - Query Ogmios healthcheck:
+   ```
+   curl -s localhost:1337/health | jq '.'
+   ```
+
+5. **Monitor Kupo service:**
+
+   - Query Kupo healthcheck:
+   ```
+   curl -X GET http://localhost:1442/health
+   ```
+
+6. **Query Cardano-db-sync synchronization progress:**
+
+   - **Using `psql` directly:**
+
+     If you don’t already have the PostgreSQL client installed, you can install it using:
+
+     ```shell
+     sudo apt-get install postgresql-client
+     ```
+
+     Log in to PostgreSQL shell using `psql`: 
+     
+     ```shell
+      psql -h localhost -U postgres -d cexplorer -p 5432
+      ```
+     
+      Optionally, log in to PostgreSQL shell using `docker`: 
+
+     ```shell
+     docker exec -it db-sync-postgres psql -U postgres -d cexplorer
+     ```
+
+     Then, run the following query inside the PostgreSQL shell:
+
+     ```sql
+     SELECT 100 * (
+         EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) -
+         EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))
+     ) / (
+         EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) -
+         EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))
+     ) AS sync_percent
+     FROM block;
+     ```
+
+   - **Using `ssh` remotely:**
+
+     If you want to query remotely, run this command via SSH:
+     
+     ```shell
+     ssh user@x.x.x.x -C "psql -d cexplorer -h localhost -p 5432 -U postgres -c \"SELECT 100 * (EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) / (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) AS sync_percent FROM block;\""
+     ```
+
+     Replace `user@x.x.x.x` with your SSH username and server IP address.

@@ -1,0 +1,85 @@
+---
+slug: compact-division
+title: Simulating a division in Compact
+authors: claude
+tags: [compact]
+---
+
+As of version 0.22.0 of the [Compact](https://docs.midnight.network/develop/reference/compact/) compiler, division is not yet a part of the arithmetic operations available to the developers.
+
+However, two solutions can be considered to either implement a division or verify the result of a division.
+
+## The vector solution
+
+> ⚠️ Warning: this solution is presented for demonstration purposes. It is recommende to use the witness solution in your smart contracts.
+
+The first solution is to use a vector, subtraction, and the `fold` expression.  
+Here is an example of a module that simulates a division:
+
+```compact
+module DivOne {
+    export struct DivResult {
+        quotient: Uint<128>;
+        remainder: Uint<128>;
+    }
+    // division by subtraction
+    export pure circuit div(
+        dividend: Uint<128>, 
+        divisor: Uint<128>, 
+        divLoop: Vector<1000, Uint<1>>
+    ): DivResult {
+        assert divisor != 0 "division by zero";
+
+        const [remainder, quotient]: [Uint<128>, Uint<128>] = fold((acc, _) => {
+            const [remaining, counter] = acc;
+            if (remaining < divisor) {
+                return acc;
+            } else {
+                return [(remaining - divisor), counter + 1 as Uint<128>];
+            }
+        }, [dividend, 0 as Uint<128>], divLoop);
+
+        return DivResult {
+            quotient: quotient,
+            remainder: remainder
+        };
+    }
+}
+```
+
+The `DivOne` module implements division entirely within the circuit using a method based on repeated subtraction. 
+
+It defines a `div` circuit that takes a dividend, divisor, and a fixed-length vector called `divLoop` as inputs. This vector acts as a loop control structure, allowing the fold function to iterate up to 1000 times without unbounded execution.  
+
+> Note: the `divLoop` doesn't prevent unbounded iteration as unbounded iteration is impossible in Compact.
+
+In each iteration, the circuit subtracts the divisor from the remaining dividend and increments the quotient by one, stopping once the remainder is less than the divisor (although the iteration keeps going on). To prevent division by zero, an assertion is included before the loop. 
+
+The result is returned as a struct of type `DivResult` containing both quotient and remainder. 
+
+This approach is deterministic and self-contained but limited by the loop length, making it suitable only for small enough quotients.
+
+## The witness solution
+
+The second solution is to receive the result of a division made off-chain and verify on-chain that the result is correct, as illustrated in the following module:
+
+```compact
+module DivTwo {
+    export witness divMod(x: Uint<128>, y: Uint<128>): [Uint<128>, Uint<128>];
+
+    export circuit check_div(dividend: Uint<128>, divisor: Uint<128>): Boolean {
+        const [quotient, remainder] = divMod(dividend, divisor);
+        assert remainder < divisor "remainder error";
+        assert (quotient * divisor) + remainder == dividend "division error";
+        return true;
+    }
+}
+```
+
+The `DivTwo` module takes a different approach by offloading the actual division computation to an external witness function called `divMod`. 
+
+The witness is expected to return the quotient and remainder for given inputs, but the circuit does not compute them itself. Instead, the `check_div` circuit validates the correctness of the witness-provided values using two key assertions: that the remainder is less than the divisor, and that the product of the quotient and divisor plus the remainder equals the original dividend. 
+
+This method is preferable and more efficient than `DivOne` because it avoids iteration, but it relies on external computation and correct witness values. It is particularly useful when division can be precomputed off-chain.
+
+Together, these two approaches showcase the trade-offs involved in implementing division in Compact: the `vector` solution offers a fully in-contract solution that guarantees correctness through computation, while while the `witness` solution leverages external computation with in-contract verification for greater efficiency. The choice between them depends on the specific performance and trust model requirements of the application.

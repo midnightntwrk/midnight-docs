@@ -1,0 +1,103 @@
+---
+slug: bech32m-hex
+title: From Hex to Bech32m - Midnight’s New Standard for Safer, Smarter Addresses
+authors: devrel
+tags: [wallet, midnight.js]
+keywords: ["Midnight", "Bech32m", "Wallet"]
+---
+
+Midnight now uses Bech32m as the default format for wallet addresses and public keys. This change improves readability, safety, and metadata clarity. Hex is deprecated but still temporarily supported for backward compatibility. Here's how to migrate your dApp.
+
+<!--truncate-->
+
+The Midnight ecosystem is evolving — and with the latest release of the Wallet SDK, Wallet API, DApp Connector API, and Midnight Lace Wallet, one important change is the new default address format: Bech32m, which is a modern, human-readable address format with error detection and clear context, originally developed for Bitcoin Taproot.
+
+This post explores what that means, why it matters, and how to adapt your applications accordingly.
+
+## Why Move Away From Hex?
+
+Hexadecimal (base-16) encoding has been the long-standing default for representing blockchain addresses due to its simplicity, broad tooling support, and compact format. It provides a direct, low-level view of binary data, making it easy for machines to parse and developers to integrate. However, despite its convenience, hex lacks critical features for modern blockchain applications. It provides no built-in error detection, making it prone to copy-paste mistakes, and it offers no contextual information—such as the network or address type—leading to ambiguity and increased risk in user-facing systems.
+
+## Introducing Bech32m
+
+To address the limitations of hex encoding, the blockchain ecosystem introduced Bech32, a human-readable address format originally developed for Bitcoin SegWit. Bech32m is a refined version of this format, designed specifically to support new cryptographic constructions such as Taproot, and is now used in the Midnight ecosystem. Unlike hex, Bech32m encodes data using a base-32 character set that avoids visually ambiguous characters (like 0 vs O), and includes a strong checksum for detecting errors caused by typos or miscopies.
+
+A Bech32m string consists of three parts: a human-readable prefix (HRP) that identifies the network and address type (e.g., `mn_shield-addr_test` for Midnight testnet), a separator (1), and the encoded payload, which contains the actual data (e.g., coin public key and encryption public key). The result is a format that is not only safer and easier for users to handle, but also rich in metadata, making it far more suitable for decentralized applications where clarity and security are critical.
+Where Bech32m Is Used in Midnight
+
+The adoption of Bech32m isn’t limited to a single library — it’s a coordinated shift across the entire Midnight wallet ecosystem. With the release of Wallet SDK 4.0, Wallet API 4.0, DApp Connector API v2.0, and the latest version of the Midnight Lace Wallet, Bech32m is now the default encoding for wallet addresses and public keys.
+All core components have been updated to expose Bech32m-encoded fields by default while marking the legacy hex fields as deprecated. This ensures a smoother migration path for dApps and infrastructure that still rely on hexadecimal formats, without compromising on future-proofing or safety.
+
+Here’s how this looks in practice using the `DAppConnectorWalletState` interface:
+
+```
+interface DAppConnectorWalletState {
+  address: string; // ✅ Bech32m-encoded address
+
+  /** @deprecated please use the `address` field instead. */
+  addressLegacy: string;
+
+  coinPublicKey: string; // ✅ Bech32m-encoded coin public key
+
+  /** @deprecated please use the `coinPublicKey` field instead. */
+  coinPublicKeyLegacy: string;
+
+  encryptionPublicKey: string; // ✅ Bech32m-encoded encryption public key
+
+  /** @deprecated please use the `encryptionPublicKey` field instead. */
+  encryptionPublicKeyLegacy: string;
+}
+```
+
+## Backward Compatibility and Migration
+
+While Bech32m is now the primary format, legacy hex fields are still accessible through the `Legacy` postfixed — but these are officially deprecated and will be removed in future versions. If your dApp or tooling still expects hex values, the SDK provides a utility package to help with conversion:
+
+```
+import { decodeBech32mAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
+
+const hexAddress = decodeBech32mAddress(address);
+```
+
+This ensures you can continue to work with legacy systems while gradually migrating to the safer and more expressive Bech32m format.
+
+## What You Should Change
+
+If you’re consuming wallet state via the DApp Connector API or Wallet SDK, make sure you:
+
+✅ Switch from `addressLegacy → address`
+
+✅ Switch from `coinPublicKeyLegacy → coinPublicKey`
+
+✅ Switch from `encryptionPublicKeyLegacy → encryptionPublicKey`
+
+✅ Use `@midnight-ntwrk/wallet-sdk-address-format` for conversion where needed
+
+Example:
+
+```
+import { decodeBech32mAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
+
+const hex = decodeBech32mAddress("mtst1q0yz7f64vu...");
+```
+
+## TL;DR: Bech32m Is Now the Default
+
+✅ Bech32m is the default address/public key format across all wallet-related packages
+
+❌ Hex format fields (addressLegacy, coinPublicKeyLegacy, etc.) are deprecated
+
+🛠️ Migration is simple — just use the new fields and types already provided
+
+🔁 Legacy hex values are still temporarily available for backward compatibility
+
+📦 If you're building a dApp, make sure you're using `midnight-js@1.0.0`, which supports both Wallet SDK 4.0.0 and older versions. It also enables compatibility with Bech32m addresses.
+
+💬 Have questions about the migration or need help updating your dApp? Drop us a note in [#dev-corner on Discord](https://discord.com/channels/1165826384975908924/1209887476290682910).
+
+✅ Migration Checklist
+
+- [ ] Use `address`, not `addressLegacy`
+- [ ] Use `coinPublicKey`, not `coinPublicKeyLegacy`
+- [ ] Use `encryptionPublicKey`, not `encryptionPublicKeyLegacy`
+- [ ] Use `@midnight-ntwrk/wallet-sdk-address-format` for any needed conversions

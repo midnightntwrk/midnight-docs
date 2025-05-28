@@ -1,0 +1,44 @@
+name: Preview Deploy
+
+on:
+  - pull_request
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  ALGOLIA_APP_ID: ${{secrets.ALGOLIA_APP_ID}}
+  ALGOLIA_INDEX_NAME: ${{secrets.ALGOLIA_INDEX_NAME}}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - uses: amondnet/vercel-action@v25.1.0
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID}}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID}}
+          scope: ${{ secrets.VERCEL_ORG_ID}}
+          working-directory: ./
+          alias-domains: |
+            pr-{{PR_NUMBER}}-midnight-docs.vercel.app
+
+  run-LHCI-workflow:
+    needs: [deploy-preview]
+    uses: ./.github/workflows/light-house-ci.yml
+    secrets: inherit
+
+  run-PWCI-workflow:
+    needs: [deploy-preview]
+    uses: ./.github/workflows/playwright-visual-regression.yml
+    secrets: inherit
