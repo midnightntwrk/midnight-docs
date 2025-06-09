@@ -5,6 +5,14 @@ import { themes as prismThemes } from "prism-react-renderer";
 // const lightCodeTheme = require("prism-react-renderer/themes/github");
 const darkCodeTheme = prismThemes.dracula;
 
+const algoliaConfig = process.env.ALGOLIA_APP_ID? {
+        appId: process.env.ALGOLIA_APP_ID,
+        apiKey: "a3137b74255be90430cc58305fe4e179", // Public API key: it is safe to commit it
+        indexName: process.env.ALGOLIA_INDEX_NAME,
+        contextualSearch: false, // If new versions of the docs are added this needs to be configured
+        searchPagePath: false
+      } : undefined;
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Midnight Docs",
@@ -223,13 +231,7 @@ const config = {
         theme: darkCodeTheme,
         additionalLanguages: ["bash", "nix", "json", "json5", "yaml"]
       },
-      algolia: {
-        appId: process.env.ALGOLIA_APP_ID,
-        apiKey: "a3137b74255be90430cc58305fe4e179", // Public API key: it is safe to commit it
-        indexName: process.env.ALGOLIA_INDEX_NAME,
-        contextualSearch: false, // If new versions of the docs are added this needs to be configured
-        searchPagePath: false
-      }
+      algolia: algoliaConfig
     })
 };
 
