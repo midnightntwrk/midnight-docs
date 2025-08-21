@@ -1,0 +1,163 @@
+name: Vercel Preview URL Lighthouse Audit
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        required: false
+        type: string
+    secrets:
+      token:
+        required: false
+
+jobs:
+  generate_lighthouse_audit:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add comment to PR
+        id: loading_comment_to_pr
+        uses: marocchino/sticky-pull-request-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          number: ${{ github.event.issue.number }}
+          header: lighthouse
+          message: |
+            Running Lighthouse audit...
+      - name: Vercel Preview URL
+        id: vercel_preview_url
+        uses: zentered/vercel-preview-url@v1.1.9
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+        with:
+          vercel_project_id: ${{secrets.VERCEL_PROJECT_ID}}
+          vercel_team_id: ${{secrets.VERCEL_ORG_ID}}
+
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get -y update
+          sudo apt-get -y install google-chrome-stable
+          export CHROME_PATH=$(which google-chrome)
+          echo "Chrome is installed at $CHROME_PATH"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read paths from file and generate full URLs
+        id: read-urls
+        run: |
+          base_url="https://${{ steps.vercel_preview_url.outputs.preview_url }}"
+          full_urls=""
+          paths=$(jq -r '.paths[]' packages/tests/pipelines-urls.json)
+          for path in $paths; do
+            full_url="${base_url}${path}"
+            full_urls="${full_urls}${full_url}\n"
+          done
+          echo -e "The following URLs will be processed:\n$full_urls"
+          echo "urls<<EOF" >> $GITHUB_ENV
+          echo -e "$full_urls" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Prepare envs
+        run: |
+          sed -i "s/{{VERCEL_BYPASS_TOKEN}}/${{secrets.VERCEL_BYPASS_TOKEN}}/g" packages/tests/lighthouserc.js
+
+      - name: Lighthouse CI Action
+        uses: treosh/lighthouse-ci-action@v11
+        id: lighthouse_audit
+        with:
+          urls: ${{ env.urls }}
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+          configPath: packages/tests/lighthouserc.js
+        env:
+          LIGHTHOUSE_CHROMIUM_PATH: $CHROME_PATH
+          VERCEL_BYPASS_TOKEN: ${{ secrets.VERCEL_BYPASS_TOKEN }}
+
+      - name: Format lighthouse score
+        id: format_lighthouse_score
+        uses: actions/github-script@v3
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const results = ${{ steps.lighthouse_audit.outputs.manifest }}
+            const links = ${{ steps.lighthouse_audit.outputs.links }}
+            const formatResult = (res) => Math.round((res * 100))
+            let accessibility = 0;
+            let performance = 0;
+            let bestPractices = 0;
+            let seo = 0;
+            results.map((item, index) => {
+              performance = item.summary.performance + performance;
+              accessibility = item.summary.accessibility + accessibility;
+              bestPractices = item.summary['best-practices'] + bestPractices;
+              seo = item.summary.seo + seo;
+            });
+            performance = formatResult((performance / results.length));
+            accessibility = formatResult((accessibility / results.length));
+            bestPractices = formatResult((bestPractices / results.length));
+            seo = formatResult((seo / results.length));
+            const score = res => res >= 90 ? '🟢' : res >= 50 ? '🟠' : '🔴';
+            let commentArray = [
+                `⚡️ Lighthouse Audit for PR`,
+                '| URL | Performance| Accessibility | Best practices | SEO | Report URL',
+                '| --- | --- | --- | --- | --- | --- |',
+                `| Overall | ${score(performance)} ${performance} | ${score(accessibility)} ${accessibility} | ${score(bestPractices)} ${bestPractices} | ${score(seo)} ${seo} | --- |`,
+            ];
+            results.map((item, index) => {
+              commentArray.push(`| ${item.url} | ${score(formatResult(item.summary.performance))} ${formatResult(item.summary.performance)} | ${score(formatResult(item.summary.accessibility))} ${formatResult(item.summary.accessibility)} | ${score(formatResult(item.summary['best-practices']))} ${formatResult(item.summary['best-practices'])} | ${score(formatResult(item.summary.seo))} ${formatResult(item.summary.seo)} | ${Object.values(links)[index]} |`);
+            });
+            const comment = commentArray.join('\n');
+            core.setOutput("comment", comment);
+            core.setOutput("performance", performance);
+            core.setOutput("accessibility", accessibility);
+            core.setOutput("bestPractices", bestPractices);
+            core.setOutput("seo", seo);
+
+      - name: Add comment to PR
+        id: comment_to_pr
+        uses: marocchino/sticky-pull-request-comment@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          number: ${{ github.event.issue.number }}
+          header: lighthouse
+          message: |
+            ${{ steps.format_lighthouse_score.outputs.comment }}
+
+      - name: Send Lighthouse Report to Slack
+        if: success()
+        env:
+          performance: ${{ steps.format_lighthouse_score.outputs.performance }}
+          accessibility: ${{ steps.format_lighthouse_score.outputs.accessibility }}
+          bestPractices: ${{ steps.format_lighthouse_score.outputs.bestPractices }}
+          seo: ${{ steps.format_lighthouse_score.outputs.seo }}
+          pr_url: ${{ github.event.pull_request.html_url }}
+          repo_name: ${{ github.repository }}
+        run: |
+          color() {
+            if [ "$1" -ge 90 ]; then 
+              echo "🟢"; 
+            elif [ "$1" -ge 50 ]; then 
+              echo "🟠"; 
+            else 
+              echo "🔴"; 
+            fi
+          }
+
+          performance_color=$(color $performance)
+          accessibility_color=$(color $accessibility)
+          bestPractices_color=$(color $bestPractices)
+          seo_color=$(color $seo)
+
+          repo_name=$(echo "$repo_name" | cut -d'/' -f2)
+
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "text": "Lighthouse audit completed for <'"$pr_url"'|PR #${{ github.event.pull_request.number }}> on '"$repo_name"'. \nOverall performance: '"$performance_color"' '"$performance"', \naccessibility: '"$accessibility_color"' '"$accessibility"', \nbest practices: '"$bestPractices_color"' '"$bestPractices"', \nSEO: '"$seo_color"' '"$seo"'."
+          }' \
+          ${{ secrets.SLACK_WEBHOOK_URL }}

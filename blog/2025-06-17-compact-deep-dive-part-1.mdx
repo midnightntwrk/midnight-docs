@@ -1,0 +1,358 @@
+---
+slug: compact
+title: Compact Deep Dive Part 1 - Top-level Contract Structure
+authors: kevin
+tags: [compact]
+image: /img/blog/zkp.jpg
+date: 2025-06-17
+---
+# Compact Deep Dive – Part 1: Top-level Contract Structure
+
+This post is part of the Compact Deep Dive series, which explores how Compact contracts work on the Midnight network.
+Each article focuses on a different technical topic and can be read on its own, but together they provide a fuller picture of how Compact functions in practice.
+The articles assume that you are familiar with Compact to the level of detail covered in the [developer tutorial](https://docs.midnight.network/develop/tutorial/).
+Some posts in this series take a deep technical dive into the implementation details of ZK proofs and the Midnight on-chain runtime.
+
+These insights reflect the current architecture, but since they describe low-level mechanics, they may change as the platform evolves.
+
+One caveat to keep in mind is that almost everything here should be considered an implementation detail.
+That means that the details are not stable, and they can and will change as we see fit.
+
+## Overview of the Bulletin Board Contract
+
+We’ll use our old favorite, [Bulletin Board](https://docs.midnight.network/develop/tutorial/creating/bboard-contract#compiling-the-contract) as an example.
+We're compiling this with `compactc` version 0.24.0.
+The Compact language is a moving target as we introduce and change features, so this code may not compile with any `compactc` version other than 0.24.0.
+:::note 
+All the code in this section is Compact code
+:::
+
+```compact
+pragma language_version 0.16;
+
+import CompactStandardLibrary;
+
+export enum State {
+  VACANT,
+  OCCUPIED
+}
+
+export ledger state: State;
+
+export ledger message: Maybe<Opaque<"string">>;
+
+export ledger instance: Counter;
+
+export ledger poster: Bytes<32>;
+
+constructor() {
+  state = State.VACANT;
+  message = none<Opaque<"string">>();
+  instance.increment(1);
+}
+
+witness localSecretKey(): Bytes<32>;
+
+export circuit post(newMessage: Opaque<"string">): [] {
+  assert(state == State.VACANT, "Attempted to post to an occupied board");
+  poster = disclose(publicKey(localSecretKey(), instance as Field as Bytes<32>));
+  message = disclose(some<Opaque<"string">>(newMessage));
+  state = State.OCCUPIED;
+}
+
+export circuit takeDown(): Opaque<"string"> {
+  assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
+  assert(poster == publicKey(localSecretKey(), instance as Field as Bytes<32>), "Attempted to take down post, but not the current poster");
+  const formerMsg = message.value;
+  state = State.VACANT;
+  instance.increment(1);
+  message = none<Opaque<"string">>();
+  return formerMsg;
+}
+
+export circuit publicKey(sk: Bytes<32>, instance: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bboard:pk:"), instance, sk]);
+}
+```
+
+We’ll focus on the `post` circuit.
+First, let’s refresh your memory about the basics of the contract.
+It declares a Compact `enum` type for the bulletin board’s state, and it declares some ledger fields.
+Three of them are mutable ledger cells and one of them is a `Counter`:
+
+```compact
+export enum State {
+  VACANT,
+  OCCUPIED
+}
+
+export ledger state: State;
+
+export ledger message: Maybe<Opaque<"string">>;
+
+export ledger instance: Counter;
+
+export ledger poster: Bytes<32>;
+```
+
+There is a witness that has access to private state.
+This is a foreign function implemented in JavaScript or TypeScript.
+It looks up the user’s secret key somehow and returns it.
+The `post` circuit makes sure that the bulletin board is in the `VACANT` state and, if so, uses the witness to get the secret key and updates the three cells in the ledger:
+
+```compact
+witness localSecretKey(): Bytes<32>;
+
+export circuit post(newMessage: Opaque<"string">): [] {
+  assert(state == State.VACANT, "Attempted to post to an occupied board");
+  poster = disclose(publicKey(localSecretKey(), instance as Field as Bytes<32>));
+  message = disclose(some<Opaque<"string">>(newMessage));
+  state = State.OCCUPIED;
+}
+```
+
+There is also a helper circuit called `publicKey`, which is used by both the `post` and `takeDown` circuits.  
+Declaring `publicKey` as exported has two effects:
+
+- It makes the circuit callable from TypeScript or JavaScript.
+- It makes it a contract entry point, allowing `publicKey` transactions to be submitted to the Midnight blockchain.
+
+```compact
+export circuit publicKey(sk: Bytes<32>, instance: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bboard:pk:"), instance, sk]);
+}
+```
+
+## A Look Under the Hood
+
+Presuming `compactc` is in your path, you can compile the Bulletin Board contract directly.
+If the code is in a file named `bboard.compact`, change to the directory where that file is located. Then run `compactc`, passing the source file and an output directory:
+
+```
+$ compactc bboard.compact bboard-out
+Compactc version: 0.24.0
+Compiling 2 circuits:
+  circuit "post" (k=14, rows=10070)  
+  circuit "takeDown" (k=14, rows=10087)  
+Overall progress [====================] 2/2
+```
+
+Let’s take a look at what the compiler has generated:
+
+```
+$ ls bboard-out
+compiler        contract        keys            zkir
+```
+
+There are four subdirectories.
+`compiler` has some metadata about the contract that will be used by composable contracts, which we can just ignore for now.
+`keys` and `zkir` are related to the ZK proofs which we will talk about in a later article.
+The compiler has translated the contract code into a JavaScript implementation, which is in the contract subdirectory.
+We’ll focus on that first.
+
+```
+$ ls bboard-out/contract
+index.cjs       index.cjs.map   index.d.cts
+```
+
+There are three files here.
+`index.cjs` is the JavaScript implementation of the contract.
+(It is JavaScript source code, the `.cjs` extension means that it uses the CommonJS module system.)
+There is a source map file `index.cjs.map` that can be used for debugging.
+It connects the JavaScript implementation in `index.cjs` back to the original Compact source code that was in `bboard.compact`.
+Finally, there is a TypeScript declaration file `index.d.cts` for the JavaScript implementation.
+This allows the JavaScript code in `index.cjs` to be called from TypeScript (and importantly, type checked by the TypeScript compiler).
+
+We have chosen this strategy (a JavaScript implementation with a TypeScript declaration file, instead of a pure TypeScript implementation) for a couple of reasons.
+First, it lets us generate runtime checks in the JavaScript code for things that wouldn’t be checked by TypeScript’s type system.
+And second, we can generate a source map for debugging that maps the implementation back to the Compact source code.
+The source map you would get from the TypeScript compiler would only connect the TypeScript compiler generated JavaScript code back to Compact compiler generated TypeScript, not all the way back to the original Compact source code.
+
+## TypeScript Declaration
+
+Now, let’s take a first look at the structure of the contract’s implementation by looking inside the TypeScript declaration file `index.d.cts`.
+We will walk through this file, though not necessarily in order.
+Before reading further, we encourage you to compile the code to generate this file and take a look at it yourself.
+
+Remember, this was generated with `compactc` version 0.24.0.
+If you try the same thing with a different version, you might see different implementation details.
+
+### The Compact Runtime
+
+:::note
+All the code in this section is written in TypeScript.
+:::
+The very first thing you will see is:
+
+```typescript
+import type * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
+```
+
+This imports the Node.js package `@midnight-ntwrk/compact-runtime` which is an API used by the Compact compiler’s generated JavaScript code.
+Separating it out like this decouples the runtime from the compiler implementation, and it means that the generated JavaScript code can be smaller.
+We’ll see later that the Compact runtime is quite complex (it re-exports a large part of the on-chain runtime which is implemented in Rust and compiled to WebAssembly).
+
+You can even import this package in your DApp to have your own access to Compact runtime types and functions if necessary.
+The API documentation for the Compact runtime is available in the [Midnight documentation](https://docs.midnight.network/develop/reference/midnight-api/compact-runtime/).
+
+### Compact `enum` Types
+
+The bulletin board contract declared a Compact `enum` type for the bulletin board’s state (vacant or occupied).
+This type was exported (via the `export` keyword) which makes it available to a DApp’s TypeScript or JavaScript implementation, so there is a declaration in the TypeScript declaration file:
+
+```typescript
+export enum State { VACANT = 0, OCCUPIED = 1 }
+```
+
+If this `enum` type was not exported in Compact, we would not see this declaration.
+Then, whenever this type appeared in the contract’s API (like in a circuit parameter or in the ledger) we would instead see the the underlying TypeScript representation type `number`.
+(Try it and see!
+Remove the `export` keyword for the `enum` in the Compact contract.
+Note that if you merely want to look at the generated TypeScript or JavaScript contract code you can skip ZK key generation by passing the command-line flag `--skip-zk` to the `compactc` compiler.
+This will run much faster.)
+
+### The Compact Ledger
+
+In Compact, the contract’s public state is established by ledger declarations.
+The compiler collects all of these and exposes them to the DApp in the form of a ledger type:
+
+```typescript
+export type Ledger = {
+  readonly state: State;
+  readonly message: { is_some: boolean, value: string };
+  readonly instance: bigint;
+  readonly poster: Uint8Array;
+}
+```
+
+It has read-only properties for all the ledger fields.
+They are read-only in TypeScript, because **updating** the ledger actually requires a transaction to be submitted to the chain.
+A DApp, however, can freely read them from (a snapshot of) the public ledger state.
+
+We mentioned before that `State` appears in this API because we exported the Compact `enum` type `State`.
+Notice that the Compact standard library type `Maybe` does not appear in this API.
+Instead, the ledger field `message` has the underlying TypeScript type.
+That’s because we didn’t export the standard library’s `Maybe` type.
+We could do that with `export { Maybe }` at the top level of our Compact contract, and then we would instead see:
+
+```typescript
+export type Maybe<a> = { is_some: boolean; value: a };
+
+export type Ledger = {
+  readonly state: State;
+  readonly message: Maybe<string>;
+  readonly instance: bigint;
+  readonly poster: Uint8Array;
+}
+```
+
+There is also a declaration of a function that gives us (a read-only snapshot of) the public ledger state, returning a TypeScript value of type `Ledger` as declared above:
+
+```typescript
+export declare function ledger(state: __compactRuntime.StateValue): Ledger;
+```
+
+This function takes a value of the Compact runtime’s type [`StateValue`](https://docs.midnight.network/develop/reference/midnight-api/compact-runtime/classes/StateValue).
+We will see in Part 2 of this series how this function is used to pass a `Ledger` to witnesses.
+
+### Compact Circuits
+
+Our contract had three exported circuits.
+By exporting them, they are made available to be called by the DApp’s TypeScript or JavaScript code, and they form the contract’s entry points.
+We can see declarations for them in the TypeScript declaration file, in two different places:
+
+```typescript
+export type ImpureCircuits<T> = {
+  post(context: __compactRuntime.CircuitContext<T>, newMessage_0: string): __compactRuntime.CircuitResults<T, []>;
+  takeDown(context: __compactRuntime.CircuitContext<T>): __compactRuntime.CircuitResults<T, string>;
+}
+
+export type PureCircuits = {
+  publicKey(sk_0: Uint8Array, instance_0: Uint8Array): Uint8Array;
+}
+
+export type Circuits<T> = {
+  post(context: __compactRuntime.CircuitContext<T>, newMessage_0: string): __compactRuntime.CircuitResults<T, []>;
+  takeDown(context: __compactRuntime.CircuitContext<T>): __compactRuntime.CircuitResults<T, string>;
+  publicKey(context: __compactRuntime.CircuitContext<T>,
+            sk_0: Uint8Array,
+            instance_0: Uint8Array): __compactRuntime.CircuitResults<T, Uint8Array>;
+}
+```
+
+The `post` and `takeDown` circuits are *impure*.
+In Compact, this basically means that they access (even if only by reading) the public state and/or they invoke witnesses.
+They are declared in the type `ImpureCircuits<T>`.
+The generic type parameter `T` here is the type of the contract's private state.
+The Compact compiler doesn't know what that type is (nor does it need to); it's up to the DApp developer to fill that in.
+
+Recall the Compact signature of the `post` circuit was `circuit post(new_message: Opaque<"string">): []`.
+We can see that the TypeScript API for this circuit is predictably derived from the Compact signature, with a few differences.
+
+First, the circuit takes an extra first argument of type `CircuitContext<T>`.
+This is an interface declared in the [Compact runtime](https://docs.midnight.network/develop/reference/midnight-api/compact-runtime/interfaces/CircuitContext).
+It contains an encapsulation of the contract's on-chain and private state, some separate Zswap state, and a representation of what the on-chain context would be if the circuit were actually executing on chain (though note, this JavaScript code is **not** what's executed on chain).
+
+Second, we can see that the Compact type `Opaque<"string">` is represented by the TypeScript type `string`.
+One goal of Compact is that the TypeScript representation of Compact types is always predictable.
+
+And third, we can see that the return type (in Compact it was `[]`) is actually `CircuitResults<T, []>`.
+This is another interface declared in the [Compact runtime](https://docs.midnight.network/develop/reference/midnight-api/compact-runtime/interfaces/CircuitResults).
+It has the actual return value with TypeScript type `[]`, as well as some proof data required to construct the ZK proof and a new `CircuitContext<T>` representing the public and private state after running the circuit.
+
+We won’t focus on `takeDown` here, but you can see that its signature is similarly and predictably derived from the signature of the circuit in Compact.
+
+The helper circuit `publicKey` is *pure*.
+This means that it does not access the public state or invoke witnesses (i.e., it's not impure).
+It is declared in the type `PureCircuits`.
+Pure circuits are ones that can run without an instance of the contract.
+Specifically, they do not need access to the ledger state and they do not have access to private state.
+You can see that here, because the extra first `CircuitContext` argument is missing, and the return value is a bare TypeScript type rather than a `CircuitResult`.
+The type `PureCircuits` is not generic, there is no type parameter `T` needed to represent the type of the private state.
+
+Finally, these declarations are repeated in the type `Circuits<T>`.
+The declarations of `post` and `takeDown` are exactly the same as before, but the declaration of `publicKey` has the signature of an impure circuit.
+This is so that the DApp can make a `publicKey` transaction, without having to worry about the details of whether it's pure or not.
+
+There are implementations of these circuits in the compiler-generated JavaScript code for the contract, which we will look at in the next article in this series.
+
+### Compact Witnesses
+
+We had a single witness declaration in our contract, which is also reflected in the contract’s TypeScript API:
+
+```typescript
+export type Witnesses<T> = {
+  localSecretKey(context: __compactRuntime.WitnessContext<Ledger, T>): [T, Uint8Array];
+}
+```
+
+The witness’s signature is also predictably derived from the Compact witness declaration.
+It has an extra first argument of type `WitnessContext<Ledger, T>`.
+This interface is declared in the [Compact runtime](https://docs.midnight.network/develop/reference/midnight-api/compact-runtime/interfaces/WitnessContext).
+It contains a snapshot of the public ledger state, the contract’s private state of type `T`, and the contract’s address.
+The witness returns a tuple (a two-element TypeScript array) consisting of a new private state of type `T` and the Compact return value.
+The Compact type `Bytes<32>` is represented by the underlying TypeScript type Uint8Array.
+
+The DApp implementation is responsible for providing a witness with this signature when constructing the contract.
+
+### The Contract Type
+
+Finally, there is a declaration of the contract type:
+
+```typescript
+export declare class Contract<T, W extends Witnesses<T> = Witnesses<T>> {
+  witnesses: W;
+  circuits: Circuits<T>;
+  impureCircuits: ImpureCircuits<T>;
+  constructor(witnesses: W);
+  initialState(context: __compactRuntime.ConstructorContext<T>): __compactRuntime.ConstructorResult<T>;
+}
+
+export declare const pureCircuits: PureCircuits;
+```
+
+It is parameterized over the private state type and the witness type, and it has witnesses, circuits, impure circuits, a constructor, and an initial state all using the type declarations seen above.
+The pure circuits are a top-level TypeScript value (rather than a contract property), representing the fact that they do not need an instance of the contract.
+
+The contract itself is implemented by the compiler-generated JavaScript code in `index.cjs`.
+In the next article in this series, "Compact Deep Dive – Part 2: Circuits and Witnesses", we’ll begin examining how circuits and witnesses are implemented in the generated code.

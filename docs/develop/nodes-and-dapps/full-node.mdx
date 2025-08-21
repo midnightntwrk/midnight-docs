@@ -1,0 +1,117 @@
+---
+id: full-node
+title: Setting up Full and Archive Nodes
+sidebar_label: Setting up Full and Archive Nodes
+description: A reference on setting up full and achive nodes for Midnight.
+keywords: [node]
+---
+
+# Setting up Full and Archive Nodes for Midnight
+
+Running a full or archive node allows you to sync with the Midnight blockchain, validate transactions, and manage the chain's state without relying on third-party infrastructure. Full nodes are ideal for real-time interaction and efficient storage, while archive nodes provide comprehensive historical data for developers and organizations requiring deeper insights or data access.
+
+## Full Node vs. Archive Node
+
+A **Full Node** syncs with the blockchain, validates transactions, and provides real-time state queries. It prunes historical states older than a configurable number (defaulting to 256 blocks), making it suitable for most dApp development and real-time interactions with the network. Its key advantage lies in its efficient use of disk space, requiring significantly less storage than an archive node. 
+
+An **Archive Node** maintains the entire history of the blockchain, including all blocks and states. While this comprehensive storage consumes substantial disk space, it is essential for use cases requiring access to historical data, such as building block explorers, conducting in-depth debugging, or querying past events. Setting up an archive node involves specific configurations, such as using the --pruning archive parameter.
+
+
+## Prerequisites
+
+Before setting up your Midnight full node, ensure you have the following:
+
+* [Docker](https://docs.docker.com/engine/install/) installed and configured.
+* [Cardano-db-sync instance set up](./cardano-db-sync) with accessible PostgreSQL port.
+* Sufficient resources (CPU, memory, and storage).
+
+## Setting Up a Full Node
+
+### Step 1: Configure PostgreSQL Database
+
+Set up a PostgreSQL instance with the following parameters:
+
+* **Host:** PostgreSQL server address.
+* **Port:** Default 5432.
+* *Username:** Database user.
+* **Password:** Database password.
+* **Database Name:** Name of the database (e.g., cexplorer).
+
+### Step 2: Run the Docker Command for a Full Node
+
+Use the following Docker command to set up your full node:
+
+```bash
+docker run \
+  --name midnight-full-node \
+  --platform linux/amd64 \
+  -p 30333:30333 \
+  -v midnight-data:/node \
+  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:<VERSION>" \
+  -e POSTGRES_HOST="postgres" \
+  -e POSTGRES_PORT="5432" \
+  -e POSTGRES_USER="postgres" \
+  -e POSTGRES_PASSWORD="password123" \
+  -e POSTGRES_DB="cexplorer" \
+  -e DB_SYNC_POSTGRES_CONNECTION_STRING="psql://postgres:password123@x.x.x.x:5432/cexplorer" \
+  -e BASE_PATH="./node/chain/" \
+  -e CFG_PRESET="testnet-02" \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/testnet-02/testnetRaw.json \
+  --no-private-ip
+```
+
+Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/comp-matrix).
+
+
+## Setting Up an Archive Node
+
+### Step 1: Configure PostgreSQL Database
+
+Set up a PostgreSQL instance with the following parameters:
+
+* **Host:** PostgreSQL server address.
+* **Port:** Default 5432.
+* *Username:** Database user.
+* **Password:** Database password.
+* **Database Name:** Name of the database (e.g., cexplorer).
+
+### Step 2: Run the Docker Command for an Archive Node
+
+To set up an archive node, modify the `--pruning` parameter to store all historical states:
+
+```bash
+docker run \
+  --name midnight-archive-node \
+  --platform linux/amd64 \
+  -p 30333:30333 \
+  -v midnight-data:/node \
+  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:0.6.6-6288973b" \
+  -e POSTGRES_HOST="postgres" \
+  -e POSTGRES_PORT="5432" \
+  -e POSTGRES_USER="postgres" \
+  -e POSTGRES_PASSWORD="password123" \
+  -e POSTGRES_DB="cexplorer" \
+  -e DB_SYNC_POSTGRES_CONNECTION_STRING="psql://postgres:password123@x.x.x.x:5432/cexplorer" \
+  -e BASE_PATH="./node/chain/" \
+  -e CFG_PRESET="testnet-02" \
+  midnightnetwork/midnight-node:0.6.6-6288973b \
+  --chain=/res/testnet-02/testnetRaw.json \
+  --pruning archive \
+  --no-private-ip
+```
+
+
+## Verifying the Node
+
+### Check Logs
+
+Monitor the node's logs to ensure it syncs with the network:
+
+```bash
+docker logs -f <node-name>
+```
+
+### Test Connectivity
+
+Ensure the node's P2P port (default: `30333`) is open and reachable for network communication. Use tools like `telnet`, `netcat`, or `nmap` to verify the port status and ensure the node is properly connected to the network.

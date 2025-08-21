@@ -1,0 +1,237 @@
+---
+slug: compact-developer-tools
+title: Introducing the Compact Developer Tools
+authors:
+  name: The Compact Team
+tags: [compact]
+image: /img/blog/zkp.jpg
+date: 2025-08-01
+---
+# Introducing the Compact Developer Tools
+
+We are proud to announce the launch of the Compact developer tools!
+Today we are launching `compact`, a command-line tool that is used for installing the Compact toolchain (e.g., the compiler),
+keeping it up to date, and invoking the toolchain tools themselves.
+The developer tools are now the "official" supported way to install and update the toolchain and to invoke other Compact tooling such as the Compact compiler.
+
+To avoid confusion, we will make a careful distinction between the "Compact toolchain" and the "Compact developer tools".
+The toolchain contains the compiler and will eventually contain other tooling that is specific to a particular version of the Compact language.
+The developer tools include the updater tools and will eventually support other tools that work consistently across different versions of the language.
+In the initial release, the Compact developer tools are primarily used to manage the installation of a Compact toolchain, but they will support additional tooling in the future.
+
+There is no new release of the Compact toolchain yet, but you can already start using the new developer tools to install and invoke the current version of the compiler.
+
+# The Old Toolchain Installation Method
+
+Before this new release, installing the Compact toolchain was a manual and tedious process:
+
+1. Developers had to download a ZIP file for a specific compiler version and platform architecture
+1. They then had to extract it to a directory included in their PATH
+1. On macOS, they would have to give permission to run the two different binaries (the compiler and the ZK-key generator).
+
+This process would have to be repeated each time there was a new Compact toolchain release.
+Keeping multiple versions installed at once was also cumbersome and hard to manage.
+
+# The New Toolchain Installation Method
+
+The new way to install the Compact toolchain starts with a one-time installation of the `compact` command-line tool.
+Once installed, the developer tools can update themselves automatically.
+To install, run the following command:
+
+```
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+```
+
+This command will download and run a shell script.
+It will instruct you how to add the binary directory it uses to your `PATH` environment variable.
+
+Once you've done this, the `compact` command line tool is available to use.
+This tool has a number of useful subcommands that can be invoked.
+For instance, to **update** the toolchain to the latest version, you will run the command:
+
+```
+compact update
+```
+
+The output will look something like this (on an Apple Silicon macOS machine, for instance):
+
+```
+compact: aarch64-darwin -- 0.24.0 -- installed
+compact: aarch64-darwin -- 0.24.0 -- default.
+```
+
+This subcommand will switch to the latest version of the toolchain available for your architecture.
+As of today, this is version 0.24.0 which is reported by the tool.
+The `compact` tool will download the toolchain artifacts if necessary (you will see a progress meter while it downloads).
+If you have already downloaded the artifacts, the tool will simply switch the default version to be the latest version.
+
+When there is a new Compact toolchain release, such as 0.25.0, you will use the same subcommand as above to update to that new version.
+
+You can **check** if there is a new version available using the `check` subcommand like this:
+
+```
+compact check
+```
+
+If there is a new version available, you will see something like:
+
+```
+compact: aarch64-darwin -- Update Available -- 0.24.0
+compact: Latest version available: 0.25.0.
+```
+
+This is reporting that you are on version 0.24.0 and that 0.25.0 is available.
+
+:::note
+You will not actually see this output until there is a new version available.
+Instead, you will see that you are on the latest version:
+
+```
+compact: aarch64-darwin -- Up to date -- 0.24.0
+```
+:::
+
+# Switching Toolchain Versions
+
+You can also "update" to any other available toolchain, including previous ones.
+You can **list** all the versions available with the command:
+
+```
+compact list
+```
+
+The output will look something like this:
+
+```
+compact: available versions
+
+→ 0.24.0 - x86_macos, aarch64_macos, x86_linux
+  0.23.0 - aarch64_macos, x86_linux
+  0.22.0 - x86_macos, x86_linux
+```
+
+This is showing the different versions, and which platforms they are available for.
+The arrow indicates the current default version, 0.24.0 in this case.
+This default is whichever you have currently set as the default (via `compact update`).
+
+You can pass the flag `--installed` (or `-i`) to `compact list` to see the versions that are actually downloaded locally:
+
+```
+compact list --installed
+```
+
+The output will probably look like this:
+
+```
+compact: installed versions
+
+→ 0.24.0
+```
+
+The update subcommand can be used with a specific version to switch to that version.
+For example:
+
+```
+$ compact update 0.23.0
+compact: aarch64-darwin -- 0.23.0 -- installed
+compact: aarch64-darwin -- 0.23.0 -- default.
+
+$ compact list --installed
+compact: installed versions
+
+  0.24.0
+→ 0.23.0
+```
+
+:::note
+If you are on an Intel x86 macOS computer, you will not be able to update to version 0.23.0 because it was not available for that architecture.
+You can try the same commands above with version 0.22.0 instead.
+:::
+
+You can now switch back to the latest version with `compact update` or `compact update 0.24.0`.
+This time, nothing will be downloaded because that version is already installed locally.
+
+# Invoking the Compiler
+
+In addition to keeping the toolchain updated, the `compact` tool will also be the official supported way to invoke all the toolchain tools themselves.
+For the time being, the only such tool is the compiler, but we will be building out more tools in the future.
+The compiler can be invoked with the `compile` subcommand:
+
+```
+compact compile <contract file> <output directory>
+```
+
+This will use the current default version of the toolchain (the one indicated by the arrow in `compact list`).
+
+:::note
+If you are using macOS, you no longer have to explicitly give permission to run the compiler and ZK-key generation binaries.
+:::
+
+You can override the default to use a specific (already installed) version by including the version number after a plus (`+`) sign like:
+
+```
+compact compile +0.23.0 <contract file> <output directory>
+```
+
+Looking ahead, we plan to remove the `compactc` executable.
+Going forward, `compact compile` will become the standard way to invoke the Compact compiler.
+
+# Built-in Help
+
+The `compact` tool and all of its subcommands have detailed help pages provided by the tools themselves.
+You can see these in two different ways, either using the `help` subcommand or by using the `--help` flag.
+
+For the Compact tool itself, you can invoke `compact help` or `compact --help` and you will see the exact same help page.
+This page shows all the subcommands (`compile` is currently listed at the bottom of the page).
+It also shows common command line options.
+
+For a specific subcommand, such as `update`, you can see detailed help either via `compact help update` or `compact update --help`.
+You can use the help pages to find all the subcommands and their options.
+
+:::note
+Because of the way that the tools are currently implemented, you cannot get compiler help via `compact help compile`.
+Instead, you will have to use `compact compile --help`.
+:::
+
+# Versions
+
+The developer tools are separately versioned from the toolchain (i.e., compiler) itself.
+This is because the tools are capable of managing multiple versions of the toolchain.
+
+You can see the version of the developer tools with `compact --version`.
+That should currently be 0.1.0.
+You can also see the version of subcommands like `compact update --version`.
+Currently, built-in subcommands (that is, ones implemented by the developer tools, not the toolchain) all have the same version as the developer tools.
+
+You can find the version of the toolchain with `compact list -i` or `compact check` (though the latter will make an Internet check to see if there is a new version).
+You can also find it from the compiler via `compact compile --version`.
+This should currently be 0.24.0 if you are on the latest version.
+
+As before, the Compact language itself is versioned separately from the toolchain.
+You can find this from the compiler via `compact compile --language-version`.
+
+# Keeping the Developer Tools Up to Date
+
+Once they are installed, the developer tools are capable of keeping themselves up to date.
+You can check for updates with `compact self check`, and you can update to the latest version of the tool with `compact self update`.
+
+We have not provided a way to go back to a previous version of the developer tools themselves, because you generally won't need to do that.
+You don't necessarily have to update the developer tools themselves all the time, either.
+You **will** however want to update the developer tools themselves when we make more developer tools available.
+For example, a future release will include a Compact formatter available via a `compact format` subcommand.
+You will need to update the developer tools themselves to get access to the formatter tool.
+We will always announce such updates in the release notes for both the toolchain and the developer tools.
+
+# How it Works
+
+The tool is currently a simple one, but its architecture is flexible and it will eventually support many more different developer tools.
+If you look at the help pages, you will see that the tools take a `--directory` command-line flag which tells them where to find the toolchain.
+By default this will be the directory `.compact` in your home directory.
+
+If you look in that directory, you will see two subdirectories: `bin` and `versions`.
+The `versions` subdirectory contains separate subdirectories for each installed version, which contain the toolchain artifacts for that version.
+The `bin` subdirectory represents the default version, which is just a symbolic link to one of the installed versions.
+
+The command line tool is capable of checking for updates and downloading and unzipping toolchain artifacts if necessary.
+Switching between installed versions just changes the `bin` symbolic link to point to a different installed toolchain.
+Invoking the toolchain itself just invokes the corresponding default executables in the `bin` directory, or for a specific version if necessary.
