@@ -1,0 +1,328 @@
+---
+sidebar_label: "3.3 Bulletin board DApp"
+---
+
+# Bulletin board DApp
+
+What remains to be done, in order to have a working bulletin board
+DApp, is simply to explore the provided TypeScript code.  The exploration
+of a web GUI is left for a later part of the developer tutorial.
+
+To get you started, the entire codebase has already been written and made available.
+This includes the logic that interacts with the contract and manages the private state—
+everything you need is in place and ready to examine.
+
+At this point, you should already have the contract in its `contract/src`
+subdirectory.  Following the instructions on the preceding pages, you
+have compiled the contract, producing the contract's TypeScript API
+and other material in the `managed` subdirectory.
+
+The TypeScript code is organized across the `contract/src`, `api/src`, and `bboard-cli/src` directories.  As with the
+counter application, `bboard-cli/src/index.ts` contains the main run loop of the application
+while `api/src/index.ts` contains convenient abstractions for implementing the application.  To deepen your understanding, take a closer look at the following files in particular:
+- `contract/src/witnesses.ts`
+- `api/src/index.ts`
+
+Open these in your favorite TypeScript editor and follow along with the explanations below.
+
+## Exercise 1: define the private state
+
+The public state of the contract is stored in the blockchain and can
+be seen by anyone, but the private state is entirely local to the DApp
+and might be completely different for each user.  A contract only
+*declares the types* of the functions for accessing and changing the
+private state; the contract *does not define* the functions, nor does
+it say anything about the type or structure of the private state
+itself.  Thus, some parts of the generated contract API are
+parameterized by the type of the private state.
+
+A good practice is to define an interface or type alias for the
+private state.
+
+Now ask yourself: *what should be held in the user's private state for
+the bulletin board?*  Hint: In this example, the private state does
+not evolve.  It is simply a value that can be fetched through the
+`localSecretKey()` witness that the contract declared.
+
+If you answered, 'the secret key,' you were right.  The bulletin board
+contract declared the type of the secret key data to be a byte array,
+which corresponds to the TypeScript type `Uint8Array`, so we define the `BBoardPrivateState` type to have a
+`secretKey` property of type `Uint8Array`, like this:
+
+import CodeFromGithub from '@site/src/components/CodeFromGithub';
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/witnesses.ts#L32-L34"
+  language="typescript"
+/>
+
+
+The next code in `witnesses.ts` defines a helpful function to create
+objects of type `BBoardPrivateState`, given a secret key.
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/witnesses.ts#L36-L38"
+  language="typescript"
+/>
+
+
+
+## Exercise 2: initialize the private oracle
+
+In the research literature about zero-knowledge proofs, the part of
+the system that is consulted to access private state is called an
+*oracle*, so you will sometimes find that term appearing in the
+Midnight API and documentation.  The next exercise is to inspect an
+object to represent the bulletin board DApp's private oracle: its set
+of witness functions.
+
+Below the code you saw in exercise 1, you will find the definition
+of the `witnesses` object.  The object must have a property (or
+method) for each of the contract's declared witness functions.
+Recall that `bboard.compact` declared only one witness function:
+`localSecretKey`.  The type and outer structure of the function is
+already written for you.  Exercise 2 is to fill in the missing return
+values.
+
+Look carefully at the function's type:
+- It takes a single argument, which is a `WitnessContext`.  If the
+  contract had declared additional parameters for the witness
+  function, they would appear here as additional parameters, after the
+  `WitnessContext`.
+- It returns two values: a new overall state for the private oracle
+  and a value corresponding to the declared return type of the witness
+  function in the Compact code.
+
+The `WitnessContext` type is parameterized by the ledger type `L` and
+private state type `PS`, so that it has three fields:
+- `ledger: T`
+- `privateState: PS`
+- `contractAddress: string`
+
+You can see that the `WitnessContext` type in this file is
+instantiated with the `Ledger` type imported from the API that the
+Compact compiler generated for the bulletin board contract, plus the
+private state type `BBoardPrivateState` that we defined in
+exercise 1.  This means that the `privateState` field in the
+`WitnessContext` will be of type `BBoardPrivateState`.  This is the
+only field needed from the `WitnessContext`, so the definition uses
+TypeScript's parameter destructuring notation to name only the
+`privateState` from the context and ignore the `ledger` and
+`contractAddress`.
+
+Now let's look at the two values that `localSecretKey` should return.
+First, what is the new private state?  Hint: `localSecretKey` does
+not change the private state.
+
+The correct answer is that the new private state is the same as the
+old private state: simply the value `privateState`.
+
+Now what about the 'interesting' return value, the one declared in the
+contract?  The purpose of this function is to get the user's secret
+key, so that the contract can use it to generate and verify a public
+hash.  For the second return value, extract the secret key from the
+private state.  (We defined the contents of the private state in
+exercise 1.)
+
+Putting these together, the solution looks like this:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/witnesses.ts#L67-L74"
+  language="typescript"
+/>
+
+
+The bulletin board never needs to change the private state, but more
+complex contracts will need to update the private state.  The way to
+do that is *not* to mutate the state in place, but to return a new
+state value from a witness function.
+
+:::caution
+
+Do not use a global variable to hold or access the private state;
+always use the value passed to the witness function.
+
+:::
+
+
+Let's now look at the file
+containing the main logic of the bulletin board DApp:
+`api/src/index.ts`.
+
+This file defines the BBoardAPI class, which serves as the application-facing interface for interacting with a deployed bulletin board contract. In this walkthrough, we’ll examine how the `post` and `takeDown` circuits are invoked, and later how the contract is deployed to the Midnight network.
+
+
+## Exercise 3: invoke the post circuit
+
+Scroll to the `post` method in `api/src/index.ts`.
+
+This method handles the logic for submitting a new message to the bulletin board. It is defined as an asynchronous method of the `BBoardAPI` class. The class itself is initialized with a `DeployedBBoardContract`, which is stored as a field called `deployedContract`.
+
+This `DeployedBBoardContract` type is an alias for [`FoundContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract), a core abstraction provided by Midnight.js for interacting with smart contracts that are already deployed on the network. The reason we use `FoundContract` here (rather than `DeployedContract`) is that this application doesn't require any of the private deployment metadata provided by `DeployedContract`. The general-purpose `FoundContract` type is sufficient for submitting transactions.
+
+The `FoundContract` exposes a `callTx` property, which provides a function for each circuit declared in the contract. These functions can be used to create and submit transactions to the network.
+
+In the case of the bulletin board DApp, the `post` method invokes the `post` circuit like this:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L143"
+  language="typescript"
+/>
+
+
+What if the user tries to post a message to a non-empty bulletin
+board?  The transaction will fail, and the code will throw an
+exception.  The current bulletin board DApp lets the exception
+propagate out to the main `run` function in `bboard-cli/src/index.ts`,
+so that the DApp exits.
+Once you have compiled the DApp and tested it successfully, you could
+come back here and add an appropriate `try` / `catch` around the call
+to report the transaction failure in a more helpful way.
+
+## Exercise 4: invoke the take-down circuit
+
+Immediately following the `post` method in `api/src/index.ts`, you'll find the `takeDown` function.
+
+This method handles the logic for invoking the `takeDown` circuit in the contract. As with `post`, it uses the `callTx` property of the deployed contract to construct and submit the transaction:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L165"
+  language="typescript"
+/>
+
+
+## Exercise 5: deploy a new bulletin board contract
+
+You have seen that the code to invoke one of your contract's circuits  
+and submit a corresponding transaction to the Midnight network is quite simple.  
+The code to deploy a new contract is a little more involved, but still concise.
+
+In `api/src/index.ts` you’ll find the `deploy` function.  
+There, the call to `deployContract` has already been written for you with all required arguments filled in.  
+This function handles the full deployment of the bulletin board contract, including the initial private state setup.
+
+
+The `deployContract` function requires two arguments.  They
+are:
+1. A `MidnightProviders` object containing implementations of all the
+   necessary providers (refer back to
+   [the discussion of providers](/docs/develop/tutorial/2-building/dapp-details.mdx#providers)
+   in part 2 of the tutorial if necessary)
+2. A `DeployContractOptions` object containing configuration parameters
+   for the deployment.
+
+For the bulletin board contract, `DeployContractOptions` requires only three properties:
+1. `privateStateKey` - The name of the key at which the private state is stored in the
+   `PrivateStateProvider` given in the first `providers` argument.
+2. `contract` - The `Contract` object containing the executable JavaScript of the contract
+    being deployed.
+3. `initialPrivateState` - The initial private state for the contract, whose type matches the
+   state stored under the `privateStateKey`.
+
+The `deploy` function already has a `providers` parameter.
+
+```tsx
+  providers,
+```
+
+The second argument to `deployContract` is the configuration object.
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L188-L192"
+  language="typescript"
+/>
+
+
+To understand the deployment configuration, let's look at its entries one by one. 
+
+The first entry
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L189"
+  language="typescript"
+/>
+
+provides a unique key used to retrieve the user's private state from the configured `privateStateProvider`. This ensures that the correct private state—such as the user's secret key—is consistently used when interacting with the bulletin board contract. If no private state is found under this key, a new one is generated and stored using this identifier.
+
+
+The second entry,
+
+```tsx
+contract: bboardContractInstance,
+````
+
+is defined in terms of a constant `bboardContractInstance`,
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L43"
+  language="typescript"
+/>
+
+
+which is just an instance of `Contract` (which is generated by `compactc`) constructed
+with the witnesses you defined at the beginning of the tutorial.
+
+
+
+The third entry
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L191"
+  language="typescript"
+/>
+
+provides the private state to use when interacting with the contract. The `getPrivateState` method attempts to retrieve an existing private state (such as a secret key) via the configured `privateStateProvider`. If none is found, it generates a new one using 32 random bytes and returns it. This ensures that the contract has access to a consistent and valid private state for the current user.
+
+
+
+Putting all that together, the call to `deployContract` looks as follows:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/api/src/index.ts#L188-L192"
+  language="typescript"
+/>
+
+
+
+That's remarkably little code to deploy an entirely new contract to
+the Midnight blockchain.
+
+The code for joining an existing contract is similar to the code for
+deploying a new one.  You might want to look now at the code in the
+`join` function (just below the definition of `deploy`) and compare
+it to the code in `deploy`.
+
+You can explore the documentation for Midnight library functions,
+such as `deployContract` and `findDeployedContract`, in the Midnight.js
+reference documentation.  For your convenience, here are links to the
+documentation for those two functions:
+- [`deployContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/functions/deployContract)
+- [`findDeployedContract`](../../reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/functions/findDeployedContract)
+
+## Compiling and running the DApp
+
+ Go back to the `example-bboard` directory
+(the one containing `contract`, `api`, and `bboard-cli`) and run:
+
+```shell
+npx turbo build
+```
+
+:::caution Common Node.js error: ERR_UNSUPPORTED_DIR_IMPORT
+
+If you encounter an `ERR_UNSUPPORTED_DIR_IMPORT` error while running or building the `example-bboard` DApp, this might be due to environment caching in your terminal session after modifying `.zshrc`, `.bashrc`, or changing Node versions with NVM.
+
+**Fix:**
+- Open a **new terminal window** instead of just running `source ~/.zshrc`.
+- Ensure you are using the correct Node version (`nvm use 18`).
+- Clear cached modules by running:
+
+  ```bash
+  rm -rf node_modules/.cache
+  ```
+This issue is environment-related and can affect some ESM-style imports if the Node.js setup is stale.
+
+:::
+
+Once the project is built, go on to the next page to learn how to test
+your code without touching the live Midnight network.

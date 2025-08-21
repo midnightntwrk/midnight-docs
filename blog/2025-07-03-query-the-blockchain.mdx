@@ -1,0 +1,109 @@
+---
+slug: query-the-blockchain
+title: How to query the blockchain?
+authors: claude
+tags: [midnight, javascript]
+image: /img/blog/js.jpg
+date: 2025-07-04
+---
+
+The Midnight blockchain introduces a novel approach to data privacy and compliance in decentralized applications (DApps), leveraging zero-knowledge proofs (ZKPs) and a dual-token system. 
+
+This article provides a comprehensive guide on connecting to the Midnight blockchain, and you will learn how to listen for new blocks and extract data from these blocks using the Polkadot API and the various methods it provides to connect to Substrate-based blockchains, including Midnight.
+
+<!--truncate-->
+
+> See the code in action [in this repo](https://github.com/claudebarde/midnight-mempool), a simple app that watches the Midnight mempool!
+
+## **Understanding Midnight's Architecture**
+
+Midnight is designed to address the limitations of traditional blockchains regarding data privacy. It does so through:
+
+- [Zero-Knowledge Proofs (ZKPs)](https://www.google.com/url?q=https://docs.midnight.network/learn/glossary%23zero-knowledge-proof-zkp&sa=D&source=docs&ust=1751469460016839&usg=AOvVaw0GBVs0ZrYgq8Eggpat3hpn): Enable verification of data without revealing the data itself.  
+- [Dual-Token System](https://www.google.com/url?q=https://docs.midnight.network/learn/introduction/native-token/about-dust&sa=D&source=docs&ust=1751469460016900&usg=AOvVaw1yvGgY8EL1yJB3W61g1LQq): Uses NIGHT (unshielded) for governance and DUST (shielded) for transaction payments.  
+- [Compact Smart Contract Language](https://www.google.com/url?q=https://docs.midnight.network/develop/reference/compact/&sa=D&source=docs&ust=1751469460016917&usg=AOvVaw0DQvxLVoHOxx7vIhTKZFnG): A TypeScript-based language facilitating the development of privacy-preserving smart contracts.
+
+These features make Midnight suitable for applications requiring data confidentiality, such as healthcare records, financial transactions, and identity verification.
+
+## Connecting to the Midnight Blockchain
+
+The [`@polkadot/api`](https://polkadot.js.org/docs/api/) library provides a WebSocket provider (WsProvider) to connect to Substrate-based blockchains, which includes Midnight.
+
+### Installation
+
+First, ensure you have the necessary packages installed:
+
+```bash  
+npm install @polkadot/api  
+```
+
+### Establishing a Connection
+
+Use the WsProvider to connect to a Midnight node:
+
+```javascript  
+import { ApiPromise, WsProvider } from '@polkadot/api';
+
+// Define the WebSocket endpoint for the Midnight node  
+const wsProvider = new WsProvider('wss://rpc.testnet.midnight.network');
+
+// Create the API instance  
+const api = await ApiPromise.create({ provider: wsProvider });  
+```
+
+## Listening for New Blocks
+
+Once connected, you can subscribe to new block headers to listen for new blocks:
+
+```javascript  
+api.rpc.chain.subscribeNewHeads((lastHeader) => {  
+  console.log(`New block #${lastHeader.number} has been added`);  
+});  
+```
+
+This function logs the block number each time a new block is added to the chain.
+
+## Extracting Data from Blocks
+
+To extract detailed information from each new block, such as transactions and events, you can use the following approach:
+
+```javascript  
+api.rpc.chain.subscribeNewHeads(async (lastHeader) => {  
+  const blockHash = await api.rpc.chain.getBlockHash(lastHeader.number);  
+  const signedBlock = await api.rpc.chain.getBlock(blockHash);  
+  const allEvents = await api.query.system.events.at(blockHash);
+
+  console.log(`nBlock #${lastHeader.number}`);
+
+  signedBlock.block.extrinsics.forEach((extrinsic, index) => {  
+    console.log(`nExtrinsic ${index}: ${extrinsic.method.section}.${extrinsic.method.method}`);  
+    console.log(`Arguments: ${extrinsic.args.map((arg) => arg.toString()).join(', ')}`);  
+  });
+
+  allEvents.forEach(({ event, phase }, index) => {  
+    console.log(`nEvent ${index}: ${event.section}.${event.method}`);  
+    console.log(`Phase: ${phase.toString()}`);  
+    console.log(`Data: ${event.data.toString()}`);  
+  });  
+});  
+```
+
+This script subscribes to new block headers, retrieves the full block and its associated events, and logs detailed information about each extrinsic (transaction) and event.
+
+## What is an extrinsic?
+
+In the context of Substrate-based blockchains like Midnight, an extrinsic refers to any piece of information originating from outside the blockchain's runtime that is submitted to the network for inclusion in a block. Extrinsics are the primary means by which users and external entities interact with the blockchain, enabling state changes and other operations.
+
+There are three main types of extrinsics:
+
+- **Signed Extrinsics**: These are transactions submitted by users that include a digital signature. They often involve actions like transferring tokens or interacting with smart contracts. The signature ensures authenticity and allows the network to charge transaction fees.  
+- **Unsigned Extrinsics**: These are submitted without a signature and are typically used for operations that don't require user authentication. They might be subject to custom validation logic to prevent misuse.  
+- **Inherent Extrinsics**: Generated by the blockchain itself, these are used for system-level operations, such as setting the timestamp for a new block. They are not propagated through the network like other extrinsics but are included by block producers during block creation.
+
+Understanding extrinsics is crucial for developers working with Substrate-based blockchains, as they represent the fundamental mechanism for enacting changes and interacting with the network's state.
+
+## Conclusion 
+
+By utilizing the WsProvider from the @polkadot/api library, developers can effectively connect to the Midnight blockchain, monitor new blocks in real-time, and extract pertinent data for their applications. This approach provides a robust foundation for building privacy-focused decentralized applications on the Midnight network.
+
+> For more information and detailed documentation, visit the [Midnight Developer Hub](https://midnight.network/developer-hub).

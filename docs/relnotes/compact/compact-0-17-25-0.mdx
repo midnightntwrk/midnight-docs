@@ -1,0 +1,133 @@
+---
+title: Compact compiler 0.25.0 (Compact language 0.17.0)
+displayed_sidebar: sidebar
+---
+
+## Compact compiler 0.25.0 (Compact language 0.17.0) release notes
+
+Today we are releasing version 0.25.0 of the Compact compiler.
+This release updates the Compact language from version 0.16.0 to 0.17.0.
+
+## Summary of Changes
+
+This release has some new non-breaking (i.e., backward compatible) changes to the Compact language and standard libraries.
+There are also some improvements to the compiler.
+
+- Compact now supports casts between `Bytes` and `Vector` types
+- `const` declaration statements now allow multiple constants
+- The standard library gives access to block time
+- The `compactc` compiler now allows contract filenames to have spaces in them
+- The compiler prints a message when proof key generation fails
+- The compiler prints a parse error when facing Unicode numeric characters other than 0-9
+
+
+## Language changes
+
+### Compact now supports casts between `Bytes` and `Vector` types
+
+Compact has a type `Bytes<n>` parameterized over an unsigned size `n`.
+It also hase a type `Vector<n, T>` parameterized of an unsigned size `n` and a Compact type `T`.
+In Compact 0.17.0 we have added a typecast (using the Compact `as` operator) from `Bytes<k>` to `Vector<k, Uint<8>>` (for the same `k`).
+We have also added a typecast from `Vector<k, Uint<8>>` to `Bytes<k>` (for the same `k`).
+
+**Motivation:** the reason that these are distinct types in Compact is because they have different representations
+and possibly different performance characteristics.
+`Bytes` have a "packed" representation where the bytes are packed into larger numbers (specifically elements in the underlying prime field)
+and need to be unpacked in order to access them.
+`Vector`s have an "unpacked" representation where they are represented as fixed-size arrays of their elements.
+
+Because of the different representations and the different costs of operations on them, `Vector`s have more operations
+(such as indexing and iteration using `for` loops or `map` and `fold` operators) available on them than `Bytes` have.
+We plan to eventually make all the same operations available for both types.
+But in the meantime, it is not currently possible to work with `Bytes` in the same way that you can work with `Vector`s.
+
+As a first step toward providing better support for `Bytes`, we have introduced casts back and forth to `Vector`s of `Uint<8>` elements.
+This will allow you to unpack a value of `Bytes` type, operate on its elements, and iterate over it.
+You will also be able to create vectors and have them packed into `Bytes` values.
+
+:::warning
+The casts back and forth between `Bytes` and `Vector`s will fully unpack and pack the result.
+This will require a number of operations in the circuit proportional to the size of the `Bytes` or `Vector`.
+This is potentially costly in terms of proving time (or might even cause you to hit fixed circuit size limits).
+:::
+
+This is a completely new feature and it is **not a breaking change** to the language.
+
+### `const` declaration statements now allow multiple constants
+
+Compact has `const` declaration statements that work like TypeScript's `const` declarations.
+Before Compact language vesion 0.17, these only supported a single declaration per statement.
+So, for instance, to declare two different constants you would write:
+
+```compact
+const x: Uint<8> = 127;
+const y: Bytes<16> = pad(16, "Compact");
+```
+
+Now you can declare them on the same line, separated by a comma:
+
+```compact
+const x: Uint<8> = 127, y: Bytes<16> = pad(16, "Compact");
+```
+
+Note that any of the type annotations can still be omitted, in which case they will be inferred based on the type of the constant value.
+
+**Motivation:** this is a change that makes the language more like TypeScript, where such declarations are possible.
+It is intended to behave the same way as in TypeScript: you cannot refer to a constant before it is initialized
+and you cannot have more than one binding for the same name in a `const` declaration.
+
+This is a new capability for the the existing feature and it is **not a breaking change** to the language.
+
+## New standard library and ledger APIs
+
+### The standard library provides access to block time
+
+A common request has been for contracts to be able to have some notion of time.
+With Compact 0.17 we have added some new standard library circuits and some new ledger kernel operations for dealing with time.
+These rely on the notion of "block time".
+When running contract code in the DApp before submitting a transaction,
+the block time will be a timestamp taken from the local machine before executing the contract entry point.
+This time does not change during execution.
+When running state updates on chain, the block time will be the approximate time of the block that the transaction is going into.
+
+The Compact standard library exports circuits for comparing the block time to a specific time value.
+There is a `blockTimeGt` (greater than) circuit with signature `blockTimeGt(time: Uint<64>): Boolean`.
+The `time` argument is measured in seconds since the Unix epoch.
+This circuit returns `true` if and only if the current block time is after the given time.
+There are also `blockTimeGte` (greater than or equal), `blockTimeLt` (less than), and `blockTimeLte` (less than or equal) circuits in the standard library,
+all with the same signature as `blockTimeGt`.
+
+There are a pair of new ledger kernel operations used to support this feature.
+The ledger kernel is exported as `kernel` from the standard library.
+The new operations have signatures `blockTimeGreaterThan(time: Uint<64>): Boolean` and `blockTimeLessThan(time: Uint<64>): Boolean`.
+The standard library circuits have simple implementations in terms of these kernel operations.
+For instance, `blockTimeGt(t)` is implemented as `kernel.blockTimeGreaterThan(t)` and `blockTimeLte(t)` is implemented as `!kernel.blockTimeGreaterThan`.
+
+So in general, you can just use the complete set of circuits provided by the standard library in your contracts.
+
+This is **not a breaking change** to the standard library.
+
+## Changes to generated code
+
+With this release there will be some small changes to the generated JavaScript code produced by the compiler.
+There are, however, **no changes** to the TypeScript API of generated contracts.
+
+## Compiler changes
+
+### The `compactc` compiler now allows contract filenames to have spaces in them
+
+Previously you could not use `compactc` to compile contracts with spaces in the filename.
+We have fixed that with this release and you can now compile these contracts by wrapping the entire input directory and filename in double quotes.
+
+### The compiler prints a message when proof key generation fails
+
+A separate executable named `zkir` is used during compilation to generate prover and verifier keys.
+Before this release, when that executable failed without printing anything (for example, if it ran out of memory and crashed)
+there was no indication of what went wrong.
+
+With this release, the compiler detects such a failure, prints a message, and then the compiler fails with the exit code 255 (-1).
+
+### The compiler prints a parse error when facing Unicode numeric characters other than 0-9
+
+Previously you would get an internal error if you used Unicode numeric characters other than 0-9 in your contract.
+We have now fixed this and the compiler throws a parse error when parsing such characters.

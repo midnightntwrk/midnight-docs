@@ -1,0 +1,91 @@
+---
+---
+
+# Step 4. Run a Midnight node in Validator Mode
+
+## Prerequisites
+
+- `Postgres` PORT should be accessible to the `midnight-node` and `cardano-db-sync` should be fully synced (Step 2).
+
+- `Midnight-node` is available as a Docker image *at this time*. Therefore, Docker/ Docker Compose is required.
+    - [Installing Docker/ Docker Compose](https://docs.docker.com/compose/install/).
+
+- `data/chains/partner_chains_template/...` (created in Step 3) is available to the Midnight-node (via a docker volume).
+- Install `direnv` to manage environment variables.
+
+If `data/chains/partner_chains_template/...` is still on the partner-chains deps server, then simply copy it over to the Midnight-node instance.
+
+<details>
+<summary><b>Optional: Copying files between instances using Magic Wormhole</b></summary>
+
+Install
+```shell
+sudo apt install magic-wormhole # install magic wormhole on each instance.
+
+wormhole send data/ # returns a receive command to copy and paste on the other instance
+
+# on the intended midnight-node copy the receive command
+
+wormhole receive <secret words>
+
+# verify the directory and contents were copied over
+sudo apt install tree
+tree data/
+```
+</details>
+
+## Step 1. Clone the `midnight-node-docker` repo and setup Partner-chain keys
+
+- Clone [midnight-node-docker](https://github.com/midnightntwrk/midnight-node-docker)
+- Copy `data/chains/partner_chains_template/...` into the root directory of the project like so:
+
+```shell
+midnight-node-docker$ tree -d data/
+data/
+└── data
+    └── chains
+        └── partner_chains_template
+            ├── keystore
+            └── network
+```
+
+Step 2.  **`docker-compose up` midnight-node**:
+
+- Within the same directory as `compose.yml`, simply invoke `docker compose up` to start the node.
+
+    ```shell
+    docker-compose up
+    # docker-compose up -d to run in detached mode
+    ```
+
+The node should begin to sync with the testnet.
+
+```shell
+⚙️ Syncing  2.6 bps, target=#474962 (8 peers), best: #3967 (0xf620…d752), finalized #3584 (0x56d5…f7bd), ⬇ 0.8kiB/s ⬆ 0.2kiB/s
+```
+
+In the above log example; the node is syncing and peering with the network (8). The current synced block is 3967, but the sync target is 474962.
+
+:::note
+
+Your node will be eligable to produce blocks in n + 2 epochs since registration. For example, if you register on epoch 900 and start a validator node on epoch 901, then you won't see blocks being produced until the chain is at epoch 902.
+
+:::
+
+When the node is fully synced, then you should be participating in block production. For example:
+
+```shell
+✨ Imported #12345 (0xabc1…def2)
+💤 Idle (5 peers), best: #12345 (0xabc1…def2), finalized #12343 (0x789a…bcd3)
+🏆 Prepared block for proposing at #12346 (block time = 6s)
+🔖 Pre-sealed block for proposal at #12346. Hash: 0xdef3…ghi4
+✨ Successfully proposed block #12346 (0xdef3…ghi4)
+✨ Imported #12346 (0xdef3…ghi4)
+💤 Idle (5 peers), best: #12346 (0xdef3…ghi4), finalized #12344 (0x456b…def7)
+```
+
+- "Prepared block for proposing": This line indicates that your node has prepared a block to propose at a specific block height (e.g., #12346). This is a strong sign that your node is actively participating in block production.
+- "Pre-sealed block for proposal": This shows the block is ready to be proposed to the network, including its hash.
+- "Successfully proposed block": This confirms that your node successfully proposed the block to the network.
+- "Imported": This means the block your node produced (or another block at that height) has been imported into the chain. If the hash matches your proposed block, it’s a clear sign your node’s block was accepted.
+- Block Number Incrementing: If the best block number keeps increasing and aligns with your proposed blocks, your node is contributing to the chain’s progress.

@@ -1,0 +1,221 @@
+---
+slug: funbigle-token-contract-open-zeppelin
+title: Introduction to the FungibleToken contract on Midnight
+authors: claude
+tags: [midnight, compact]
+image: /img/blog/zkp.jpg
+date: 2025-08-20
+---
+
+## **Introduction to the FungibleToken contract on Midnight**
+
+**Midnight** is a privacy-first blockchain designed to bring *privacy* to decentralized applications. It achieves this through [zero-knowledge proofs, programmable data protection, and developer-friendly tools](https://docs.midnight.network/develop/how-midnight-works/) like **Compact**, a TypeScript-based DSL (Domain-Specific Language) for writing privacy-aware smart contracts.
+
+[**OpenZeppelin**](https://docs.openzeppelin.com/) is renowned in the Ethereum ecosystem for its battle-tested smart contract libraries, which have secured trillions in on-chain value. Recently, [OpenZeppelin partnered with Midnight](https://midnight.network/blog/openzeppelin-joins-forces-with-midnight-to-shape-the-future-of-privacy-preserving-smart) to bring comparable tooling to the Compact ecosystem, adapting familiar standards like ERC-20 into privacy-preserving variants.
+
+In the Ethereum world, the **ERC-20** standard defines a fungible token with public ledger functions like `balanceOf`, `transfer`, `approve`, etc. It exposes transaction data transparently and lacks built-in privacy. The **FungibleToken** contract on Midnight draws inspiration from this, but operates within Midnight’s zero-knowledge, selective-disclosure framework.
+
+Fungible tokens are a cornerstone of the blockchain ecosystem, representing digital assets that are interchangeable – much like traditional currency. On various blockchains, these tokens power a wide array of applications, from facilitating seamless transactions and enabling decentralized finance (DeFi) protocols to representing ownership in digital communities and driving the mechanics of in-game economies. 
+
+Unlike unique non-fungible tokens (NFTs), the value of one fungible token is identical to another of the same type, making them ideal for use cases requiring divisibility and ease of exchange. Their widespread adoption underscores their importance in building liquid and interconnected digital economies.
+
+In this article, you'll learn about the core features of the contract, including how it manages ledger state variables, its key entry points and circuits for operations like minting, burning, and transferring tokens, and the essential safety and utility functions provided by the **Utils** and **Initializable** modules.   
+By understanding how these components fit together, you’ll gain insight into how the **FungibleToken** contract balances fungibility, usability, and privacy, providing an essential building block for privacy-preserving DeFi, identity, and tokenized assets on Midnight.
+
+---
+
+## **Features of the FungibleToken Contract**
+
+The FungibleToken contract on Midnight utilizes ledger state variables to keep track of balances, allowances, total supply, name, symbol, and decimals. Its functionality is exposed through "circuits" (entry points) like `Mint`, `Burn`, `Transfer`, `Approve`, `TransferFrom`, and `Initialize`, all of which enforce specific zero-knowledge validated transitions and maintain the integrity of the token's state.
+
+### **1\. Ledger State Variables**
+
+In Compact, the contract defines a structured **state** storing token balances and allowances—similar to ERC-20. The `_balances` map keeps track of the users’ token balances and is updated when a transfer occurs. The `_allowances` map keeps track of the permission given to specific users to spend tokens on behalf of another user:
+
+```compact
+export ledger _balances: Map<Either<ZswapCoinPublicKey, ContractAddress>, Uint<128>>;
+export ledger _allowances: Map<Either<ZswapCoinPublicKey, ContractAddress>, Map<Either<ZswapCoinPublicKey, ContractAddress>, Uint<128>>>;
+```
+
+These values live in the contract's ledger and are updated through transactions sent to the contract.
+
+There are other values in the ledger that are set when the contract is deployed:
+
+```compact
+export ledger _totalSupply: Uint<128>;
+export sealed ledger _name: Opaque<"string">;
+export sealed ledger _symbol: Opaque<"string">;
+export sealed ledger _decimals: Uint<8>;
+```
+
+These values provide different information about the token managed by the contract, its total supply, its name, its symbol, and its decimal (for display).
+
+### **2\. Entry Points and Circuits**
+
+In Compact, entry points are defined as **circuits** (akin to Solidity functions), each modelling a zero-knowledge validated transition. The difference between a circuit entry point and a circuit is that the entry point is callable via a transaction, while the non-entry point circuit is internal. Core circuits include:
+
+* **`Mint` / `Burn`** (to mint new tokens or burn existing tokens).
+
+* **`Transfer`**: to move tokens between addresses.
+
+* **`Approve`**, **`TransferFrom`**: standard ERC-20-style delegation mechanisms.
+
+* **`Initialize`**: via the **Initializable** module for contract setup.
+
+Each circuit enforces necessary constraints — for example, ensuring sufficient balance, managing allowance decrements, and preserving total supply.
+
+In the next step of the contract lifecycle, the different metadata stored in the ledger of the contract are safely initialized.
+
+## **Initialization & metadata**
+
+The following circuits define the essential setup and retrieval logic for the fungible token metadata and users’ balances, enforcing correct initialization.
+
+* **`initialize(name_, symbol_, decimals_)`**  
+   One-time setup. Calls `Initializable_initialize()`, then stores the (disclosed) name, symbol, and decimals. Every other public circuit asserts that the contract is initialized first.
+
+* **`name()` / `symbol()` / `decimals()` / `totalSupply()`**  
+   Simple getters that first assert initialized, then return the sealed (read only) ledger values.
+
+* **`balanceOf(account)`**  
+   Safe map lookup that returns `0` if the account isn’t present (to prevent contract failure if the key is absent).
+
+---
+
+## **The transfer family**
+
+The `FungibleToken` contract's **transfer** circuits manage token movement. Key circuits include: `transfer` for safe user-initiated transfers, `_unsafeTransfer` for internal token movement, `_transfer` for administrative transfers, `_unsafeUncheckedTransfer` for low-level token movement, and `_update` as the central accounting function for all token operations.
+
+These are split into **safe** and **unsafe** variants because **sending to contract addresses is currently disallowed** (until contract-to-contract interactions are supported). 
+
+“Safe” circuits enforce that policy; “unsafe” ones let you bypass it—explicitly marked as dangerous in comments.
+
+* **`transfer(to, value)` → `Boolean`**  
+   Safe user-initiated transfer: rejects if `to` is a `ContractAddress`. Internally, it just forwards to the unsafe variant after the check.
+
+* **`_unsafeTransfer(to, value)` → `Boolean`**  
+   Owner is the caller (`left(ownPublicKey())`). Moves value using the unchecked internal mover, then returns `true`.
+
+* **`_transfer(from, to, value)` → `[]`**  
+   Admin/extension hook that moves tokens **from an arbitrary `from`** (not necessarily the caller). Still enforces the “no contracts as `to`” rule and then uses the same mover underneath.
+
+* **`_unsafeUncheckedTransfer(from, to, value)` → `[]`**  
+   The low-level mover checks that neither side is the zero/burn address and then delegates the actual accounting to `_update`.
+
+* **`_update(from, to, value)` → `[]`**  
+   **Central accounting function** used by all mint/burn/transfer paths. It’s an internal circuit; it cannot be called via a transaction.
+
+  * If `from` is zero, the **mint** circuit is called, it asserts no `uint128` overflow, and increases `_totalSupply`.
+
+  * Else, it deducts from `from` balance (or reverts on insufficient funds).
+
+  * If `to` is zero, the **burn** circuit is called, and it decreases `_totalSupply`.
+
+  * Else, it adds to `to` balance.  
+     This single function guarantees the invariants for every movement of value.
+
+The "transfer family" circuits ensure secure token movement, with "safe" variants disallowing transfers to contract addresses and "unsafe" variants providing lower-level control.   
+This leads us to explore how allowances function, enabling delegated token spending.
+
+---
+
+## **Allowances (approve / spend / transferFrom)**
+
+This section details the allowance mechanisms within the FungibleToken contract, which enable users to delegate spending permissions to other addresses. These circuits facilitate secure, approved transfers on behalf of an owner without directly exposing their private keys.
+
+* **`allowance(owner, spender)`**  
+   Read the nested `_allowances` map, returning `0` when keys are missing (no revert).
+
+* **`approve(spender, value)` → `Boolean`**  
+   The owner is the caller. Forwards to `_approve(owner, spender, value)` and returns `true`.
+
+* **`transferFrom(from, to, value)` → `Boolean`**  
+   Safe delegated transfer: enforces the “no contract receiver” rule, then defers to `_unsafeTransferFrom`. 
+
+* **`_unsafeTransferFrom(from, to, value)` → `Boolean`**  
+   The spender is the caller. First spends allowance via `_spendAllowance(from, spender, value)`, then moves value using `_unsafeUncheckedTransfer`. Returns `true`. 
+
+* **`_approve(owner, spender, value)` → `[]`**  
+   It ensures that both the owner and the spender are valid, creates the owner’s entry in the map if needed, and then writes the allowance. (This mirrors OZ’s ERC-20 pattern of public `approve()` → internal `_approve()`.) 
+
+* **`_spendAllowance(owner, spender, value)` → `[]`**  
+   It deducts from the allowance unless it’s “infinite.” The implementation treats **`MAX_UINT128`** as infinite: if `currentAllowance == MAX`, it doesn’t decrement; otherwise, it asserts `currentAllowance ≥ value` and writes back `currentAllowance - value`.  
+   This is important because it supports “no-friction approvals” by letting apps set MAX once. 
+
+So, we just covered how allowances let people delegate token spending—basically, giving others permission to move their tokens. Up next, we'll dive into how we create and delete tokens in the contract.
+
+---
+
+## **Minting and burning**
+
+Here's how the FungibleToken contract handles making and destroying tokens. We'll dive into the `_mint` and `_burn` functions, showing what they do and how they link up with the main accounting system.
+
+* **`_mint(account, value)`** (safe) → `[]`  
+   It forbids minting **to** a contract address (same contract-to-contract restriction), then forwards to `_unsafeMint`. 
+
+* **`_unsafeMint(account, value)`** → `[]`  
+   It validates the receiver’s address, then calls `_update(burnAddress(), account, value)`—i.e., mint is modelled as a transfer **from** the burn/zero address. 
+
+* **`_burn(account, value)`** → `[]`  
+   It validates the sender’s address, then calls `_update(account, burnAddress(), value)`—i.e., burn is a transfer **to** the burn/zero address.  
+   *Note:* The actual notion of “zero/burn” address is standardized in the Utils module; you can also see helpers like `Utils_isKeyOrAddressZero` and `Utils_isContractAddress`. 
+
+Because mint and burn also route through `_update`, **total supply is adjusted in exactly one place,** and the same safety checks apply across all flows (including the `uint128` overflow check on mint). 
+
+The mint and burn circuits, by using the `_update` function, make sure the total supply adjustments are always consistent and that all token flows get the same safety checks.   
+Now, let's dive into the extra safety and utility stuff that the `Utils` and `Initializable` modules bring to the table.
+
+---
+
+## **Safety & utility glue (from `Utils` and `Initializable`)**
+
+This section explores how the `Utils` and `Initializable` modules provide essential safeguards and helpful functionalities. These components are vital for ensuring the contract's integrity and enabling secure, well-managed operations.
+
+* **Initialization guards**: The `Initializable_initialize` and `Initializable_assertInitialized` functions serve as crucial initialization guards within the `Initializable` contract. These safeguards ensure that a contract's state is properly set up only once and that subsequent operations only proceed if the contract has been correctly initialized. Every circuit that interacts with or modifies the contract's state is designed to invoke the `assert` function, reinforcing the integrity of the initialization process. 
+
+* **Address helpers**:
+
+  * `Utils_isContractAddress(either)` distinguishes user keys from contract addresses.
+
+  * `Utils_isKeyOrAddressZero(either)` detects the zero/burn address used in `_update`, `_unsafeUncheckedTransfer`, etc.  
+     These support the temporary “no contract receiver” policy and zero-address checks. 
+
+The **Utils** and **Initializable** modules provide crucial safety and utility functions, ensuring the contract's proper setup and secure operation. Now, let's look at how all these different parts of the **FungibleToken** contract work together.
+
+---
+
+## **How the pieces fit together**
+
+This part shows how everything in the FungibleToken contract is hooked up. Whether it's you sending tokens, someone else doing it for you, or tokens being created or destroyed, it all funnels through a few key functions and ultimately lands in the main `_update` function to keep track of everything.
+
+* User transfer:  
+   `transfer` → *(safe check)* → `_unsafeTransfer` → `_unsafeUncheckedTransfer` → `_update` (balances/supply) 
+
+* Delegated transfer:  
+   `transferFrom` → *(safe check)* → `_unsafeTransferFrom` → `_spendAllowance` → `_unsafeUncheckedTransfer` → `_update` 
+
+* Mint/Burn:  
+   `_mint/_unsafeMint` or `_burn` → `_update` (with zero/burn address on one side) 
+
+This section illustrates how various token operations, from user transfers to minting and burning, ultimately funnel through the central `_update` function for consistent accounting. Now, let's summarize the key takeaways of the **FungibleToken** contract on Midnight.
+
+---
+
+## **Conclusion**
+
+The **FungibleToken** Compact contract on Midnight is a privacy-aware reimagining of the ERC-20 standard. It maintains the familiar token interfaces—balances, transfers, approvals—but encodes them as ZK-validated circuits within Compact, enabling private, verifiable execution. The contract’s state and logic are shielded by design, exposing only proofs rather than raw data to the blockchain. 
+
+The ERC-20 standard revolutionized the crypto landscape by providing a common framework for creating and managing digital assets, fostering interoperability, and accelerating the growth of decentralized applications. For Midnight, an ERC-20-based token is crucial as it leverages this established standard while integrating ZK-privacy, offering a familiar yet enhanced experience for developers and users seeking both functionality and confidentiality.
+
+This model contrasts sharply with ERC-20 on Ethereum, where all token movements and balances are fully transparent. Here, Midnight allows selective disclosure: users and applications choose what to reveal. The **FungibleToken** contract thus balances fungibility, usability, and privacy—providing an essential building block for privacy-preserving DeFi, identity, and tokenized assets on Midnight.
+
+---
+
+## **Links**
+
+Delve deeper into the code, contracts, and comprehensive documentation to enhance your understanding and development skills. These resources are invaluable for building robust and innovative solutions.
+
+* FungibleToken contract: [FungibleToken.compact on Github](https://github.com/OpenZeppelin/compact-contracts/blob/main/contracts/fungibleToken/src/FungibleToken.compact)  
+* OpenZeppelin documentation: [docs.openzeppelin.com](https://docs.openzeppelin.com/contracts-compact/0.0.1/fungibletoken)  
+* ERC20 standard: [ethereum.org](https://ethereum.org/en/developers/docs/standards/tokens/erc-20/)  
+* Midnight docs: [Midnight Developer Documentation](https://docs.midnight.network/)  
+* Do you have any questions?: [Midnight Forum](https://forum.midnight.network/) 

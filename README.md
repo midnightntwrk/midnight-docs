@@ -1,72 +1,101 @@
-# Midnight Template Repository
+# Midnight Documentation
 
-This GitHub repository should be used as a template when creating a new Midnight GitHub repository.
-The template is configured with default repository settings and a set of default files that are expected to exist in all Midnight GitHub repositories.
+This website is generated with [Docusaurus 2](https://docusaurus.io) and features [Midnight](https://midnight.network/) documentation.
 
-### LICENSE
+## Quick start
 
-Apache 2.0.
+To get started, ensure you have [Node](https://github.com/nvm-sh/nvm) version 16.14 or higher installed:
 
-### README.md
+```shell
+node -v
+```
 
-Provides a brief description for users and developers who want to understand the purpose, setup, and usage of the repository.
+Next, globally install [Yarn](https://yarnpkg.com/) using NPM:
 
-### SECURITY.md
+```shell
+npm install -g yarn
+```
 
-Provides a brief description of the Midnight Foundation's security policy and how to properly disclose security issues.
+In the project's root directory, create a `.env` file (as shown here). Obtain and insert the proper values for these environment variables:
 
-### CONTRIBUTING.md
+```shell
+ALGOLIA_APP_ID=""
+ALGOLIA_INDEX_NAME=""
+```
+Install packages:
 
-Provides guidelines for how people can contribute to the Midnight project.
+```shell
+yarn
+```
 
-### CODEOWNERS
+Run a local instance of the documentation:
 
-Defines repository ownership rules.
+```shell
+yarn start
+```
 
-### ISSUE_TEMPLATE
+A browser window should open automatically; if not, visit [localhost:3000](http://localhost:3000/).
 
-Provides templates for reporting various types of issues, such as: bug report, documentation improvement and feature request.
+If you see an error message like 'algolia.appId is required', verify your `.env` file for accuracy.
 
-### PULL_REQUEST_TEMPLATE
+## Contribution rules
 
-Provides a template for a pull request.
+1. Every change in the repository should follow the review process.
+2. At least one reviewer is needed to approve changes.
+3. Documentation should be strict, concise, and focused on providing details on the architecture and processes.
+4. Use precise language.
+5. Don't put links or references to other private repositories in documentation.
+6. Directory structure should be at a maximum of two levels deep.
+7. Headings should be a maximum of three levels deep at maximum — `###`.
+8. All ambiguous and not widely-known terms should be described in [Glossary](./docs/learn/04-glossary.mdx) section.
+9. API documentation should be automatically updated in [midnight-api](./docs/develop/reference/midnight-api/).
 
-### CLA Assistant
+## Details
 
-The Midnight Foundation appreciates contributions, and like many other open source projects asks contributors to sign a contributor
-License Agreement before accepting contributions. We use CLA assistant (https://github.com/cla-assistant/cla-assistant) to streamline the CLA
-signing process, enabling contributors to sign our CLAs directly within a GitHub pull request.
+### Installation
 
-### Dependabot
+```
+$ yarn
+```
 
-The Midnight Foundation uses GitHub Dependabot feature to keep our projects dependencies up-to-date and address potential security vulnerabilities. 
+### Local Development
 
-### Checkmarx
+```
+$ yarn start
+```
 
-The Midnight Foundation uses Checkmarx for application security (AppSec) to identify and fix security vulnerabilities.
-All repositories are scanned with Checkmarx's suite of tools including: Static Application Security Testing (SAST), Infrastructure as Code (IaC), Software Composition Analysis (SCA), API Security, Container Security and Supply Chain Scans (SCS).
+This command starts a local development server and opens up a browser window. Most changes are reflected live without having to restart the server.
 
-### Unito
+### Build
 
-Facilitates two-way data synchronization, automated workflows and streamline processes between: Jira, GitHub issues and Github project Kanban board. 
+```
+$ yarn build
+```
 
-# TODO - New Repo Owner
+This command generates static content into the `build` directory and can be served using any static contents hosting service.
 
-### Software Package Data Exchange (SPDX)
-Include the following Software Package Data Exchange (SPDX) short-form identifier in a comment at the top headers of each source code file.
+### Deployment
 
+Using SSH:
 
- <I>// This file is part of <B>REPLACE WITH REPO-NAME</B>.<BR>
- // Copyright (C) 2025 Midnight Foundation<BR>
- // SPDX-License-Identifier: Apache-2.0<BR>
- // Licensed under the Apache License, Version 2.0 (the "License");<BR>
- // You may not use this file except in compliance with the License.<BR>
- // You may obtain a copy of the License at<BR>
- //<BR>
- //	http://www.apache.org/licenses/LICENSE-2.0<BR>
- //<BR>
- // Unless required by applicable law or agreed to in writing, software<BR>
- // distributed under the License is distributed on an "AS IS" BASIS,<BR>
- // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.<BR>
- // See the License for the specific language governing permissions and<BR>
- // limitations under the License.</I>
+```
+$ USE_SSH=true yarn deploy
+```
+
+Not using SSH:
+
+```
+$ GIT_USER=<Your GitHub username> yarn deploy
+```
+
+If you are using GitHub pages for hosting, this command is a convenient way to build the website and push to the `gh-pages` branch.
+
+### API documentation update process
+
+1. Within the component repository you want to create API documentation create `/docs/api` directory.
+2. Setup GHA that:
+   - updates the API documentation automatically
+   - creates PR with API changes
+3. Setup [GHA](./.github/workflows/apis.yml) in this repository that:
+   - copies the data from source component repository `/docs/api` directory into destination `/docs/midnight-api/component`
+   - creates a PR with all API changes
