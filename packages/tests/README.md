@@ -15,11 +15,11 @@ All files associated with this workflow can be found and should reside under `pa
 
 ### Docker
 
-To set up the initial batch of Playwright Snapshots you will need to implement several files. To ensure consistency between different environemnts the snaphot generation script runs through docker. Thus a dockerfile will be necessary. 
+To set up the initial batch of Playwright Snapshots you will need to implement several files. To ensure consistency between different environemnts the snaphot generation script runs through docker. Thus a dockerfile will be necessary.
 
 Before running the initial docker build, ensure docker is running - either via the desktop app or via the terminal (Colima/manually etc.)
 
-If the versioning of the playwright instance needs updating, please update it via the `dockerfile` first line 
+If the versioning of the playwright instance needs updating, please update it via the `dockerfile` first line
 ```FROM mcr.microsoft.com/playwright:v{version-number}-focal```
 You will get a prompt to do this when you try and run the playwright scripts - simply update the version manually and rebuild the docker instance - then you can re-run the scripts
 
@@ -47,9 +47,9 @@ Next you should run `BASE_URL=={preview-deploy-url OR site-url} yarn playwright-
 
 #### Locally
 
-To compare snapshots locally simply run `BASE_URL={preview-deploy-url OR site-url} yarn playwright-snapshots` or `BASE_URL={preview-deploy-url OR site-url} pnpm run playwright-snapshots` depending on package manager (or `docker run -e BASE_URL=${preview-deploy-url OR site-url} -v $(pwd):/app playwright-tests` if you do not have the script in your package.json) - With snapshots present - this will generate snapshots for the given preview deploy url compare them to the existing ones in the repo - results and reports will then be stored locally in `test-results` directory. 
+To compare snapshots locally simply run `BASE_URL={preview-deploy-url OR site-url} yarn playwright-snapshots` or `BASE_URL={preview-deploy-url OR site-url} pnpm run playwright-snapshots` depending on package manager (or `docker run -e BASE_URL=${preview-deploy-url OR site-url} -v $(pwd):/app playwright-tests` if you do not have the script in your package.json) - With snapshots present - this will generate snapshots for the given preview deploy url compare them to the existing ones in the repo - results and reports will then be stored locally in `test-results` directory.
 
-When running locally - ensure you have updated your `.env` file with the appropriate `VERCEL_BYPASS_TOKEN` if preview deploy protection is enabled on the project's vercel deployment 
+When running locally - ensure you have updated your `.env` file with the appropriate `VERCEL_BYPASS_TOKEN` if preview deploy protection is enabled on the project's vercel deployment
 
 #### Pipeline
 

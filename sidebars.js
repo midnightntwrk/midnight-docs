@@ -11,7 +11,7 @@ module.exports = {
           label: "User quick start"
         },
         {
-          type: "doc", 
+          type: "doc",
           id: "quickstart/builder-quickstart",
           label: "Builder quick start"
         }
@@ -29,7 +29,7 @@ module.exports = {
           link: { type: "doc", id: "develop/tutorial/building/index" },
           items: [
             "develop/tutorial/building/examples-repo",
-            "develop/tutorial/building/counter-build", 
+            "develop/tutorial/building/counter-build",
             "develop/tutorial/building/counter-run",
             "develop/tutorial/building/contract-details",
             "develop/tutorial/building/dapp-details"
@@ -54,7 +54,7 @@ module.exports = {
           items: [
             "develop/tutorial/using/welcome",
             "develop/tutorial/using/chrome-ext",
-            "develop/tutorial/using/faucet", 
+            "develop/tutorial/using/faucet",
             "develop/tutorial/using/proof-server"
           ]
         },
@@ -65,7 +65,7 @@ module.exports = {
         },
         {
           type: "category",
-          label: "Query the blockchain", 
+          label: "Query the blockchain",
           items: [
             "develop/nodes-and-dapps/nodes-endpoints"
           ]
@@ -84,7 +84,7 @@ module.exports = {
           link: { type: "doc", id: "academy/index" },
           items: [
             "academy/module-1",
-            "academy/module-2", 
+            "academy/module-2",
             "academy/module-3",
             "academy/module-4",
             "academy/module-5",
@@ -106,7 +106,7 @@ module.exports = {
               items: ["learn/introduction/what-is-midnight/why-midnight"]
             },
             {
-              type: "category", 
+              type: "category",
               label: "Features",
               items: [
                 "learn/introduction/features/security",
@@ -119,7 +119,7 @@ module.exports = {
               link: { type: "doc", id: "learn/introduction/use-cases/index" },
               items: [
                 "learn/introduction/use-cases/identity-verification",
-                "learn/introduction/use-cases/digital-assets", 
+                "learn/introduction/use-cases/digital-assets",
                 "learn/introduction/use-cases/ai-llm",
                 "learn/introduction/use-cases/decentralized-credit-scoring",
                 "learn/introduction/use-cases/decentralized-voting"
@@ -135,7 +135,7 @@ module.exports = {
         },
         {
           type: "category",
-          label: "Understanding Midnight's technology", 
+          label: "Understanding Midnight's technology",
           link: {
             type: "doc",
             id: "learn/understanding-midnights-technology/index"
@@ -143,7 +143,7 @@ module.exports = {
           items: [
             "learn/understanding-midnights-technology/web3",
             "learn/understanding-midnights-technology/zero-knowledge-proofs",
-            "learn/understanding-midnights-technology/kachina", 
+            "learn/understanding-midnights-technology/kachina",
             "learn/understanding-midnights-technology/zswap",
             {
               type: "category",
@@ -151,7 +151,7 @@ module.exports = {
               link: { type: "doc", id: "learn/understanding-midnights-technology/ledgers" },
               items: [
                 "learn/understanding-midnights-technology/account",
-                "learn/understanding-midnights-technology/utxo", 
+                "learn/understanding-midnights-technology/utxo",
                 "learn/understanding-midnights-technology/midnight-combined-model"
 
               ]
@@ -173,7 +173,7 @@ module.exports = {
           link: { type: "doc", id: "validate/run-a-validator/index" },
           items: [
             "validate/run-a-validator/step-1",
-            "validate/run-a-validator/step-2", 
+            "validate/run-a-validator/step-2",
             "validate/run-a-validator/step-3",
             "validate/run-a-validator/step-4"
           ]
@@ -189,7 +189,7 @@ module.exports = {
 
     // COMPACT LANGUAGE
     {
-      type: "category", 
+      type: "category",
       label: "Compact language",
       items: [
         {
@@ -201,7 +201,7 @@ module.exports = {
             "develop/reference/compact/lang-ref",
             "develop/reference/compact/compact-grammar",
             "develop/reference/compact/ledger-adt",
-            "develop/reference/compact/opaque_data", 
+            "develop/reference/compact/opaque_data",
             "develop/reference/compact/explicit_disclosure",
             {
               type: "category",
@@ -224,7 +224,7 @@ module.exports = {
             "develop/reference/tools/compiler-usage",
             {
               type: "category",
-              label: "VS Code plugin", 
+              label: "VS Code plugin",
               link: { type: "doc", id: "develop/reference/tools/vsc-plugin/index" },
               items: []
             }
@@ -249,7 +249,7 @@ module.exports = {
           link: { type: "doc", id: "develop/how-midnight-works/index" },
           items: [
             "develop/how-midnight-works/smart-contracts",
-            "develop/how-midnight-works/advantages", 
+            "develop/how-midnight-works/advantages",
             "develop/how-midnight-works/keeping-data-private",
             "develop/how-midnight-works/building-blocks",
             "develop/how-midnight-works/zswap",
@@ -269,7 +269,7 @@ module.exports = {
                 'develop/nodes-and-dapps/p2p-networking',
                 'develop/nodes-and-dapps/rpc-networking',
                 'develop/nodes-and-dapps/cryptography',
-                'develop/nodes-and-dapps/storage', 
+                'develop/nodes-and-dapps/storage',
                 'develop/nodes-and-dapps/transactions',
                 'develop/nodes-and-dapps/onchain-logic',
                 'develop/nodes-and-dapps/consensus',
@@ -293,7 +293,7 @@ module.exports = {
     // API DOCUMENTATION
     {
       type: "category",
-      label: "API documentation", 
+      label: "API documentation",
       link: { type: "doc", id: "develop/reference/midnight-api/index" },
       items: [
         {
@@ -485,7 +485,7 @@ module.exports = {
         },
         {
           type: "category",
-          label: "DApp connector API", 
+          label: "DApp connector API",
           link: {
             type: "doc",
             id: "develop/reference/midnight-api/dapp-connector/README"
@@ -535,7 +535,7 @@ module.exports = {
           type: "category",
           label: "Ledger API",
           link: {
-            type: "doc", 
+            type: "doc",
             id: "develop/reference/midnight-api/ledger/README"
           },
           items: [
@@ -699,7 +699,7 @@ module.exports = {
         },
         {
           type: "category",
-          label: "Midnight.js API", 
+          label: "Midnight.js API",
           link: {
             type: "doc",
             id: "develop/reference/midnight-api/midnight-js/README"
@@ -775,7 +775,7 @@ module.exports = {
           ]
         },
         {
-          type: "category", 
+          type: "category",
           label: "On-chain runtime API",
           link: {
             type: "doc",
@@ -900,7 +900,7 @@ module.exports = {
           type: "category",
           label: "Wallet API",
           link: {
-            type: "doc", 
+            type: "doc",
             id: "develop/reference/midnight-api/wallet-api/README"
           },
           items: [
@@ -1038,7 +1038,7 @@ module.exports = {
       items: [
         {
           type: "doc",
-          id: "develop/faq", 
+          id: "develop/faq",
           label: "Frequently asked questions"
         },
         {
@@ -1059,13 +1059,13 @@ module.exports = {
       },
       items: [
         {
-          type: "doc", 
+          type: "doc",
           id: "relnotes/ledger",
           label: "Ledger"
         },
         {
           type: "doc",
-          id: "relnotes/proof-server", 
+          id: "relnotes/proof-server",
           label: "Proof server"
         },
         {
@@ -1079,7 +1079,7 @@ module.exports = {
           label: "Node"
         },
         {
-          type: "doc", 
+          type: "doc",
           id: "relnotes/midnight-indexer",
           label: "Midnight indexer"
         },
@@ -1090,11 +1090,11 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "relnotes/wallet", 
+          id: "relnotes/wallet",
           label: "Wallet SDK"
         },
         {
-          type: "doc", 
+          type: "doc",
           id: "relnotes/midnight-wallet-api",
           label: "Wallet API"
         },
@@ -1110,12 +1110,12 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "relnotes/compact", 
+          id: "relnotes/compact",
           label: "Compact compiler"
         },
         {
           type: "doc",
-          id: "relnotes/compact-tools", 
+          id: "relnotes/compact-tools",
           label: "Compact developer tools"
         },
         {
@@ -1124,7 +1124,7 @@ module.exports = {
           label: "Midnight.js"
         },
         {
-          type: "doc", 
+          type: "doc",
           id: "relnotes/vs-code-extension",
           label: "VS Code extension"
         },
@@ -1146,7 +1146,7 @@ module.exports = {
     // CONTRIBUTE
     {
       type: "category",
-      label: "Contribute", 
+      label: "Contribute",
       items: [
         {
           type: "doc",
@@ -1155,7 +1155,7 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "contribute/formatting-guide", 
+          id: "contribute/formatting-guide",
           label: "Formatting guide"
         }
       ]
