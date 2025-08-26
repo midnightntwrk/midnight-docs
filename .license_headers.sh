@@ -1,5 +1,6 @@
 export LC_ALL=C
 
+
 find . -type f -name '*.mdx' -print0 |
 while IFS= read -r -d '' file; do
   # Skip files that already contain the marker
