@@ -15,7 +15,7 @@ All files associated with this workflow can be found and should reside under `pa
 
 ### Docker
 
-To set up the initial batch of Playwright Snapshots you will need to implement several files. To ensure consistency between different environemnts the snaphot generation script runs through docker. Thus a dockerfile will be necessary.
+To set up the initial batch of Playwright Snapshots you will need to implement several files. To ensure consistency between different environments the snaphot generation script runs through docker. Thus a dockerfile will be necessary.
 
 Before running the initial docker build, ensure docker is running - either via the desktop app or via the terminal (Colima/manually etc.)
 
@@ -35,7 +35,7 @@ Next you will need to create a test directory, ideally located at `.../packages/
 
 This script will go over the endpoints in [pipelines-urls.json file](pipelines-urls.json) and generate/compare snapshots for each URL
 
-On initial local run, this script will create a directory `packages/tests/visual-regression.test.ts-snapshots` which will contain all of the new snapshots which will the need to be comitted to the repo for future reference/comparison testing.
+On initial local run, this script will create a directory `packages/tests/visual-regression.test.ts-snapshots` which will contain all of the new snapshots which will the need to be committed to the repo for future reference/comparison testing.
 
 ### Generating initial snapshots
 
@@ -53,7 +53,7 @@ When running locally - ensure you have updated your `.env` file with the appropr
 
 #### Pipeline
 
-Once you have made the appropriate changes to the code - simply commit your code and make a PR - the [Playwright pipeline](../../.github/workflows/playwright-visual-regression.yml) will automatically generate screenshots for the latest preview dpeloy and compare them to the ones in the repo. Results will be attached to the PR as a comment - reports will be available for download from there (if any differences are detected).
+Once you have made the appropriate changes to the code - simply commit your code and make a PR - the [Playwright pipeline](../../.github/workflows/playwright-visual-regression.yml) will automatically generate screenshots for the latest preview deploy and compare them to the ones in the repo. Results will be attached to the PR as a comment - reports will be available for download from there (if any differences are detected).
 
 For repos with a password protection on preview deployments - a bypass token has been added to the workflow - it needs to be generated via vercel and added as a secret to the repo for the tests to run successfully
 
@@ -63,7 +63,7 @@ If you wish to update the batch of snapshots to keep them up to date with the la
 
 When running locally - ensure you have updated your `.env` file with the appropriate `VERCEL_BYPASS_TOKEN` if preview deploy protection is enabled on the project's vercel deployment
 
-***Please ensure you update snapshtos regularly before merging to the main/master production branch to ensure all snapshots are up to date***
+***Please ensure you update snapshots regularly before merging to the main/master production branch to ensure all snapshots are up to date***
 
 ## ![slack](https://github.com/user-attachments/assets/d7ecec42-d7de-4597-8be1-378a18f740e8) Slack notifications
 
