@@ -43,11 +43,16 @@ const config = {
     [
       './plugins/blog-plugin.js',
       {
+        id: 'default', // This is important - it needs to be the default blog instance
         blogTitle: "Dev Diaries",
         blogDescription: "Updates, insights, and dev news from Midnight.",
         showReadingTime: true,
         routeBasePath: 'blog',
+        path: './blog',
         blogListComponent: require.resolve('./src/pages/blog/index.js'),
+        blogPostComponent: '@theme/BlogPostPage',
+        blogTagsListComponent: '@theme/BlogTagsListPage',
+        blogTagsPostsComponent: '@theme/BlogTagsPostsPage',
         postsPerPage: "ALL",
         blogSidebarTitle: "All posts",
         blogSidebarCount: "ALL"
