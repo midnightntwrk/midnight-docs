@@ -517,33 +517,33 @@ The scope of a binding is the region of code where the identifier
 is "bound" to its value and can be referenced.
 
 When a program attempts to reference an identifier, the Compact
-compiler looks for its declaration within the current scope.  It is a static type error
+compiler looks for its declaration within the current scope.  It is a static error
 if an identifier is referenced in a scope but its definition is not accessible within
-that scope.  It is a static type error if an identifier is bound more than once in a
-same scope.  However, the Compact compiler accepts multiple binding to a same
+that scope.  It is a static error if an identifier is bound more than once in a
+same scope.  However, the Compact compiler accepts multiple bindings of a same
 identifier for unexported circuits.
 
 Scopes can be nested, just like nested boxes.  The outermost box is the __global
 scope__ of a program.  Identifiers declared here, such as types, modules,
-top-level circuits, or ledger fields, are accessible throughout the entire contract.
+top-level circuits, or ledger fields, are visible throughout the entire contract.
 Within a global scope, zero or more local scopes can be defined, which are smaller,
 nested boxes.
 
 In Compact, the primary local scopes are defined in:
 - [structure types](#structure-types): All generic parameters in a structure type declaration
-are only visible within its declaration.
-- [modules](#modules-exports-and-imports): All identifiers defined inside a module are only
-visible within it unless they are explicitly exported.
+are visible only within its declaration.
+- [modules](#modules-exports-and-imports): All identifiers defined inside a module are
+visible only within it unless they are explicitly exported.
 - [circuits](#circuits): The circuit's parameters, generic parameters, and any `const` bindings
 defined inside its body are local to that circuit.
-- [blocks](#statements): All identifiers defined by a `const` binding inside a block are only
-visible within it.
-- [`for` loops](#for-loop): All identifiers introduced in a `for` loop are only visible
+- [blocks](#statements): All identifiers defined by a `const` binding inside a block are
+visible only within it.
+- [`for` loops](#for-loop): All identifiers introduced in a `for` loop are visible only
 inside that `for` loop.
 - [anonymous circuits](#circuit-and-witness-calls): Parameters of an anonymous circuit are
-only visible in its body.
+visible only in its body.
 - [constructor](#contract-constructor): The constructor's parameters and any `const` bindings
-defined inside its body are local to the constructor.
+defined inside its body are visible only within the constructor.
 
 A key principle of scoping is __shadowing__.  Shadowing occurs when an identifier in an
 inner scope has the same name as an identifier in an outer scope.  The inner identifier
@@ -577,52 +577,53 @@ some other identifier binding) is either a type or a natural-number size.
 
 ## Parameters, patterns, and destructuring
 
-Parameters can be named or they can be patterns.  A named parameter is simply just an identifier.
-A pattern is a destruction of a tuple or a structure value.
+Each parameter of a circuit or a constructor can either be a single name (identifier) or a pattern.
+A pattern is a destruction of a tuple, a vector, or a structure value.
 Pattern parameters can appear in [circuit definitions](#circuits),
 [anonymous circuits](#circuit-and-witness-calls), and [constructors](#contract-constructor).
 Patterns can also apper in [`const` binding statements](#const-binding-statement).
 
 <table className="lang-ref-table"><tbody><tr><td><em>parg</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>p</em></td></tr><tr><td></td><td>|</td><td>&nbsp;&nbsp;<em>p</em>&nbsp;&nbsp;<b><tt>:</tt></b>&nbsp;&nbsp;<em>type</em></td></tr><tr><td><em>p</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>id</em></td></tr><tr><td></td><td>|</td><td>&nbsp;&nbsp;<b>[</b>&nbsp;&nbsp;<tt>[</tt>&nbsp;&nbsp;<tt>\{</tt><b>,</b><tt>}</tt>&nbsp;&nbsp;<em>p</em>&nbsp;&nbsp;<tt>\{</tt><b>,</b><tt>}</tt>&nbsp;&nbsp;<tt>\{</tt><b>,</b>&nbsp;&nbsp;<tt>\{</tt><b>,</b><tt>}</tt>&nbsp;&nbsp;<em>p</em>&nbsp;&nbsp;<tt>\{</tt><b>,</b><tt>}</tt>&nbsp;&nbsp;<tt>}</tt>&nbsp;&nbsp;<tt>]</tt>&nbsp;&nbsp;<b>]</b></td></tr><tr><td></td><td>|</td><td>&nbsp;&nbsp;<b><tt>\{</tt></b>&nbsp;&nbsp;<tt>[</tt>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;<tt>[</tt><b><tt>:</tt></b>&nbsp;&nbsp;<em>p</em>]&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;[<b><tt>:</tt></b>&nbsp;&nbsp;<em>p</em>]}&nbsp;&nbsp;<tt>]</tt>&nbsp;&nbsp;<b><tt>}</tt></b></td></tr></tbody></table>
 
-A __tuple pattern__ has the form `[id, ...]` where `id, ...` is a sequence of zero or more comma-separated identifiers.
+A __tuple pattern__ destructures a tuple or a vector value and
+it has the form `[id, ...]` where `id, ...` is a sequence of zero or more comma-separated identifiers.
 A type annotation can be declared for a tuple pattern with the form `[id, ...] : T`
 where `T` is a Compact type or a generic type parameter in scope. It is a static type error if `T`
-is not a tuple type.  It is a static type error if the length of the sequence of identifiers (the
+is not a tuple or a vector type.  It is a static type error if the length of the sequence of identifiers (the
 number of elements in the sequence of identifiers) is larger than the
-length of the tuple type.  Both the sequence of identifiers and tuple type can have a trailing comma.
+length of the tuple or vector type.  Both the sequence of identifiers and tuple type can have a trailing comma.
 The sequence of identifiers can leave out some identifiers by dropping their identifiers to skip binding
-some indices of the tuple, for example, `[x, , , y] : [Boolean, Boolean, Boolean, Boolean]` only
-binds the first and last element of a tuple of four boolean values.  However, doing so in the tuple
-type is a parse error.  The dropped identifiers count toward the length of the tuple pattern if there
-exists a named identifier after the dropped ones.  For example, `[x, , , y]` has length 4 but
-`[x, y, , ]` has length 2.
+some indices of the tuple, for example, `[x, , , y] : [Boolean, Boolean, Boolean, Boolean]`
+binds only the first and last element of a tuple of four boolean values.  However, the tuple
+type must be fully specified.  The dropped identifiers count toward the length of the tuple pattern if there
+exists a named identifier after the dropped ones.  For example, `[x, , , y]`
+matches a tuple or vector with 4 or more elements, while
+`[x, y, , ]` matches a tuple or vector with 2 or more elements.
 
 A tuple pattern has a more general form `[p, ...]` where `p, ...` is a sequence of zero or
 more comma-separated patterns where a pattern can be an identifier, a tuple pattern, or a structure pattern.
 Where a type annotation exists for a tuple pattern it is a static type error if a pattern has
 the form of a tuple or a structure pattern but its corresponding type annotation
-does not have a tuple or a structure type, respectively.  For example, `[x, [y, z]] : [Field, Boolean]`
-results in a static type error since the pattern `[y, z]` must have a tuple type.
+does not have a tuple/vector or a structure type, respectively.  For example, `[x, [y, z]] : [Field, Boolean]`
+results in a static type error since the pattern `[y, z]` must have a tuple/vector type.
 
-A __structure pattern__ has the form `{f, ...}` where `f, ...` is a sequence of zero or more comma-separated fields.
+A __structure pattern__ desctructures a structure value and
+it has the form `{f, ...}` where `f, ...` is a sequence of zero or more comma-separated fields.
 A type annotation can be declared for a structure pattern with the form `{f, ...} : T`
 where `T` is a Compact type or a generic type parameter in scope.  It is a static type error if `T` is
 not a structure type.  It is a static type error if the sequence of fields contains fields that are not
 fields of `T`, however, the sequence of fields does not have to bind all the fields of `T`.  The sequence
-of fields can contain a trailing comma and the order of fields in the sequence `f, ...` does not have
+of fields can contain a trailing comma, and the order of fields in the sequence `f, ...` does not have
 to match the order of fields in the type declaration of `T`.
 
 A structure pattern can optionally bind a field to a new identifier by `{f: p, ...}` where `f: p, ...` is a
-sequence of zero or more comma-separated field `f` bound to pattern `p`.  If the pattern `p` is an identifier
-the field `f` is reassigned to the identifier.  It is a static type error to bind the same identifier
+sequence of zero or more comma-separated field `f` bound to pattern `p`.  If the pattern `p` is an identifier `x`,
+the value of the field `f` is accessible via the name `x` rather than by the name `f`.
+ It is a static type error to bind the same identifier
 more than once in a scope of destructions, for example, `{a: b, b} : S` is a static type error since `b`
 is bound to both fields of the structure type, `S` is defined as
 `struct S {a: Field, b: Boolean}`.
-It is a static type error to reference `f` after reassigning it to another pattern,
-for example, using the same structure `S`,
-`export circuit bad-eg({a: b, } : S) : Field { return a; }` causes an `unbound identifier a` static type
-error.  If the pattern `p` is a tuple or structure desctruction it is a static type error if the
+If the pattern `p` is a tuple or structure desctruction it is a static type error if the
 field `f` does not have a tuple or structure type, respectively.  The optional expansion to patterns can be
 mixed and matched with no expansion, for example, `const {a: x, b} = S {a = 1, b = true}` is valid given the structure definition
 `struct S {a: Field, b: Boolean}`.  This constant binding binds `x` to `1` and `b` to `true`.
@@ -695,7 +696,6 @@ A statement may be
 - a [`for` loop](#for-loop)
 - an [`if` statement](#if-statement)
 - a [`return` statement](#return-statement)
-- an [`assert`](#assert-statement)
 - a block - a sequence of zeror or more statements in a nested scope, enclosed by curly braces
 - a [`const` binding statement](#const-binding-statement)
 - an [expression](#expressions)
@@ -746,42 +746,29 @@ statement, for example,
 causes a static type error since the `else` branch of the `if` statements has type `[]`.
 It is a static type error to have a statement after a `return` statement in a same block.
 
-#### `assert` statement
-
-An assertion can be made with
-
-```compact
-assert(<expr>, "what constraint was violated");
-```
-
-where `<expr>` should evaluate to a `Boolean`. If `<expr>` evaluates to
-true, the assertion succeeds; if `<expr>` evaluates to false, it fails
-with the given message.  Each assertion is
-checked at runtime and constrained in-circuit.
-
 #### `const` binding statement
 
 The syntaxt of a Compact constant binding is the same as a constant binding in TypeScript.
 
 <table className="lang-ref-table"><tbody><tr><td><em>stmt</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<b><tt>const</tt></b>&nbsp;&nbsp;<tt>\{</tt>&nbsp;&nbsp;<em>parg</em>&nbsp;&nbsp;<b><tt>=</tt></b>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>parg</em>&nbsp;&nbsp;<b><tt>=</tt></b>&nbsp;&nbsp;<em>expr</em>}&nbsp;&nbsp;<tt>}</tt></td></tr></tbody></table>
 
-A `const` binding brings a new identifier into scope and assigns an expression to it.
+A `const` binding brings a new identifier into scope and assigns it to the value of an expression.
 
-It can bring into scope a __single pattern__ with `const p = e` where `p` is the new pattern and it is bound to expression `e`.
+It can bring into scope a __single pattern__ with `const p = e` where `p` is the new pattern and `e` is an expression.
 `p` can be an identifier, a tuple pattern, or a structure pattern:
-- If `p` is an identifier the static type of the identifier is the type of `e`.
+- If `p` is an identifier the static type of the identifier is the type of `e` and the identifier is bound to the value of `e`.
 
 - If `p` is a tuple pattern
-`e` must have a tuple type, otherwise it is a static type error.  It is a static type error
+`e` must have a tuple or a vector type, otherwise it is a static type error.  It is a static type error
 if the number of identifiers are more than the length of tuple `[v, ...]` where `[v, ...]` is the result of evaluating `e`.
 However, it is not a static type error if the number of identifiers are less than the length of `[v, ...]`, in this case
-identifiers are bound from left-to-right to elements in `[v, ...]` until there is no more identifier to bind to the next
-element of `[v, ...]`.  The sequence of identifiers does not have to bind every element of a tuple, that is, it can drop
+identifiers are bound from left-to-right to elements in `[v, ...]` until there is no more identifiers to bind to the next
+elements of `[v, ...]`.  The sequence of identifiers does not have to bind every element of a tuple, that is, it can drop
 some of the identifiers to skip binding them, for example, `const [a, , b] = [1, 2, 3]` binds `1` to `a` and `3` to `b`.
-These skipped identifiers are counted towards the length of the sequence of identifiers. For example, `[a, , b]` has
-length `3`.
+These skipped identifiers are counted towards the length of the sequence of identifiers. For example, `[a, , b]`
+matches a tuple or vector with three or more elements.
 
-- If `p` is a structure pattern `e` must have a structure type, otherwise it is a static type error.
+- If `p` is a structure pattern, `e` must have a structure type, otherwise it is a static type error.
 The fields of pattern `p` must be
 a subset of the structure type's fields, otherwise it is a static type error.  The order of fields does not matter.
 
@@ -793,25 +780,13 @@ Constant bindings are evaluate from left-to-right.  This means that an identifie
 bound.  It is a static type error to bind an identifier more than once. It is a static type error to reference an
 identifier before binding it.
 
-A `const` binding can optionally declare the type for each binding with `const x: T = e`. It is a static type error if `e`
-does not have type `T`.  In such an error, `x` has the __actual type__ `U` where `U` is the static type of `e` but it
-has the __declared type__ `T`.  In multiple identifiers `const` statments,
-it is not a static type error to mix and match bindings with and without a type declaration, that is,
-a binding such as `const x: Field = 2, y = true` is valid.  In a tuple pattern `const` binding, it is a static type error to
-skip the type of a skipped element, for example, `const [a, , b] : [Field, , Field] = [1, 2, 3]` results in a parse error and
-`const [a, , b] : [Field, Field] = [1, 2, 3]` results in a static type error.  It is a static type error to skip the
-expression being bound to a skipped identifier, for example, `const [a, , b] = [1, , 3]` results in a parse error.
+A `const` binding can optionally declare the type for each binding with `const p: T = e`. It is a static type error if `e`
+does not have type `T`.  In `const` statements with multiple pattern/expression pairs,
+it is permissible to for some of the pairs to include types and some not to include types, that is,
+a binding such as `const x: Field = 2, y = true` is valid.
 
-:::note
-When multiple static type errors exist in a program it is up to the compiler implementation to decide whether to throw an error
-complaining about all of them at once or pick an order for the errors. For example, in
-`const [a, , b] : [Field, Field] = [1, 2]` the compiler can choose to throw the static type error that the
-type annotation `[Field, Field]` must have another element or to throw the static type error that the expression `[1, 2]`
-must have another element or to throw both at the same time.
-:::
-
-The name of a constant may not be reused within a block, and constants cannot be reassigned, although they can be shadowed in
-a nested block.  Constant initializer expressions are evaluated when the binding statement is executed.
+Any identifier bound by `const` may not be reused within a block, and identifiers cannot be reassigned, although they can be [shadowed in
+a nested block](#scope-and-binding).  Constant initializer expressions are evaluated when the binding statement is executed.
 
 ### Expressions
 
@@ -1156,6 +1131,16 @@ subexpression.
 
 It is evaluated by evaluating the subexpressions from left to right.  Its value
 is the value of the last subexpression.
+
+#### Asserts
+
+An assertion has the form `assert(e, "msg")` where `e` is an expression and `msg` is a string message.
+`e` must have a Boolean type, otherwise it is a static type error.  If `e` evaluates to `true`, the assertion
+succeeds. If `e` evaluates to `false`, the assertion fails with the message `msg`.
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<b><tt>assert</tt></b>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;<em>expr</em></td><td><b><tt>,</tt></b>&nbsp;&nbsp;<b><tt>"</tt></b><em>msg</em>&nbsp;<b><tt>"</tt></b>&nbsp;&nbsp;<b><tt>)</tt></b></td></tr></tbody></table>
+
+Each assertion is checked at runtime and constrained in-circuit.
 
 #### Ledger expressions
 
