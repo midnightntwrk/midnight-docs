@@ -31,6 +31,7 @@ const config = {
   ],
   url: "https://docs.midnight.network",
   baseUrl: "/",
+  trailingSlash: false, 
 
   organizationName: "facebook", // TODO: Update with real org name
   projectName: "docusaurus",     // TODO: Update with real repo name
