@@ -60,9 +60,9 @@ function toHexString(obj: Serializable) {
 }
 
 // ----------------------------------------------------------------------
-// We need some Dust to submit transactions.
-// Devnet0 has a faucet dripping Dust for that purpose.
-// Make a wallet with some Dust in it, populated by the faucet.
+// We need some DUST to submit transactions.
+// Devnet0 has a faucet dripping DUST for that purpose.
+// Make a wallet with some DUST in it, populated by the faucet.
 // (The Resource interface in the return type says that a wallet
 // can be closed later.)
 

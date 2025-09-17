@@ -21,7 +21,7 @@ const darkCodeTheme = prismThemes.dracula;
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Midnight Docs",
-  tagline: "Midnight Dust is cool",
+  tagline: "Midnight DUST is cool",
   favicon: "img/favicon.ico",
   markdown: {
     mermaid: true
@@ -142,6 +142,14 @@ const config = {
   /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
   themeConfig: {    
     image: "img/og-image.png",
+
+    // Algolia verification
+    metadata: [
+      {
+        name: 'algolia-site-verification',
+        content: '71D46C846F83C714'
+      }
+    ],
 
     announcementBar: {
       id: "testnet-outage",
