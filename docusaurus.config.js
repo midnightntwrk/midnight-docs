@@ -28,13 +28,23 @@ const config = {
   },
   themes: [
     "@docusaurus/theme-mermaid",
+    [
+      require.resolve("@easyops-cn/docusaurus-search-local"),
+      {
+        hashed: true,
+        language: ["en"],
+        indexDocs: true,
+        indexBlog: true,
+        indexPages: false
+      }
+    ]
   ],
   url: "https://docs.midnight.network",
   baseUrl: "/",
-  trailingSlash: false, 
+  trailingSlash: false,
 
   organizationName: "facebook", // TODO: Update with real org name
-  projectName: "docusaurus",     // TODO: Update with real repo name
+  projectName: "docusaurus", // TODO: Update with real repo name
 
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
@@ -47,7 +57,8 @@ const config = {
         buttonStyle: "dark",
         requireEmail: true,
         requireComment: true,
-        messagePlaceholder: "Enter a brief title on the first line, then describe the issue",
+        messagePlaceholder:
+          "Enter a brief title on the first line, then describe the issue",
         emailPlaceholder: "Your email address",
         modalTitle: "Share your feedback",
         modalTitleSuccess: "Thank you!",
@@ -55,24 +66,24 @@ const config = {
       }
     ],
     [
-      './plugins/blog-plugin.js',
+      "./plugins/blog-plugin.js",
       {
-        id: 'default', // This is important - it needs to be the default blog instance
+        id: "default", // This is important - it needs to be the default blog instance
         blogTitle: "Dev Diaries",
         blogDescription: "Updates, insights, and dev news from Midnight.",
         showReadingTime: true,
-        routeBasePath: 'blog',
-        path: './blog',
-        blogListComponent: require.resolve('./src/pages/blog/index.js'),
-        blogPostComponent: '@theme/BlogPostPage',
-        blogTagsListComponent: '@theme/BlogTagsListPage',
-        blogTagsPostsComponent: '@theme/BlogTagsPostsPage',
+        routeBasePath: "blog",
+        path: "./blog",
+        blogListComponent: require.resolve("./src/pages/blog/index.js"),
+        blogPostComponent: "@theme/BlogPostPage",
+        blogTagsListComponent: "@theme/BlogTagsListPage",
+        blogTagsPostsComponent: "@theme/BlogTagsPostsPage",
         postsPerPage: "ALL",
         blogSidebarTitle: "All posts",
         blogSidebarCount: "ALL"
       }
     ],
-    require.resolve('./plugins/webpack-yaml-loader')
+    require.resolve("./plugins/webpack-yaml-loader")
   ],
 
   i18n: {
@@ -92,7 +103,8 @@ const config = {
       "data-website-id": "54f87db5-cd75-47b9-8bcc-94cd1c5cc86f",
       "data-project-name": "Shielded",
       "data-project-color": "#000000",
-      "data-project-logo": "https://pbs.twimg.com/profile_images/1707073625214582784/MsMpvtzV_200x200.jpg",
+      "data-project-logo":
+        "https://pbs.twimg.com/profile_images/1707073625214582784/MsMpvtzV_200x200.jpg",
       "data-modal-z-index": "10000",
       "data-button-position-bottom": "120px",
       "data-button-position-right": "10px",
@@ -140,14 +152,14 @@ const config = {
   ],
 
   /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
-  themeConfig: {    
+  themeConfig: {
     image: "img/og-image.png",
 
     // Algolia verification
     metadata: [
       {
-        name: 'algolia-site-verification',
-        content: '71D46C846F83C714'
+        name: "algolia-site-verification",
+        content: "71D46C846F83C714"
       }
     ],
 
@@ -198,12 +210,14 @@ const config = {
         {
           type: "html",
           position: "right",
-          value: '<a href="/relnotes/overview" class="button button--primary">Release Notes</a>'
+          value:
+            '<a href="/relnotes/overview" class="button button--primary">Release Notes</a>'
         },
         {
           type: "html",
           position: "right",
-          value: '<button id="custom-ask-ai-button" class="button button--primary">AI search</button>'
+          value:
+            '<button id="custom-ask-ai-button" class="button button--primary">AI search</button>'
         }
       ]
     },
@@ -226,9 +240,18 @@ const config = {
         {
           title: "Legal",
           items: [
-            { label: "Cookie Policy", href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20cookie-policy.pdf" },
-            { label: "Privacy Policy", href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20%20-%20Privacy%20Notice.pdf" },
-            { label: "Terms and Conditions", href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20-%20Website%20Terms%20of%20Use.pdf" }
+            {
+              label: "Cookie Policy",
+              href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20cookie-policy.pdf"
+            },
+            {
+              label: "Privacy Policy",
+              href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20%20-%20Privacy%20Notice.pdf"
+            },
+            {
+              label: "Terms and Conditions",
+              href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20-%20Website%20Terms%20of%20Use.pdf"
+            }
           ]
         },
         {
