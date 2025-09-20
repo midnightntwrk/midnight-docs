@@ -43,8 +43,8 @@ const config = {
   baseUrl: "/",
   trailingSlash: false,
 
-  organizationName: "facebook", // TODO: Update with real org name
-  projectName: "docusaurus", // TODO: Update with real repo name
+  organizationName: "midnightntwrk",
+  projectName: "midnight-docs",
 
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
