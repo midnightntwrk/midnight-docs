@@ -72,7 +72,16 @@ const config = {
         blogSidebarCount: "ALL"
       }
     ],
-    require.resolve('./plugins/webpack-yaml-loader')
+    require.resolve('./plugins/webpack-yaml-loader'),
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        language: ['en'],
+        highlightSearchTermsOnTargetPage: true,
+        explicitSearchResultPath: true,
+      },
+    ],
   ],
 
   i18n: {
@@ -194,6 +203,10 @@ const config = {
           label: "Developer Academy",
           position: "left",
           className: "hide-on-desktop"
+        },
+        {
+          type: 'search',
+          position: 'right',
         },
         {
           type: "html",
