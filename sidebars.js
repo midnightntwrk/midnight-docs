@@ -13,20 +13,20 @@
 
 module.exports = {
   sidebar: [
-    // QUICKSTART
+    // GETTING STARTED
     {
       type: "category",
-      label: "Quickstart",
+      label: "Getting Started",
       items: [
         {
           type: "doc",
-          id: "quickstart/user-quickstart",
-          label: "User quick start"
+          id: "getting-started/installation",
+          label: "Getting Started"
         },
         {
           type: "doc",
-          id: "quickstart/builder-quickstart",
-          label: "Builder quick start"
+          id: "getting-started/create-mn-app",
+          label: "Create a MN app"
         }
       ]
     },
