@@ -283,4 +283,4 @@ const config = {
   }
 };
 
-module.exports = config;
+module.exports = config;yarn remove @easyops-cn/docusaurus-search-local
