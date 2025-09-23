@@ -57,7 +57,7 @@ const config = {
     [
       './plugins/blog-plugin.js',
       {
-        id: 'default', // This is important - it needs to be the default blog instance
+        id: 'default',
         blogTitle: "Dev Diaries",
         blogDescription: "Updates, insights, and dev news from Midnight.",
         showReadingTime: true,
@@ -72,7 +72,23 @@ const config = {
         blogSidebarCount: "ALL"
       }
     ],
-    require.resolve('./plugins/webpack-yaml-loader')
+    require.resolve('./plugins/webpack-yaml-loader'),
+    [
+      require.resolve('@easyops-cn/docusaurus-search-local'),
+      {
+        hashed: true,
+        language: ['en'],
+        highlightSearchTermsOnTargetPage: true,
+        explicitSearchResultPath: true,
+        docsRouteBasePath: '/',
+        blogRouteBasePath: '/blog',
+        indexDocs: true,
+        indexBlog: true,
+        indexPages: false,
+        searchBarShortcut: true,
+        searchBarShortcutHint: true,
+      }
+    ],
   ],
 
   i18n: {

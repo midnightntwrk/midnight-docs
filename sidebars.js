@@ -1,23 +1,17 @@
-// This file is part of midnight-docs.
-// Copyright (C) 2025 Midnight Foundation
-// SPDX-License-Identifier: Apache-2.0
-// Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// http://www.apache.org/licenses/LICENSE-2.0
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
+// sidebars.js
 module.exports = {
   sidebar: [
-    // QUICKSTART
-    {
+    // GETTING STARTED - Only existing files
+    { 
       type: "category",
-      label: "Quickstart",
+      label: "Getting started",
+      collapsed: false,
       items: [
+        {
+          type: "doc",
+          id: "learn/introduction/what-is-midnight/index",
+          label: "What is Midnight"
+        },
         {
           type: "doc",
           id: "quickstart/user-quickstart",
@@ -30,36 +24,13 @@ module.exports = {
         }
       ]
     },
-
-    // TUTORIALS
+    
+    // BUILD - Only existing tutorial files for now
     {
       type: "category",
-      label: "Tutorials",
+      label: "Build",
+      collapsed: true,
       items: [
-        {
-          type: "category",
-          label: "Build using an example",
-          link: { type: "doc", id: "develop/tutorial/building/index" },
-          items: [
-            "develop/tutorial/building/examples-repo",
-            "develop/tutorial/building/counter-build",
-            "develop/tutorial/building/counter-run",
-            "develop/tutorial/building/contract-details",
-            "develop/tutorial/building/dapp-details"
-          ]
-        },
-        {
-          type: "category",
-          label: "Build from scratch",
-          link: { type: "doc", id: "develop/tutorial/creating/index" },
-          items: [
-            "develop/tutorial/creating/scenario",
-            "develop/tutorial/creating/bboard-contract",
-            "develop/tutorial/creating/bboard-dapp",
-            "develop/tutorial/creating/local-testing",
-            "develop/tutorial/creating/updatability"
-          ]
-        },
         {
           type: "category",
           label: "Setup and prerequisites",
@@ -71,6 +42,45 @@ module.exports = {
             "develop/tutorial/using/proof-server"
           ]
         },
+        {
+          type: "category",
+          label: "Tutorials",
+          items: [
+            {
+              type: "category",
+              label: "Build using an example",
+              link: { type: "doc", id: "develop/tutorial/building/index" },
+              items: [
+                "develop/tutorial/building/examples-repo",
+                "develop/tutorial/building/counter-build",
+                "develop/tutorial/building/counter-run",
+                "develop/tutorial/building/contract-details",
+                "develop/tutorial/building/dapp-details"
+              ]
+            },
+            {
+              type: "category",
+              label: "Build from scratch",
+              link: { type: "doc", id: "develop/tutorial/creating/index" },
+              items: [
+                "develop/tutorial/creating/scenario",
+                "develop/tutorial/creating/bboard-contract",
+                "develop/tutorial/creating/bboard-dapp",
+                "develop/tutorial/creating/local-testing",
+                "develop/tutorial/creating/updatability"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    // HOW-TO GUIDES
+    {
+      type: "category",
+      label: "How to",
+      collapsed: true,
+      items: [
         {
           type: "doc",
           id: "develop/guides/wallet-dev-guide",
@@ -86,10 +96,11 @@ module.exports = {
       ]
     },
 
-    // LEARNING RESOURCES
+    // LEARNING RESOURCES - All existing content
     {
       type: "category",
       label: "Learning resources",
+      collapsed: true,
       items: [
         {
           type: "category",
@@ -109,15 +120,6 @@ module.exports = {
           type: "category",
           label: "Introduction to Midnight",
           items: [
-            {
-              type: "category",
-              label: "What is Midnight",
-              link: {
-                type: "doc",
-                id: "learn/introduction/what-is-midnight/index"
-              },
-              items: ["learn/introduction/what-is-midnight/why-midnight"]
-            },
             {
               type: "category",
               label: "Features",
@@ -166,19 +168,19 @@ module.exports = {
                 "learn/understanding-midnights-technology/account",
                 "learn/understanding-midnights-technology/utxo",
                 "learn/understanding-midnights-technology/midnight-combined-model"
-
               ]
-            },
+            }
           ]
         },
         "learn/resources"
       ]
     },
 
-    // VALIDATE
+    // VALIDATE - All existing content
     {
       type: "category",
       label: "Validate",
+      collapsed: true,
       items: [
         {
           type: "category",
@@ -200,10 +202,11 @@ module.exports = {
       ]
     },
 
-    // COMPACT LANGUAGE
+    // COMPACT LANGUAGE - All existing content
     {
       type: "category",
       label: "Compact language",
+      collapsed: true,
       items: [
         {
           type: "category",
@@ -246,10 +249,11 @@ module.exports = {
       ]
     },
 
-    // REFERENCE
+    // REFERENCE - All existing content
     {
       type: "category",
       label: "Reference",
+      collapsed: true,
       items: [
         {
           type: "doc",
@@ -275,38 +279,39 @@ module.exports = {
           label: "Nodes and DApps",
           items: [
             {
-              type: 'category',
-              label: 'Node overview',
-              link: { type: 'doc', id: 'develop/nodes-and-dapps/node-intro' },
+              type: "category",
+              label: "Node overview",
+              link: { type: "doc", id: "develop/nodes-and-dapps/node-intro" },
               items: [
-                'develop/nodes-and-dapps/p2p-networking',
-                'develop/nodes-and-dapps/rpc-networking',
-                'develop/nodes-and-dapps/cryptography',
-                'develop/nodes-and-dapps/storage',
-                'develop/nodes-and-dapps/transactions',
-                'develop/nodes-and-dapps/onchain-logic',
-                'develop/nodes-and-dapps/consensus',
-              ],
+                "develop/nodes-and-dapps/p2p-networking",
+                "develop/nodes-and-dapps/rpc-networking",
+                "develop/nodes-and-dapps/cryptography",
+                "develop/nodes-and-dapps/storage",
+                "develop/nodes-and-dapps/transactions",
+                "develop/nodes-and-dapps/onchain-logic",
+                "develop/nodes-and-dapps/consensus"
+              ]
             },
             {
-              type: 'category',
-              label: 'Node operations',
+              type: "category",
+              label: "Node operations",
               items: [
-                'develop/nodes-and-dapps/cardano-db-sync',
-                'develop/nodes-and-dapps/full-node',
-                'develop/nodes-and-dapps/boot-node',
-                'develop/nodes-and-dapps/rpc-node'
-              ],
+                "develop/nodes-and-dapps/cardano-db-sync",
+                "develop/nodes-and-dapps/full-node",
+                "develop/nodes-and-dapps/boot-node",
+                "develop/nodes-and-dapps/rpc-node"
+              ]
             }
-          ],
-        },
+          ]
+        }
       ]
     },
 
-    // API DOCUMENTATION
+    // API DOCUMENTATION - All existing content
     {
       type: "category",
       label: "API documentation",
+      collapsed: true,
       link: { type: "doc", id: "develop/reference/midnight-api/index" },
       items: [
         {
@@ -1048,6 +1053,7 @@ module.exports = {
     {
       type: "category",
       label: "Troubleshooting",
+      collapsed: true,
       items: [
         {
           type: "doc",
@@ -1061,11 +1067,31 @@ module.exports = {
         }
       ]
     },
+    
+    // CONTRIBUTE
+    {
+      type: "category",
+      label: "Contribute",
+      collapsed: true,
+      items: [
+        {
+          type: "doc",
+          id: "contribute/style-guide",
+          label: "Style guide"
+        },
+        {
+          type: "doc",
+          id: "contribute/formatting-guide",
+          label: "Formatting guide"
+        }
+      ]
+    },
 
     // RELEASE NOTES
     {
       type: "category",
       label: "Release notes",
+      collapsed: true,
       link: {
         type: "doc",
         id: "relnotes/overview"
@@ -1156,29 +1182,11 @@ module.exports = {
       label: "Glossary"
     },
 
-    // CONTRIBUTE
-    {
-      type: "category",
-      label: "Contribute",
-      items: [
-        {
-          type: "doc",
-          id: "contribute/style-guide",
-          label: "Style guide"
-        },
-        {
-          type: "doc",
-          id: "contribute/formatting-guide",
-          label: "Formatting guide"
-        }
-      ]
-    },
-
     // DEV DIARIES LINK
     {
-      type: 'link',
-      label: 'Dev diaries',
-      href: '/blog',
+      type: "link",
+      label: "Dev diaries",
+      href: "/blog"
     }
   ]
 };
