@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Midnight Foundation
 // SPDX-License-Identifier: Apache-2.0
 // Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
+// you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 // http://www.apache.org/licenses/LICENSE-2.0
 // Unless required by applicable law or agreed to in writing, software
@@ -57,7 +57,7 @@ const config = {
     [
       './plugins/blog-plugin.js',
       {
-        id: 'default', // This is important - it needs to be the default blog instance
+        id: 'default',
         blogTitle: "Dev Diaries",
         blogDescription: "Updates, insights, and dev news from Midnight.",
         showReadingTime: true,
@@ -72,7 +72,9 @@ const config = {
         blogSidebarCount: "ALL"
       }
     ],
-    require.resolve('./plugins/webpack-yaml-loader')
+    require.resolve('./plugins/webpack-yaml-loader'),
+    // ADD THIS LINE - THE SEARCH PLUGIN:
+    require.resolve('docusaurus-lunr-search'),
   ],
 
   i18n: {
