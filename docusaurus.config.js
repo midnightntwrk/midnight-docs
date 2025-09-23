@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Midnight Foundation
 // SPDX-License-Identifier: Apache-2.0
 // Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
+// you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 // http://www.apache.org/licenses/LICENSE-2.0
 // Unless required by applicable law or agreed to in writing, software
@@ -73,22 +73,8 @@ const config = {
       }
     ],
     require.resolve('./plugins/webpack-yaml-loader'),
-    [
-      require.resolve('@easyops-cn/docusaurus-search-local'),
-      {
-        hashed: true,
-        language: ['en'],
-        highlightSearchTermsOnTargetPage: true,
-        explicitSearchResultPath: true,
-        docsRouteBasePath: '/',
-        blogRouteBasePath: '/blog',
-        indexDocs: true,
-        indexBlog: true,
-        indexPages: true,
-        searchBarShortcut: true,
-        searchBarShortcutHint: true,
-      }
-    ],
+    // ADD THIS LINE - THE SEARCH PLUGIN:
+    require.resolve('docusaurus-lunr-search'),
   ],
 
   i18n: {
