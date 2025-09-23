@@ -84,7 +84,7 @@ const config = {
         blogRouteBasePath: '/blog',
         indexDocs: true,
         indexBlog: true,
-        indexPages: false,
+        indexPages: true,
         searchBarShortcut: true,
         searchBarShortcutHint: true,
       }
