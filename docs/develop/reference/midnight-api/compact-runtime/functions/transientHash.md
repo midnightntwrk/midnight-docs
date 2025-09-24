@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: transientHash()
 
 ```ts
-function transientHash<a>(rt_type, value): bigint;
+function transientHash<A>(rtType, value): bigint;
 ```
 
 The Compact builtin `transient_hash` function
@@ -19,19 +19,19 @@ checks.
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Parameters
 
-### rt\_type
+### rtType
 
-[`CompactType`](../interfaces/CompactType.md)\<`a`\>
+[`CompactType`](../interfaces/CompactType.md)\<`A`\>
 
 ### value
 
-`a`
+`A`
 
 ## Returns
 

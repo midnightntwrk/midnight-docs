@@ -1,29 +1,29 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / CircuitResults
 
-# Interface: CircuitResults\<T, U\>
+# Interface: CircuitResults\<PS, R\>
 
 The results of the call to a Compact circuit
 
 ## Type Parameters
 
-### T
+### PS
 
-`T`
+`PS` = `any`
 
-### U
+### R
 
-`U`
+`R` = `any`
 
 ## Properties
 
 ### context
 
 ```ts
-context: CircuitContext<T>;
+context: CircuitContext<PS>;
 ```
 
 The updated context after the circuit execution, that can be used to
@@ -44,7 +44,7 @@ The data required to prove this circuit run
 ### result
 
 ```ts
-result: U;
+result: R;
 ```
 
 The primary result, as returned from Compact

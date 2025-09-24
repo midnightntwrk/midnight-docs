@@ -1,26 +1,26 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / MerkleTreePath
 
-# Interface: MerkleTreePath\<a\>
+# Interface: MerkleTreePath\<A\>
 
 A path demonstrating inclusion in a Merkle tree. TypeScript representation
 of the Compact type of the same name.
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Properties
 
 ### leaf
 
 ```ts
-readonly leaf: a;
+readonly leaf: A;
 ```
 
 ***

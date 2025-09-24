@@ -1,29 +1,29 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / CompactTypeMerkleTreePath
 
-# Class: CompactTypeMerkleTreePath\<a\>
+# Class: CompactTypeMerkleTreePath\<A\>
 
 Runtime type of [MerkleTreePath](../interfaces/MerkleTreePath.md)
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Implements
 
-- [`CompactType`](../interfaces/CompactType.md)\<[`MerkleTreePath`](../interfaces/MerkleTreePath.md)\<`a`\>\>
+- [`CompactType`](../interfaces/CompactType.md)\<[`MerkleTreePath`](../interfaces/MerkleTreePath.md)\<`A`\>\>
 
 ## Constructors
 
 ### Constructor
 
 ```ts
-new CompactTypeMerkleTreePath<a>(n, leaf): CompactTypeMerkleTreePath<a>;
+new CompactTypeMerkleTreePath<A>(n, leaf): CompactTypeMerkleTreePath<A>;
 ```
 
 #### Parameters
@@ -34,18 +34,18 @@ new CompactTypeMerkleTreePath<a>(n, leaf): CompactTypeMerkleTreePath<a>;
 
 ##### leaf
 
-[`CompactType`](../interfaces/CompactType.md)\<`a`\>
+[`CompactType`](../interfaces/CompactType.md)\<`A`\>
 
 #### Returns
 
-`CompactTypeMerkleTreePath`\<`a`\>
+`CompactTypeMerkleTreePath`\<`A`\>
 
 ## Properties
 
 ### leaf
 
 ```ts
-readonly leaf: CompactType<a>;
+readonly leaf: CompactType<A>;
 ```
 
 ***
@@ -79,7 +79,7 @@ The field-aligned binary alignment of this type.
 ### fromValue()
 
 ```ts
-fromValue(value): MerkleTreePath<a>;
+fromValue(value): MerkleTreePath<A>;
 ```
 
 Converts this type's field-aligned binary representation to its TypeScript
@@ -94,7 +94,7 @@ ignoring superflous data for chaining.
 
 #### Returns
 
-[`MerkleTreePath`](../interfaces/MerkleTreePath.md)\<`a`\>
+[`MerkleTreePath`](../interfaces/MerkleTreePath.md)\<`A`\>
 
 #### Implementation of
 
@@ -115,7 +115,7 @@ representation
 
 ##### value
 
-[`MerkleTreePath`](../interfaces/MerkleTreePath.md)\<`a`\>
+[`MerkleTreePath`](../interfaces/MerkleTreePath.md)\<`A`\>
 
 #### Returns
 

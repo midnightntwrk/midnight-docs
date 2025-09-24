@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -75,7 +75,7 @@ effects: Effects;
 ```
 
 The effects that occurred during execution against this context, should
-match those declared in a [Transcript](../type-aliases/Transcript.md)
+match those declared in a Transcript
 
 ***
 
@@ -126,7 +126,7 @@ intoTranscript(program, cost_model): [
 ```
 
 Finalizes a sequence of operations against their initial context,
-resulting in a guaranteed and fallible [Transcript](../type-aliases/Transcript.md), optimally
+resulting in a guaranteed and fallible Transcript, optimally
 allocated, and heuristically covered for gas fees.
 
 #### Parameters

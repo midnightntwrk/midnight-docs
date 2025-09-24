@@ -1,10 +1,10 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / WitnessContext
 
-# Interface: WitnessContext\<L, T\>
+# Interface: WitnessContext\<L, PS\>
 
 The external information accessible from within a Compact witness call
 
@@ -12,11 +12,11 @@ The external information accessible from within a Compact witness call
 
 ### L
 
-`L`
+`L` = `any`
 
-### T
+### PS
 
-`T`
+`PS` = `any`
 
 ## Properties
 
@@ -44,7 +44,7 @@ ledger state as you locally see it currently
 ### privateState
 
 ```ts
-readonly privateState: T;
+readonly privateState: PS;
 ```
 
 The current private state for the contract

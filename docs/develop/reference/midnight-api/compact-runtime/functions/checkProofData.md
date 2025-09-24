@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -10,8 +10,8 @@
 function checkProofData(zkir, proofData): void;
 ```
 
-Verifies a given [ProofData](../interfaces/ProofData.md) satisfies the constrains of a ZK circuit
-descripted by given IR
+Verifies a given [ProofData](../interfaces/ProofData.md) satisfies the constraints of a ZK circuit
+described by given IR.
 
 ## Parameters
 

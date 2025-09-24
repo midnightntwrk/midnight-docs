@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -8,6 +8,10 @@
 
 A [CoinInfo](../type-aliases/CoinInfo.md) with its fields encoded as byte strings. This representation is used internally by
 the contract executable.
+
+## Extended by
+
+- [`EncodedQualifiedCoinInfo`](EncodedQualifiedCoinInfo.md)
 
 ## Properties
 

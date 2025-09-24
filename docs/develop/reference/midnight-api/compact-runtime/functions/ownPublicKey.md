@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -16,7 +16,7 @@ Retrieves the Zswap coin public key of the user executing the circuit.
 
 ### circuitContext
 
-[`CircuitContext`](../interfaces/CircuitContext.md)\<`unknown`\>
+[`CircuitContext`](../interfaces/CircuitContext.md)
 
 The current circuit context.
 

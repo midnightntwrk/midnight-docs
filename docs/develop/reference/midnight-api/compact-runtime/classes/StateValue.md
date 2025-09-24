@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -134,12 +134,12 @@ toString(compact?): string;
 ### type()
 
 ```ts
-type(): "map" | "null" | "cell" | "array" | "boundedMerkleTree";
+type(): "cell" | "map" | "array" | "null" | "boundedMerkleTree";
 ```
 
 #### Returns
 
-`"map"` \| `"null"` \| `"cell"` \| `"array"` \| `"boundedMerkleTree"`
+`"cell"` \| `"map"` \| `"array"` \| `"null"` \| `"boundedMerkleTree"`
 
 ***
 

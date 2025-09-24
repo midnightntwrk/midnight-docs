@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.10.1**](../README.md)
 
 ***
 
@@ -7,6 +7,10 @@
 # Interface: ProofData
 
 Encapsulates the data required to produce a zero-knowledge proof
+
+## Extends
+
+- [`PartialProofData`](PartialProofData.md)
 
 ## Properties
 
@@ -17,6 +21,10 @@ input: AlignedValue;
 ```
 
 The inputs to a circuit
+
+#### Inherited from
+
+[`PartialProofData`](PartialProofData.md).[`input`](PartialProofData.md#input)
 
 ***
 
@@ -38,6 +46,10 @@ privateTranscriptOutputs: AlignedValue[];
 
 The transcript of the witness call outputs
 
+#### Inherited from
+
+[`PartialProofData`](PartialProofData.md).[`privateTranscriptOutputs`](PartialProofData.md#privatetranscriptoutputs)
+
 ***
 
 ### publicTranscript
@@ -47,3 +59,7 @@ publicTranscript: Op<AlignedValue>[];
 ```
 
 The public transcript of operations
+
+#### Inherited from
+
+[`PartialProofData`](PartialProofData.md).[`publicTranscript`](PartialProofData.md#publictranscript)
