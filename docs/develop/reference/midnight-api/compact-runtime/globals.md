@@ -1,8 +1,8 @@
-[**@midnight-ntwrk/compact-runtime v0.8.1**](README.md)
+[**@midnight-ntwrk/compact-runtime v0.9.0-rc.3**](README.md)
 
 ***
 
-# @midnight-ntwrk/compact-runtime v0.8.1
+# @midnight-ntwrk/compact-runtime v0.9.0-rc.3
 
 ## Enumerations
 
@@ -119,8 +119,9 @@
 - [coinCommitment](functions/coinCommitment.md)
 - [constructorContext](functions/constructorContext.md)
 - [contractDependencies](functions/contractDependencies.md)
-- [convert\_bigint\_to\_Uint8Array](functions/convert_bigint_to_Uint8Array.md)
-- [convert\_Uint8Array\_to\_bigint](functions/convert_Uint8Array_to_bigint.md)
+- [convertBytesToField](functions/convertBytesToField.md)
+- [convertBytesToUint](functions/convertBytesToUint.md)
+- [convertFieldToBytes](functions/convertFieldToBytes.md)
 - [createZswapInput](functions/createZswapInput.md)
 - [createZswapOutput](functions/createZswapOutput.md)
 - [decodeCoinInfo](functions/decodeCoinInfo.md)
@@ -143,6 +144,7 @@
 - [encodeRecipient](functions/encodeRecipient.md)
 - [encodeTokenType](functions/encodeTokenType.md)
 - [encodeZswapLocalState](functions/encodeZswapLocalState.md)
+- [hasCoinCommitment](functions/hasCoinCommitment.md)
 - [hashToCurve](functions/hashToCurve.md)
 - [leafHash](functions/leafHash.md)
 - [maxAlignedSize](functions/maxAlignedSize.md)
