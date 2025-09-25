@@ -1,0 +1,312 @@
+---
+slug: destruction-in-compact
+title: Unpacking - A Guide to Patterns and Destructuring in Compact 📦
+authors: parisa
+tags: [compact]
+image: /img/blog/zkp.jpg
+date: 2025-08-22
+---
+# Unpacking - A Guide to Patterns and Destructuring in Compact 📦
+
+Compact offers powerful features to streamline your contract development.
+One such feature, pattern destruction, allows for elegant and efficient
+extraction of values from complex data structures like tuples and structures.
+If you're coming from languages like TypeScript, you'll find the concept
+familiar.  This post will introduce you to pattern destruction, explain what
+can be destructured, where it's permitted, and show you how to
+leverage it in your Compact code.
+
+Patterns and destructuring were introduced in
+[Compact 0.14.0](#https://docs.midnight.network/relnotes/compact/compact-0-14-0#you-can-use-typescript-compatible-destructuring).
+The code snippets provided in this blog post are written in Compact 0.17.0.
+In code snippets a `demo` circuit is used to provide a context to demonstrate the
+statements.  In such cases, the meat is the statements inside the body of the `demo` circuit.
+
+## What is Pattern Destructuring? ✨
+
+At its core, pattern destruction in Compact is a syntactic convenience that
+allows you to **unpack** values from data structures (specifically tuples and
+structures) and bind them to new identifiers in a single, concise program
+element.  Instead of accessing individual elements or fields one by one by
+indexing into a tuple or a structure,
+destructuring lets you define a pattern that mirrors the shape of the data,
+directly assigning its components to identifiers. This makes your code cleaner,
+more readable, and often less prone to errors.
+
+## What Can You Destructure? 🧩
+
+In Compact, pattern destructuring is primarily designed to be used with values of three key types:
+**tuples**, **vectors**, and **structures**. Understanding these types is fundamental
+to effectively using destructuring.
+
+- Tuple type `[T, ...]`: Tuple types are ordered, heterogeneous
+collections of types (e.g., `[Field, Boolean, Uint<8>]`).
+Destructuring tuple values allows you to bind individual
+elements to identifiers based on their position within a tuple value and typecheck
+the actual element type with the declared type annotation if one exists.
+- Vector type `Vector<n, T>`: Vector types are homogeneous tuple types
+(e.g., `Vector<3, Field>`).
+Destructuring vector values is the same as destructuring tuple values since
+vector values are constructed the same way tuple values are.
+- Structure type `S { f: T ... }`: Structure types are user-defined types with
+named fields (e.g., `struct Point { x: Field, y: Field }`).  Destructuring
+structure values lets you extract values of specific fields by their names and typecheck
+the actual field's type with its declared type annotation if one exists.
+
+## Where Can You Use It? 📍
+
+Pattern destructuring isn't just for a single use case; it's integrated into
+several key areas of Compact programming:
+
+- Parameters of circuits, anonymous circuits, and a constructor can be a pattern.
+- `const` binding statements can bind a pattern. This is arguably where you'll use destructuring
+most frequently for local variable assignments, allowing you to unpack values
+from expressions into new variables.
+
+## How to Destructure Values in Compact 🛠️
+
+Let's dive into the specifics of how to use tuple and structure patterns.
+The grammar for a pattern `p` is provided in
+[Compact's reference](https://docs.midnight.network/develop/reference/compact/lang-ref#parameters-patterns-and-destructuring).
+
+
+### Destructuring Tuple Values
+
+Tuple values can be destructured using a list of patterns enclosed in `[` and `]`.
+You can destructure a tuple into a sequence of identifiers:
+
+```compact
+const [a, b] = [1, true]; // 'a' is 1, 'b' is true
+```
+
+Sometimes you don't need all the values in a tuple. Compact allows you to skip
+elements by simply omitting the identifier but you cannot skip the actual element:
+
+```compact
+const [x, , z] = [10, 20, 30]; // 'x' is 10, 'z' is 30, 20 is skipped
+// const [x, , z] = [10, , 30]; // triggers a parse error
+```
+
+Skipped identifiers count towards the length of the pattern if there exists a
+named identifier after them. For example, `[x, y, ,]` has length 2 but
+`[x, , y]` has length 3.
+
+:::note
+If you want to enforce length 'l' of a tuple pattern you must have a named identifier
+at the `l-1` index of your pattern. For example, if you need to enforce a tuple
+pattern of legth 3 you need to have a named identifier on index 2 (e.g., all
+`[, , x]`, `[, x, y]`, and `[x, y, z]` enforce a tuple pattern of length 3).
+:::
+
+### Type Annotations for Tuple Patterns
+
+In a circuit definition, type declarations are required for tuple patterns:
+
+```compact
+circuit exampleTuplePattern([x, y]: [Field, Boolean]): Field {
+  // x has type Field, y has type Boolean
+  return x;
+}
+```
+
+Such a type declaration dictates the structure and the type of each element.  For example,
+in `exampleTuplePattern` the input has to be a tuple, it first element has to be a value
+of type `Field`, and its second element has to be a value of type `Boolean`.
+A call to `exampleTuplePattern` that does not meet these restrictions
+(e.g., `exampleTuplePattern([1, 1])`) will trigger a type error.
+
+For const bindings and anonymous circuits, type annotations are optional but recommended
+for clarity and an easier debugging experience. When a type annotation is provided
+ensure its structure aligns with the pattern. For example, `[a, , b] : [Field, Field, Field]`
+aligns the structure of the pattern and its type whereas `[a, , b] : [Field, Field]` does not:
+the pattern states that it is a tuple with three elements but the type annotation is
+tuple type of length two.
+
+Unlike patterns, types do not allow skipping elements in a tuple type. For example,
+`[a, , b] : [Field, , Field]` causes a parse error. So even when you're skipping an
+element in a pattern you must assign it a dummy type. Unfortunately, you have to
+remember what dummy type you used when you're passing arguments to pattern parameters.
+For example,
+
+```compact
+circuit haveToUseDummyType([, x]: [Field, Boolean]): Boolean {
+  return x;
+}
+
+export circuit callSite(): Boolean {
+  return haveToUseDummyType([1, true]);
+
+  // return haveToUseDummyType([true, true]);
+  // triggers a type error since the first element must be
+  // a value of type Field
+}
+```
+
+:::note
+We recommend you using a sepecific type as your dummy type throughout all your Compact
+code or use a type synonym for such a dummy type when such a feature is available. For
+example, always use `Boolean` as your dummy type.
+:::
+
+Similar to tuple types, skipped elements of a tuple value cannot be dropped, for example,
+`const [x, , y] : [Field, Field, Field] = [1, , 3];` triggers a type error.
+
+When a type annotation exists, the length of the tuple pattern must be less than or equal to
+the length of its tuple type annotation.
+For example, `[a, b]: [Field, Field]` typechecks.
+So does `[, a]: [Field, Field]`. So does `[a, , , , ,] : [Field, Field]`.
+But `[, , a] : [Field, Field]` does not since `[, , a]` has length 3 and `[Field, Field]` has length 2.
+
+Tuple patterns have some flexibility even when they're accompanied by a type annotation.  But once they
+have a type annotation the actual binding of the tuple pattern must satisfy the type annotation,
+otherwise it is a static type error.  For example,
+
+```compact
+export circuit demo(): [] {
+  const [x, y] = [1, 2, 3]; // 'x' is 1, 'y' is 2
+  const [, y, , , ] = [1, 2, 3]; // 'y' is 2
+
+  // const [, y, , , ] : [Field, Field] = [1, 2, 3];
+  // triggers a type error
+
+  const [, y, , , ] : [Field, Field] = [1, 2]; // 'y' is 2
+}
+```
+
+Same applies when calling a circuit that uses tuple pattern parameters in its definition:
+
+```compact
+circuit snd([, b, , ] : [Boolean, Boolean, Field]): Boolean {
+  return b;
+}
+
+export circuit call_snd() : Boolean { // returns true
+  return foo([false, true, 1]);
+}
+
+// export circuit call_snd_bad() : Boolean {
+//   return foo([false, true, 1, 1]);
+// }
+// 'call_snd_bad' triggers a type error since 'foo' takes a tuple of three
+// where the first two elements are Booleans and the last one is a Field
+// but it is passed a tuple of four where the first two elements are
+// Booleans and the last two are Fields
+```
+
+### Destructuring Structure Values
+
+Structure values are destructured using a list of fields enclosed in `{` and `}`.
+
+You can extract fields by their names. The order of fields in the pattern doesn't matter:
+
+```compact
+struct Point { x: Field, y: Field }
+
+export circuit demo(): [] {
+  const myPoint = Point { x: 10, y: 20 };
+  const { y, x } = myPoint; // 'y' is 20, 'x' is 10
+}
+```
+
+You can rename a field in a pattern by using the `f: id` syntax:
+
+```compact
+struct Person { name: Bytes<16>, age: Uint<8> }
+
+export circuit demo(): [] {
+  const p = Person { name: "Alice", age: 30 };
+  const { name: fullName, age } = p;
+  // 'fullName' is "Alice", 'age' is 30, 'name' is unbound
+}
+```
+
+It's a static type error to bind the same identifier more than once in a single destructuring
+block (e.g., `{name: age, age}` is a static type error).  If you rename a field,
+you can't refer to the original field name within the scope of the pattern
+(e.g., `({a: b} : S) => { return a; }` would trigger an `unbound identifier a` error).
+
+### Type Annotations for Structure Patterns
+
+Similar to tuples, type annotations are required for structure pattern parameters in circuit definitions:
+
+```compact
+struct Config { version: Uint<8>, isActive: Boolean }
+circuit processConfig({ version, isActive }: Config): Boolean {
+  // version has type Uint<8>, isActive has type Boolean
+  return isActive;
+}
+```
+
+For `const` bindings and anonymous circuits, type annotation for structure patterns
+(e.g., `const {a, b} : S = ...`) is optional. It's a static type error if the provided
+type `T` is not a structure type or if a field in the pattern doesn't exist in `T`.
+However, you don't need to bind all fields of `T`.
+
+### Nested Patterns
+
+You can even have nested tuple patterns. For example
+`const [outer1, [inner1, inner2]] = [1, [2, 3]];`
+binds 'outer1' to 1, 'inner1' to 2, and 'inner2' to 3.
+
+If you provide a type annotation for the outer tuple,
+like `[outer1, [inner1, inner2]] : [Field, [Uint<8>, Uint<8>]]`,
+it's a static type error if a pattern like `[inner1, inner2]` doesn't correspond to a tuple type
+in the type annotation.
+
+
+You can also use nested patterns for structure values. This is
+particularly powerful for complex data:
+
+```compact
+enum Material {
+  wood,
+  glass,
+  steel
+}
+
+struct Box {
+  dimensions: [Field, Field, Field],
+  material: Material
+}
+
+export circuit demo(): [] {
+  const myBox = Box { dimensions: [1, 2, 3], material: Material.wood };
+  const { dimensions: [length, width, height], material } = myBox;
+  // 'length' is 1, 'width' is 2, 'height' is 3, 'material' is 'wood'
+  // 'dimensions' is unbound
+}
+```
+
+If a field in a structure pattern (e.g., `dimensions: [length, width, height]`) is a tuple or
+structure pattern itself, its pattern must match the type of the field in the declared structure
+type. For example, given the `Material` and `Box` types defined above:
+
+```compact
+// export circuit demo_bad(): [] {
+//  const { dimensions: [x, , , z] } = Box { [1, 2, 3], Material.wood};
+//  this triggers a type error since the pattern expect 'dimensions'
+//  to be a tuple of four elements but based on the declaration of
+//  'Box' it's a tuple of three Fields
+//}
+
+export circuit demo_tricky(): [] {
+  const { dimensions: [x, z, , , ] } = Box { [1, 2, 3], Material.wood};
+  // 'x' is 1, 'z' is 2, 'dimensions' is unbound
+  // you should know by now why this compiles but 'demo_bad' doesn't 🙂
+}
+```
+
+## Putting It All Together 🧑‍💻
+Pattern destructuring is an indispensable feature in Compact that significantly
+enhances code readability and conciseness when working with tuples and structures.
+Even with its current limitations (forcing you to use a dummy type when skipping
+an element in a tuple pattern and considering the length of a tuple pattern up
+to its last unskipped sub-pattern) it allows you to reach into tuple and structure
+values without indexing. This is exteremly powerful when working with `const`,
+threading through the output of a circuit as a tuple to another circuit for
+further processing, and functionally processing vectors/tuples
+(e.g., `fold((x: Field, [a, b]: [Field, Field]): Field => a + b + x, 0, [[1, 2], [2, 3], [3, 4]]);`
+sums up elements of a vector of tuples of two Fields very simply).
+By understanding where and how to use it, you can write more expressive and
+maintainable smart contracts.  Experiment with these patterns in your Compact code
+to fully grasp their utility and make your contract development more efficient!
