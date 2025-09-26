@@ -1,26 +1,20 @@
 // sidebars.js
 module.exports = {
   sidebar: [
-    // GETTING STARTED - Only existing files
-    { 
+    // GETTING STARTED
+    {
       type: "category",
-      label: "Getting started",
-      collapsed: false,
+      label: "Getting Started",
       items: [
         {
           type: "doc",
-          id: "learn/introduction/what-is-midnight/index",
-          label: "What is Midnight"
+          id: "getting-started/installation",
+          label: "Getting Started"
         },
         {
           type: "doc",
-          id: "quickstart/user-quickstart",
-          label: "User quick start"
-        },
-        {
-          type: "doc",
-          id: "quickstart/builder-quickstart",
-          label: "Builder quick start"
+          id: "getting-started/create-mn-app",
+          label: "Create a MN app"
         }
       ]
     },
