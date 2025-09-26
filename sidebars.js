@@ -14,12 +14,12 @@ module.exports = {
         {
           type: "doc",
           id: "getting-started/create-mn-app",
-          label: "Create a MN app"
+          label: "Create an MN app"
         }
       ]
     },
     
-    // BUILD - Only existing tutorial files for now
+    // BUILD
     {
       type: "category",
       label: "Build",
