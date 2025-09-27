@@ -4,7 +4,7 @@ This website is generated with [Docusaurus 2](https://docusaurus.io) and feature
 
 ## Quick start
 
-To get started, ensure you have [Node](https://github.com/nvm-sh/nvm) version 16.14 or higher installed:
+To get started, ensure you have [Node](https://github.com/nvm-sh/nvm) version v22.17.1 or higher installed:
 
 ```shell
 node -v
@@ -16,12 +16,6 @@ Next, globally install [Yarn](https://yarnpkg.com/) using NPM:
 npm install -g yarn
 ```
 
-In the project's root directory, create a `.env` file (as shown here). Obtain and insert the proper values for these environment variables:
-
-```shell
-ALGOLIA_APP_ID=""
-ALGOLIA_INDEX_NAME=""
-```
 Install packages:
 
 ```shell

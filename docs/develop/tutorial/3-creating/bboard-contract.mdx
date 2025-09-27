@@ -1,5 +1,7 @@
 ---
-sidebar_label: "3.2 Bulletin board contract"
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Bulletin board contract"
 ---
 
 # Bulletin board contract
@@ -61,11 +63,11 @@ previous page.  When its value is 15, it says, 'The current message
 is the 15th post.'  If you have ever implemented any sort of software
 lock, it will not surprise you that the correct behavior is to
 increment this counter whenever the board becomes vacant (not when it
-becomes occupied), because that is the point at which the current
-instance no longer corresponds to the just-removed post.
+becomes occupied), because that is the point at which the bulletin board
+no longer holds the (previous) numbered post.
 
-The fourth value should be a non-reversible hash of the poster's
-identity and the posting instance number (the counter).  No one can
+The fourth value should be a non-reversible hash of the owner's
+identity and the posting sequence number (the counter).  No one can
 figure out who posted the message from the token, but the user who
 created the post can reliably derive that token again to satisfy the
 identity-verification obligation.
@@ -76,7 +78,7 @@ contract language:
 import CodeFromGithub from '@site/src/components/CodeFromGithub';
 
 <CodeFromGithub
-  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact"
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L18-L37"
   language="compact"
 />
 
@@ -97,11 +99,11 @@ Some notes about the types used in this ledger declaration:
   irrelevant to the contract.
 - The standard library's `Maybe` type describes values that may be absent.  Its
   values are created using the `some` or `none` constructors.
-- The poster's identity tokens are 256-bit hashes, which occupy 32 bytes.
+- The owner's identity tokens are 256-bit hashes, which occupy 32 bytes.
 - The standard library `CompactStandardLibrary` contains `Maybe`, `some`,
   `none`, and `Counter`.  (`Opaque` and `Bytes` are builtin Compact types.)
 
-The contract need not initialize explicitly the `poster` field when
+The contract need not explicitly initialize the `owner` field when
 the ledger is constructed, because its value is not meaningful yet.
 Every ledger field that is not explicitly initialized in the constructor
 is initialized to the default value of its type if the type has a default
@@ -134,7 +136,7 @@ contract is the bulletin board's first rule: posting can occur only
 when the board is vacant.
 
 <CodeFromGithub
-  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L35-L40"
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L41-L46"
   language="compact"
 />
 
@@ -152,15 +154,15 @@ specified in the `assert` statement.  The `assert` above checks that the board
 is vacant when someone tries to post a message (rule 1).
 
 What is this generated 'public key' that the `post` circuit writes
-into the ledger's `poster` field to identify the user posting the
-message?  It is derived by hashing a string with the instance number
+into the ledger's `owner` field to identify the user posting the
+message?  It is derived by hashing a string with the sequence number
 of the post and the user's secret key, which is not sent over the
 network.  The code above has used a call to a 'helper' circuit
 `publicKey`, which is defined in the same contract.  Here is its
 definition:
 
 <CodeFromGithub
-  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L53-L55"
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L58-L60"
   language="compact"
 />
 
@@ -195,7 +197,7 @@ witness's existence.  The DApp must implement it.  Here is the
 declaration in the contract:
 
 <CodeFromGithub
-  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L33"
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L39"
   language="compact"
 />
 
@@ -208,17 +210,17 @@ result of `localSecretKey()` is presumed to be private.  Because this value is
 passed to `publicKey`, the result of `publicKey` is also presumed to be
 private (or at least, based on private data).  The compiler would signal an
 error if it were written into the public ledger state.  In this case however,
-the hash of the poster's identity combined with the instance counter will not
-leak the poster's identity.  Wrapping the public key value in `disclose` tells
+the hash of the owner's identity combined with the sequence counter will not
+leak the owner's identity.  Wrapping the public key value in `disclose` tells
 the Compact compiler that this disclosure is intended.
 
 With all these tools at hand, you can write the `takeDown` circuit,
-which enforces the rule that only the poster of the current post can
+which enforces the rule that only the owner of the current post can
 take it down.  Of course, it also makes no sense to take down a post
 from a vacant board, so the circuit checks that first:
 
 <CodeFromGithub
-  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L42-L51"
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L48-L56"
   language="compact"
 />
 
@@ -249,7 +251,7 @@ In the `contract` subdirectory of `bboard-tutorial`, there is a build
 script to run the Compact compiler as part of the build, but it is
 instructive to run the compiler manually this time.
 
-ompile the `bboard.compact` with the Compact compiler
+Compile the `bboard.compact` with the Compact compiler
 like this (assuming that you have added the Compact compiler's
 directory to your `PATH` following the instructions provided in
 [Running Midnight Compact compiler](/docs/develop/tutorial/2-building/index.mdx#running-midnight-compact-compiler)

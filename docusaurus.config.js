@@ -1,6 +1,21 @@
+// This file is part of midnight-docs.
+// Copyright (C) 2025 Midnight Foundation
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
+
 require("dotenv").config();
+
 const { themes: prismThemes } = require("prism-react-renderer");
 const lightCodeTheme = prismThemes.github;
 const darkCodeTheme = prismThemes.dracula;
@@ -8,19 +23,23 @@ const darkCodeTheme = prismThemes.dracula;
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Midnight Docs",
-  tagline: "Midnight Dust is cool",
+  tagline: "Midnight DUST is cool",
   favicon: "img/favicon.ico",
+
   markdown: {
     mermaid: true
   },
+
   themes: [
     "@docusaurus/theme-mermaid",
   ],
+
   url: "https://docs.midnight.network",
   baseUrl: "/",
+  trailingSlash: false,
 
   organizationName: "facebook", // TODO: Update with real org name
-  projectName: "docusaurus",     // TODO: Update with real repo name
+  projectName: "docusaurus", // TODO: Update with real repo name
 
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
@@ -43,17 +62,22 @@ const config = {
     [
       './plugins/blog-plugin.js',
       {
+        id: 'default',
         blogTitle: "Dev Diaries",
         blogDescription: "Updates, insights, and dev news from Midnight.",
         showReadingTime: true,
         routeBasePath: 'blog',
+        path: './blog',
         blogListComponent: require.resolve('./src/pages/blog/index.js'),
+        blogPostComponent: '@theme/BlogPostPage',
+        blogTagsListComponent: '@theme/BlogTagsListPage',
+        blogTagsPostsComponent: '@theme/BlogTagsPostsPage',
         postsPerPage: "ALL",
         blogSidebarTitle: "All posts",
         blogSidebarCount: "ALL"
       }
     ],
-    require.resolve('./plugins/webpack-yaml-loader')
+    require.resolve('./plugins/webpack-yaml-loader'),
   ],
 
   i18n: {
@@ -81,9 +105,18 @@ const config = {
       "data-modal-title": "Need help with Midnight? Ask me anything!",
       async: true
     },
-    { src: "/add-theme-class.js", async: true },
-    { src: "/theme-sync.js", async: true },
-    { src: "/force-theme.js", async: true },
+    {
+      src: "/add-theme-class.js",
+      async: true
+    },
+    {
+      src: "/theme-sync.js",
+      async: true
+    },
+    {
+      src: "/force-theme.js",
+      async: true
+    },
     {
       src: "https://cmp.osano.com/AzZXI3TYiFWNB5yus/1489a4c7-fc85-49c4-99a3-1367c5a5ba96/osano.js",
       async: false
@@ -121,8 +154,30 @@ const config = {
   ],
 
   /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
-  themeConfig: {    
+  themeConfig: {
     image: "img/og-image.png",
+
+    // Algolia verification
+    metadata: [
+      {
+        name: 'algolia-site-verification',
+        content: '71D46C846F83C714'
+      }
+    ],
+
+    // Algolia search configuration
+    algolia: {
+      appId: 'Q7T3VYHX3K',
+      apiKey: 'cf362041369546fdffdf1894511fc0d5',
+      indexName: 'Midnight Docs',
+      contextualSearch: true,
+      searchPagePath: 'search',
+      searchParameters: {},
+      replaceSearchResultPathname: {
+        from: '/docs/',
+        to: '/',
+      }
+    },
 
     announcementBar: {
       id: "testnet-outage",
@@ -132,6 +187,7 @@ const config = {
       textColor: "#FFFFFF",
       isCloseable: true
     },
+
     navbar: {
       logo: {
         alt: "Midnight Logo",
@@ -180,6 +236,7 @@ const config = {
         }
       ]
     },
+
     footer: {
       logo: {
         alt: "Midnight Logo",
@@ -191,17 +248,35 @@ const config = {
         {
           title: "Resources",
           items: [
-            { label: "Midnight Foundation", href: "https://midnight.network/" },
-            { label: "Glacier Drop", href: "https://www.midnight.gd/" },
-            { label: "Careers", href: "https://midnight.network/careers" }
+            {
+              label: "Midnight Foundation",
+              href: "https://midnight.network/"
+            },
+            {
+              label: "Glacier Drop",
+              href: "https://www.midnight.gd/"
+            },
+            {
+              label: "Careers",
+              href: "https://midnight.network/careers"
+            }
           ]
         },
         {
           title: "Legal",
           items: [
-            { label: "Cookie Policy", href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20cookie-policy.pdf" },
-            { label: "Privacy Policy", href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20%20-%20Privacy%20Notice.pdf" },
-            { label: "Terms and Conditions", href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20-%20Website%20Terms%20of%20Use.pdf" }
+            {
+              label: "Cookie Policy",
+              href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20cookie-policy.pdf"
+            },
+            {
+              label: "Privacy Policy",
+              href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20%20-%20Privacy%20Notice.pdf"
+            },
+            {
+              label: "Terms and Conditions",
+              href: "https://45047878.fs1.hubspotusercontent-na1.net/hubfs/45047878/Midnight%20Foundation%20-%20Website%20Terms%20of%20Use.pdf"
+            }
           ]
         },
         {
@@ -224,14 +299,17 @@ const config = {
       ],
       copyright: `© ${new Date().getFullYear()} Input Output Global, Inc. All Rights Reserved.`
     },
+
     colorMode: {
       defaultMode: "dark"
     },
+
     docs: {
       sidebar: {
         hideable: true
       }
     },
+
     prism: {
       theme: lightCodeTheme,
       darkTheme: darkCodeTheme,

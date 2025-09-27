@@ -1,3 +1,16 @@
+// This file is part of midnight-docs.
+// Copyright (C) 2025 Midnight Foundation
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0 (the "License");
+// You may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Implementing a simple single-post-at-a-time bulletin board
 // as a Midnight DApp.
 // This version has a classic 1984 text-prompt UI.
@@ -41,9 +54,9 @@ function toHexString(obj: Serializable) {
 }
 
 // ----------------------------------------------------------------------
-// We need some Dust to submit transactions.
-// Devnet0 has a faucet dripping Dust for that purpose.
-// Make a wallet with some Dust in it, populated by the faucet.
+// We need some DuST to submit transactions.
+// Devnet0 has a faucet dripping DUST for that purpose.
+// Make a wallet with some DUST in it, populated by the faucet.
 // (The Resource interface in the return type says that a wallet
 // can be closed later.)
 
