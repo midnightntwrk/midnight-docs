@@ -8,10 +8,9 @@ slug: /getting-started/create-mn-app
 toc_max_heading_level: 2
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-import Step, { StepsProvider } from '@site/src/components/Step/Step';
-
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
 A Midnight Network (MN) application is a privacy-preserving decentralized application that uses zero-knowledge proofs to maintain data confidentiality. An MN application consists of:
 
@@ -39,7 +38,7 @@ The `-y` flag automatically accepts all the default settings, creating a `packag
 
 ```bash
 mkdir my-mn-app # Create new project
-cd my-mn-app    # Navigate into project 
+cd my-mn-app    # Navigate into project
 npm init -y     # Initialize new npm project
 ```
 
@@ -82,9 +81,11 @@ Every Compact smart contract should start with a **pragma directive**. This line
 The `pragma` directive specifies the version of the Compact language the contract is written for.
 
 - **Fixed version**: To lock the contract to a single, specific version, use the following syntax:
+
   ```compact
   pragma language_version = 0.16;
   ```
+
   This tells the compiler to use exactly version `0.16`.
 
 - **Version range**: It's often more flexible to allow for a range of compatible versions. This approach permits the contract to use minor updates and bug fixes while preventing it from being compiled with a major new release that could contain breaking changes:
@@ -105,7 +106,7 @@ pragma language_version >= 0.16 && <= 0.17;
 
 ## The CompactStandardLibrary
 
-An `import` statement for *Compact Standard Library* is required. This imports Compact's standard library which provides built-in types and functions needed for things like defining byte arrays.
+An `import` statement for _Compact Standard Library_ is required. This imports Compact's standard library which provides built-in types and functions needed for things like defining byte arrays.
 
 ### 5. Add `import CompactStandardLibrary;`
 
@@ -138,16 +139,16 @@ Ledger declarations can be marked as `export` to make them accessible as entry p
 
 ### Example: Storing a message
 
-To store a simple message, such as the string "Hello World," in the contract's state, first determine the correct data type. Compact provides several primitive types, including `Bytes<n>`, which represents a fixed-length byte array of size `n`.
+To store messages in the contract's state, we need to choose the right data type. For flexible message storage that can handle any text input, we'll use `Opaque<"string">`, which allows variable-length strings while maintaining Midnight's privacy features.
 
-Since the string "Hello World" contains 11 characters, use the type `Bytes<11>`. Declare a `ledger` variable named `message` to hold this value.
+The `Opaque` type is special in Compact - it allows DApps to pass data without the contract needing to inspect its contents, perfect for user-generated messages.
 
 ### 6. Create the `ledger` declaration
 
-This line reserves a slot in the contract's storage for an 11-byte value identified as `message`:
+This line reserves storage for a variable-length string message:
 
 ```compact
-export ledger message: Bytes<11>;
+export ledger message: Opaque<"string">;
 ```
 
 Your contract should now look similar to the following:
@@ -157,10 +158,10 @@ pragma language_version >= 0.16 && <= 0.17;
 
 import CompactStandardLibrary;
 
-export ledger message: Bytes<11>;
+export ledger message: Opaque<"string">;
 ```
 
-## The circuit definition 
+## The circuit definition
 
 Circuits are similar to functions in other programming languages, but a circuit is compiled directly into a zero-knowledge circuit. Circuits can take parameters, perform computations, and return values.
 
@@ -177,39 +178,69 @@ Circuit definitions can be marked as `export` to make them accessible as entry p
 
 :::
 
-### 7. Export a circuit named `storeMessage`
+### 7. Export a circuit named `storeMessage` with parameters
 
-Inside the circuit, assign the `message` to a string such as `"Hello World"`:
+Instead of hardcoding a message, let's create a circuit that accepts any custom message as input:
 
 ```compact
-export circuit storeMessage(): [] {
-    message = "Hello World";
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+    message = disclose(customMessage);
 }
 ```
 
-Your contract should now look similar to this:
+**Key changes explained:**
+
+- **Parameter**: `customMessage: Opaque<"string">` - accepts any string input
+- **Privacy**: `disclose(customMessage)` - explicitly reveals the message to the public ledger
+- **Flexibility**: Can now store any message, not just "Hello World"
+
+:::info Why `disclose()`?
+
+Compact enforces privacy by default. All data from witnesses (user input) is considered private unless explicitly disclosed. The `disclose()` function tells Compact we intentionally want this message visible on the public blockchain.
+
+:::
+
+Your complete contract should now look like this:
 
 ```compact showLineNumbers
 pragma language_version >= 0.16 && <= 0.17;
 
 import CompactStandardLibrary;
 
-export ledger message: Bytes<11>;
+export ledger message: Opaque<"string">;
 
-export circuit storeMessage(): [] {
-    message = "Hello World";
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+    message = disclose(customMessage);
 }
 ```
+
+## Advanced Parameter Examples
+
+Now that you understand the basics, let's explore more advanced parameter patterns:
+
+### Message Validation
+
+Add basic validation to ensure message quality:
+
+```compact
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+    // Validate the message isn't empty
+    assert(customMessage != "", "Message cannot be empty");
+    message = disclose(customMessage);
+}
+```
+
+These patterns show how flexible Compact circuits can be while maintaining privacy and security.
 
 ## Compile the smart contract
 
 Compact smart contracts need to be compiled because the Compact language is designed to express privacy-preserving logic that is enforced using zero-knowledge proofs (ZKPs). The compilation process serves several purposes:
 
-- *Generation of zero-knowledge circuits*: The Compact compiler transforms the high-level contract logic into zero-knowledge circuits. These circuits are used to generate cryptographic proofs that validate contract interactions without revealing sensitive data. This is fundamental to Midnight's privacy model, where contract logic is enforced and verified cryptographically rather than by code inspection.
+- _Generation of zero-knowledge circuits_: The Compact compiler transforms the high-level contract logic into zero-knowledge circuits. These circuits are used to generate cryptographic proofs that validate contract interactions without revealing sensitive data. This is fundamental to Midnight's privacy model, where contract logic is enforced and verified cryptographically rather than by code inspection.
 
-- *Creation of TypeScript/JavaScript APIs*: The compiler also outputs strongly typed APIs for use in DApp frontends. This allows developers to interact with the contract from TypeScript or JavaScript code. This ensures type safety and integration between the smart contract and the application.
+- _Creation of TypeScript/JavaScript APIs_: The compiler also outputs strongly typed APIs for use in DApp frontends. This allows developers to interact with the contract from TypeScript or JavaScript code. This ensures type safety and integration between the smart contract and the application.
 
-- *Security and privacy enforcement*: By compiling to circuits and cryptographic artifacts, Compact ensures that privacy rules (such as explicit disclosure requirements) are strictly enforced. 
+- _Security and privacy enforcement_: By compiling to circuits and cryptographic artifacts, Compact ensures that privacy rules (such as explicit disclosure requirements) are strictly enforced.
 
 ### 8. Navigate to your project's `contracts/` folder and compile `hello-world.compact`
 
