@@ -71,7 +71,7 @@ Use the keyword `Bytes` preceding the square brackets.
 For example, `Bytes[0, x, y, 0]` creates a bytes value with type `Bytes<4>`.
 The empty bytes value is written `Bytes[]`.
 
-This new feature is a **non-breaking** change (because `Bytes` was already a keyword).
+This new feature is a **non-breaking** change (because `Bytes` was already a reserved word).
 
 ### You can index bytes values
 
@@ -89,7 +89,7 @@ The typing rules for `for` loops and `fold` are the exact equivalent of the rule
 For `map` over `Bytes`, the result will have a `Vector` type of the same length
 (the element type is the return type of the mapped callable).
 
-The reason for tthe choice to return a vector for `map` over a bytes value is to avoid the potentially expensive packing of a vector into a bytes value when it's not needed.
+One reason for the choice to return a vector for `map` over a bytes value is to avoid the potentially expensive packing of a vector into a bytes value when it's not needed.
 If you do want a bytes value (e.g., to call a circuit that needs one), you can cast the vector result to a `Bytes` target type.
 
 This new feature is a **non-breaking** change.
@@ -102,10 +102,10 @@ The typing rules for these are exactly the same as for other numeric literals.
 For any numeric literal `N` in any representable base, the static type will be `Uint<0..N>`.
 The syntax is the same as in TypeScript:
 
-- Hexidecimal literals are preceded with either `0x` or `0X`,
+- Hexadecimal literals are prefixed with either `0x` or `0X`,
   and the digits are the numeric digits in the range `0..9` and the alphabetic digits in the ranges `a..f` and `A..F`.
-- Octal literals are preceded with either `0o` or `0O`, and the digits are the numeric digits in the range `0..7`.
-- Binary literals are preceded with either `0b` or `0B`, and the digits are the numeric digits in the range `0..1`.
+- Octal literals are prefixed with either `0o` or `0O`, and the digits are the numeric digits in the range `0..7`.
+- Binary literals are prefixed with either `0b` or `0B`, and the digits are the numeric digits in the range `0..1`.
 
 This new feature is a **non-breaking** change.
 
@@ -113,10 +113,15 @@ This new feature is a **non-breaking** change.
 
 The prefix spread operator, (`...`) now works in tuple and bytes value creation expressions.
 Recall that vector types are a special case of tuple types and that vector creation uses the same syntax as tuple creation.
+You can spread tuple, vector, and bytes values expressions inside of tuple creation expressions.
+Bytes values spread inside tuple creation expressions are treated equivalently to vectors with `Uint<8>` elements.
+You can spread tuple, vector, and bytes values expressions inside of bytes value creation expressions.
+Tuples and vectors spread inside bytes value creation expressions must have elements that are subtypes of `Uint<8>`, otherwise it is a compile-time error.
+
 You can spread vector and tuple expressions inside of tuple creation expressions.
 You can spread bytes value expressions inside of bytes value creation expressions.
 You cannot spread bytes values inside tuple creation expressions (without using a cast of some kind)
-and you cnanot spread tuples inside bytes value creation expression (again without using a cast of some kind).
+and you cannot spread tuples inside bytes value creation expression (again without using a cast of some kind).
 
 So for example, you can concatenate a pair of tuples or vectors by writing `[...x, ...y]`.
 You can spread a tuple or vector in the middle of a creation expression by writing `[x, ...y, z]`.
@@ -127,7 +132,7 @@ Specifically, spreading a vector will require the result to have a vector type.
 
 So for instance, if you write `[0, ...x, 255]` and `x` has type `Vector<N, T>`, this will require `T` to be a numeric type
 (i.e., a type related by subtyping to `Uint<0..0>` and `Uint<0..255>`).
-And the resulting type will be `Vector<N+2, S>` where `S` is the least upper bound with respect to subtying of `T`, `Uint<0..0>`, and `Uint<0..255>`.
+And the resulting type will be `Vector<N+2, S>` where `S` is the least upper bound with respect to subtyping of `T`, `Uint<0..0>`, and `Uint<0..255>`.
 
 In contrast, if you write `[true, ...x, pad(32, 'Midnight')]`, where `x` has a vector type,
 this will always be a compiler error because there is no element type that is related by subtyping to both `Boolean` and `Bytes<32>`.
@@ -139,16 +144,19 @@ This new feature is a **non-breaking** change.
 You can now extract subparts of tuples, vectors, and bytes values using `slice` expressions.
 `slice` is a new keyword so this is a breaking change.
 
-We experemented with various syntax ideas for this feature, and settled on one that we hope is easy to use but still allows us to give correct static types to such expressions.
+We experimented with various syntax ideas for this feature, and settled on one that we hope is easy to use but still allows us to give correct static types to such expressions.
 To extract a subpart of a tuple, vector, or bytes value you write `slice<SIZE>(value, index)` where:
 
 - `value` has a tuple, vector, or bytes value type,
-- `index` is a numeric typed start index for the slice, and
-- `SIZE` is the length of the slice.
+- `index` is a numeric-typed start index for the slice, and
+- `SIZE` is a numeric literal or generic size parameter specifying the length of the slice.
 
 So for example, with a vector `v` with value [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], `slice<4>(v, 2)` will be a slice of length 4 starting at index 2,
 namely `[2, 3, 4, 5]`.
 The static typing rules are expectable.  If `v` has type `Vector<10, Uint<8>>`, the slice above will have type `Vector<4, Uint<8>>`.
+
+The static typing rules for `value` and `index` are analogous to the ones for tuple, vector, and bytes value indexes.
+See [non-literal vector and bytes indexes](#you-can-use-non-literal-vector-and-bytes-value-indexes) below.
 
 This new feature is a **breaking** change, because we have added a new keyword to the language.
 If you were using `slice` as an identifier in your contracts, you will have to rename it.
@@ -185,6 +193,17 @@ Previously, vector indexes had to be a literal number.
 You can now use non-literal expressions to index vectors (and bytes values),
 **provided that the compiler can determine a compile-time constant value for the expression**.
 
+The compiler will attempt to find compile-time constant values for loop indexes by using:
+
+- **loop unrolling**, where a loop (including `map` and `fold` expressions) with `N` iterations is replaced by `N` distinct (specialized) versions of the loop's body,
+- **circuit inlining**, where a call to a circuit is replaced by a (specialized) version of the circuit's body,
+- **copy propagation**, where circuit parameter references and `const` binding references are replaced with their definitions, and
+- **constant folding**, where the compiler evaluates expressions with constant operands.
+
+The static typing rules for tuple and vector indexing, and for the new bytes value indexing, are relaxed, with the following constraints.
+In an expression `value[index]`, if `index` is not a numeric literal or generic size parameter,
+then `value` must have a vector or bytes value type (**not** a tuple type).
+
 So for example, you could write:
 
 ```compact
@@ -194,7 +213,7 @@ export circuit foo(v: Vector<10, Uint<8>>): Uint<8> {
 }
 ```
 
-or even:
+because copy propagation gives `v[2 * 4]` and constant folding gives `v[8]`.  You could even write:
 
 ```compact
 circuit eight(): Uint<0..8> { return 8; }
@@ -203,6 +222,8 @@ export circuit bar(v: Vector<8, Uint<8>>): Uint<8> {
     return v[eight()];
 }
 ```
+
+because inlining gives `v[8]` directly.
 
 This new feature is a **non-breaking** change.
 
@@ -219,7 +240,7 @@ You could sometimes get the effect of casting from a value `v` of type `T` to `S
 We have provided the ability to directly perform those casts, with the same semantics as casting through the intermediate `Field` type.
 
 In some cases you could cast from a type `T` to `S` (for example, from any `enum` type to `Field`) but not in the opposite direction from `S` to `T`.
-When a cast is possible, we have considred providing the ability to cast in both directions.
+When a cast is possible, we have considered providing the ability to cast in both directions.
 We have not provided **all** such casts, for example if there is a high runtime cost in one direction the cast might not be available.
 We don't want to mislead developers that such casts are cheap just because they are syntactically convenient.
 
@@ -248,16 +269,16 @@ Here are the new casts that are available:
   The runtime cost of checking (both in JavaScript execution and in proof size) would be proportional to the length of the vector.
   If you desire such a cast, you can use `map` with an `as` cast of the elements.
   
-- From `[T0, ..., Tn]` to `[S0, ..., Sn]`, tuple types with the same length and where each `Si` is a supertype of the corresponding `Ti`.
+- From `[T1, ..., Tn]` to `[S1, ..., Sn]`, tuple types with the same length and where each `Si` is a supertype of the corresponding `Ti`.
   Since vector types are equivalent to a corresponding tuple type, the cast above is a special case of this one.
   It cannot fail and there is no runtime cost.
   Note that there is generally no corresponding cast in the opposite direction.
   
-- From `Vector<n, T>` to `[S0, ..., Sn]`, a vector type to a tuple type with the same length, where each `Si` is a supertype of `T`.
+- From `Vector<n, T>` to `[S1, ..., Sn]`, a vector type to a tuple type with the same length, where each `Si` is a supertype of `T`.
   It cannot fail and there is no runtime cost.
   Note that there is generally no corresponding cast in the opposite direction.
   
-- From `[T0, ..., Tn]` to `Vector<n, S>`, a tuple type to a vector type with the same length, where `S` is a supertype of each `Ti`.
+- From `[T1, ..., Tn]` to `Vector<n, S>`, a tuple type to a vector type with the same length, where `S` is a supertype of each `Ti`.
   It cannot fail and there is no runtime cost.
   Note that there is generally no corresponding cast in the opposite direction.
   
@@ -265,9 +286,9 @@ Here are the new casts that are available:
   It was previously possible to cast from `Bytes<n>` to `Vector<n, Uint<8>>`, that is where the vector element type is exactly `Uint<8>`.
   You can now cast to a vector type whose element type is any supertype of `Uint<8>`.
   The cast cannot fail at runtime, but it has a cost proportional to the length `n`.
-  This cost is the same as the cost of a cast to `Vector<n, Uint<8>>` (the cast from `Uint<8>` to a supertype is "free").
+  This cost is the same as the cost of a cast to `Vector<n, Uint<8>>`.
   
-- From `Bytes<n>` to `[T0, ..., Tn]`, a bytes value to a tuple type of the same length, where each `Ti` is a (possibly different) supertype of `Uint<8>`.
+- From `Bytes<n>` to `[T1, ..., Tn]`, a bytes value to a tuple type of the same length, where each `Ti` is a (possibly different) supertype of `Uint<8>`.
   Since vector types are equivalent to a corresponding tuple type, the cast above is a special case of this one.
   It cannot fail at runtime, but it has a cost proportional to the length `n`.
 
@@ -288,8 +309,11 @@ Here are the new casts that are available:
   
 - From `enum` types to `Uint` types and vice versa
   These were possible in one direction using an intermediate `Field` and not in the other direction.
-  The cast to an `enum` type is checked in both JavaScript and in the proof, and it involves a representation change (from `bigint` to `number`) in JavaScript.
-  The cast to `Uint` types does not need a runtime check, but it involves a JavaScript representation change.
+  These casts might involve a runtime check in JavaScript and in the proof.
+  There will be a runtime check for an `enum` to `Uint` cast if the `Uint` type is not big enough to represent all the `enum` values.
+  There will be a runtime check for a `Uint` to `enum` cast if the `enum` type does not have enough values to represent all the values of the `Uint` type.
+  Both directions require a representation change in JavaScript.
+  `Uint` types are represented by the JavaScript type `bignum` and `enum` types are represented by `number`.
 
 These new casts are **non-breaking** changes, we have added new casts but we have not changed the behavior of any of the existing ones.
 
@@ -354,7 +378,7 @@ This is fixed.
 
 ### We fixed a rare crash bug triggered by circuit optimization
 
-It was possible in some rare cases to crash our circuit optimzation with an internal compiler error.
+It was possible in some rare cases to crash our circuit optimization with an internal compiler error.
 This manifested as a report of `internal error (identifier not bound)`.
 This was due to a bug in the optimization compiler pass.
 
