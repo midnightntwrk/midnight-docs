@@ -86,6 +86,29 @@ module.exports = {
           items: [
             "develop/nodes-and-dapps/nodes-endpoints"
           ]
+        },
+        {
+          type: "category",
+          label: "Tokenomics",
+          link: { type: "doc", id: "develop/tokenomics/introduction" },
+          items: [
+            {
+              type: "category",
+              label: "DUST from cNIGHT",
+              link: { type: "doc", id: "develop/tokenomics/dust-cnight/introduction" },
+              items: [
+                "develop/tokenomics/dust-cnight/register",
+              "develop/tokenomics/dust-cnight/dust-from-glacier-drop",
+              "develop/tokenomics/dust-cnight/check-registration",
+              "develop/tokenomics/dust-cnight/produce-dust",
+              "develop/tokenomics/dust-cnight/update-dust-address",
+              "develop/tokenomics/dust-cnight/deregister-wallet",
+              "develop/tokenomics/dust-cnight/stop-dust-production",
+              "develop/tokenomics/dust-cnight/remove-excess-registration"
+              ]
+            },
+            
+          ]
         }
       ]
     },
