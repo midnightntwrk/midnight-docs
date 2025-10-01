@@ -17,8 +17,41 @@ import Link from '@docusaurus/Link';
 const releases = [
   {
     id: 1,
-    version: '2.0.2',
+    version: '2.1.0',
     status: 'LATEST',
+    date: '1 October 2025',
+    summary: 'Summary of Release 2.1.0',
+    details: [
+
+      'Block time support in Midnight.js',
+      'Block Time Access: Fix for `toLedgerState`, which erased the block',
+      'Added dotenv configuration and Node.js environment setup',
+      'Contracts unit tests',
+      'Cleanup of contracts types',
+      'Excluded GraphQL generated files from version control',
+      'ESLint import sorting',
+      'API documentation update',
+      'Workflow permissions updates',
+      'Docker compose port configuration change',
+      'Secure workflows',
+      'Axios version update',
+      'Removed GitHub plugin',
+      'Updated GraphQL codegen version',
+      'Added README for e2e tests',
+      'CI workflow CTRF report fix',
+      'CI configuration for API documentation generation',
+      'Compactc upgraded to 0.26.0',
+      'Compact-runtime upgraded to 0.9.0',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-2-1-0',
+  },
+  {
+    id: 2,
+    version: '2.0.2',
+    status: 'DEPRECATED',
     date: '11 June 2025',
     summary: 'Summary of Release 2.0.2',
     details: [
@@ -31,7 +64,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-2',
   },
   {
-    id: 2,
+    id: 3,
     version: '2.0.1',
     status: 'DEPRECATED',
     date: '30 May 2025',
@@ -46,7 +79,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-1',
   },
   {
-    id: 3,
+    id: 4,
     version: '2.0.0',
     status: 'DEPRECATED',
     date: '12 May 2025',
@@ -83,7 +116,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-0',
   },
   {
-    id: 4,
+    id: 5,
     version: '1.0.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -102,7 +135,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-1-0-0',
   },
   {
-    id: 5,
+    id: 6,
     version: '0.2.5',
     status: 'DEPRECATED',
     date: '3 February 2025',
