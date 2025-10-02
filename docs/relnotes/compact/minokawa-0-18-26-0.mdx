@@ -1,0 +1,415 @@
+---
+title: Compact compiler 0.26.0 (Minokawa language 0.18.0)
+displayed_sidebar: sidebar
+---
+
+## Compact compiler 0.26.0 (Minokawa language 0.18.0) release notes
+
+Today we are releasing version 0.26.0 of the Compact compiler.
+This is the first release that uses the language's new name.
+As part of open-sourcing the language's design and implementation, [we have moved the project](https://www.lfdecentralizedtrust.org/blog/compact-smart-contract-language-is-now-minokawa-newest-lf-decentralized-trust-project) to the Linux Foundation Decentralized Trust (LFDT).
+As part of this move, the language formerly known as _Compact_ is being renamed to _Minokawa_.
+
+We are eager to open source the compiler and tools, and especially to begin conducting language design in the open as part of the LFDT open-source community.
+
+We will start using the new name immediately, but it will take us a while to update all the documentation and implementations.
+For instance, the developer tools command-line program is still called `compact`, the standard library is still named `CompactStandardLibrary`, and so forth.
+We apologize for any temporary confusion.
+
+We have not changed the language version numbering sequence, so that version numbers are still properly related to each other.
+This release updates the language from Compact version 0.17.0 to Minokawa version 0.18.0.
+
+## Summary of changes
+
+This release has a lot of new language features, including some breaking language changes, so read these release notes carefully.
+There are also bug fixes and compiler improvements.
+
+### Language changes
+
+There are numerous changes that improve the usability of tuples, vectors and bytes values.
+Recall that vector creation is a special case of tuple creation, so we will not explicitly mention vector creation.
+We've made the following improvements.
+
+- There is new syntax for bytes value creation
+- You can index bytes values in the same way as tuples and vectors
+- You can iterate over bytes values using `for` loops, `map`, and `fold`
+- You can use hexadecimal, octal, and binary literals with the same syntax as TypeScript
+- You can use "spread" expressions in tuple and bytes value creation expressions
+- [Breaking] You can use "slice" expressions to extract contiguous subparts of tuples, vectors, and bytes values
+- You can use generic size parameters in expression contexts
+- You can use non-literal vector and bytes value indexes as long as the compiler can determine their value at compile time
+
+We have added new support for type casts that were not possible before.  None of these are breaking changes.
+
+We have made a breaking renaming change to the Compact runtime, and the runtime version has been bumped to 0.9.0.
+
+### Bug fixes and compiler improvements
+
+We have made a number of bug fixes.
+If you were affected by any of these issues you should update to version 0.26.
+
+- `transientCommit` and `persistentCommit` are now implicitly disclosing (as they were documented to be)
+- We fixed a proof bug in `Vector` to `Bytes` and `Bytes` to `Vector` conversions
+- We fixed a proof bug in nested ledger ADTs
+- We fixed bugs in `MerkleTree.insertIndexDefault` and `HistoricMerkleTree.insertIndexDefault`
+- We fixed a bug in the JavaScript code for mapping or folding a pure circuit
+- We fixed a rare crash bug triggered during circuit optimization
+
+And we've additionally made several improvements to our error messages to make them more helpful.
+
+## Language changes
+
+We have made a number of changes to improve the handling of vectors and tuples,
+and we have made changes to put bytes values on the same footing as vectors.
+
+The difference in Minokawa between a bytes value and a vector is that the bytes value has a "packed" representation in proofs and on chain,
+while the vector has an "unpacked" representation.
+Specifically, bytes values are packed into fields using as few fields as possible.
+The current field size can hold 31 bytes.
+In contrast, vectors will use at least one field value per element.
+(The number of field values required depends on the element type.)
+
+A practical consequence of this is that bytes value operations are typically more expensive (in terms of proof size)
+than the corresponding vector operations.
+In some cases, working with even moderately sized bytes values will be prohibitively expensive.
+
+We do have plans to improve this performance in the future.
+
+### There is new syntax for bytes value creation
+
+You can create bytes values in a similar fashion to tuples.
+Use the keyword `Bytes` preceding the square brackets.
+For example, `Bytes[0, x, y, 0]` creates a bytes value with type `Bytes<4>`.
+The empty bytes value is written `Bytes[]`.
+
+This new feature is a **non-breaking** change (because `Bytes` was already a reserved word).
+
+### You can index bytes values
+
+Bytes values can now be indexed exactly as vectors and tuples.
+So for example, if `b` has a `Bytes` type, you can write `b[i]` to extract the `i`th element.
+The type of a bytes value indexing expression is `Uint<8>`.
+
+This new feature is a **non-breaking** change.
+
+### You can iterate over bytes values using `for` loops, `map`, and `fold`
+
+The looping forms in Minokawa now work with bytes values.
+For all of these looping forms over a value with type `Bytes`, the element type is `Uint<8>`.
+The typing rules for `for` loops and `fold` are the exact equivalent of the rules for vectors.
+For `map` over `Bytes`, the result will have a `Vector` type of the same length
+(the element type is the return type of the mapped callable).
+
+One reason for the choice to return a vector for `map` over a bytes value is to avoid the potentially expensive packing of a vector into a bytes value when it's not needed.
+If you do want a bytes value (e.g., to call a circuit that needs one), you can cast the vector result to a `Bytes` target type.
+
+This new feature is a **non-breaking** change.
+
+### You can use hexadecimal, octal, and binary literals
+
+In many cases, especially when constructing bytes values, it is more convenient to represent numbers in a base other than decimal.
+You can now use hexadecimal, octal, and binary literals.
+The typing rules for these are exactly the same as for other numeric literals.
+For any numeric literal `N` in any representable base, the static type will be `Uint<0..N>`.
+The syntax is the same as in TypeScript:
+
+- Hexadecimal literals are prefixed with either `0x` or `0X`,
+  and the digits are the numeric digits in the range `0..9` and the alphabetic digits in the ranges `a..f` and `A..F`.
+- Octal literals are prefixed with either `0o` or `0O`, and the digits are the numeric digits in the range `0..7`.
+- Binary literals are prefixed with either `0b` or `0B`, and the digits are the numeric digits in the range `0..1`.
+
+This new feature is a **non-breaking** change.
+
+### You can use "spread" expressions in tuple and bytes value creation expressions
+
+The prefix spread operator, (`...`) now works in tuple and bytes value creation expressions.
+Recall that vector types are a special case of tuple types and that vector creation uses the same syntax as tuple creation.
+You can spread tuple, vector, and bytes values expressions inside of tuple creation expressions.
+Bytes values spread inside tuple creation expressions are treated equivalently to vectors with `Uint<8>` elements.
+You can spread tuple, vector, and bytes values expressions inside of bytes value creation expressions.
+Tuples and vectors spread inside bytes value creation expressions must have elements that are subtypes of `Uint<8>`, otherwise it is a compile-time error.
+
+So for example, you can concatenate a pair of tuples or vectors by writing `[...x, ...y]`.
+You can spread a tuple or vector in the middle of a creation expression by writing `[x, ...y, z]`.
+
+The typing rules are expectable with one exception to be aware of:
+if you spread a vector-typed value inside a tuple creation expression, this will require all the other elements to have related types.
+Specifically, spreading a vector will require the result to have a vector type.
+
+So for instance, if you write `[0, ...x, 255]` and `x` has type `Vector<N, T>`, this will require `T` to be a numeric type
+(i.e., a type related by subtyping to `Uint<0..0>` and `Uint<0..255>`).
+And the resulting type will be `Vector<N+2, S>` where `S` is the least upper bound with respect to subtyping of `T`, `Uint<0..0>`, and `Uint<0..255>`.
+
+In contrast, if you write `[true, ...x, pad(32, 'Midnight')]`, where `x` has a vector type,
+this will always be a compiler error because there is no element type that is related by subtyping to both `Boolean` and `Bytes<32>`.
+
+This new feature is a **non-breaking** change.
+
+### You can use "slice" expressions to extract contiguous subparts of tuples, vectors, and bytes values
+
+You can now extract subparts of tuples, vectors, and bytes values using `slice` expressions.
+`slice` is a new keyword so this is a breaking change.
+
+We experimented with various syntax ideas for this feature, and settled on one that we hope is easy to use but still allows us to give correct static types to such expressions.
+To extract a subpart of a tuple, vector, or bytes value you write `slice<SIZE>(value, index)` where:
+
+- `value` has a tuple, vector, or bytes value type,
+- `index` is a numeric-typed start index for the slice, and
+- `SIZE` is a numeric literal or generic size parameter specifying the length of the slice.
+
+So for example, with a vector `v` with value [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], `slice<4>(v, 2)` will be a slice of length 4 starting at index 2,
+namely `[2, 3, 4, 5]`.
+The static typing rules are expectable.  If `v` has type `Vector<10, Uint<8>>`, the slice above will have type `Vector<4, Uint<8>>`.
+
+The static typing rules for `value` and `index` are analogous to the ones for tuple, vector, and bytes value indexes.
+See [non-literal vector and bytes indexes](#you-can-use-non-literal-vector-and-bytes-value-indexes) below.
+
+This new feature is a **breaking** change, because we have added a new keyword to the language.
+If you were using `slice` as an identifier in your contracts, you will have to rename it.
+
+### You can use generic size parameters in expression contexts
+
+Generics in compact can have generic parameters that are either _types_ or _sizes_.
+Generic size parameters are instantiated with numeric-typed values.
+Previously, these parameters could only be used in types.
+We have now allowed them to be used in expression contexts.
+
+For a trivial example, you can now write:
+
+```compact
+circuit add<#N>(x: Uint<32>): Field {
+  return N + x;
+}
+```
+
+and then `add<3>` would be a circuit equivalent to `(x: Uint<32>): Field => 3 + x`.
+
+You might be tempted to want to also perform arithmetic on generic size parameters in **types**, but this does not (yet) work in Minokawa.
+That is, you **cannot** write:
+
+```compact
+circuit double<#N>(v: Vector<N, Field>): Vector<2 * N, Field> {
+  return [...v, ...v];
+}
+```
+
+### You can use non-literal vector and bytes value indexes
+
+Previously, vector indexes had to be a literal number.
+You can now use non-literal expressions to index vectors (and bytes values),
+**provided that the compiler can determine a compile-time constant value for the expression**.
+
+The compiler will attempt to find compile-time constant values for loop indexes by using:
+
+- **loop unrolling**, where a loop (including `map` and `fold` expressions) with `N` iterations is replaced by `N` distinct (specialized) versions of the loop's body,
+- **circuit inlining**, where a call to a circuit is replaced by a (specialized) version of the circuit's body,
+- **copy propagation**, where circuit parameter references and `const` binding references are replaced with their definitions, and
+- **constant folding**, where the compiler evaluates expressions with constant operands.
+
+The static typing rules for tuple and vector indexing, and for the new bytes value indexing, are relaxed, with the following constraints.
+In an expression `value[index]`, if `index` is not a numeric literal or generic size parameter,
+then `value` must have a vector or bytes value type (**not** a tuple type).
+
+So for example, you could write:
+
+```compact
+export circuit foo(v: Vector<10, Uint<8>>): Uint<8> {
+    const i = 4;
+    return v[2 * i];
+}
+```
+
+because copy propagation gives `v[2 * 4]` and constant folding gives `v[8]`.  You could even write:
+
+```compact
+circuit eight(): Uint<0..8> { return 8; }
+
+export circuit bar(v: Vector<8, Uint<8>>): Uint<8> {
+    return v[eight()];
+}
+```
+
+because inlining gives `v[8]` directly.
+
+This new feature is a **non-breaking** change.
+
+### We have added support for type casts that were not possible before
+
+Previously, the language supported a limited set of type casts.
+We have expanded the type casts that are available by adding some new ones.
+
+In general, you should always be able to explicitly cast from a type to a supertype (including from a type to itself).
+These values will be implicitly cast, so there is no reason to prevent explicitly casting as well.
+
+Previously, you could cast between some pairs of types by using an intermediate cast to a `Field` value.
+You could sometimes get the effect of casting from a value `v` of type `T` to `S` by writing `v as Field as S`.
+We have provided the ability to directly perform those casts, with the same semantics as casting through the intermediate `Field` type.
+
+In some cases you could cast from a type `T` to `S` (for example, from any `enum` type to `Field`) but not in the opposite direction from `S` to `T`.
+When a cast is possible, we have considered providing the ability to cast in both directions.
+We have not provided **all** such casts, for example if there is a high runtime cost in one direction the cast might not be available.
+We don't want to mislead developers that such casts are cheap just because they are syntactically convenient.
+
+Having casts in both directions between a pair of types `T` and `S` does not necessarily imply that if `v` has type `T` that `v as S as T` gives you the same value.
+(For example, if `v` has type `Field`, `v as Boolean as Field` will first take any `Field` value to a `true` or `false` `Boolean` value,
+and then back to one of the field values `1` or `0`, not necessarily the original one.)
+
+Here are the new casts that are available:
+
+- From `Boolean` to `Boolean`.
+  This is possible because they are the same type (so in the subtype relation).
+  It cannot fail and there is no runtime cost.
+
+- From an opaque type `Opaque<s>` to the same opaque type.
+  It cannot fail and there is no runtime cost.
+  
+- From a `struct` type `S` to the same `struct` type.
+  It cannot fail and there is no runtime cost.
+  
+- From an `enum` type `E` to the same `enum` type.
+  It cannot fail and there is no runtime cost.
+
+- From `Vector<n, T>` to `Vector<n, S>`, vector types with the same length and where `S` is a supertype of `T` (including `T` itself).
+  It cannot fail and there is no runtime cost.
+  Note that there is no corresponding cast in the opposite direction, except for the trivial case where `S` and `T` are the same type.
+  The runtime cost of checking (both in JavaScript execution and in proof size) would be proportional to the length of the vector.
+  If you desire such a cast, you can use `map` with an `as` cast of the elements.
+  
+- From `[T1, ..., Tn]` to `[S1, ..., Sn]`, tuple types with the same length and where each `Si` is a supertype of the corresponding `Ti`.
+  Since vector types are equivalent to a corresponding tuple type, the cast above is a special case of this one.
+  It cannot fail and there is no runtime cost.
+  Note that there is generally no corresponding cast in the opposite direction.
+  
+- From `Vector<n, T>` to `[S1, ..., Sn]`, a vector type to a tuple type with the same length, where each `Si` is a supertype of `T`.
+  It cannot fail and there is no runtime cost.
+  Note that there is generally no corresponding cast in the opposite direction.
+  
+- From `[T1, ..., Tn]` to `Vector<n, S>`, a tuple type to a vector type with the same length, where `S` is a supertype of each `Ti`.
+  It cannot fail and there is no runtime cost.
+  Note that there is generally no corresponding cast in the opposite direction.
+  
+- From `Bytes<n>` to `Vector<n, T>`, a bytes value type to a vector type of the same length, where `T` is a supertype of `Uint<8>`.
+  It was previously possible to cast from `Bytes<n>` to `Vector<n, Uint<8>>`, that is where the vector element type is exactly `Uint<8>`.
+  You can now cast to a vector type whose element type is any supertype of `Uint<8>`.
+  The cast cannot fail at runtime, but it has a cost proportional to the length `n`.
+  This cost is the same as the cost of a cast to `Vector<n, Uint<8>>`.
+  
+- From `Bytes<n>` to `[T1, ..., Tn]`, a bytes value to a tuple type of the same length, where each `Ti` is a (possibly different) supertype of `Uint<8>`.
+  Since vector types are equivalent to a corresponding tuple type, the cast above is a special case of this one.
+  It cannot fail at runtime, but it has a cost proportional to the length `n`.
+
+- From `Uint` types to `Bytes` types.
+  This was previously possible using an intermediate `Field` type.
+  The semantics is the same as casting through an intermediate `Field` type.
+  Specifically, there is a runtime check that the `Bytes` type is big enough to hold the actual `Uint` value, so the cast can fail.
+  There is a representation change, so there is a runtime cost (both in JavaScript and in terms of proof size).
+  
+- From `Bytes` types to `Uint` types.
+  This was previously possible using an intermediate `Field` type.
+  The cast can fail at runtime and it involves a representation change.
+  
+- From `Field` to `enum` types.
+  You could previously cast from `enum` types to `Field` but not vice versa.
+  This cast is checked at runtime, so it can fail.
+  There is a JavaScript representation change (from `bigint` to `number`) but no representation change in the proof (there is still a range check in the proof).
+  
+- From `enum` types to `Uint` types and vice versa
+  These were possible in one direction using an intermediate `Field` and not in the other direction.
+  These casts might involve a runtime check in JavaScript and in the proof.
+  There will be a runtime check for an `enum` to `Uint` cast if the `Uint` type is not big enough to represent all the `enum` values.
+  There will be a runtime check for a `Uint` to `enum` cast if the `enum` type does not have enough values to represent all the values of the `Uint` type.
+  Both directions require a representation change in JavaScript.
+  `Uint` types are represented by the JavaScript type `bignum` and `enum` types are represented by `number`.
+
+These new casts are **non-breaking** changes, we have added new casts but we have not changed the behavior of any of the existing ones.
+
+### We have changed some functions in the Compact runtime
+
+The compiler-generated JavaScript code uses the Compact runtime to provide implementations of behavior that doesn't depend on the specific contract.
+We renamed the runtime function `convert_bigint_to_Uint8Array` to `convertFieldToBytes` and we renamed `convert_Uint8Array_to_bigint` to `convertBytesToField`.
+That is, we took the opportunity of introducing the new type casts to adopt JavaScript naming conventions for these functions,
+and we changed them to mention the Minokawa types involved, not the JavaScript representation types.
+
+We have also added a third argument to both of these functions, which is a string describing the Minokawa source position of the cast.
+
+This is a **breaking** change to the Compact runtime.
+The runtime version is bumped to 0.9.0.
+In the unlikely case your DApp was importing the Compact runtime and using these functions, you will have to change it to use the new names and provide a string value as the extra argument.
+
+## Bug fixes and compiler improvements
+
+We have fixed several bugs that were present in compiler version 0.25.0.
+If you were affected by any of these, you should update to version 0.26.0.
+
+### `transientCommit` and `persistentCommit` are now implicitly disclosing
+
+The documentation for the standard library circuits `transientCommit` and `persistentCommit` claimed that they were implicitly disclosing.
+That is, you should not need to explicitly `disclose` the results of these functions even if they are passes witness-derived values.
+However, they were not actually implicitly disclose.
+
+We have fixed them to be.
+
+### We fixed a proof bug in `Vector` to `Bytes` and `Bytes` to `Vector` conversions
+
+We added casts between vectors and bytes values in version 0.25.0 of the compiler.
+These worked as intended in JavaScript but they did not work properly in the proof.
+This was due to an endianness bug in the packing and unpacking of bytes values.
+As a consequence, proofs would fail when they should not.
+
+This is fixed.
+
+### We fixed a proof bug in nested ledger ADTs
+
+`Map`s in the ledger can contain nested ledger ADT types as the value type.
+There was a bug in proving `Map` lookup due to incorrect paths in the ledger in some cases.
+As a consequence, proofs could fail when they should not.
+
+This is fixed.
+
+### We fixed bugs in `MerkleTree.insertIndexDefault` and `HistoricMerkleTree.insertIndexDefault`
+
+These operations were each affected by (unrelated) bugs.
+
+For `MerkleTree`, there was a missing Impact instruction that would lead to a JavaScript type error at runtime.
+
+For `HistoricMerkleTree`, there was a proof bug due to an incorrect index that could cause the proof to fail when it should not.
+
+We have fixed both of these.
+
+### We fixed a bug in the JavaScript code for mapping or folding a pure circuit
+
+In compiler version `0.25.0` we changed the JavaScript calling convention for pure circuits.
+However, we missed changing the way that they were called when using `map` or `fold` over a pure circuit used in a an impure circuit.
+In that case, the code would fail at runtime with a JavaScript type error.
+
+This is fixed.
+
+### We fixed a rare crash bug triggered by circuit optimization
+
+It was possible in some rare cases to crash our circuit optimization with an internal compiler error.
+This manifested as a report of `internal error (identifier not bound)`.
+This was due to a bug in the optimization compiler pass.
+
+This is fixed.
+
+### We have improved error messages for Ledger ADT operations that require a coin commitment
+
+Previously these operations failed with an uninformative message `Error: expected a cell`.
+We have improved this error message to indicate the source position in your contract where the error occurs.
+We will also indicate that the problem is a missing coin commitment at that position.  For example, this code:
+
+```compact
+import CompactStandardLibrary;
+
+export ledger coins: List<QualifiedCoinInfo>;
+
+export circuit receiveToken(dust: CoinInfo): [] {
+  coins.pushFrontCoin(disclose(dust), right<ZswapCoinPublicKey, ContractAddress>(kernel.self()));
+}
+```
+
+will now report:
+
+```
+line 6 char 3: Coin commitment not found. Check the coin has been received (or call 'createZswapOutput')
+```

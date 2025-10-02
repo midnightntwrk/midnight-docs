@@ -1,12 +1,8 @@
 # Compact standard library
 
-**CompactStandardLibrary** ∙ [README](README.md) ∙ [API](exports.md)
+**CompactStandardLibrary** ∙ [Detailed API reference](exports.md)
 
-***
-
-# Compact standard library
-
-This API provides standard types and `circuit`s for use in Compact programs.
+This API provides standard types and circuits for use in Compact programs.
 Key parts of the API are:
 
 - Common data types:
@@ -18,7 +14,6 @@ Key parts of the API are:
   - [`MerkleTreePath`](exports.md#merkletreepath)
   - [`ContractAddress`](exports.md#contractaddress)
   - [`ZswapCoinPublicKey`](exports.md#zswapcoinpublickey)
-  - [`UserAddress`](exports.md#useraddress)
 - Coin management data types:
   - [`CoinInfo`](exports.md#coininfo)
   - [`QualifiedCoinInfo`](exports.md#qualifiedcoininfo)
@@ -29,36 +24,36 @@ Key parts of the API are:
   - [`left`](exports.md#left)
   - [`right`](exports.md#right)
 - Hashing functions:
-  - [`transientHash`](exports.md#transientHash)
-  - [`transientCommit`](exports.md#transientCommit)
-  - [`persistentHash`](exports.md#persistentHash)
-  - [`persistentCommit`](exports.md#persistentCommit)
-  - [`degradeToTransient`](exports.md#degradeToTransient)
+  - [`transientHash`](exports.md#transienthash)
+  - [`transientCommit`](exports.md#transientcommit)
+  - [`persistentHash`](exports.md#persistenthash)
+  - [`persistentCommit`](exports.md#persistentcommit)
+  - [`degradeToTransient`](exports.md#degradetotransient)
 - Elliptic curve functions:
-  - [`ecAdd`](exports.md#ecAdd)
-  - [`ecMul`](exports.md#ecMul)
-  - [`ecMulGenerator`](exports.md#ecMulGenerator)
-  - [`hashToCurve`](exports.md#hashToCurve)
-  - [`upgradeFromTransient`](exports.md#upgradeFromTransient)
+  - [`ecAdd`](exports.md#ecadd)
+  - [`ecMul`](exports.md#ecmul)
+  - [`ecMulGenerator`](exports.md#ecmulgenerator)
+  - [`hashToCurve`](exports.md#hashtocurve)
+  - [`upgradeFromTransient`](exports.md#upgradefromtransient)
 - Merkle tree functions:
-  - [`merkleTreePathRoot`](exports.md#merkleTreePathRoot)
-  - [`merkleTreePathRootNoLeafHash`](exports.md#merkleTreePathRootNoLeafHash)
+  - [`merkleTreePathRoot`](exports.md#merkletreepathroot)
+  - [`merkleTreePathRootNoLeafHash`](exports.md#merkletreepathrootnoleafhash)
 - Coin management functions
-  - [`tokenType`](exports.md#tokenType)
-  - [`nativeToken`](exports.md#nativeToken)
-  - [`ownPublicKey`](exports.md#ownPublicKey)
-  - [`createZswapInput`](exports.md#createZswapInput)
-  - [`createZswapOutput`](exports.md#createZswapOutput)
-  - [`mintToken`](exports.md#mintToken)
-  - [`evolveNonce`](exports.md#evolveNonce)
+  - [`tokenType`](exports.md#tokentype)
+  - [`nativeToken`](exports.md#nativetoken)
+  - [`ownPublicKey`](exports.md#ownpublickey)
+  - [`createZswapInput`](exports.md#createzswapinput)
+  - [`createZswapOutput`](exports.md#createzswapoutput)
+  - [`mintToken`](exports.md#minttoken)
+  - [`evolveNonce`](exports.md#evolvenonce)
   - [`receive`](exports.md#receive)
   - [`send`](exports.md#send)
   - [`sendImmediate`](exports.md#sendimmediate)
-  - [`mergeCoin`](exports.md#mergeCoin)
-  - [`mergeCoinImmediate`](exports.md#mergeCoinImmediate)
-  - [`burnAddress`](exports.md#burnAddress)
+  - [`mergeCoin`](exports.md#mergecoin)
+  - [`mergeCoinImmediate`](exports.md#mergecoinimmediate)
+  - [`burnAddress`](exports.md#burnaddress)
 - Block time functions:
-    - [`blockTimeLt`](exports.md#blockTimeLt)
-    - [`blockTimeGte`](exports.md#blockTimeGte)
-    - [`blockTimeGt`](exports.md#blockTimeGt)
-    - [`blockTimeLte`](exports.md#blockTimeLte)
+  - [`blockTimeLt`](exports.md#blocktimelt)
+  - [`blockTimeGte`](exports.md#blocktimegte)
+  - [`blockTimeGt`](exports.md#blocktimegt)
+  - [`blockTimeLte`](exports.md#blocktimelte)
