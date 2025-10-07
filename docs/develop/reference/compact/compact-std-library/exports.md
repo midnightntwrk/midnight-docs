@@ -1,8 +1,4 @@
-**CompactStandardLibrary** ∙ [README](README.md) ∙ [API](exports.md)
-
-***
-
-# API
+# Detailed API reference
 
 ## Structs
 
@@ -68,7 +64,7 @@ struct MerkleTreePathEntry {
 ### `MerkleTreePath`
 
 A path in a depth `n` Merkle tree, leading to a leaf of type `T`.
-Primarily used for [`merkleTreePathRoot`](#merkleTreePathRoot).
+Primarily used for [`merkleTreePathRoot`](#merkletreepathroot).
 
 This can be constructed from `witness`es that use the compiler output's
 `findPathForLeaf` and `pathForLeaf` functions.
@@ -83,8 +79,8 @@ struct MerkleTreePath<#n, T> {
 ### `ContractAddress`
 
 The address of a contract, used as a recipient in [`send`](#send),
-[`sendImmediate`](#sendImmediate),
-[`createZswapOutput`](#createZswapOutput), and [`mintToken`](#mintToken).
+[`sendImmediate`](#sendimmediate),
+[`createZswapOutput`](#createzswapoutput), and [`mintToken`](#minttoken).
 
 ```compact
 struct ContractAddress { bytes: Bytes<32>; }
@@ -95,14 +91,14 @@ struct ContractAddress { bytes: Bytes<32>; }
 The description of a newly created shielded coin, used in outputting shielded coins, or
 spending/receiving shielded coins that originate in the current transaction.
 
-`nonce` can be deterministically derived with [`evolveNonce`](#evolveNonce).
+`nonce` can be deterministically derived with [`evolveNonce`](#evolvenonce).
 
 Used in:
 - [`receive`](#receive)
-- [`sendImmediate`](#sendImmediate)
-- [`mergeCoin`](#mergeCoin)
-- [`mergeCoinImmediate`](#mergeCoinImmediate)
-- [`createZswapOutput`](#createZswapOutput)
+- [`sendImmediate`](#sendimmediate)
+- [`mergeCoin`](#mergecoin)
+- [`mergeCoinImmediate`](#mergecoinimmediate)
+- [`createZswapOutput`](#createzswapoutput)
 
 ```compact
 struct CoinInfo {
@@ -118,9 +114,9 @@ The description of an existing shielded coin in the ledger, ready to be spent.
 
 Used in:
 - [`send`](#send)
-- [`mergeCoin`](#mergeCoin)
-- [`mergeCoinImmediate`](#mergeCoinImmediate)
-- [`createZswapInput`](#createZswapInput)
+- [`mergeCoin`](#mergecoin)
+- [`mergeCoinImmediate`](#mergecoinimmediate)
+- [`createZswapInput`](#createzswapinput)
 
 ```compact
 struct QualifiedCoinInfo {
@@ -134,8 +130,8 @@ struct QualifiedCoinInfo {
 ### `ZswapCoinPublicKey`
 
 The public key used to output a [`CoinInfo`](#coininfo) to a user, used as a
-recipient in [`send`](#send), [`sendImmediate`](#sendImmediate), and
-[`createZswapOutput`](#createZswapOutput).
+recipient in [`send`](#send), [`sendImmediate`](#sendimmediate), and
+[`createZswapOutput`](#createzswapoutput).
 
 ```compact
 struct ZswapCoinPublicKey { bytes: Bytes<32>; }
@@ -143,7 +139,7 @@ struct ZswapCoinPublicKey { bytes: Bytes<32>; }
 
 ### `SendResult`
 
-The output of [`send`](#send) and [`sendImmediate`](#sendImmediate),
+The output of [`send`](#send) and [`sendImmediate`](#sendimmediate),
 detailing the created shielded coin, and the change from spending the input, if
 applicable.
 
@@ -264,10 +260,10 @@ circuit persistentCommit<T>(value: T, rand: Bytes<32>): Bytes<32>;
 
 ### `degradeToTransient`
 
-This function "degrades" the output of a [`persistentHash`](#persistentHash)
-or [`persistentCommit`](#persistentCommit) to a field element, which can then
-be used in [`transientHash`](#transientHash) or
-[`transientCommit`](#transientCommit).
+This function "degrades" the output of a [`persistentHash`](#persistenthash)
+or [`persistentCommit`](#persistentcommit) to a field element, which can then
+be used in [`transientHash`](#transienthash) or
+[`transientCommit`](#transientcommit).
 
 ```compact
 circuit degradeToTransient(x: Bytes<32>) : Field;
@@ -275,7 +271,7 @@ circuit degradeToTransient(x: Bytes<32>) : Field;
 
 ### `upgradeFromTransient`
 This function "upgrades" a field element to the output of a
-[`persistentHash`](#persistentHash) or [`persistentCommit`](#persistentCommit).
+[`persistentHash`](#persistenthash) or [`persistentCommit`](#persistentcommit).
 
 ```compact
 circuit upgradeFromTransient(x: Field): Bytes<32>;
@@ -337,7 +333,7 @@ circuit merkleTreePathRoot<#n, T>(path: MerkleTreePath<n, T>): MerkleTreeDigest;
 
 Derives the Merkle tree root of a [`MerkleTreePath`](#merkletreepath), which
 should match the root of the tree that this path originated from. As opposed to
-[`merkleTreePathRoot`](#merkleTreePathRoot), this variant assumes that
+[`merkleTreePathRoot`](#merkletreepathroot), this variant assumes that
 the tree leaves have already been hashed externally.
 
 ```compact
@@ -461,7 +457,7 @@ circuit ownPublicKey(): ZswapCoinPublicKey;
 
 Notifies the context to create a new Zswap input originating from this call.
 Should typically not be called manually, prefer [`send`](#send) and
-[`sendImmediate`](#sendImmediate) instead.
+[`sendImmediate`](#sendimmediate) instead.
 
 The note about disclosing under `transientHash` also applies to this function.
 
@@ -473,7 +469,7 @@ circuit createZswapInput(coin: QualifiedCoinInfo): [];
 
 Notifies the context to create a new Zswap output originating from this call.
 Should typically not be called manually, prefer [`send`](#send) and
-[`sendImmediate`](#sendImmediate), and [`receive`](#receive)instead.
+[`sendImmediate`](#sendimmediate), and [`receive`](#receive)instead.
 
 The note about disclosing under `transientHash` also applies to this function.
 
