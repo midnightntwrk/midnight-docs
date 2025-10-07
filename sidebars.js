@@ -1163,7 +1163,7 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "relnotes/comp-matrix",
+          id: "relnotes/support-matrix",
           label: "Compatibility matrix"
         }
       ]
