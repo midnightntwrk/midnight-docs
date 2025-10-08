@@ -17,6 +17,27 @@ import Link from '@docusaurus/Link';
 const releases = [
   {
     id: 1,
+    version: '0.26.0',
+    compactVersion: '0.18.0',
+    status: 'LATEST',
+    date: '08 October 2025',
+    summary: 'Summary of Release 0.26.0',
+    details: [
+      'Compact compiler renamed from Compact to Minokawa version 0.26.0 and language version 0.18.0.',
+      'Compact compiler moved to LFDT for open source governance.',
+      'Compact compiler adds Bytes values that are indexable and iterable like vectors.',
+      'Compact compiler supports hexadecimal octal and binary numeric literals and spread in tuples and bytes.'
+      
+    ],
+    artifacts: [
+      { name: 'Compiler Linux', url: 'https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_v0.26.0/compactc_v0.26.0_x86_64-unknown-linux-musl.zip' },
+      { name: 'Compiler macOS Intel', url: 'https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_v0.26.0/compactc_v0.26.0_x86_64-darwin.zip'  },
+      { name: 'Compiler macOS ARM', url: 'https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_v0.26.0/compactc_v0.26.0_aarch64-darwin.zip' }
+    ],
+    link: '/relnotes/compact/minokawa-0-18-26-0',
+  },
+  {
+    id: 2,
     version: '0.25.0',
     compactVersion: '0.17.0',
     status: 'LATEST',
@@ -39,7 +60,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-17-25-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '0.24.0',
     compactVersion: '0.16.0',
     status: 'TESTNET',
@@ -66,7 +87,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-16-24-0',
   },
   {
-    id: 3,
+    id: 4,
     version: '0.23.0',
     compactVersion: '0.15.0',
     status: 'TESTNET',
@@ -80,7 +101,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-15-23-0',
   },
   {
-    id: 4,
+    id: 5,
     version: '0.22.0',
     compactVersion: '0.14.0',
     status: 'TESTNET',
@@ -94,7 +115,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-14-22-0',
   },
   {
-    id: 5,
+    id: 6,
     version: '0.21.0',
     compactVersion: '0.14.0',
     status: 'TESTNET',
@@ -108,7 +129,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-14-0',
   },
   {
-    id: 6,
+    id: 7,
     version: '0.20.0',
     compactVersion: '0.13.0',
     status: 'TESTNET',
@@ -122,7 +143,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-13-0',
   },
   {
-    id: 7,
+    id: 8,
     version: '0.19.0',
     compactVersion: '0.11.0',
     status: 'TESTNET',
@@ -136,7 +157,7 @@ const releases = [
     link: '/relnotes/compact/compact-0-11-0',
   },
   {
-    id: 8,
+    id: 9,
     version: '0.18.2',
     compactVersion: '0.10.1',
     status: 'TESTNET',
