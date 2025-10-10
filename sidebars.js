@@ -92,19 +92,44 @@ module.exports = {
           label: "Tokenomics",
           link: { type: "doc", id: "develop/tokenomics/introduction" },
           items: [
+            "develop/tokenomics/economic-governance",
+            "develop/tokenomics/generation-and-decay",
             {
               type: "category",
               label: "DUST from cNIGHT",
               link: { type: "doc", id: "develop/tokenomics/dust-cnight/introduction" },
               items: [
                 "develop/tokenomics/dust-cnight/register",
-              "develop/tokenomics/dust-cnight/dust-from-glacier-drop",
-              "develop/tokenomics/dust-cnight/check-registration",
-              "develop/tokenomics/dust-cnight/produce-dust",
-              "develop/tokenomics/dust-cnight/update-dust-address",
-              "develop/tokenomics/dust-cnight/deregister-wallet",
-              "develop/tokenomics/dust-cnight/stop-dust-production",
-              "develop/tokenomics/dust-cnight/remove-excess-registration"
+                "develop/tokenomics/dust-cnight/dust-from-glacier-drop",
+                "develop/tokenomics/dust-cnight/check-registration",
+                "develop/tokenomics/dust-cnight/produce-dust",
+                "develop/tokenomics/dust-cnight/update-dust-address",
+                "develop/tokenomics/dust-cnight/deregister-wallet",
+                "develop/tokenomics/dust-cnight/stop-dust-production",
+                "develop/tokenomics/dust-cnight/remove-excess-registration"
+              ]
+            },
+            {
+              type: "category",
+              label: "Bridging",
+              items: [
+                "develop/tokenomics/bridging/builder-integration",
+                "develop/tokenomics/bridging/protocol-bridge"
+              ]
+            },
+            {
+              type: "category",
+              label: "dApps",
+              items: [
+                "develop/tokenomics/dapps/building-with-dust"
+              ]
+            },
+            {
+              type: "category",
+              label: "Token Standards",
+              items: [
+                "develop/tokenomics/token-standards/developer-considerations",
+                "develop/tokenomics/token-standards/token-types"
               ]
             },
             
