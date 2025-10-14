@@ -63,7 +63,24 @@ module.exports = {
                 "develop/tutorial/creating/local-testing",
                 "develop/tutorial/creating/updatability"
               ]
-            }
+            },
+            {
+              type: "category",
+              label: "Unshielded tokens",
+              link: { type: "doc", id: "develop/tutorial/unshielded-tokens/index" },
+              items: [
+                {
+                  type: "category",
+                  label: "Wallet builder",
+                  link: { type: "doc", id: "develop/tutorial/unshielded-tokens/wallet-builder/index" },
+                  items: [
+                    "develop/tutorial/unshielded-tokens/wallet-builder/ut-formatting",
+                    "develop/tutorial/unshielded-tokens/wallet-builder/ut-listing",
+                    "develop/tutorial/unshielded-tokens/wallet-builder/ut-viewing"
+                  ]
+                },
+              ]
+            },
           ]
         }
       ]
