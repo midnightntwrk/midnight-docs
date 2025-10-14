@@ -11,7 +11,6 @@ import DocItemTOCDesktop from "@theme/DocItem/TOC/Desktop";
 import DocItemContent from "@theme/DocItem/Content";
 import DocBreadcrumbs from "@theme/DocBreadcrumbs";
 import EditThisPage from "@theme/EditThisPage";
-import LastUpdated from "@theme/LastUpdated";
 import styles from "./styles.module.css";
 
 /**
