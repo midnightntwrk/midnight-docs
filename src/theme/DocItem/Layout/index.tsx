@@ -10,7 +10,10 @@ import DocItemTOCMobile from "@theme/DocItem/TOC/Mobile";
 import DocItemTOCDesktop from "@theme/DocItem/TOC/Desktop";
 import DocItemContent from "@theme/DocItem/Content";
 import DocBreadcrumbs from "@theme/DocBreadcrumbs";
+import EditThisPage from "@theme/EditThisPage";
+import LastUpdated from "@theme/LastUpdated";
 import styles from "./styles.module.css";
+
 /**
  * Decide if the toc should be rendered, on mobile or desktop viewports
  */
@@ -30,8 +33,12 @@ function useDocTOC() {
     desktop
   };
 }
+
 export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
+  const { metadata } = useDoc();
+  const { editUrl, lastUpdatedAt, lastUpdatedBy } = metadata;
+
   return (
     <div className="row">
       <div className={clsx("col", !docTOC.hidden && styles.docItemCol)}>
@@ -40,6 +47,18 @@ export default function DocItemLayout({ children }) {
           <article>
             {children.type.metadata.sourceDirName !== "." && <DocBreadcrumbs />}
             <DocVersionBadge />
+            
+            {/* Edit and last updated at the top */}
+            <div className={styles.topMeta}>
+              {lastUpdatedAt && (
+                <LastUpdated
+                  lastUpdatedAt={lastUpdatedAt}
+                  lastUpdatedBy={lastUpdatedBy}
+                />
+              )}
+              {editUrl && <EditThisPage editUrl={editUrl} />}
+            </div>
+
             {docTOC.mobile}
             <DocItemContent>{children}</DocItemContent>
             <DocItemFooter />
