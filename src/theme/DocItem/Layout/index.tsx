@@ -36,7 +36,7 @@ function useDocTOC() {
 export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
   const { metadata } = useDoc();
-  const { editUrl, lastUpdatedAt, lastUpdatedBy } = metadata;
+  const { editUrl } = metadata;
 
   return (
     <div className="row">
@@ -47,16 +47,12 @@ export default function DocItemLayout({ children }) {
             {children.type.metadata.sourceDirName !== "." && <DocBreadcrumbs />}
             <DocVersionBadge />
             
-            {/* Edit and last updated at the top */}
-            <div className={styles.topMeta}>
-              {lastUpdatedAt && (
-                <LastUpdated
-                  lastUpdatedAt={lastUpdatedAt}
-                  lastUpdatedBy={lastUpdatedBy}
-                />
-              )}
-              {editUrl && <EditThisPage editUrl={editUrl} />}
-            </div>
+            {/* Edit link at the top */}
+            {editUrl && (
+              <div className={styles.topMeta}>
+                <EditThisPage editUrl={editUrl} />
+              </div>
+            )}
 
             {docTOC.mobile}
             <DocItemContent>{children}</DocItemContent>
