@@ -4,12 +4,12 @@ module.exports = {
     // GET STARTED
     {
       type: "category",
-      label: "Get Started",
+      label: "Get started",
       items: [
         {
           type: "doc",
           id: "getting-started/installation",
-          label: "Get Started"
+          label: "Get started"
         },
         {
           type: "doc",

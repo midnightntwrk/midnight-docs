@@ -12,20 +12,28 @@ function StepsProvider({ children }) {
   );
 }
 
-function Step({ children }) {
+function Step({ children, number }) {
   const stepCounter = useContext(StepsContext);
   const numberRef = useRef(null);
 
+  // Use manual number if provided, otherwise use automatic
   if (numberRef.current === null) {
-    numberRef.current = stepCounter?.current ?? 1;
-    if (stepCounter) stepCounter.current++;
+    if (number) {
+      // Manual number provided
+      numberRef.current = number;
+      // Don't increment counter for manual numbers
+    } else {
+      // Automatic numbering
+      numberRef.current = stepCounter?.current ?? 1;
+      if (stepCounter) stepCounter.current++;
+    }
   }
 
-  const number = numberRef.current;
+  const displayNumber = numberRef.current;
 
   return (
     <div className={styles.stepWrapper}>
-      <span className={styles.badge}>{number}</span>
+      <span className={styles.badge}>{displayNumber}</span>
       <div className={styles.content}>{children}</div>
     </div>
   );
