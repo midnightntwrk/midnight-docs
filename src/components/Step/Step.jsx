@@ -3,29 +3,34 @@ import styles from './styles.module.css';
 
 const StepsContext = createContext();
 
-function StepsProvider({ children }) {
-  const stepCounter = useRef(1);
+/** Provider with optional custom start and extra className */
+function StepsProvider({ children, start = 1, className = '' }) {
+  const stepCounter = useRef(start);
   return (
     <StepsContext.Provider value={stepCounter}>
-      <div className={styles.steps}>{children}</div>
+      <div className={`${styles.steps} ${className}`}>{children}</div>
     </StepsContext.Provider>
   );
 }
 
 function Step({ children, number }) {
-  const stepCounter = useContext(StepsContext);
+  const stepCounter = useContext(StepsContext); // may be undefined if used outside provider
   const numberRef = useRef(null);
 
-  // Use manual number if provided, otherwise use automatic
   if (numberRef.current === null) {
-    if (number) {
+    const hasManual = number != null; // treat 0 as valid manual number
+
+    if (hasManual) {
       // Manual number provided
       numberRef.current = number;
-      // Don't increment counter for manual numbers
+      // Do NOT increment the shared counter
+    } else if (stepCounter) {
+      // Automatic numbering via context
+      numberRef.current = stepCounter.current ?? 1;
+      stepCounter.current++;
     } else {
-      // Automatic numbering
-      numberRef.current = stepCounter?.current ?? 1;
-      if (stepCounter) stepCounter.current++;
+      // No provider: leave empty so CSS fallback .badge:empty::before applies
+      numberRef.current = '';
     }
   }
 
@@ -33,7 +38,9 @@ function Step({ children, number }) {
 
   return (
     <div className={styles.stepWrapper}>
-      <span className={styles.badge}>{displayNumber}</span>
+      <span className={styles.badge}>
+        {displayNumber !== '' ? displayNumber : null}
+      </span>
       <div className={styles.content}>{children}</div>
     </div>
   );
