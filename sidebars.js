@@ -95,9 +95,21 @@ module.exports = {
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
         },
-        "develop/how-to/handle-private-state-sessions",
-        "develop/how-to/verify-private-data",
-        "develop/how-to/write-nft-contract"
+        {
+          type: "doc",
+          id: "develop/how-to/handle-private-state-sessions",
+          label: "Handle private state sessions"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/verify-private-data",
+          label: "Verify private data"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/write-nft-contract",
+          label: "Write NFT contracts"
+        }
       ]
     },
 
