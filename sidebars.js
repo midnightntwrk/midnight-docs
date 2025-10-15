@@ -1,10 +1,10 @@
 // sidebars.js
 module.exports = {
   sidebar: [
-    // GETTING STARTED
+    // GET STARTED
     {
       type: "category",
-      label: "Getting Started",
+      label: "Get Started",
       items: [
         {
           type: "doc",
@@ -88,17 +88,20 @@ module.exports = {
         {
           type: "doc",
           id: "develop/guides/wallet-dev-guide",
-          label: "Connecting to Lace wallet"
+          label: "Connect to Lace wallet"
         },
         {
           type: "category",
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
-        }
+        },
+        "how-to/handle-private-state-sessions",
+        "how-to/verify-private-data",
+        "how-to/write-nft-contract"
       ]
-    },
+    }
 
-    // LEARNING RESOURCES - All existing content
+    // LEARNING RESOURCES
     {
       type: "category",
       label: "Learning resources",
