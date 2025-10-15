@@ -9,7 +9,7 @@ module.exports = {
         {
           type: "doc",
           id: "getting-started/installation",
-          label: "Getting Started"
+          label: "Get Started"
         },
         {
           type: "doc",

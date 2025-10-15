@@ -1,28 +1,32 @@
 ---
-title: Deploy Hello World Contract
-description: Deploy your compiled Hello World smart contract to Midnight Testnet.
-sidebar_position: 2
-sidebar_label: Deploy an MN App
+title: Deploy Hello World contract
+description: Deploy a compiled Hello World smart contract to Midnight Testnet.
+sidebar_position: 3
+sidebar_label: Deploy an MN app
 tags: [deployment, testnet, smart-contract, tutorial]
 slug: /getting-started/deploy-hello-world
 toc_max_heading_level: 2
 ---
 
-# Deploying Your Hello World Contract
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
-This guide continues from where the Hello World tutorial left off, showing how to deploy your compiled contract to Midnight Testnet.
+# Deploy a Hello World contract
+
+Continue from the Hello World contract creation and deploy a compiled contract to Midnight Testnet.
 
 ## Prerequisites
 
-You should already have the following from the Hello World tutorial:
+The following is required:
 
-  * A `contracts/hello-world.compact` file.
-  * Compiled contract artifacts in the `contracts/managed/hello-world/` folder.
-  * A basic `package.json` and project structure.
+- A `contracts/hello-world.compact` file
+- Compiled contract artifacts in `contracts/managed/hello-world/`
+- A basic `package.json` and project structure
 
-## Update Your Project for Deployment
+## Update project for deployment
 
-Replace your existing `package.json` with this complete version to include all necessary deployment dependencies and scripts.
+Replace existing `package.json` with this complete version that includes all deployment dependencies and scripts:
 
 ```json
 {
@@ -57,21 +61,24 @@ Replace your existing `package.json` with this complete version to include all n
 }
 ```
 
-After updating the file, install the new dependencies.
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-### Create TypeScript configuration
+## Build deployment script
 
-Create a `tsconfig.json` file to configure the TypeScript compiler.
+<StepsProvider>
+<Step>
+
+**Create a TypeScript configuration file to define compilation settings.** This file tells TypeScript how to compile the project into JavaScript.
 
 ```bash
 touch tsconfig.json
 ```
 
-Add the following configuration to `tsconfig.json`. This tells TypeScript how to compile your project into modern, compatible JavaScript.
+Add configuration to `tsconfig.json`:
 
 ```json
 {
@@ -90,261 +97,23 @@ Add the following configuration to `tsconfig.json`. This tells TypeScript how to
 }
 ```
 
-### Create the deployment script
+</Step>
+<Step>
 
-Next, create the directory and file for your deployment script.
+**Create a source directory and deployment script file.** These form the foundation for the deployment code.
 
 ```bash
 mkdir src
 touch src/deploy.ts
 ```
 
-Now, let's build the `src/deploy.ts` script piece by piece.
+</Step>
+<Step>
 
-1.  **Add all necessary imports.** These modules provide the tools to generate wallets, connect to the network, and manage transactions.
+**Add import statements to access required libraries.** These modules provide wallet management, contract deployment, and network connectivity functions.
 
-    ```typescript
-    import { WalletBuilder } from "@midnight-ntwrk/wallet";
-    import { deployContract } from "@midnight-ntwrk/midnight-js-contracts";
-    import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
-    import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
-    import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
-    import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
-    import {
-      NetworkId,
-      setNetworkId,
-      getZswapNetworkId,
-      getLedgerNetworkId,
-    } from "@midnight-ntwrk/midnight-js-network-id";
-    import { createBalancedTx } from "@midnight-ntwrk/midnight-js-types";
-    import { nativeToken, Transaction } from "@midnight-ntwrk/ledger";
-    import { Transaction as ZswapTransaction } from "@midnight-ntwrk/zswap";
-    import { WebSocket } from "ws";
-    import * as fs from "fs";
-    import * as path from "path";
-    import * as readline from "readline/promises";
-    import * as Rx from "rxjs";
-    import { type Wallet } from '@midnight-ntwrk/wallet-api';
-    ```
+Add to `src/deploy.ts`:
 
-2.  **Add network configuration and a helper function.** This section sets the network to Testnet, defines the connection endpoints, and includes a `waitForFunds` function that monitors the wallet until it receives tokens from the faucet.
-
-    ```typescript
-    // Fix WebSocket for Node.js environment
-    // @ts-ignore
-    globalThis.WebSocket = WebSocket;
-
-    // Configure for Midnight Testnet
-    setNetworkId(NetworkId.TestNet);
-
-    // Testnet connection endpoints
-    const TESTNET_CONFIG = {
-      indexer: "https://indexer.testnet-02.midnight.network/api/v1/graphql",
-      indexerWS: "wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws",
-      node: "https://rpc.testnet-02.midnight.network",
-      proofServer: "http://127.0.0.1:6300",
-    };
-
-    const waitForFunds = (wallet: Wallet) =>
-      Rx.firstValueFrom(
-        wallet.state().pipe(
-          Rx.tap((state) => {
-            if (state.syncProgress) {
-              console.log(
-                `Sync progress: synced=${state.syncProgress.synced}, percentage=${state.syncProgress.percentage}`
-              );
-            }
-          }),
-          Rx.filter((state) => state.syncProgress?.synced === true),
-          Rx.map((s) => s.balances[nativeToken()] ?? 0n),
-          Rx.filter((balance) => balance > 0n),
-          Rx.tap((balance) => console.log(`Wallet funded with balance: ${balance}`))
-        )
-      );
-    ```
-
-3.  **Create the `main` function.** This function will orchestrate the entire deployment process. It prompts the user for a wallet seed (or generates a new one) and includes error handling.
-
-    ```typescript
-    async function main() {
-      console.log("🌙 Midnight Hello World Deployment\n");
-
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-
-      try {
-        // Ask user if they have an existing wallet seed
-        const choice = await rl.question("Do you have a wallet seed? (y/n): ");
-
-        let walletSeed: string;
-        if (choice.toLowerCase() === "y" || choice.toLowerCase() === "yes") {
-          // Use existing seed
-          walletSeed = await rl.question("Enter your 64-character seed: ");
-        } else {
-          // Generate new wallet seed
-          const bytes = new Uint8Array(32);
-          // @ts-ignore
-          crypto.getRandomValues(bytes);
-          walletSeed = Array.from(bytes, (b) =>
-            b.toString(16).padStart(2, "0")
-          ).join("");
-          console.log(`\n📝 SAVE THIS SEED: ${walletSeed}\n`);
-        }
-
-        // We'll add the rest of the deployment logic here...
-
-      } catch (error) {
-        console.error("Failed:", error);
-      } finally {
-        rl.close();
-      }
-    }
-    ```
-
-4.  **Add wallet building and funding logic.** Inside the `try` block, add the code to build the wallet from the seed. The script will now print your wallet address and, if your balance is zero, it will automatically wait for you to get funds from the faucet before continuing.
-
-    ```typescript
-    // Build wallet from seed
-    console.log("Building wallet...");
-    const wallet = await WalletBuilder.buildFromSeed(
-      TESTNET_CONFIG.indexer,
-      TESTNET_CONFIG.indexerWS,
-      TESTNET_CONFIG.proofServer,
-      TESTNET_CONFIG.node,
-      walletSeed,
-      getZswapNetworkId(),
-      "info"
-    );
-
-    wallet.start();
-    const state = await Rx.firstValueFrom(wallet.state());
-
-    console.log(`Your wallet address is: ${state.address}`);
-
-    let balance = state.balances[nativeToken()] || 0n;
-
-    if (balance === 0n) {
-      console.log(`Your wallet balance is: 0`);
-      console.log("Visit: https://midnight.network/test-faucet to get some funds.");
-      console.log(`Waiting to receive tokens...`);
-      balance = await waitForFunds(wallet);
-    }
-
-    console.log(`Balance: ${balance}`);
-    ```
-
-5.  **Load the compiled contract.** This snippet loads the compiled contract code (`index.cjs`) so it can be deployed.
-
-    ```typescript
-    // Load the compiled contract files
-    console.log("Loading contract...");
-    const contractPath = path.join(process.cwd(), "contracts");
-    const contractModulePath = path.join(
-      contractPath,
-      "managed",
-      "hello-world",
-      "contract",
-      "index.cjs"
-    );
-
-    if (!fs.existsSync(contractModulePath)) {
-      console.error("Contract not found! Run: npm run compile");
-      process.exit(1);
-    }
-
-    const HelloWorldModule = await import(contractModulePath);
-    const contractInstance = new HelloWorldModule.Contract({});
-
-    // Create wallet provider for transactions
-    const walletState = await Rx.firstValueFrom(wallet.state());
-
-    const walletProvider = {
-      coinPublicKey: walletState.coinPublicKey,
-      encryptionPublicKey: walletState.encryptionPublicKey,
-      balanceTx(tx: any, newCoins: any) {
-        return wallet
-          .balanceTransaction(
-            ZswapTransaction.deserialize(
-              tx.serialize(getLedgerNetworkId()),
-              getZswapNetworkId()
-            ),
-            newCoins
-          )
-          .then((tx) => wallet.proveTransaction(tx))
-          .then((zswapTx) =>
-            Transaction.deserialize(
-              zswapTx.serialize(getZswapNetworkId()),
-              getLedgerNetworkId()
-            )
-          )
-          .then(createBalancedTx);
-      },
-      submitTx(tx: any) {
-        return wallet.submitTransaction(tx);
-      },
-    };
-    ```
-
-6.  **Configure the required providers.** These providers are essential modules that handle different aspects of the deployment, such as managing private state, fetching public data, generating proofs, and interacting with your wallet.
-
-    ```typescript
-    // Configure all required providers
-    console.log("Setting up providers...");
-    const providers = {
-      privateStateProvider: levelPrivateStateProvider({
-        privateStateStoreName: "hello-world-state",
-      }),
-      publicDataProvider: indexerPublicDataProvider(
-        TESTNET_CONFIG.indexer,
-        TESTNET_CONFIG.indexerWS
-      ),
-      zkConfigProvider: new NodeZkConfigProvider(contractPath),
-      proofProvider: httpClientProofProvider(TESTNET_CONFIG.proofServer),
-      walletProvider: walletProvider,
-      midnightProvider: walletProvider,
-    };
-    ```
-
-7.  **Add the final deployment logic.** This code calls `deployContract` to send your contract to the blockchain. Upon success, it saves the new contract address to a `deployment.json` file.
-
-    ```typescript
-    // Deploy the contract to blockchain
-    console.log("Deploying contract (30-60 seconds)...");
-
-    const deployed = await deployContract(providers, {
-      contract: contractInstance,
-      privateStateId: "helloWorldState",
-      initialPrivateState: {},
-    });
-
-    const contractAddress = deployed.deployTxData.public.contractAddress;
-
-    // Save deployment information
-    console.log("\n✅ DEPLOYED!");
-    console.log(`Contract: ${contractAddress}\n`);
-
-    const info = {
-      contractAddress,
-      deployedAt: new Date().toISOString(),
-    };
-
-    fs.writeFileSync("deployment.json", JSON.stringify(info, null, 2));
-    console.log("Saved to deployment.json");
-
-    // Close the wallet connection
-    await wallet.close();
-    ```
-
-8.  **Initialize the main function.** Add this final line to the end of `src/deploy.ts` to execute the script.
-
-    ```typescript
-    main().catch(console.error);
-    ```
-
-<details>
-<summary>See complete `deploy.ts` file</summary>
 ```typescript
 import { WalletBuilder } from "@midnight-ntwrk/wallet";
 import { deployContract } from "@midnight-ntwrk/midnight-js-contracts";
@@ -367,8 +136,14 @@ import * as path from "path";
 import * as readline from "readline/promises";
 import * as Rx from "rxjs";
 import { type Wallet } from '@midnight-ntwrk/wallet-api';
+```
 
+</Step>
+<Step>
 
+**Configure network settings and define helper functions.** This establishes connection to Midnight Testnet and creates a function to monitor wallet funding.
+
+```typescript
 // Fix WebSocket for Node.js environment
 // @ts-ignore
 globalThis.WebSocket = WebSocket;
@@ -400,10 +175,16 @@ const waitForFunds = (wallet: Wallet) =>
       Rx.tap((balance) => console.log(`Wallet funded with balance: ${balance}`))
     )
   );
+```
 
+</Step>
+<Step>
 
+**Create a main function to orchestrate the deployment process.** This function handles user input for wallet seed generation or recovery.
+
+```typescript
 async function main() {
-  console.log("🌙 Midnight Hello World Deployment\n");
+  console.log("Midnight Hello World Deployment\n");
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -426,126 +207,10 @@ async function main() {
       walletSeed = Array.from(bytes, (b) =>
         b.toString(16).padStart(2, "0")
       ).join("");
-      console.log(`\n📝 SAVE THIS SEED: ${walletSeed}\n`);
+      console.log(`\nSAVE THIS SEED: ${walletSeed}\n`);
     }
 
-    // Build wallet from seed
-    console.log("Building wallet...");
-    const wallet = await WalletBuilder.buildFromSeed(
-      TESTNET_CONFIG.indexer,
-      TESTNET_CONFIG.indexerWS,
-      TESTNET_CONFIG.proofServer,
-      TESTNET_CONFIG.node,
-      walletSeed,
-      getZswapNetworkId(),
-      "info"
-    );
-
-    wallet.start();
-    const state = await Rx.firstValueFrom(wallet.state());
-
-    console.log(`Your wallet address is: ${state.address}`);
-
-    let balance = state.balances[nativeToken()] || 0n;
-
-    if (balance === 0n) {
-      console.log(`Your wallet balance is: 0`);
-      console.log("Visit: https://midnight.network/test-faucet to get some funds.");
-      console.log(`Waiting to receive tokens...`);
-      balance = await waitForFunds(wallet);
-    }
-
-    console.log(`Balance: ${balance}`);
-
-    // Load the compiled contract files
-    console.log("Loading contract...");
-    const contractPath = path.join(process.cwd(), "contracts");
-    const contractModulePath = path.join(
-      contractPath,
-      "managed",
-      "hello-world",
-      "contract",
-      "index.cjs"
-    );
-
-    if (!fs.existsSync(contractModulePath)) {
-      console.error("Contract not found! Run: npm run compile");
-      process.exit(1);
-    }
-
-    const HelloWorldModule = await import(contractModulePath);
-    const contractInstance = new HelloWorldModule.Contract({});
-
-    // Create wallet provider for transactions
-    const walletState = await Rx.firstValueFrom(wallet.state());
-
-    const walletProvider = {
-      coinPublicKey: walletState.coinPublicKey,
-      encryptionPublicKey: walletState.encryptionPublicKey,
-      balanceTx(tx: any, newCoins: any) {
-        return wallet
-          .balanceTransaction(
-            ZswapTransaction.deserialize(
-              tx.serialize(getLedgerNetworkId()),
-              getZswapNetworkId()
-            ),
-            newCoins
-          )
-          .then((tx) => wallet.proveTransaction(tx))
-          .then((zswapTx) =>
-            Transaction.deserialize(
-              zswapTx.serialize(getZswapNetworkId()),
-              getLedgerNetworkId()
-            )
-          )
-          .then(createBalancedTx);
-      },
-      submitTx(tx: any) {
-        return wallet.submitTransaction(tx);
-      },
-    };
-
-    // Configure all required providers
-    console.log("Setting up providers...");
-    const providers = {
-      privateStateProvider: levelPrivateStateProvider({
-        privateStateStoreName: "hello-world-state",
-      }),
-      publicDataProvider: indexerPublicDataProvider(
-        TESTNET_CONFIG.indexer,
-        TESTNET_CONFIG.indexerWS
-      ),
-      zkConfigProvider: new NodeZkConfigProvider(contractPath),
-      proofProvider: httpClientProofProvider(TESTNET_CONFIG.proofServer),
-      walletProvider: walletProvider,
-      midnightProvider: walletProvider,
-    };
-
-    // Deploy the contract to blockchain
-    console.log("Deploying contract (30-60 seconds)...");
-
-    const deployed = await deployContract(providers, {
-      contract: contractInstance,
-      privateStateId: "helloWorldState",
-      initialPrivateState: {},
-    });
-
-    const contractAddress = deployed.deployTxData.public.contractAddress;
-
-    // Save deployment information
-    console.log("\n✅ DEPLOYED!");
-    console.log(`Contract: ${contractAddress}\n`);
-
-    const info = {
-      contractAddress,
-      deployedAt: new Date().toISOString(),
-    };
-
-    fs.writeFileSync("deployment.json", JSON.stringify(info, null, 2));
-    console.log("Saved to deployment.json");
-
-    // Close the wallet connection
-    await wallet.close();
+    // Rest of deployment logic follows...
 
   } catch (error) {
     console.error("Failed:", error);
@@ -553,46 +218,219 @@ async function main() {
     rl.close();
   }
 }
+```
 
+</Step>
+<Step>
+
+**Build a wallet from the seed and check funding status.** This step creates a wallet instance and waits for funds if necessary.
+
+Add inside `try` block after seed generation:
+
+```typescript
+// Build wallet from seed
+console.log("Building wallet...");
+const wallet = await WalletBuilder.buildFromSeed(
+  TESTNET_CONFIG.indexer,
+  TESTNET_CONFIG.indexerWS,
+  TESTNET_CONFIG.proofServer,
+  TESTNET_CONFIG.node,
+  walletSeed,
+  getZswapNetworkId(),
+  "info"
+);
+
+wallet.start();
+const state = await Rx.firstValueFrom(wallet.state());
+
+console.log(`Your wallet address is: ${state.address}`);
+
+let balance = state.balances[nativeToken()] || 0n;
+
+if (balance === 0n) {
+  console.log(`Your wallet balance is: 0`);
+  console.log("Visit: https://midnight.network/test-faucet to get some funds.");
+  console.log(`Waiting to receive tokens...`);
+  balance = await waitForFunds(wallet);
+}
+
+console.log(`Balance: ${balance}`);
+```
+
+</Step>
+<Step>
+
+**Load the compiled contract module from disk.** This imports the compiled contract artifacts needed for deployment.
+
+```typescript
+// Load compiled contract files
+console.log("Loading contract...");
+const contractPath = path.join(process.cwd(), "contracts");
+const contractModulePath = path.join(
+  contractPath,
+  "managed",
+  "hello-world",
+  "contract",
+  "index.cjs"
+);
+
+if (!fs.existsSync(contractModulePath)) {
+  console.error("Contract not found! Run: npm run compile");
+  process.exit(1);
+}
+
+const HelloWorldModule = await import(contractModulePath);
+const contractInstance = new HelloWorldModule.Contract({});
+```
+
+</Step>
+<Step>
+
+**Create a wallet provider for transaction management.** This provider handles transaction signing and submission to the network.
+
+```typescript
+// Create wallet provider for transactions
+const walletState = await Rx.firstValueFrom(wallet.state());
+
+const walletProvider = {
+  coinPublicKey: walletState.coinPublicKey,
+  encryptionPublicKey: walletState.encryptionPublicKey,
+  balanceTx(tx: any, newCoins: any) {
+    return wallet
+      .balanceTransaction(
+        ZswapTransaction.deserialize(
+          tx.serialize(getLedgerNetworkId()),
+          getZswapNetworkId()
+        ),
+        newCoins
+      )
+      .then((tx) => wallet.proveTransaction(tx))
+      .then((zswapTx) =>
+        Transaction.deserialize(
+          zswapTx.serialize(getZswapNetworkId()),
+          getLedgerNetworkId()
+        )
+      )
+      .then(createBalancedTx);
+  },
+  submitTx(tx: any) {
+    return wallet.submitTransaction(tx);
+  },
+};
+```
+
+</Step>
+<Step>
+
+**Configure all required providers for contract deployment.** These providers handle state management, data fetching, proof generation, and wallet interaction.
+
+```typescript
+// Configure all required providers
+console.log("Setting up providers...");
+const providers = {
+  privateStateProvider: levelPrivateStateProvider({
+    privateStateStoreName: "hello-world-state",
+  }),
+  publicDataProvider: indexerPublicDataProvider(
+    TESTNET_CONFIG.indexer,
+    TESTNET_CONFIG.indexerWS
+  ),
+  zkConfigProvider: new NodeZkConfigProvider(contractPath),
+  proofProvider: httpClientProofProvider(TESTNET_CONFIG.proofServer),
+  walletProvider: walletProvider,
+  midnightProvider: walletProvider,
+};
+```
+
+</Step>
+<Step>
+
+**Deploy the contract to the blockchain and save deployment information.** This executes the deployment transaction and stores the contract address for future use.
+
+```typescript
+// Deploy contract to blockchain
+console.log("Deploying contract (30-60 seconds)...");
+
+const deployed = await deployContract(providers, {
+  contract: contractInstance,
+  privateStateId: "helloWorldState",
+  initialPrivateState: {},
+});
+
+const contractAddress = deployed.deployTxData.public.contractAddress;
+
+// Save deployment information
+console.log("\nDEPLOYED!");
+console.log(`Contract: ${contractAddress}\n`);
+
+const info = {
+  contractAddress,
+  deployedAt: new Date().toISOString(),
+};
+
+fs.writeFileSync("deployment.json", JSON.stringify(info, null, 2));
+console.log("Saved to deployment.json");
+
+// Close wallet connection
+await wallet.close();
+```
+
+</Step>
+<Step>
+
+**Add the main function call to initialize the script.** This line at the end of the file starts the deployment process when the script runs.
+
+```typescript
 main().catch(console.error);
 ```
-</details>
 
-## Deploy Your Contract
+</Step>
+<Step>
 
-### Start the proof server
+**Start the proof server in a new terminal window.** This Docker container generates zero-knowledge proofs required for deployment.
 
-Before deploying, you must run a local proof server. Open a **new terminal window** and run the following Docker command. Keep this terminal open throughout the deployment process.
+Open a new terminal and run:
 
 ```bash
 docker run -p 6300:6300 midnightnetwork/proof-server -- 'midnight-proof-server --network testnet'
 ```
 
-### Compile and deploy
+Keep this terminal open throughout the deployment process.
 
-In your original terminal, compile your TypeScript code and then run the deployment script.
+</Step>
+<Step>
+
+**Compile TypeScript code to JavaScript.** This converts the TypeScript deployment script into executable JavaScript.
+
+In the original terminal:
 
 ```bash
-# Compile TypeScript to JavaScript
 npm run build
+```
 
-# Run the deployment script
+</Step>
+<Step>
+
+**Execute the deployment script to deploy the contract.** This runs the compiled script which handles wallet creation and contract deployment.
+
+```bash
 npm run deploy
 ```
 
-You will be prompted to enter an existing wallet seed or generate a new one. If you have no funds, the script will show your address, ask you to use the [faucet](https://midnight.network/test-faucet), and wait for the tokens to arrive before deploying.
+The script prompts for an existing wallet seed or generates a new one. If balance is zero, it displays the wallet address and waits for funding from the [faucet](https://midnight.network/test-faucet).
 
------
+</Step>
+</StepsProvider>
 
-## What Gets Created
+## Created artifacts
 
-After a successful deployment, you will find these new items in your project:
+After successful deployment, project contains:
 
-  * **`deployment.json`**: A file containing your new smart contract's address and the deployment timestamp.
-  * **`dist/`**: A folder containing the compiled JavaScript output from your TypeScript code.
-  * **Wallet Seed**: The 64-character seed phrase is printed to your console if you generated a new wallet.
+* **`deployment.json`**: File containing contract address and deployment timestamp
+* **`dist/`**: Folder containing compiled JavaScript output
+* **Wallet seed**: 64-character seed phrase displayed in console for new wallets
 
-Your final project structure will look like this:
+Final project structure:
 
 ```
 my-mn-app/
@@ -615,11 +453,10 @@ my-mn-app/
 ```
 
 :::info Important to save
+* **Wallet seed**: 64-character hex string. Keep private and secure. Losing it means losing wallet access.
+* **Contract address**: Found in `deployment.json`. Required for contract interaction.
+:::
 
-  * **Wallet seed**: Your 64-character hex string. **Keep this private and secure\!** Losing it means losing access to your wallet.
-  * **Contract address**: Found in `deployment.json`. You will need this to interact with your contract.
-    :::
+## Next steps
 
-## Next Steps
-
-Congratulations\! 🎉 Your Hello World contract is now live on the Midnight Testnet. You're ready to move on to the next guide and learn how to interact with your deployed contract.
+Hello World contract is now live on Midnight Testnet. Continue to next documentation for interacting with deployed contract.
