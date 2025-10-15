@@ -95,9 +95,9 @@ module.exports = {
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
         },
-        "how-to/handle-private-state-sessions",
-        "how-to/verify-private-data",
-        "how-to/write-nft-contract"
+        "develop/how-to/handle-private-state-sessions",
+        "develop/how-to/verify-private-data",
+        "develop/how-to/write-nft-contract"
       ]
     },
 
