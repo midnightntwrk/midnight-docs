@@ -99,7 +99,7 @@ module.exports = {
         "how-to/verify-private-data",
         "how-to/write-nft-contract"
       ]
-    }
+    },
 
     // LEARNING RESOURCES
     {
