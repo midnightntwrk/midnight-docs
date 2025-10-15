@@ -107,6 +107,23 @@ module.exports = {
               ]
             },
           ]
+        },
+        {
+          type: "category",
+          label: "Tools",
+          items: [
+            {
+              type: "category",
+              label: "Build using MeshSDK",
+              link: { type: "doc", id: "develop/tools/build-using-meshsdk/index" },
+              items: [
+                "develop/tools/build-using-meshsdk/getting-started",
+                "develop/tools/build-using-meshsdk/core-api-methods",
+                "develop/tools/build-using-meshsdk/lace-wallet",
+                "develop/tools/build-using-meshsdk/example-integration"
+              ]
+            }
+          ]
         }
       ]
     },
