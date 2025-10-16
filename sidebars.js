@@ -94,14 +94,7 @@ module.exports = {
           items: [
             "develop/tokenomics/economic-governance",
             "develop/tokenomics/generation-and-decay",
-            {
-              type: "category",
-              label: "Bridging",
-              items: [
-                "develop/tokenomics/bridging/builder-integration",
-                "develop/tokenomics/bridging/protocol-bridge"
-              ]
-            },
+
             {
               type: "category",
               label: "DUST from cNIGHT",
@@ -117,7 +110,14 @@ module.exports = {
                 "develop/tokenomics/dust-cnight/remove-excess-registration"
               ]
             },
-
+            {
+              type: "category",
+              label: "Bridging",
+              items: [
+                "develop/tokenomics/bridging/builder-integration",
+                "develop/tokenomics/bridging/protocol-bridge"
+              ]
+            },
             {
               type: "category",
               label: "dApps",
