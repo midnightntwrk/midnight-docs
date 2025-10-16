@@ -10,23 +10,24 @@ This page defines the conceptual mechanics for how DUST supply is created and re
 ## Concepts
 
 - **Designation:** NIGHT holdings that are eligible to generate DUST (per protocol rules).
-- **Generation:** DUST accrues as a function of designated NIGHT and governed rates.
-- **Decay:** DUST balances **decrease continuously** by a governed decay function to prevent hoarding and stabilize fee markets.
+- **Generation:** DUST accrues continuously from designated NIGHT, up to any effective cap that may apply.
+- **Decay:** DUST adjusts toward the governed target (e.g., via decay) so balances don’t grow without bound and remain predictable under changing conditions.
 - **Consumption:** Executing transactions **spends** (burns) DUST.
 - **Caps / Safeguards:** A per-NIGHT cap may bound effective generation to reduce outlier effects.
 
 ## High-level behavior
 
-- Let `G(t)` denote the **generation rate** at time `t`, governed.
-- Let `D(t)` denote **decay** over time `t`, governed (e.g., exponential or piecewise-linear).
+- Let `G(t)` denote the generation rate at time `t`, governed.
+- Let `D(t)` denote adjustment/decay dynamics over time `t`, governed (e.g., exponential or piecewise-linear).
 - **Effective DUST** at time `t2` from designated NIGHT amount `N` starting at `t1` is:
 
 ```
-DUST(t2) = ∫[t1→t2] ( N × G(t) ) dt - ∫[t1→t2] ( Decay(DUST, t) ) dt - Consumption
+DUST(t2) = ∫[t1→t2] ( N × G(t) ) dt − ∫[t1→t2] ( Adjustment/Decay(DUST, t) ) dt − Consumption
 ```
 
-
-> The exact functional form and units are protocol-defined and may be updated by governance.
+:::note
+The exact functional form, units, and any cap semantics are protocol-defined and may be updated by governance.
+:::
 
 ## Non-transferability (rationale)
 
@@ -34,13 +35,20 @@ DUST(t2) = ∫[t1→t2] ( N × G(t) ) dt - ∫[t1→t2] ( Decay(DUST, t) ) dt - 
 
 ## Example scenarios (non-normative)
 
-- **Steady state:** With stable `G` and decay, balances converge; users maintain enough DUST by simply holding NIGHT.
-- **Burst usage:** A spike in consumption reduces DUST; balances rebuild automatically via generation.
-- **Decay pressure:** Idle DUST decays, discouraging hoarding and keeping fee pressure predictable.
+- **Steady state (top-up to cap):** With stable `G` and the governed adjustment/decay in effect, balances top up toward the effective cap for the user’s designated NIGHT. Routine spending draws DUST down and it re-accrues toward the cap.
+- **Burst usage:** A spike in consumption temporarily drops the balance below its steady level; ongoing generation replenishes it toward the effective cap.
+- **Change in NIGHT (increase):** When designated NIGHT increases, the target rises; generation pushes the balance upward toward the new effective cap.
+- **Change in NIGHT (decrease/transfer out):** When designated NIGHT decreases, the target falls; subsequent adjustment/decay and/or spending bring the balance down toward the lower target.
 
 ## Governance parameters
 
 - Generation rate schedule `G(t)`
-- Decay function parameters
+- Adjustment/decay function parameters
 - Optional per-NIGHT cap (if enabled)
 - Accounting intervals and rounding behavior for node APIs
+
+## Developer notes
+
+- Treat all values as governed and dynamic. Do not hardcode rates, caps, or decay.  
+- Always query live parameters (e.g., via node/indexer APIs) and be activation-aware (slot/epoch-gated updates).  
+- Estimators should recompute using the current effective parameters and handle changes in designated NIGHT by re-evaluating the user’s target/cap and expected replenishment behavior.

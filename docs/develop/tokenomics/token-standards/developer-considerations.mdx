@@ -5,18 +5,91 @@ sidebar_label: "Developer considerations"
 
 # Developer considerations
 
+Guidance for issuing, tracking, and displaying tokens on Midnight across **unshielded ledger tokens** and **shielded contract tokens**, plus what UIs should (and shouldn’t) reveal.
+
 ## Issuance & interaction
 
-- **Ledger tokens:** Mint/burn via ledger rules; track in UTxOs.
-- **Contract tokens (shielded):** Issue via contract entrypoints; interact using proofs.
+### Unshielded (ledger) tokens
+- **What they are:** Native ledger tokens (e.g., NIGHT) tracked directly in UTxOs on the ledger.
+- **Mint/Burn:** Per token policy rules; results appear transparently in UTxOs.
+- **Transfers:** Standard UTxO spends.
+
+**Example (unshielded, no code):**
+1. A minting transaction includes the policy script and mints `X` units of a token.  
+2. The minted amount appears in the transaction output’s multi-asset bundle.  
+3. Wallets/indexers immediately show the new balance under that policy ID.  
+4. A later burn uses the same policy to retire units; the new balance reflects on-chain state.
+
+### Shielded (contract) tokens
+- **What they are:** Tokens issued/managed by a smart contract. Balances are private by default.
+- **Issue/Transfer:** Through contract entrypoints that may require zero-knowledge proofs.
+- **Viewing:** Balances are NOT globally visible; the contract may expose **read-only views** that reveal specific facts (e.g., “prove I hold ≥ N”) without leaking more.
+
+**Example (shielded, no code):**
+1. A user calls the contract’s **issue** entrypoint with required proofs.  
+2. The contract updates its internal state (commitments/notes).  
+3. To show a wallet balance, the DApp queries a **contract view** that returns a privacy-preserving summary (e.g., existence or range), or the user provides a proof to the wallet.
+
 
 ## Querying balances
 
-- Use SDK / RPC to query:
-  - Ledger balances (unshielded)
-  - Contract-exposed views (shielded) per contract policy
+- **Unshielded balances (ledger):**
+  - Query wallet UTxOs or an indexer by **policy ID + asset name**.
+  - Sum amounts across unspent outputs; reflect instantly after confirmation.
+
+- **Shielded balances (contract):**
+  - Use the contract’s **documented view methods** (read-only queries) to obtain *authorized* balance information.
+  - Expect **partial disclosure** (e.g., “nonzero?”, “at least N?”, or a bucketed range) rather than exact, public numbers.
+  - Cache carefully and respect view-specific freshness/authorization requirements.
+
+:::note
+Avoid hardcoding RPC paths or schemas. Always follow the contract’s published interface and the network’s SDK/Node APIs.
+:::
 
 ## Privacy & interoperability
 
-- Respect contract-level privacy constraints for shielded tokens.
-- Provide fallback UX for users with NIGHT but insufficient DUST (e.g., prompts to generate or acquire DUST through designated flows).
+### What metadata is visible
+
+- **On the ledger (unshielded):**
+  - Transaction hashes, addresses, amounts, **policy IDs/asset names**, and mint/burn events are public.
+  - Wallets can display full balances and transaction histories.
+
+- **Inside shielded contracts:**
+  - On-chain state is **opaque** (commitments/notes).  
+  - Only contract-defined **views** (and user-provided proofs) should drive what the UI shows.  
+  - Do not infer balances from note counts, byte sizes, or gas usage — treat those as non-authoritative.
+
+### UI implications
+
+- Prefer **“You have enough to proceed”** / **“Balance insufficient”** style messaging for shielded flows, backed by contract views or user proofs.  
+- Offer **selective disclosure**: let users choose when to reveal exact amounts to your app or wallet.  
+- For mixed flows (ledger + shielded), clearly label which portions are **public** vs **private**.
+
+### Interoperability tips
+
+- Normalize asset identity in your app as **(policy ID, asset name)** for unshielded, and **(contract address, token ID/symbol)** for shielded.
+- When bridging or converting representations, surface the **authoritative source** (ledger vs. contract) and avoid lossy mappings.
+
+
+## Handling DUST prerequisites
+
+- Some actions (including shielded contract calls) **consume DUST**.  
+- Pre-flight checks should:
+  - Confirm **registration state** and a valid mapped **DUST address** (where relevant).  
+  - Verify **available DUST** against up-to-date parameters.  
+  - Provide remediation (register, wait for accrual, or simplify the transaction).
+
+## Examples to copy (conceptual, no code)
+
+- **Unshielded mint + balance:**
+  - “Mint under policy P → confirm output shows +X units → indexer shows new balance under P.”
+
+- **Shielded view + transfer:**
+  - “Call view `canSpend(amount=A)` → if `true`, prompt user to provide proof → call `transfer(to, A)` → show success without leaking full balance.”
+
+## Glossary (brief)
+
+- **Policy ID:** Identifier governing mint/burn rules for an unshielded token.  
+- **Contract view:** A read-only query that returns privacy-preserving facts from a shielded contract.  
+- **Selective disclosure:** User-controlled reveal of specific data (e.g., ‘≥ N’) without exposing full state.
+
