@@ -1,0 +1,820 @@
+---
+title: Write an NFT contract
+description: Learn how to create Non-Fungible Token (NFT) contracts with privacy features on Midnight Network.
+sidebar_position: 6
+sidebar_label: Write an NFT contract
+tags: [nft, smart-contract, tokens, privacy, tutorial]
+slug: /how-to/write-nft-contract
+toc_max_heading_level: 2
+---
+
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Write an NFT contract
+
+Create NFT contracts on Midnight Network that use privacy features for selective disclosure of ownership and metadata.
+
+## Understanding NFTs on Midnight
+
+Midnight NFTs differ from traditional NFTs through privacy-preserving features:
+
+- **Private ownership**: Hide NFT ownership while proving possession
+- **Selective metadata**: Reveal NFT properties selectively
+- **Confidential transfers**: Transfer NFTs without public visibility
+- **Shielded collections**: Create private NFT collections
+
+## Prerequisites
+
+Required knowledge and setup:
+
+- Compact language fundamentals
+- Understanding of NFT standards (ERC-721 concepts)
+- Midnight Network development environment
+- TypeScript/JavaScript proficiency
+
+## Build a basic NFT contract
+
+<StepsProvider>
+<Step>
+
+**Define the NFT data structure and storage.** Create the foundation for NFT representation with unique identifiers and metadata.
+
+```compact
+pragma language_version >= 0.16 && <= 0.17;
+
+import CompactStandardLibrary;
+
+// NFT structure
+struct NFT {
+  tokenId: Unsigned<256>,
+  owner: Address,
+  metadata: Opaque<"string">,
+  createdAt: Unsigned<256>,
+  isPrivate: Boolean
+}
+
+// Collection metadata
+struct Collection {
+  name: Opaque<"string">,
+  symbol: Opaque<"string">,
+  totalSupply: Unsigned<256>,
+  baseURI: Opaque<"string">
+}
+
+// Public ledger state
+export ledger nftCollection: Collection;
+export ledger tokenIdCounter: Unsigned<256>;
+export ledger publicTokens: Map<Unsigned<256>, NFT>;
+export ledger ownershipMap: Map<Address, Vector<Unsigned<256>>>;
+
+// Private state for hidden NFTs
+sk_state {
+  privateTokens: Map<Unsigned<256>, NFT>,
+  hiddenOwnership: Map<Unsigned<256>, Address>
+}
+```
+
+</Step>
+<Step>
+
+**Implement the minting function for NFT creation.** This function generates new NFTs with unique identifiers and assigns initial ownership.
+
+```compact
+// Mint new NFT
+export circuit mintNFT(
+  recipient: Address,
+  metadata: Opaque<"string">,
+  isPrivate: Boolean
+): Unsigned<256> {
+  // Generate unique token ID
+  const tokenId = tokenIdCounter + 1;
+  tokenIdCounter = tokenId;
+  
+  // Create NFT instance
+  const newNFT = NFT {
+    tokenId: tokenId,
+    owner: disclose(recipient),
+    metadata: disclose(metadata),
+    createdAt: getCurrentTimestamp(),
+    isPrivate: disclose(isPrivate)
+  };
+  
+  if (isPrivate) {
+    // Store privately
+    witness privateOwner = recipient;
+    sk_state.privateTokens[tokenId] = newNFT;
+    sk_state.hiddenOwnership[tokenId] = privateOwner;
+  } else {
+    // Store publicly
+    publicTokens[tokenId] = newNFT;
+    
+    // Update ownership mapping
+    const currentTokens = ownershipMap[recipient] || Vector::empty();
+    ownershipMap[recipient] = currentTokens.append(tokenId);
+  }
+  
+  // Update collection supply
+  nftCollection.totalSupply = nftCollection.totalSupply + 1;
+  
+  // Emit event (logged but details can be private)
+  emitEvent("Minted", tokenId, isPrivate);
+  
+  return tokenId;
+}
+```
+
+</Step>
+<Step>
+
+**Create transfer functions with privacy options.** Implement both public and private transfer mechanisms for NFT ownership changes.
+
+```compact
+// Public transfer
+export circuit transferNFT(
+  tokenId: Unsigned<256>,
+  from: Address,
+  to: Address
+): Boolean {
+  // Verify ownership
+  const token = publicTokens[disclose(tokenId)];
+  require(token.owner == disclose(from));
+  
+  // Update ownership
+  token.owner = disclose(to);
+  publicTokens[tokenId] = token;
+  
+  // Update ownership mappings
+  removeFromOwnerList(from, tokenId);
+  addToOwnerList(to, tokenId);
+  
+  emitEvent("Transfer", from, to, tokenId);
+  
+  return true;
+}
+
+// Private transfer with zero-knowledge proof
+export circuit privateTransfer(
+  tokenId: Unsigned<256>,
+  recipientCommitment: Bytes<32>
+): Boolean {
+  // Prove ownership without revealing owner
+  witness currentOwner = sk_state.hiddenOwnership[tokenId];
+  witness senderAddress = sk_state.myAddress;
+  
+  require(currentOwner == senderAddress);
+  
+  // Transfer to committed recipient
+  witness newOwner = decommit(recipientCommitment);
+  sk_state.hiddenOwnership[tokenId] = newOwner;
+  
+  // Update private token record
+  const token = sk_state.privateTokens[tokenId];
+  token.owner = newOwner;
+  sk_state.privateTokens[tokenId] = token;
+  
+  // Public proof of transfer without revealing parties
+  const transferProof = hash(tokenId || recipientCommitment || getCurrentTimestamp());
+  ledger.privateTransfers[transferProof] = true;
+  
+  return true;
+}
+```
+
+</Step>
+<Step>
+
+**Implement metadata management with selective disclosure.** Allow NFT metadata to be partially revealed while keeping sensitive information private.
+
+```compact
+// Metadata structure with privacy layers
+struct NFTMetadata {
+  // Public attributes
+  name: Opaque<"string">,
+  description: Opaque<"string">,
+  image: Opaque<"string">,
+  
+  // Private attributes
+  rarity: Unsigned<256>,
+  unlockableContent: Opaque<"string">,
+  secretAttributes: Map<Opaque<"string">, Opaque<"string">>
+}
+
+// Update metadata with privacy control
+export circuit updateMetadata(
+  tokenId: Unsigned<256>,
+  newMetadata: NFTMetadata,
+  revealAttributes: Vector<Opaque<"string">>
+): Boolean {
+  // Verify ownership
+  witness owner = sk_state.hiddenOwnership[tokenId];
+  witness sender = sk_state.myAddress;
+  require(owner == sender);
+  
+  // Update private metadata
+  sk_state.privateMetadata[tokenId] = newMetadata;
+  
+  // Selectively reveal requested attributes
+  for (i in 0..revealAttributes.length()) {
+    const attrName = revealAttributes[i];
+    const attrValue = newMetadata.secretAttributes[attrName];
+    
+    if (attrValue != null) {
+      // Store revealed attribute publicly
+      ledger.revealedAttributes[tokenId][attrName] = disclose(attrValue);
+    }
+  }
+  
+  return true;
+}
+
+// Prove NFT properties without revealing all metadata
+export circuit proveRarity(
+  tokenId: Unsigned<256>,
+  minRarity: Unsigned<256>
+): Boolean {
+  witness metadata = sk_state.privateMetadata[tokenId];
+  witness rarity = metadata.rarity;
+  
+  // Prove rarity threshold without revealing exact value
+  const meetsThreshold = rarity >= disclose(minRarity);
+  
+  if (meetsThreshold) {
+    // Generate proof token
+    const proofToken = hash(tokenId || minRarity || getCurrentTimestamp());
+    ledger.rarityProofs[proofToken] = true;
+  }
+  
+  return meetsThreshold;
+}
+```
+
+</Step>
+<Step>
+
+**Add batch operations for efficient NFT management.** Implement functions to handle multiple NFTs in a single transaction.
+
+```compact
+// Batch minting for collections
+export circuit batchMint(
+  recipients: Vector<Address>,
+  metadataList: Vector<Opaque<"string">>,
+  startTokenId: Unsigned<256>
+): Vector<Unsigned<256>> {
+  require(recipients.length() == metadataList.length());
+  
+  let mintedTokens = Vector::empty();
+  let currentTokenId = startTokenId;
+  
+  for (i in 0..recipients.length()) {
+    const recipient = recipients[i];
+    const metadata = metadataList[i];
+    
+    // Mint individual NFT
+    const newNFT = NFT {
+      tokenId: currentTokenId,
+      owner: recipient,
+      metadata: metadata,
+      createdAt: getCurrentTimestamp(),
+      isPrivate: false
+    };
+    
+    publicTokens[currentTokenId] = newNFT;
+    mintedTokens = mintedTokens.append(currentTokenId);
+    
+    currentTokenId = currentTokenId + 1;
+  }
+  
+  // Update counter and supply
+  tokenIdCounter = currentTokenId - 1;
+  nftCollection.totalSupply = nftCollection.totalSupply + recipients.length();
+  
+  return mintedTokens;
+}
+
+// Batch transfer
+export circuit batchTransfer(
+  tokenIds: Vector<Unsigned<256>>,
+  from: Address,
+  to: Vector<Address>
+): Boolean {
+  require(tokenIds.length() == to.length());
+  
+  for (i in 0..tokenIds.length()) {
+    const tokenId = tokenIds[i];
+    const recipient = to[i];
+    
+    // Verify and transfer each token
+    transferNFT(tokenId, from, recipient);
+  }
+  
+  return true;
+}
+```
+
+</Step>
+<Step>
+
+**Implement royalty mechanisms for secondary sales.** Add support for creator royalties with privacy-preserving payment verification.
+
+```compact
+// Royalty configuration
+struct RoyaltyInfo {
+  creator: Address,
+  percentage: Unsigned<256>, // Basis points (e.g., 250 = 2.5%)
+  minPrice: Unsigned<256>
+}
+
+export ledger royalties: Map<Unsigned<256>, RoyaltyInfo>;
+
+// Sale with royalty distribution
+export circuit sellWithRoyalty(
+  tokenId: Unsigned<256>,
+  buyer: Address,
+  salePrice: Unsigned<256>
+): Boolean {
+  // Get token and royalty info
+  const token = publicTokens[tokenId];
+  const royaltyInfo = royalties[tokenId];
+  
+  // Calculate royalty amount
+  const royaltyAmount = (salePrice * royaltyInfo.percentage) / 10000;
+  const sellerAmount = salePrice - royaltyAmount;
+  
+  // Verify minimum price
+  require(salePrice >= royaltyInfo.minPrice);
+  
+  // Process payments (integrate with payment system)
+  witness buyerBalance = sk_state.balances[buyer];
+  require(buyerBalance >= disclose(salePrice));
+  
+  // Transfer royalty to creator
+  transferFunds(buyer, royaltyInfo.creator, royaltyAmount);
+  
+  // Transfer remaining to seller
+  transferFunds(buyer, token.owner, sellerAmount);
+  
+  // Transfer NFT ownership
+  transferNFT(tokenId, token.owner, buyer);
+  
+  // Record sale
+  ledger.salesHistory[tokenId].append({
+    price: salePrice,
+    buyer: buyer,
+    timestamp: getCurrentTimestamp()
+  });
+  
+  return true;
+}
+```
+
+</Step>
+<Step>
+
+**Create access control and permission systems.** Implement role-based permissions for NFT operations and management.
+
+```compact
+// Role definitions
+enum Role {
+  OWNER,
+  MINTER,
+  ADMIN,
+  OPERATOR
+}
+
+// Permission management
+export ledger roles: Map<Address, Role>;
+export ledger approvals: Map<Unsigned<256>, Map<Address, Boolean>>;
+
+// Modifier for role-based access
+function requireRole(userAddress: Address, requiredRole: Role): Boolean {
+  const userRole = roles[userAddress];
+  require(userRole == requiredRole || userRole == Role::ADMIN);
+  return true;
+}
+
+// Approve operator for token management
+export circuit approve(
+  tokenId: Unsigned<256>,
+  operator: Address
+): Boolean {
+  // Verify ownership
+  witness owner = getOwner(tokenId);
+  witness sender = sk_state.myAddress;
+  require(owner == sender);
+  
+  // Set approval
+  approvals[tokenId][operator] = true;
+  
+  emitEvent("Approval", sender, operator, tokenId);
+  
+  return true;
+}
+
+// Operator transfer
+export circuit transferFrom(
+  tokenId: Unsigned<256>,
+  from: Address,
+  to: Address
+): Boolean {
+  witness sender = sk_state.myAddress;
+  
+  // Check if sender is owner or approved
+  const isOwner = getOwner(tokenId) == sender;
+  const isApproved = approvals[tokenId][sender];
+  
+  require(isOwner || isApproved);
+  
+  // Perform transfer
+  transferNFT(tokenId, from, to);
+  
+  // Revoke approval after use
+  if (isApproved) {
+    approvals[tokenId][sender] = false;
+  }
+  
+  return true;
+}
+```
+
+</Step>
+</StepsProvider>
+
+## Advanced NFT features
+
+### Composable NFTs
+
+Create NFTs that can contain or reference other NFTs.
+
+```compact
+struct ComposableNFT {
+  tokenId: Unsigned<256>,
+  owner: Address,
+  childTokens: Vector<Unsigned<256>>,
+  parentToken: Option<Unsigned<256>>
+}
+
+export circuit attachChild(
+  parentTokenId: Unsigned<256>,
+  childTokenId: Unsigned<256>
+): Boolean {
+  // Verify ownership of both tokens
+  witness parentOwner = getOwner(parentTokenId);
+  witness childOwner = getOwner(childTokenId);
+  witness sender = sk_state.myAddress;
+  
+  require(parentOwner == sender && childOwner == sender);
+  
+  // Update parent's children list
+  const parent = composableTokens[parentTokenId];
+  parent.childTokens = parent.childTokens.append(childTokenId);
+  composableTokens[parentTokenId] = parent;
+  
+  // Update child's parent reference
+  const child = composableTokens[childTokenId];
+  child.parentToken = Some(parentTokenId);
+  composableTokens[childTokenId] = child;
+  
+  return true;
+}
+```
+
+### Dynamic NFTs
+
+Implement NFTs that can evolve based on conditions or interactions.
+
+```compact
+struct DynamicNFT {
+  tokenId: Unsigned<256>,
+  level: Unsigned<256>,
+  experience: Unsigned<256>,
+  lastEvolution: Unsigned<256>,
+  evolutionStage: Unsigned<256>
+}
+
+export circuit evolveNFT(
+  tokenId: Unsigned<256>
+): Boolean {
+  witness nft = sk_state.dynamicNFTs[tokenId];
+  witness owner = sk_state.hiddenOwnership[tokenId];
+  witness sender = sk_state.myAddress;
+  
+  require(owner == sender);
+  
+  // Check evolution conditions
+  const requiredExp = nft.evolutionStage * 1000;
+  require(nft.experience >= requiredExp);
+  
+  // Check cooldown period (24 hours)
+  const cooldownPeriod = 86400; // seconds
+  const timeSinceLastEvolution = getCurrentTimestamp() - nft.lastEvolution;
+  require(timeSinceLastEvolution >= cooldownPeriod);
+  
+  // Evolve NFT
+  nft.evolutionStage = nft.evolutionStage + 1;
+  nft.level = nft.level + 10;
+  nft.lastEvolution = getCurrentTimestamp();
+  
+  // Update metadata based on evolution
+  updateEvolutionMetadata(tokenId, nft.evolutionStage);
+  
+  // Store updated NFT
+  sk_state.dynamicNFTs[tokenId] = nft;
+  
+  return true;
+}
+```
+
+### Fractional NFTs
+
+Enable partial ownership of high-value NFTs.
+
+```compact
+struct FractionalNFT {
+  tokenId: Unsigned<256>,
+  totalShares: Unsigned<256>,
+  shareHolders: Map<Address, Unsigned<256>>,
+  minimumSharePrice: Unsigned<256>
+}
+
+export circuit fractionalizeNFT(
+  tokenId: Unsigned<256>,
+  totalShares: Unsigned<256>
+): Boolean {
+  // Verify sole ownership before fractionalization
+  witness owner = getOwner(tokenId);
+  witness sender = sk_state.myAddress;
+  require(owner == sender);
+  
+  // Create fractional representation
+  const fractional = FractionalNFT {
+    tokenId: tokenId,
+    totalShares: totalShares,
+    shareHolders: Map::empty(),
+    minimumSharePrice: 0
+  };
+  
+  // Assign all shares to original owner
+  fractional.shareHolders[sender] = totalShares;
+  
+  // Lock original NFT
+  ledger.lockedForFractionalization[tokenId] = true;
+  ledger.fractionalNFTs[tokenId] = fractional;
+  
+  return true;
+}
+
+export circuit transferShares(
+  tokenId: Unsigned<256>,
+  recipient: Address,
+  shareAmount: Unsigned<256>
+): Boolean {
+  witness sender = sk_state.myAddress;
+  const fractional = ledger.fractionalNFTs[tokenId];
+  
+  // Verify sender has enough shares
+  const senderShares = fractional.shareHolders[sender];
+  require(senderShares >= shareAmount);
+  
+  // Transfer shares
+  fractional.shareHolders[sender] = senderShares - shareAmount;
+  fractional.shareHolders[recipient] = 
+    (fractional.shareHolders[recipient] || 0) + shareAmount;
+  
+  ledger.fractionalNFTs[tokenId] = fractional;
+  
+  return true;
+}
+```
+
+## TypeScript integration
+
+### Contract deployment and interaction
+
+```typescript
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+class NFTContractManager {
+  private contract: any;
+  private providers: any;
+  
+  async deploy(
+    collectionName: string,
+    symbol: string,
+    baseURI: string
+  ): Promise<string> {
+    // Load compiled contract
+    const NFTContract = await import('./contracts/nft/index.cjs');
+    const contractInstance = new NFTContract.Contract({
+      name: collectionName,
+      symbol: symbol,
+      baseURI: baseURI
+    });
+    
+    // Deploy contract
+    const deployment = await deployContract(this.providers, {
+      contract: contractInstance,
+      privateStateId: "nftPrivateState",
+      initialPrivateState: {
+        privateTokens: new Map(),
+        hiddenOwnership: new Map()
+      }
+    });
+    
+    return deployment.deployTxData.public.contractAddress;
+  }
+  
+  async mintNFT(
+    recipient: string,
+    metadata: NFTMetadata,
+    isPrivate: boolean
+  ): Promise<bigint> {
+    const tx = await this.contract.callTx.mintNFT(
+      recipient,
+      JSON.stringify(metadata),
+      isPrivate
+    );
+    
+    return tx.public.tokenId;
+  }
+  
+  async transferNFT(
+    tokenId: bigint,
+    from: string,
+    to: string
+  ): Promise<boolean> {
+    const tx = await this.contract.callTx.transferNFT(
+      tokenId,
+      from,
+      to
+    );
+    
+    return tx.public.success;
+  }
+  
+  async getTokenMetadata(tokenId: bigint): Promise<NFTMetadata> {
+    const state = await this.providers.publicDataProvider
+      .queryContractState(this.contract.address);
+    
+    const token = state.publicTokens[tokenId];
+    return JSON.parse(token.metadata);
+  }
+}
+```
+
+### Event monitoring
+
+```typescript
+class NFTEventMonitor {
+  private subscription: any;
+  
+  async subscribeToEvents(contractAddress: string): Promise<void> {
+    this.subscription = await this.providers.publicDataProvider
+      .subscribeToContractEvents(contractAddress);
+    
+    this.subscription.on('Minted', (event: any) => {
+      console.log(`NFT Minted: Token ID ${event.tokenId}`);
+      this.handleMintEvent(event);
+    });
+    
+    this.subscription.on('Transfer', (event: any) => {
+      console.log(`NFT Transferred: ${event.from} -> ${event.to}`);
+      this.handleTransferEvent(event);
+    });
+  }
+  
+  private async handleMintEvent(event: MintEvent): Promise<void> {
+    // Process mint event
+    await this.updateDatabase(event.tokenId, event.recipient);
+    await this.notifyUser(event.recipient, 'NFT_MINTED', event.tokenId);
+  }
+  
+  private async handleTransferEvent(event: TransferEvent): Promise<void> {
+    // Process transfer event
+    await this.updateOwnership(event.tokenId, event.from, event.to);
+  }
+}
+```
+
+## Testing NFT contracts
+
+```typescript
+import { ContractTester } from '@midnight-ntwrk/contract-testing';
+
+describe('NFT Contract Tests', () => {
+  let tester: ContractTester;
+  let contractAddress: string;
+  
+  beforeEach(async () => {
+    tester = await ContractTester.create('nft-contract');
+    contractAddress = await tester.deploy();
+  });
+  
+  test('Mints NFT successfully', async () => {
+    const recipient = '0x123...';
+    const metadata = {
+      name: 'Test NFT',
+      description: 'Test Description',
+      image: 'ipfs://...'
+    };
+    
+    const tokenId = await tester.callCircuit('mintNFT', {
+      recipient,
+      metadata: JSON.stringify(metadata),
+      isPrivate: false
+    });
+    
+    expect(tokenId).toBeDefined();
+    expect(tokenId).toBeGreaterThan(0n);
+    
+    // Verify ownership
+    const owner = await tester.getOwner(tokenId);
+    expect(owner).toBe(recipient);
+  });
+  
+  test('Transfers NFT between addresses', async () => {
+    const from = '0x123...';
+    const to = '0x456...';
+    const tokenId = 1n;
+    
+    // Setup: Mint to 'from' address
+    await tester.callCircuit('mintNFT', {
+      recipient: from,
+      metadata: '{}',
+      isPrivate: false
+    });
+    
+    // Transfer NFT
+    const success = await tester.callCircuit('transferNFT', {
+      tokenId,
+      from,
+      to
+    });
+    
+    expect(success).toBe(true);
+    
+    // Verify new ownership
+    const newOwner = await tester.getOwner(tokenId);
+    expect(newOwner).toBe(to);
+  });
+  
+  test('Private NFT ownership remains hidden', async () => {
+    const owner = '0x123...';
+    
+    const tokenId = await tester.callCircuit('mintNFT', {
+      recipient: owner,
+      metadata: '{}',
+      isPrivate: true
+    });
+    
+    // Public query should not reveal owner
+    const publicOwner = await tester.queryPublicState(
+      `publicTokens[${tokenId}].owner`
+    );
+    
+    expect(publicOwner).toBeUndefined();
+    
+    // Private state should contain ownership
+    const privateOwner = await tester.queryPrivateState(
+      `hiddenOwnership[${tokenId}]`
+    );
+    
+    expect(privateOwner).toBe(owner);
+  });
+});
+```
+
+## Gas optimization strategies
+
+```compact
+// Optimize storage usage
+export circuit optimizedBatchMint(
+  recipientsPacked: Bytes<256>,
+  metadataHashes: Vector<Bytes<32>>,
+  count: Unsigned<256>
+): Boolean {
+  // Unpack recipients efficiently
+  const recipients = unpackAddresses(recipientsPacked, count);
+  
+  // Use merkle tree for metadata
+  const metadataRoot = computeMerkleRoot(metadataHashes);
+  
+  // Store only root on-chain
+  ledger.batchMintRoots[getCurrentTimestamp()] = metadataRoot;
+  
+  // Mint tokens with reference to root
+  for (i in 0..count) {
+    mintWithReference(recipients[i], metadataRoot, i);
+  }
+  
+  return true;
+}
+```
+
+## Next steps
+
+NFT contracts on Midnight Network enable unique privacy-preserving digital assets. You can consider implementing the following:
+
+- Marketplace contracts with private bidding
+- NFT staking with hidden rewards
+- Cross-chain NFT bridges with privacy preservation
+- Gamification features with concealed attributes

@@ -1,0 +1,439 @@
+---
+title: Handle private state across sessions
+description: Learn how to persist and manage private state data between user sessions in Midnight Network applications.
+sidebar_position: 3
+sidebar_label: Handle private state management
+tags: [private-state, persistence, session-management, tutorial]
+slug: /how-to/handle-private-state-sessions
+toc_max_heading_level: 2
+---
+
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Handle private state across sessions
+
+Private state in Midnight Network applications exists locally on a user's device and requires explicit management to persist across sessions. You can maintaini private state continuity between application sessions.
+
+## Understanding private state persistence
+
+Private state differs from public ledger state in several key aspects:
+
+- **Local storage**: Private state exists only on the user's device
+- **Session-bound**: Default private state disappears when the application closes
+- **User-controlled**: Each user manages their own private state independently
+- **Proof generation**: Private state enables zero-knowledge proof generation without revealing data
+
+## Prerequisites
+
+The following is required:
+
+- Understanding of Compact smart contracts
+- Familiarity with TypeScript/JavaScript
+- Midnight Network SDK installed
+- Compiled contract with private state definitions
+
+## Implement private state persistence
+
+<StepsProvider>
+<Step>
+
+**Define private state structure in the Compact contract.** The contract must specify which data remains private and how it structures that data.
+
+```compact
+pragma language_version >= 0.16 && <= 0.17;
+
+import CompactStandardLibrary;
+
+// Private state definition
+export sk_state {
+  userBalance: Unsigned<256>,
+  userNotes: Vector<Opaque<"string">>,
+  lastAccessTime: Unsigned<256>
+}
+
+// Public ledger state
+export ledger totalUsers: Unsigned<256>;
+
+// Circuit to update private state
+export circuit updatePrivateBalance(amount: Unsigned<256>): [] {
+  sk_state.userBalance = sk_state.userBalance + amount;
+  sk_state.lastAccessTime = getCurrentTimestamp();
+}
+```
+
+</Step>
+<Step>
+
+**Configure the private state provider with persistence options.** The level-based provider stores private state data in a local database that persists between sessions.
+
+```typescript
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
+
+// Configure persistent private state storage
+const privateStateProvider = levelPrivateStateProvider({
+  privateStateStoreName: "user-private-state-v1",
+  dbPath: "./private-state-db", // Specify custom path for database
+  clearOnStart: false // Preserve state between sessions
+});
+```
+
+</Step>
+<Step>
+
+**Initialize private state for new users while preserving existing state.** Check if private state exists before initializing to avoid overwriting user data.
+
+```typescript
+async function initializePrivateState(providers: any, contractAddress: string) {
+  // Check for existing private state
+  const existingState = await providers.privateStateProvider.getPrivateState(
+    "userPrivateState"
+  );
+  
+  if (existingState) {
+    console.log("Loading existing private state...");
+    return existingState;
+  }
+  
+  // Initialize new private state for first-time users
+  console.log("Creating new private state...");
+  const initialState = {
+    userBalance: 0n,
+    userNotes: [],
+    lastAccessTime: BigInt(Date.now())
+  };
+  
+  await providers.privateStateProvider.setPrivateState(
+    "userPrivateState",
+    initialState
+  );
+  
+  return initialState;
+}
+```
+
+</Step>
+<Step>
+
+**Create backup and restore functions for private state migration.** These functions allow users to export and import their private state for backup or device transfer.
+
+```typescript
+import * as fs from 'fs';
+import * as path from 'path';
+
+async function exportPrivateState(privateStateProvider: any): Promise<string> {
+  const state = await privateStateProvider.getPrivateState("userPrivateState");
+  
+  if (!state) {
+    throw new Error("No private state found to export");
+  }
+  
+  // Serialize private state with metadata
+  const exportData = {
+    version: "1.0.0",
+    timestamp: new Date().toISOString(),
+    state: state,
+    checksum: calculateChecksum(state)
+  };
+  
+  // Encrypt the export for security (use user-provided password)
+  const encrypted = await encryptData(JSON.stringify(exportData));
+  
+  // Save to file
+  const filename = `private-state-backup-${Date.now()}.json`;
+  fs.writeFileSync(filename, encrypted);
+  
+  return filename;
+}
+
+async function importPrivateState(
+  privateStateProvider: any, 
+  backupFile: string,
+  password: string
+): Promise<void> {
+  // Read and decrypt backup file
+  const encryptedData = fs.readFileSync(backupFile, 'utf-8');
+  const decrypted = await decryptData(encryptedData, password);
+  const importData = JSON.parse(decrypted);
+  
+  // Verify checksum
+  if (calculateChecksum(importData.state) !== importData.checksum) {
+    throw new Error("Backup file corrupted or tampered");
+  }
+  
+  // Restore private state
+  await privateStateProvider.setPrivateState(
+    "userPrivateState",
+    importData.state
+  );
+  
+  console.log(`Private state restored from backup: ${importData.timestamp}`);
+}
+```
+
+</Step>
+<Step>
+
+**Implement session management with automatic state synchronization.** Create a session manager that handles state persistence automatically during application lifecycle.
+
+```typescript
+class PrivateStateSessionManager {
+  private providers: any;
+  private contractAddress: string;
+  private autoSaveInterval: NodeJS.Timer | null = null;
+  
+  constructor(providers: any, contractAddress: string) {
+    this.providers = providers;
+    this.contractAddress = contractAddress;
+  }
+  
+  async startSession(): Promise<void> {
+    // Load or initialize private state
+    const state = await initializePrivateState(
+      this.providers, 
+      this.contractAddress
+    );
+    
+    // Start auto-save timer (every 30 seconds)
+    this.autoSaveInterval = setInterval(async () => {
+      await this.saveState();
+    }, 30000);
+    
+    // Register cleanup on process exit
+    process.on('SIGINT', async () => {
+      await this.endSession();
+      process.exit();
+    });
+    
+    console.log("Session started with private state management");
+  }
+  
+  async saveState(): Promise<void> {
+    const currentState = await this.providers.privateStateProvider
+      .getPrivateState("userPrivateState");
+    
+    if (currentState) {
+      currentState.lastAccessTime = BigInt(Date.now());
+      await this.providers.privateStateProvider.setPrivateState(
+        "userPrivateState",
+        currentState
+      );
+      console.log("Private state auto-saved");
+    }
+  }
+  
+  async endSession(): Promise<void> {
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval);
+    }
+    
+    await this.saveState();
+    console.log("Session ended, private state saved");
+  }
+}
+```
+
+</Step>
+<Step>
+
+**Handle private state versioning for contract upgrades.** Implement migration logic to handle changes in private state structure across contract versions.
+
+```typescript
+interface StateVersion {
+  version: string;
+  migrateFrom?: (oldState: any) => any;
+}
+
+const stateVersions: StateVersion[] = [
+  {
+    version: "1.0.0",
+    // Initial version, no migration needed
+  },
+  {
+    version: "1.1.0",
+    migrateFrom: (oldState: any) => {
+      // Add new field in version 1.1.0
+      return {
+        ...oldState,
+        preferences: {
+          notifications: true,
+          theme: "dark"
+        }
+      };
+    }
+  },
+  {
+    version: "2.0.0",
+    migrateFrom: (oldState: any) => {
+      // Restructure state in version 2.0.0
+      return {
+        userData: {
+          balance: oldState.userBalance,
+          notes: oldState.userNotes
+        },
+        metadata: {
+          lastAccess: oldState.lastAccessTime,
+          preferences: oldState.preferences
+        },
+        version: "2.0.0"
+      };
+    }
+  }
+];
+
+async function migratePrivateState(
+  privateStateProvider: any,
+  targetVersion: string
+): Promise<void> {
+  let state = await privateStateProvider.getPrivateState("userPrivateState");
+  
+  if (!state) {
+    return; // No state to migrate
+  }
+  
+  const currentVersion = state.version || "1.0.0";
+  
+  if (currentVersion === targetVersion) {
+    console.log("Private state already at target version");
+    return;
+  }
+  
+  // Apply migrations sequentially
+  let versionIndex = stateVersions.findIndex(v => v.version === currentVersion);
+  
+  while (versionIndex < stateVersions.length - 1) {
+    versionIndex++;
+    const nextVersion = stateVersions[versionIndex];
+    
+    if (nextVersion.migrateFrom) {
+      state = nextVersion.migrateFrom(state);
+      console.log(`Migrated private state to version ${nextVersion.version}`);
+    }
+  }
+  
+  await privateStateProvider.setPrivateState("userPrivateState", state);
+}
+```
+
+</Step>
+</StepsProvider>
+
+## Best practices for private state management
+
+### Security considerations
+
+- **Encryption**: Always encrypt private state backups before storing or transmitting
+- **Access control**: Implement user authentication before allowing private state access
+- **Validation**: Verify state integrity using checksums or cryptographic signatures
+- **Isolation**: Store private state separately for different contracts and users
+
+### Performance optimization
+
+- **Lazy loading**: Load private state only when needed to reduce memory usage
+- **Batch updates**: Group multiple state changes into single write operations
+- **Compression**: Compress large private state data before storage
+- **Indexing**: Create indices for frequently accessed private state fields
+
+### Error handling
+
+```typescript
+async function safePrivateStateOperation<T>(
+  operation: () => Promise<T>,
+  fallback?: T
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    console.error("Private state operation failed:", error);
+    
+    // Attempt recovery
+    if (error.code === "CORRUPTED_STATE") {
+      await recoverFromBackup();
+      return await operation(); // Retry
+    }
+    
+    if (fallback !== undefined) {
+      return fallback;
+    }
+    
+    throw error;
+  }
+}
+
+// Usage
+const balance = await safePrivateStateOperation(
+  async () => {
+    const state = await provider.getPrivateState("userPrivateState");
+    return state.userBalance;
+  },
+  0n // Fallback to zero balance
+);
+```
+
+## Troubleshooting common issues
+
+### State not persisting between sessions
+
+- Verify `clearOnStart` is set to `false` in provider configuration
+- Check database path permissions
+- Ensure proper session cleanup before application exit
+
+### Corrupted private state
+
+- Implement regular backups
+- Use atomic write operations
+- Validate state structure before saving
+
+### Performance degradation with large state
+
+- Implement state pruning for old data
+- Use pagination for large collections
+- Consider splitting state across multiple keys
+
+## Complete example implementation
+
+```typescript
+// Complete session management implementation
+async function main() {
+  const providers = {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: "my-app-private-state",
+      clearOnStart: false
+    }),
+    // ... other providers
+  };
+  
+  const sessionManager = new PrivateStateSessionManager(
+    providers,
+    contractAddress
+  );
+  
+  // Start session
+  await sessionManager.startSession();
+  
+  // Migrate if needed
+  await migratePrivateState(providers.privateStateProvider, "2.0.0");
+  
+  // Use private state in application
+  const contract = await findDeployedContract(providers, {
+    contractAddress,
+    privateStateId: "userPrivateState"
+  });
+  
+  // Application logic here...
+  
+  // End session gracefully
+  await sessionManager.endSession();
+}
+
+main().catch(console.error);
+```
+
+## Next steps
+
+You can consider implementing the following:
+
+- Multi-device synchronization using encrypted cloud backup
+- State sharing between authorized users
+- Time-based state expiration for sensitive data
+- Integration with hardware security modules for enhanced protection
