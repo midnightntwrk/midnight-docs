@@ -88,12 +88,7 @@ module.exports = {
         {
           type: "doc",
           id: "develop/guides/wallet-dev-guide",
-          label: "Connect to Lace wallet"
-        },
-        {
-          type: "category",
-          label: "Query the blockchain",
-          items: ["develop/nodes-and-dapps/nodes-endpoints"]
+          label: "Connect to the Lace wallet"
         },
         {
           type: "doc",
@@ -110,6 +105,11 @@ module.exports = {
           id: "develop/how-to/write-nft-contract",
           label: "Write NFT contracts"
         }
+        {
+          type: "category",
+          label: "Query the blockchain",
+          items: ["develop/nodes-and-dapps/nodes-endpoints"]
+        },
       ]
     },
 
