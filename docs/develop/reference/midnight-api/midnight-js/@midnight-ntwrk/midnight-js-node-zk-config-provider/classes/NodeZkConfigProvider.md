@@ -56,7 +56,7 @@ The path to the base directory containing the key and ZKIR subdirectories.
 
 > **get**(`circuitId`): `Promise`\<[`ZKConfig`](../../midnight-js-types/interfaces/ZKConfig.md)\<`K`\>\>
 
-Retrieves all zero-knowledge artifacts produced by `compactc` for the given circuit.
+Retrieves all zero-knowledge artifacts produced by `compact` for the given circuit.
 
 #### Parameters
 
@@ -124,7 +124,7 @@ The circuit ID of the artifacts to retrieve.
 
 > **getVerifierKeys**(`circuitIds`): `Promise`\<\[`K`, [`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\][]\>
 
-Retrieves the verifier keys produced by `compactc` for the given circuits.
+Retrieves the verifier keys produced by `compact` for the given circuits.
 
 #### Parameters
 
