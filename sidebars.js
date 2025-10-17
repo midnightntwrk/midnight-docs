@@ -104,7 +104,7 @@ module.exports = {
           type: "doc",
           id: "develop/how-to/write-nft-contract",
           label: "Write NFT contracts"
-        }
+        },
         {
           type: "category",
           label: "Query the blockchain",
