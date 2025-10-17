@@ -1,49 +1,50 @@
-import React, { useContext, createContext, useRef } from 'react';
+import React, { useContext, createContext, useState } from 'react';
 import styles from './styles.module.css';
 
-const StepsContext = createContext();
+const StepsContext = createContext<{ getNextStep: () => number } | null>(null);
 
-/** Provider with optional custom start and extra className */
-function StepsProvider({ children, start = 1, className = '' }) {
-  const stepCounter = useRef(start);
+interface StepsProviderProps {
+  children: React.ReactNode;
+  start?: number;
+  className?: string;
+}
+
+export function StepsProvider({ children, start = 1, className = '' }: StepsProviderProps) {
+  const [currentStep, setCurrentStep] = useState(start);
+  
+  const getNextStep = () => {
+    const step = currentStep;
+    setCurrentStep(prev => prev + 1);
+    return step;
+  };
+  
   return (
-    <StepsContext.Provider value={stepCounter}>
+    <StepsContext.Provider value={{ getNextStep }}>
       <div className={`${styles.steps} ${className}`}>{children}</div>
     </StepsContext.Provider>
   );
 }
 
-function Step({ children, number }) {
-  const stepCounter = useContext(StepsContext); // may be undefined if used outside provider
-  const numberRef = useRef(null);
+interface StepProps {
+  children: React.ReactNode;
+  number?: number;
+}
 
-  if (numberRef.current === null) {
-    const hasManual = number != null; // treat 0 as valid manual number
-
-    if (hasManual) {
-      // Manual number provided
-      numberRef.current = number;
-      // Do NOT increment the shared counter
-    } else if (stepCounter) {
-      // Automatic numbering via context
-      numberRef.current = stepCounter.current ?? 1;
-      stepCounter.current++;
-    } else {
-      // No provider: leave empty so CSS fallback .badge:empty::before applies
-      numberRef.current = '';
-    }
-  }
-
-  const displayNumber = numberRef.current;
+export default function Step({ children, number }: StepProps) {
+  const context = useContext(StepsContext);
+  
+  const [displayNumber] = useState(() => {
+    if (number != null) return number;
+    if (context) return context.getNextStep();
+    return '';
+  });
 
   return (
     <div className={styles.stepWrapper}>
-      <span className={styles.badge}>
+      <span className={styles.stepBadge}>
         {displayNumber !== '' ? displayNumber : null}
       </span>
       <div className={styles.content}>{children}</div>
     </div>
   );
 }
-
-export { Step as default, StepsProvider };
