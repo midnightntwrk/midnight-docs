@@ -1,15 +1,10 @@
+// src/components/Step/Step.jsx
 import React, { useContext, createContext, useState } from 'react';
 import styles from './styles.module.css';
 
-const StepsContext = createContext<{ getNextStep: () => number } | null>(null);
+const StepsContext = createContext(null);
 
-interface StepsProviderProps {
-  children: React.ReactNode;
-  start?: number;
-  className?: string;
-}
-
-export function StepsProvider({ children, start = 1, className = '' }: StepsProviderProps) {
+export function StepsProvider({ children, start = 1, className = '' }) {
   const [currentStep, setCurrentStep] = useState(start);
   
   const getNextStep = () => {
@@ -25,12 +20,7 @@ export function StepsProvider({ children, start = 1, className = '' }: StepsProv
   );
 }
 
-interface StepProps {
-  children: React.ReactNode;
-  number?: number;
-}
-
-export default function Step({ children, number }: StepProps) {
+export default function Step({ children, number }) {
   const context = useContext(StepsContext);
   
   const [displayNumber] = useState(() => {
