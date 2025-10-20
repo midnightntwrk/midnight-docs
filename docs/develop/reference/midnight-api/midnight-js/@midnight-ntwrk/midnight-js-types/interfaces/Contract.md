@@ -7,8 +7,8 @@
 # Interface: Contract\<PS, W\>
 
 Interface for a contract. The data types defined in this file are generic shapes for the artifacts
-produced by the `compact` compiler. In other words, this `Contract` interface should match the shape
-of any `Contract` class produced by `compact`. Midnight.js uses it for generic constraints.
+produced by the `compactc` compiler. In other words, this `Contract` interface should match the shape
+of any `Contract` class produced by `compactc`. Midnight.js uses it for generic constraints.
 
 ## Type Parameters
 

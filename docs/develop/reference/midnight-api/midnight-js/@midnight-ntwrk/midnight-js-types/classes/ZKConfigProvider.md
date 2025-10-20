@@ -40,7 +40,7 @@ The type of the circuit ID used by the provider.
 
 > **get**(`circuitId`): `Promise`\<[`ZKConfig`](../interfaces/ZKConfig.md)\<`K`\>\>
 
-Retrieves all zero-knowledge artifacts produced by `compact` for the given circuit.
+Retrieves all zero-knowledge artifacts produced by `compactc` for the given circuit.
 
 #### Parameters
 
@@ -60,7 +60,7 @@ The circuit ID of the artifacts to retrieve.
 
 > `abstract` **getProverKey**(`circuitId`): `Promise`\<[`ProverKey`](../type-aliases/ProverKey.md)\>
 
-Retrieves the prover key produced by `compact` for the given circuit.
+Retrieves the prover key produced by `compactc` for the given circuit.
 
 #### Parameters
 
@@ -80,7 +80,7 @@ The circuit ID of the prover key to retrieve.
 
 > `abstract` **getVerifierKey**(`circuitId`): `Promise`\<[`VerifierKey`](../type-aliases/VerifierKey.md)\>
 
-Retrieves the verifier key produced by `compact` for the given circuit.
+Retrieves the verifier key produced by `compactc` for the given circuit.
 
 #### Parameters
 
@@ -100,7 +100,7 @@ The circuit ID of the verifier key to retrieve.
 
 > **getVerifierKeys**(`circuitIds`): `Promise`\<\[`K`, [`VerifierKey`](../type-aliases/VerifierKey.md)\][]\>
 
-Retrieves the verifier keys produced by `compact` for the given circuits.
+Retrieves the verifier keys produced by `compactc` for the given circuits.
 
 #### Parameters
 
@@ -120,7 +120,7 @@ The circuit IDs of the verifier keys to retrieve.
 
 > `abstract` **getZKIR**(`circuitId`): `Promise`\<[`ZKIR`](../type-aliases/ZKIR.md)\>
 
-Retrieves the zero-knowledge intermediate representation produced by `compact` for the given circuit.
+Retrieves the zero-knowledge intermediate representation produced by `compactc` for the given circuit.
 
 #### Parameters
 
