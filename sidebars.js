@@ -102,6 +102,11 @@ module.exports = {
         },
         {
           type: "doc",
+          id: "develop/how-to/fix-version-mismatch-errors",
+          label: "Fix version mismatch errors"
+        },
+        {
+          type: "doc",
           id: "develop/how-to/write-nft-contract",
           label: "Write NFT contracts"
         },
@@ -109,7 +114,7 @@ module.exports = {
           type: "category",
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
-        },
+        }
       ]
     },
 
