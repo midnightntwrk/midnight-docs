@@ -47,7 +47,7 @@ const releases = [
       'Compact now supports casts between `Bytes` and `Vector` types.',
       '`const` declaration statements now allow multiple constants.',
       'The standard library gives access to block time.',
-      'The `compact` compiler now allows contract filenames to have spaces in them.',
+      'The Compact compiler now allows contract filenames to have spaces in them.',
       'The compiler prints a message when proof key generation fails.',
       'The compiler prints a parse error when facing Unicode numeric characters other than 0-9.'
 
