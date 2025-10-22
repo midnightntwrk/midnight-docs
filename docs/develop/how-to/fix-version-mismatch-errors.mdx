@@ -1,0 +1,405 @@
+---
+title: Fix version mismatch errors
+description: Resolve version compatibility issues between Midnight compiler, runtime, and other components using the official compatibility matrix.
+sidebar_label: Fix version mismatches
+sidebar_position: 4
+tags: [troubleshooting, version, compatibility, errors]
+slug: /how-to/fix-version-mismatches
+toc_max_heading_level: 2
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Fix version mismatch errors
+
+Learn how to resolve version compatibility issues between Midnight components that cause build failures and runtime errors.
+
+## Understanding version mismatches
+
+Midnight consists of multiple components that must work together in compatible versions:
+
+- **Compact compiler**
+- **Runtime libraries** (`@midnight-ntwrk/compact-runtime`, `@midnight-ntwrk/ledger`, etc.)
+- **Proof server**
+- **Indexer** (if used)
+
+When these components are out of sync, you may encounter build errors, deployment failures, or runtime issues.
+
+:::info Check the compatibility matrix
+Always refer to the official [release compatibility matrix](/relnotes/support-matrix) to verify which versions work together.
+:::
+
+## Check your current versions
+
+Identify which components need updating.
+
+<StepsProvider>
+
+<Step>
+
+### Check the compiler version
+
+```bash
+compact --version
+```
+
+Compare the output with the [compatibility matrix](/relnotes/support-matrix).
+
+</Step>
+
+<Step>
+
+### Check runtime package versions
+
+```bash
+npm list @midnight-ntwrk/compact-runtime
+npm list @midnight-ntwrk/ledger
+npm list @midnight-ntwrk/zswap
+```
+
+All runtime packages should use the same version number.
+
+</Step>
+
+<Step>
+
+### Check proof server version
+
+If running the proof server using Docker:
+
+```bash
+docker ps | grep proof-server
+docker logs [proof-server-container-id] | head -20
+```
+
+Look for version information in the startup logs.
+
+</Step>
+
+<Step>
+
+### Compare versions with the compatibility matrix
+
+Review the [release compatibility matrix](/relnotes/support-matrix) and verify your versions are compatible.
+
+All components show compatible versions according to the official matrix.
+
+</Step>
+
+</StepsProvider>
+
+## Align component versions
+
+Update components to compatible versions using the official compatibility matrix.
+
+<StepsProvider>
+
+<Step>
+
+### Consult the compatibility matrix
+
+Review the [release compatibility matrix](/relnotes/support-matrix) to find compatible versions for:
+
+- Compact compiler
+- Runtime packages
+- Proof server
+- Indexer (if used)
+
+</Step>
+
+<Step>
+
+### Update runtime packages
+
+Update your `package.json` with compatible versions from the matrix:
+
+```json title="package.json"
+{
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "x.x.x",
+    "@midnight-ntwrk/ledger": "x.x.x",
+    "@midnight-ntwrk/zswap": "x.x.x",
+    "@midnight-ntwrk/wallet": "x.x.x"
+  }
+}
+```
+
+Install the updated packages:
+
+```bash
+npm install
+```
+
+</Step>
+
+<Step>
+
+### Update proof server
+
+If using Docker, update your container image to a compatible version:
+
+```bash
+# Stop current container
+docker-compose down
+
+# Update docker-compose.yml with compatible version
+# Then restart
+docker-compose up -d
+```
+
+</Step>
+
+<Step>
+
+### Update the compiler
+
+Download and install the compatible compiler version from the [Compact releases](https://github.com/midnightntwrk/compact/releases).
+
+Verify installation:
+
+```bash
+compact --version
+```
+
+</Step>
+
+<Step>
+
+### Recompile contracts
+
+After updating components, recompile your smart contracts:
+
+```bash
+# Clean old artifacts
+rm -rf contract/*.cjs contract/*.prover contract/*.verifier
+
+# Recompile using direct compact command
+compact compile src/contract.compact contract/
+```
+
+</Step>
+
+</StepsProvider>
+
+:::warning Keep components in sync
+When updating any component, check the compatibility matrix and update all related components together to maintain compatibility.
+:::
+
+## Lock exact versions
+
+Prevent automatic version updates that could break compatibility.
+
+<StepsProvider>
+
+<Step>
+
+### Use exact version numbers
+
+In your `package.json`, specify exact versions without range operators:
+
+```json title="package.json"
+{
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "x.x.x",
+    "@midnight-ntwrk/ledger": "x.x.x"
+  }
+}
+```
+
+:::caution Avoid version ranges
+Don't use `^x.x.x` or `~x.x.x`. Always specify exact versions like `x.x.x` to prevent unexpected updates.
+:::
+
+</Step>
+
+<Step>
+
+### Use npm ci for installations
+
+Use `npm ci` instead of `npm install` for reproducible builds:
+
+```bash
+# Clean install from lock file
+rm -rf node_modules
+npm ci
+```
+
+This installs exact versions from `package-lock.json`.
+
+</Step>
+
+<Step>
+
+### Document your versions
+
+Create a `VERSIONS.md` file documenting your component versions:
+
+```markdown title="VERSIONS.md"
+# Component Versions
+
+Last verified: 2025-10-17
+
+## Versions in Use
+
+- Compact compiler: x.x.x
+- Runtime packages: x.x.x
+- Proof server: x.x.x
+- Node.js: xx.x.x
+
+## Compatibility Reference
+
+See: /relnotes/support-matrix
+```
+
+</Step>
+
+</StepsProvider>
+
+## Platform-specific considerations
+
+<Tabs>
+<TabItem value="linux" label="Linux">
+
+Ensure all components are properly installed and accessible:
+
+```bash
+# Check compiler location
+which compact
+
+# Verify Node.js version
+node --version
+```
+
+</TabItem>
+<TabItem value="mac" label="macOS">
+
+For Apple Silicon (M1/M2), ensure Docker images use the correct architecture:
+
+```bash
+# Check Docker architecture
+docker info | grep Architecture
+```
+
+</TabItem>
+<TabItem value="windows" label="Windows/WSL">
+
+Use WSL-native paths for consistency:
+
+```bash
+# Use native WSL paths
+cd /home/username/project  # Not /mnt/c/...
+
+# Verify compiler access
+compact --version
+```
+
+</TabItem>
+</Tabs>
+
+## Create a version check script
+
+Automate version checking with this script:
+
+```bash title="check-versions.sh"
+#!/bin/bash
+
+echo "=== Midnight Version Check ==="
+echo ""
+
+echo "Compiler:"
+compact --version || echo "❌ Compiler not found"
+echo ""
+
+echo "Runtime packages:"
+npm list --depth=0 | grep @midnight-ntwrk || echo "❌ No Midnight packages found"
+echo ""
+
+echo "Node.js:"
+node --version
+echo ""
+
+echo "⚠️  Compare these versions with:"
+echo "/relnotes/support-matrix"
+```
+
+Run the check:
+
+```bash
+chmod +x check-versions.sh
+./check-versions.sh
+```
+
+## Backup before upgrading
+
+Always backup your project before upgrading components:
+
+```bash
+# Back up package.json
+cp package.json package.json.backup
+
+# Back up contract artifacts
+cp -r contract contract-backup
+
+# Commit current state to git
+git add -A
+git commit -m "Backup before version upgrade"
+```
+
+## Verify after updates
+
+After aligning versions, confirm everything works:
+
+```bash
+# Test compilation
+compact compile src/contract.compact contract/
+
+# Run tests
+npm test
+
+# Check for errors
+docker logs [proof-server-container-id]
+```
+
+## Common mistakes to avoid
+
+:::caution
+
+- **Don't mix version ranges** - Use exact versions only
+- **Don't update one component** - Update all related components together
+- **Don't skip the compatibility matrix** - Always verify compatibility first
+- **Don't forget to recompile** - Recompile contracts after compiler updates
+  :::
+
+## Get help
+
+If version issues persist:
+
+1. **Check the compatibility matrix**: [Release compatibility matrix](/relnotes/support-matrix)
+2. **Review release notes**: Check for breaking changes in component updates
+3. **Ask for help**: Post in #developer-support on Discord with your version details
+
+:::tip Related guides
+
+## Install Development Tools
+
+- [Installation guide](/getting-started/installation) - Comprehensive setup guide covering the Lace wallet, test tokens, Compact compiler, and proof server installation
+
+- [Build a DApp tutorial](/develop/tutorial/building/) - Detailed instructions for building your first DApp with the Compact developer tools
+
+- [Using Midnight tutorial](/develop/tutorial/using/) - Prerequisites and setup instructions for connecting to the Midnight network
+
+## Configure Your Environment
+
+- [Development Environment for Writing and Deploying Midnight Applications](/academy/module-5#development-environment-for-writing-and-deploying-midnight-applications) - Step-by-step environment setup including Docker, Chrome browser, Lace wallet, and proof server configuration
+
+- [Environment Setup and First Contract](/academy/module-6#environment-setup-and-first-contract) - Foundational steps for configuring your development environment with all necessary tools
+
+## Reference
+
+- [Release compatibility matrix](/relnotes/support-matrix) - Official version compatibility reference for all Midnight components
+
+These guides cover everything from basic prerequisites to advanced version management for maintaining a stable development environment.
+
+:::
