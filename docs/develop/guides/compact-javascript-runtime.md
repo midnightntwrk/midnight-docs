@@ -7,9 +7,9 @@ copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Found
 
 If you’ve written smart contracts before, you’re probably used to languages like Solidity or Rust that compile to on-chain bytecode.
 
-The **Midnight blockchain** takes a different approach. It uses a domain-specific language called **Compact**, designed from the ground up for [zero-knowledge smart contracts](https://docs.midnight.network/develop/reference/compact): programs that can prove their correctness without revealing sensitive data.
+The **Midnight blockchain** takes a different approach. It uses a domain-specific language called **Compact**, designed from the ground up for [zero-knowledge smart contracts](https://docs.midnight.network/develop/reference/compact): programs that can prove that private data exists (and is known) and that satisfies the constraints required by the contract.
 
-When you compile a Compact contract, the compiler doesn’t just generate the zero-knowledge circuits that run on Midnight. It also produces a **JavaScript runtime**, typically found in a file called `index.cjs` in a subfolder next to your `.compact` file.
+When you compile a Compact contract, the compiler doesn’t just generate the zero-knowledge circuits. It also produces a **JavaScript runtime**, typically found in a file called `index.cjs` in a subfolder next to your `.compact` file.
 
 This runtime lets you execute and test your Compact contract logic directly in JavaScript, using Node.js or any standard testing framework. It’s your bridge between the high-level Compact code and the low-level ZK circuit that runs on-chain.
 
@@ -47,9 +47,7 @@ Here’s a high-level view of what happens under the hood:
 
    * It embeds type descriptors for all Compact types used (integers, booleans, enums, bytes, composite types).
 
-   * It wraps each contract entry point so that you can invoke it in JS, passing native JS values, and get back proofs/state transitions.
-
-   * It includes safety checks to ensure the compiled contract and the runtime remain in sync.
+   * It wraps each contract entry point so that you can invoke it in JS, passing native JS values, and get back state transitions.
 
 3. **Linking to the Compact Runtime Library**  
    The generated `index.cjs` does *not* reimplement arithmetic, field operations, or other foundational ZK logic; instead, it imports a shared runtime library from `@midnight-ntwrk/compact-runtime`. That library implements:
@@ -87,29 +85,20 @@ Let’s look at how it’s built, piece by piece.
 
 At the very top, the runtime ensures that the version of `@midnight-ntwrk/compact-runtime` installed in your project matches the version expected by the compiler. It also verifies that the arithmetic field used by the circuits is consistent.
 
-```typescript
+```javascript
 'use strict';
 
 const __compactRuntime = require('@midnight-ntwrk/compact-runtime');
-
 const expectedRuntimeVersionString = '0.8.1';
-
 const expectedRuntimeVersion = expectedRuntimeVersionString.split('-')[0].split('.').map(Number);
-
 const actualRuntimeVersion = __compactRuntime.versionString.split('-')[0].split('.').map(Number);
-
 if (expectedRuntimeVersion[0] != actualRuntimeVersion[0] || [...])
-
   throw new __compactRuntime.CompactError(`Version mismatch...`);
 
 { 
-
   const MAX_FIELD = 52435875175126190479447740508185965837690552500527637822603658699938581184512n;
-
   if (__compactRuntime.MAX_FIELD !== MAX_FIELD)
-
     throw new __compactRuntime.CompactError(`compiler thinks maximum field value is ${MAX_FIELD}...`);
-
 }
 ```
 
@@ -121,61 +110,40 @@ Next, the file defines **enumerations** and **type descriptors**.
 
 These tell the runtime how to encode and decode the data types used in your contract — like integers, strings, or custom structs.
 
-```typescript 
+```javascript 
 var State;
-
 (function (State) {
-
   State[State['VACANT'] = 0] = 'VACANT';
-
   State[State['OCCUPIED'] = 1] = 'OCCUPIED';
-
 })(State = exports.State || (exports.State = {}));
 
 const _descriptor_1 = new __compactRuntime.CompactTypeUnsignedInteger(18446744073709551615n, 8);
-
 const _descriptor_2 = new __compactRuntime.CompactTypeBytes(32);
-
 const _descriptor_3 = new __compactRuntime.CompactTypeBoolean();
-
 const _descriptor_4 = new __compactRuntime.CompactTypeOpaqueString();
 ```
 
-Each `_descriptor_*` object defines how values of a given type are represented in zero-knowledge proofs, ensuring consistent serialization between JavaScript and the underlying circuits.
+Each `_descriptor_*` object defines how JavaScript and the on-chain values are represented.
 
 ### **3\. Composite Types and Data Structures**
 
 Complex Compact types, like `Option`, `Maybe`, or structured records, are represented as small JavaScript classes that combine primitive descriptors.
 
-```typescript
+```javascript
 class _Maybe_0 {
-
   alignment() {
-
     return _descriptor_3.alignment().concat(_descriptor_4.alignment());
-
   }
-
   fromValue(value_0) {
-
     return {
-
       is_some: _descriptor_3.fromValue(value_0),
-
       value: _descriptor_4.fromValue(value_0)
-
     };
-
   }
-
   toValue(value_0) {
-
     return _descriptor_3.toValue(value_0.is_some)
-
       .concat(_descriptor_4.toValue(value_0.value));
-
   }
-
 }
 ```
 
@@ -187,49 +155,28 @@ This is where things get interesting; the generated runtime defines a `Contract`
 
 These methods don’t execute business logic directly; instead, they prepare inputs, call the pseudo-zero-knowledge circuits, and handle proof data.
 
-```typescript
+```javascript
 class Contract {
-
   constructor(witnesses) {
-
     this.witnesses = witnesses;
-
     this.circuits = {
-
       post: (...args) => {
-
         const context = args[0];
-
         const newMessage = args[1];
-
         const partialProofData = {
-
           input: { value: _descriptor_4.toValue(newMessage), alignment: _descriptor_4.alignment() },
-
           output: undefined,
-
           publicTranscript: [],
-
           privateTranscriptOutputs: []
-
         };
-
         const result = this._post_0(context, partialProofData, newMessage);
-
         return { result, context, proofData: partialProofData };
-
       },
-
       takeDown: (...args) => {
-
         [...]
-
       }
-
     };
-
   }
-
 }
 ```
 
@@ -284,7 +231,7 @@ This object typically contains references to cryptographic keys or helper functi
 
 Here’s a minimal example:
 
-```typescript
+```javascript
 const contract = new Contract({  
 	localSecretKey: () =>  
 		Buffer.from('aabbccddeeff00112233445566778899', 'hex')  
@@ -297,9 +244,9 @@ The runtime checks that this object is correctly formed before allowing any circ
 
 Each contract entry point (like `post` or `takeDown` in this example) is exposed as a JavaScript function under `contract.circuits`.
 
-These wrappers prepare the inputs, run the JavaScript code emulating the zero-knowledge circuit, and return structured results containing the **output**, **context**, and **proof data**.
+These wrappers prepare the inputs, run the JavaScript code, and return structured results containing the **output**, **context**, and **proof data**.
 
-```typescript
+```javascript
 const context = {  
 	originalState: { status: State.VACANT },  
 	transactionContext: { timestamp: Date.now() }  
@@ -321,13 +268,11 @@ The `proofData` object contains the same type of witness and transcript informat
 
 Because the Compact runtime is just a CommonJS module, you can easily integrate it with **Vitest, Jest**, **Mocha**, or any testing framework you prefer.
 
-```typescript
+```javascript
 describe('Bulletin Board Contract', () => {  
 	it('should accept a new post', () => {  
 		const ctx = { originalState: { status: State.VACANT }, transactionContext: {} };
-
     const result = contract.circuits.post(ctx, "Test message");
-
     expect(result.result.status).toBe(State.OCCUPIED);  
 	});  
 });
@@ -359,7 +304,7 @@ When you call:
 
 `const { result, proofData } = contract.circuits.post(context, "Hello world!");`
 
-You’re running exactly the same logic that the ZK circuit will later prove on-chain, but in a form that you can step through, log, and inspect in Node.js.
+You’re running exactly the same logic that the ZK circuit on-chain, but in a form that you can step through, log, and inspect in Node.js.
 
 This means you can **validate the behavior of your contract locally** before you ever need to touch the proof server or submit a transaction to the Midnight network.
 
@@ -369,9 +314,8 @@ Because the runtime uses Compact’s own type descriptors (`CompactTypeBoolean`,
 
 In practice, it means that if your function works in JavaScript, it will work in Compact:
 
-```typescript
+```javascript
 // Your JS test environment
-
 const message = "Hello Midnight!";  
 const proof = contract.circuits.post(context, message);
 
@@ -383,21 +327,16 @@ You can test and reason about your contract logic with confidence that the ZK ci
 
 ### **3\. Reproducibility and Proof Transparency**
 
-Each call to a contract method in the runtime returns a structured `proofData` object — a representation of what the zero-knowledge circuit would generate when executed.
+Each call to a contract method in the runtime returns a structured `proofData` object — the input (along with a representation of the circuit) to the prover.
 
 That data is crucial for **reproducible testing** and **transparent verification**:
 
-```typescript
+```javascript
 {
-
   input: { value: [...], alignment: [...] },
-
   output: { value: [...], alignment: [...] },
-
   publicTranscript: [...],
-
   privateTranscriptOutputs: [...]
-
 }
 ```
 
