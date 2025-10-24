@@ -106,10 +106,15 @@ module.exports = {
           label: "Write NFT contracts"
         },
         {
+          type: "doc",
+          id: "develop/how-to/fix-package-repository-access-failures",
+          label: "Fix Package Repository Issue"
+        },
+        {
           type: "category",
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
-        },
+        }
       ]
     },
 
