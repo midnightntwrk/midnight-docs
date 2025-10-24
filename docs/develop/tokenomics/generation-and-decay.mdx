@@ -3,31 +3,37 @@ SPDX-License-Identifier: Apache-2.0
 sidebar_label: "Generation and Decay"
 ---
 
-# DUST generation & decay
+# DUST generation and decay
 
 This page defines the conceptual mechanics for how DUST supply is created and removed. Parameters are governed and may change over time. Tutorials reference this page to explain expected behaviors without assuming specific values.
 
 ## Concepts
 
 - **Designation:** NIGHT holdings that are eligible to generate DUST (per protocol rules).
-- **Generation:** DUST accrues continuously from designated NIGHT, up to any effective cap that may apply.
-- **Decay:** DUST adjusts toward the governed target (e.g., via decay) so balances don’t grow without bound and remain predictable under changing conditions.
+- **Generation:** DUST accrues continuously from designated NIGHT, up to any effective cap that may apply. The generation function is linear. The linear parameter is governed.
+- **Decay:** DUST adjusts toward the target (e.g., via decay) so balances don’t grow without bound and remain predictable under changing conditions. The decay function is linear. The linear parameter is governed.
 - **Consumption:** Executing transactions **spends** (burns) DUST.
-- **Caps / Safeguards:** A per-NIGHT cap may bound effective generation to reduce outlier effects.
 
 ## High-level behavior
 
-- Let `G(t)` denote the generation rate at time `t`, governed.
-- Let `D(t)` denote adjustment/decay dynamics over time `t`, governed (e.g., exponential or piecewise-linear).
-- **Effective DUST** at time `t2` from designated NIGHT amount `N` starting at `t1` is:
+- Dust evolves linearly over time based on its backing Night UTXO.
+- While the Night UTXO remains unspent, Dust accumulates at a fixed rate up to a defined maximum.
+- Once the Night UTXO is spent, Dust decays back toward zero at the same rate.
+
+Formally, for a Night amount N created at time t₁ and evaluated at time t₂:
 
 ```
-DUST(t2) = ∫[t1→t2] ( N × G(t) ) dt − ∫[t1→t2] ( Adjustment/Decay(DUST, t) ) dt − Consumption
+v_full = N × night_dust_ratio
+rate   = N × generation_decay_rate
+
+if t₂ ≤ dtime:          # Generation phase
+    DUST(t₂) = min(v_full, rate × (t₂ - t₁))
+
+else:                   # Decay phase
+    DUST(t₂) = max(0, v_full - rate × (t₂ - dtime))
 ```
 
-:::note
-The exact functional form, units, and any cap semantics are protocol-defined and may be updated by governance.
-:::
+The parameters `night_dust_ratio`, `generation_decay_rate`, and the grace period governing time windows are protocol-defined and may be updated through governance.
 
 ## Non-transferability (rationale)
 
@@ -42,10 +48,28 @@ The exact functional form, units, and any cap semantics are protocol-defined and
 
 ## Governance parameters
 
-- Generation rate schedule `G(t)`
-- Adjustment/decay function parameters
-- Optional per-NIGHT cap (if enabled)
-- Accounting intervals and rounding behavior for node APIs
+Dust behavior is defined by three protocol parameters:
+
+- `night_dust_ratio` – Max Dust per Night (`v_full = N × night_dust_ratio`).
+- `generation_decay_rate` – Linear rate for both DUST generation and decay.
+- `dust_grace_period` – Allowed delay between transaction creation and block inclusion.
+
+Units:
+
+- 1 NIGHT = `10⁶` Stars
+- 1 DUST = `10¹⁵` Specks
+
+Initial values:
+
+```
+night_dust_ratio      = 5_000_000_000; // 5 DUST per NIGHT
+generation_decay_rate = 8_267;         // ≈ 1 week to reach cap
+dust_grace_period     = 3 hours;
+```
+
+:::note
+These parameters are protocol-defined and adjustable by governance.
+:::
 
 ## Developer notes
 

@@ -15,8 +15,9 @@ Guidance for using DUST as the execution resource in DApps.
 
 - Do not hardcode constants. Always query live parameters (generation, decay, caps).
 - Prefer node/SDK estimators where available; otherwise use a short **“estimate → submit within validity window”** flow.
+- Over-pay fees to ensure transactions get included even if fees are adjusted before inclusion in a block.
 
-## Wallet connection & checks
+## Wallet connection and checks
 
 - Before submit, verify:
   - **Registration state** and **mapped DUST address** (when relevant).
@@ -25,13 +26,49 @@ Guidance for using DUST as the execution resource in DApps.
 
 ## End-to-end flow (no code)
 
-### Connect & identify actors
+```mermaid
+flowchart TD
+  A([Start]) --> B[Connect and identify actors]
+  B --> C[Record funding Cardano address]
+  C --> D[Fetch DUST parameters]
+  D --> E[Fetch DUST status, mapped address, balance]
+  E --> F{DUST status}
+  F -- unregistered --> G[Prompt: register for DUST generation]
+  F -- pending --> H[Show awaiting relay/indexing; refresh]
+  F -- invalid --> I[Prompt: deregister and register new DUST address]
+  F -- registered --> J[Estimate required DUST and validity window]
+  G --> H
+  I --> H
+  H --> E
+  J --> K{Available DUST >= required + margin?}
+  K -- no --> L[Suggest wait to accrue or reduce tx complexity]
+  L --> J
+  K -- yes --> M[Final check: re-fetch if window tight or params changed]
+  M --> N[Submit signed transaction]
+  N --> O[Show pending; poll for inclusion]
+  O --> P{Included?}
+  P -- yes --> Q([Success: show tx hash])
+  P -- no --> R[Error or timeout: retry or adjust]
+```
+
+### Connect and identify actors
 <StepsProvider>
-  <Step>Connect the user’s Cardano wallet (and Midnight account if your flow needs a recipient).</Step>
-  <Step>Record the Cardano address that will fund the transaction.</Step>
+  <Step>
+    Use the [CIP-30](https://cips.cardano.org/cips/cip30/) dApp Connector API to connect to the user’s Cardano wallet.  
+    This enables your dApp to read wallet addresses and sign transactions for locking tokens.
+  </Step>
+  <Step>
+    Record the selected Cardano address that funds the bridge or transaction.
+  </Step>
+  <Step>
+    (Optional) If sending to another user, collect the recipient’s Midnight account address.
+  </Step>
+  <Step>
+    If the user is sending to themselves, derive or use their own linked Midnight address.
+  </Step>
 </StepsProvider>
 
-### Fetch live parameters & status
+### Fetch live parameters and status
 <StepsProvider>
   <Step>Retrieve current DUST parameters (generation, decay, caps).</Step>
   <Step>Fetch the wallet’s DUST status: <em>unregistered</em>, <em>pending</em>, <em>registered</em>, or <em>invalid</em>, plus the mapped DUST address and current DUST balance.</Step>
@@ -56,13 +93,13 @@ Guidance for using DUST as the execution resource in DApps.
   <Step>If DUST is insufficient, suggest waiting for generation to accrue or reducing transaction complexity.</Step>
 </StepsProvider>
 
-### Submit & monitor
+### Submit and monitor
 <StepsProvider>
   <Step>Submit the signed transaction.</Step>
   <Step>Show a <em>Pending</em> state; poll for inclusion. On success, surface the transaction hash and completion state.</Step>
 </StepsProvider>
 
-## Errors & recovery (UI guidance)
+## Errors and recovery (UI guidance)
 
 - **unregistered**  
   **Meaning:** No valid mapping (Cardano → DUST address) yet.  
@@ -78,7 +115,7 @@ Guidance for using DUST as the execution resource in DApps.
 
 - **params_outdated / quote_expired**  
   **Meaning:** Parameters changed or the estimate validity window elapsed.  
-  **UI:** **Refresh parameters**, re-estimate, re-check balance; provide **Recalculate & resubmit**.
+  **UI:** **Refresh parameters**, re-estimate, re-check balance; provide **Recalculate and resubmit**.
 
 - **network/inclusion_timeout**  
   **Meaning:** Transaction not observed within your UI window.  
