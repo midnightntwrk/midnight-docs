@@ -88,7 +88,7 @@ module.exports = {
         {
           type: "doc",
           id: "develop/guides/wallet-dev-guide",
-          label: "Connect to the Lace wallet"
+          label: "Implement wallet functionality"
         },
         {
           type: "doc",
