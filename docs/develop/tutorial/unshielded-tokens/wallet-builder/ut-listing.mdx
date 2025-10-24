@@ -1,0 +1,48 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+---
+
+# Automatic detection and listing of Unshielded Tokens (UTs) in wallets
+
+Unshielded tokens (UTs) on Midnight are UTxO-based and publicly visible on the blockchain. This means any wallet can query the blockchain (or an indexer service) for all UTxOs associated with a user’s unshielded address, making it possible to automatically detect and list all UTs owned by the user without manual intervention.
+
+The recommended approach is to use the Midnight Indexer’s GraphQL API, which allows you to query and subscribe to unshielded UTxOs for a given address.
+
+## Subscription for real-time updates
+
+You can subscribe to unshielded transaction events for a user’s address. This will emit events whenever new UTs are received or spent, allowing the wallet to update the asset list automatically.
+
+Example GraphQL Subscription:
+
+```GraphQL
+subscription {
+  unshieldedTransactions(address: "mn_addr_test1...") {
+    __typename
+    ... on UnshieldedTransaction {
+      transaction { hash block { height } }
+      createdUtxos { owner value tokenType intentHash outputIndex }
+      spentUtxos { owner value tokenType intentHash outputIndex }
+    }
+    ... on UnshieldedTransactionsProgress {
+      highestTransactionId
+    }
+  }
+}
+```
+
+* `createdUtxos` will contain new UTs received by the user.
+* `spentUtxos` will show UTs spent by the user.
+
+## Update the asset list automatically
+
+Whenever a new `createdUtxos` event is received for the user’s address, extract the `tokenType` and `value` fields. If the `tokenType` is not already present in the user’s asset list, add it automatically. Update balances as new UTxOs are created or spent. Proceed as follows:
+
+1. Subscribe to unshielded transaction events for the user’s address.
+2. On event, parse `createdUtxos` and `spentUtxos`.
+3. For each new UTxO in `createdUtxos`, check if its `tokenType` is already listed:
+  - If not, add it to the asset list.
+  - Update the balance for each token type.
+4. For each UTxO in `spentUtxos`, update the balance accordingly.
+
+By subscribing to unshielded transaction events for the user’s address via the indexer API, wallets can automatically detect and list all new unshielded tokens as they appear, ensuring the user’s asset list is always up to date with no manual entry required.
