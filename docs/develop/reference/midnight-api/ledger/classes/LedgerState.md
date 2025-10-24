@@ -16,7 +16,7 @@ The state of the Midnight ledger
 new LedgerState(zswap): LedgerState
 ```
 
-Intializes from a Zswap state, with an empty contract set
+Initializes from a Zswap state, with an empty contract set
 
 #### Parameters
 
