@@ -1,0 +1,595 @@
+---
+title: Verify private data without revealing it
+description: Learn how to use zero-knowledge proofs in Midnight Network to verify private information without exposing the underlying data.
+sidebar_position: 4
+sidebar_label: Verify private data
+tags: [zero-knowledge, privacy, verification, witnesses, tutorial]
+slug: /how-to/verify-private-data
+toc_max_heading_level: 2
+---
+
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Verify private data without revealing it
+
+Zero-knowledge proofs enable verification of private data properties without exposing the actual data. This documentation demonstrates how to implement private data verification in Midnight Network applications using witnesses and circuits.
+
+## Understanding zero-knowledge verification
+
+Zero-knowledge verification in Midnight Network operates through:
+
+- **Witnesses**: Private inputs that remain hidden during verification
+- **Circuits**: Functions that generate proofs about private data
+- **Proofs**: Cryptographic evidence that statements are true without revealing why
+- **Verifiers**: On-chain logic that validates proofs
+
+## Core verification patterns
+
+### Range proofs
+
+Verify that a value falls within a specific range without revealing the exact value.
+
+```compact
+pragma language_version >= 0.16 && <= 0.17;
+
+import CompactStandardLibrary;
+
+// Private state
+sk_state {
+  userAge: Unsigned<256>,
+  userBalance: Unsigned<256>
+}
+
+// Public ledger
+export ledger verifiedUsers: Unsigned<256>;
+
+// Verify age is over 18 without revealing exact age
+export circuit verifyAdult(): Boolean {
+  witness age = sk_state.userAge;
+  
+  // Generate proof that age >= 18
+  const isAdult = age >= 18;
+  
+  if (isAdult) {
+    verifiedUsers = verifiedUsers + 1;
+  }
+  
+  return isAdult;
+}
+
+// Verify balance meets threshold without revealing amount
+export circuit verifyMinimumBalance(threshold: Unsigned<256>): Boolean {
+  witness balance = sk_state.userBalance;
+  
+  // Prove balance meets requirement
+  return balance >= disclose(threshold);
+}
+```
+
+### Membership proofs
+
+Verify membership in a set without revealing which specific member.
+
+```compact
+// Private credentials
+sk_state {
+  userCredentials: Vector<Bytes<32>>,
+  membershipId: Bytes<32>
+}
+
+// Verify user has valid credential without revealing which one
+export circuit verifyCredential(
+  validCredentialHashes: Vector<Bytes<32>>
+): Boolean {
+  witness credentials = sk_state.userCredentials;
+  
+  // Check if any credential matches valid set
+  for (i in 0..credentials.length()) {
+    const credHash = hash(credentials[i]);
+    for (j in 0..validCredentialHashes.length()) {
+      if (credHash == validCredentialHashes[j]) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+```
+
+## Implement private data verification
+
+<StepsProvider>
+<Step>
+
+**Design the verification requirements for the application.** Identify what needs verification and what must remain private.
+
+```typescript
+interface VerificationRequirements {
+  // What to prove
+  proofStatement: string;
+  
+  // What remains hidden
+  privateData: string[];
+  
+  // What becomes public
+  publicOutput: string[];
+  
+  // Verification logic
+  verificationCircuit: string;
+}
+
+const ageVerification: VerificationRequirements = {
+  proofStatement: "User is 18 or older",
+  privateData: ["exact age", "date of birth"],
+  publicOutput: ["boolean result", "verification timestamp"],
+  verificationCircuit: "verifyAdult"
+};
+```
+
+</Step>
+<Step>
+
+**Create witness structures for private inputs.** Witnesses hold private data that circuits use to generate proofs.
+
+```compact
+// Define complex witness structures
+struct PrivateIdentity {
+  name: Opaque<"string">,
+  dateOfBirth: Unsigned<256>,
+  nationalId: Bytes<32>,
+  biometricHash: Bytes<32>
+}
+
+// Circuit using structured witness
+export circuit verifyIdentity(
+  requiredAge: Unsigned<256>
+): Boolean {
+  // Create witness from private state
+  witness identity: PrivateIdentity = sk_state.userIdentity;
+  
+  // Calculate age from date of birth
+  const currentDate = getCurrentTimestamp();
+  const age = (currentDate - identity.dateOfBirth) / 365days;
+  
+  // Verify age requirement
+  const meetsAgeRequirement = age >= disclose(requiredAge);
+  
+  // Hash identity for public record (without revealing details)
+  const identityHash = hash(
+    identity.name || 
+    identity.nationalId || 
+    identity.biometricHash
+  );
+  
+  // Store verification proof on-chain
+  if (meetsAgeRequirement) {
+    ledger.verifiedIdentities[identityHash] = currentDate;
+  }
+  
+  return meetsAgeRequirement;
+}
+```
+
+</Step>
+<Step>
+
+**Implement comparison circuits for private data verification.** These circuits perform comparisons without exposing the compared values.
+
+```compact
+// Private financial data
+sk_state {
+  income: Unsigned<256>,
+  creditScore: Unsigned<256>,
+  debtRatio: Unsigned<256>
+}
+
+// Verify creditworthiness without revealing financial details
+export circuit verifyCreditworthiness(
+  minCreditScore: Unsigned<256>,
+  maxDebtRatio: Unsigned<256>,
+  minIncome: Unsigned<256>
+): Boolean {
+  witness score = sk_state.creditScore;
+  witness debt = sk_state.debtRatio;
+  witness income = sk_state.income;
+  
+  // Multiple conditions verified privately
+  const goodCredit = score >= disclose(minCreditScore);
+  const acceptableDebt = debt <= disclose(maxDebtRatio);
+  const sufficientIncome = income >= disclose(minIncome);
+  
+  // Combined verification
+  const isQualified = goodCredit && acceptableDebt && sufficientIncome;
+  
+  // Generate verification token
+  if (isQualified) {
+    const token = hash(score || debt || income || getCurrentTimestamp());
+    ledger.qualificationTokens[token] = true;
+  }
+  
+  return isQualified;
+}
+```
+
+</Step>
+<Step>
+
+**Create selective disclosure mechanisms for partial revelation.** Allow controlled disclosure of specific attributes while keeping others private.
+
+```typescript
+// TypeScript implementation for selective disclosure
+interface SelectiveDisclosure<T> {
+  privateData: T;
+  disclosurePolicy: DisclosurePolicy;
+  
+  generateProof(attributes: string[]): Proof;
+  verifyProof(proof: Proof): boolean;
+}
+
+class IdentityDisclosure implements SelectiveDisclosure<Identity> {
+  constructor(
+    private privateData: Identity,
+    public disclosurePolicy: DisclosurePolicy
+  ) {}
+  
+  async generateProof(requestedAttributes: string[]): Promise<Proof> {
+    // Check disclosure policy
+    const allowedAttributes = requestedAttributes.filter(
+      attr => this.disclosurePolicy.allows(attr)
+    );
+    
+    // Create witness for circuit
+    const witness = {
+      fullData: this.privateData,
+      disclosedAttributes: allowedAttributes
+    };
+    
+    // Call circuit to generate proof
+    const circuit = await loadCircuit("selectiveDisclosure");
+    const proof = await circuit.prove(witness);
+    
+    return proof;
+  }
+  
+  async verifyProof(proof: Proof): Promise<boolean> {
+    const verifier = await loadVerifier("selectiveDisclosure");
+    return await verifier.verify(proof);
+  }
+}
+```
+
+</Step>
+<Step>
+
+**Implement Merkle tree verification for large dataset membership.** Verify inclusion in large sets efficiently without revealing position or other members.
+
+```compact
+// Merkle tree for private set membership
+struct MerkleProof {
+  leaf: Bytes<32>,
+  path: Vector<Bytes<32>>,
+  indices: Vector<Boolean>
+}
+
+export circuit verifyMembership(
+  merkleRoot: Bytes<32>
+): Boolean {
+  witness proof: MerkleProof = sk_state.membershipProof;
+  
+  // Compute root from leaf and path
+  let computedHash = proof.leaf;
+  
+  for (i in 0..proof.path.length()) {
+    const sibling = proof.path[i];
+    const isLeft = proof.indices[i];
+    
+    if (isLeft) {
+      computedHash = hash(computedHash || sibling);
+    } else {
+      computedHash = hash(sibling || computedHash);
+    }
+  }
+  
+  // Verify computed root matches public root
+  return computedHash == disclose(merkleRoot);
+}
+```
+
+</Step>
+<Step>
+
+**Build accumulator-based verification for dynamic sets.** Use cryptographic accumulators for efficient membership proofs in changing datasets.
+
+```typescript
+class CryptographicAccumulator {
+  private accumulator: bigint;
+  private witnesses: Map<string, AccumulatorWitness>;
+  
+  constructor(private prime: bigint, private generator: bigint) {
+    this.accumulator = this.generator;
+    this.witnesses = new Map();
+  }
+  
+  // Add element to accumulator
+  async addElement(element: string): Promise<void> {
+    const elementHash = await hashToPrime(element);
+    
+    // Update accumulator
+    this.accumulator = modPow(
+      this.accumulator,
+      elementHash,
+      this.prime
+    );
+    
+    // Update all existing witnesses
+    for (const [id, witness] of this.witnesses) {
+      if (id !== element) {
+        witness.value = modPow(
+          witness.value,
+          elementHash,
+          this.prime
+        );
+      }
+    }
+    
+    // Create witness for new element
+    this.witnesses.set(element, {
+      value: this.calculateWitness(element),
+      element: element
+    });
+  }
+  
+  // Generate membership proof without revealing element
+  async generateMembershipProof(element: string): Promise<MembershipProof> {
+    const witness = this.witnesses.get(element);
+    if (!witness) {
+      throw new Error("Element not in accumulator");
+    }
+    
+    return {
+      witness: witness.value,
+      accumulator: this.accumulator,
+      // Proof that witness^element = accumulator
+      proof: await this.createZKProof(witness, element)
+    };
+  }
+  
+  // Verify membership without knowing element
+  async verifyMembership(proof: MembershipProof): Promise<boolean> {
+    return await this.verifyZKProof(proof);
+  }
+}
+```
+
+</Step>
+<Step>
+
+**Implement zero-knowledge range proofs with bulletproofs.** Create efficient range proofs for numerical values without revealing exact amounts.
+
+```compact
+// Bulletproof-style range verification
+export circuit verifyValueInRange(
+  min: Unsigned<256>,
+  max: Unsigned<256>,
+  commitment: Bytes<32>
+): Boolean {
+  witness value = sk_state.privateValue;
+  witness blinding = sk_state.blindingFactor;
+  
+  // Verify commitment matches
+  const computedCommitment = commit(value, blinding);
+  require(computedCommitment == disclose(commitment));
+  
+  // Prove value is in range [min, max]
+  const inRange = value >= disclose(min) && value <= disclose(max);
+  
+  // Additional range proof for powers of 2
+  const bits = decomposeToBits(value);
+  for (i in 0..bits.length()) {
+    require(bits[i] == 0 || bits[i] == 1);
+  }
+  
+  return inRange;
+}
+```
+
+</Step>
+</StepsProvider>
+
+## Advanced verification patterns
+
+### Compound proofs
+
+Combine multiple verification conditions into a single proof.
+
+```compact
+export circuit verifyCompleteProfile(): Boolean {
+  // Multiple private verifications
+  witness age = sk_state.age;
+  witness income = sk_state.income;
+  witness creditScore = sk_state.creditScore;
+  witness hasInsurance = sk_state.insuranceActive;
+  
+  // Compound verification
+  const ageValid = age >= 21 && age <= 65;
+  const incomeValid = income >= 50000;
+  const creditValid = creditScore >= 650;
+  const insured = hasInsurance == true;
+  
+  // All conditions must pass
+  const verified = ageValid && incomeValid && creditValid && insured;
+  
+  if (verified) {
+    // Generate unique verification token
+    const token = hash(
+      getCurrentTimestamp() || 
+      randomBytes(32)
+    );
+    ledger.verificationTokens[token] = true;
+  }
+  
+  return verified;
+}
+```
+
+### Comparative proofs
+
+Prove relationships between private values without revealing either value.
+
+```compact
+export circuit proveGreaterThan(
+  commitment1: Bytes<32>,
+  commitment2: Bytes<32>
+): Boolean {
+  witness value1 = sk_state.value1;
+  witness value2 = sk_state.value2;
+  witness blinding1 = sk_state.blinding1;
+  witness blinding2 = sk_state.blinding2;
+  
+  // Verify commitments
+  require(commit(value1, blinding1) == disclose(commitment1));
+  require(commit(value2, blinding2) == disclose(commitment2));
+  
+  // Prove relationship without revealing values
+  return value1 > value2;
+}
+```
+
+### Statistical proofs
+
+Prove statistical properties of private datasets.
+
+```typescript
+class StatisticalProofGenerator {
+  async proveAverage(
+    privateValues: bigint[],
+    claimedAverage: bigint,
+    tolerance: bigint
+  ): Promise<Proof> {
+    // Calculate actual average privately
+    const sum = privateValues.reduce((a, b) => a + b, 0n);
+    const count = BigInt(privateValues.length);
+    const actualAverage = sum / count;
+    
+    // Prove average is within tolerance
+    const difference = abs(actualAverage - claimedAverage);
+    const withinTolerance = difference <= tolerance;
+    
+    // Generate proof without revealing individual values
+    const witness = {
+      values: privateValues,
+      sum: sum,
+      count: count,
+      average: actualAverage
+    };
+    
+    return await this.circuit.prove(witness, {
+      publicInputs: {
+        claimedAverage,
+        tolerance,
+        result: withinTolerance
+      }
+    });
+  }
+  
+  async proveStandardDeviation(
+    privateValues: bigint[],
+    maxDeviation: bigint
+  ): Promise<Proof> {
+    // Complex statistical proof without revealing dataset
+    // Implementation details...
+  }
+}
+```
+
+## Security considerations
+
+### Preventing information leakage
+
+```typescript
+// Avoid timing attacks
+function constantTimeComparison(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
+  }
+  
+  return diff === 0;
+}
+
+// Add noise to prevent statistical analysis
+function addDifferentialPrivacy(value: bigint, epsilon: number): bigint {
+  const noise = generateLaplaceNoise(epsilon);
+  return value + BigInt(Math.floor(noise));
+}
+```
+
+### Input validation
+
+```compact
+export circuit secureVerification(input: Unsigned<256>): Boolean {
+  witness privateValue = sk_state.value;
+  
+  // Validate input bounds
+  require(input < 2**128);
+  
+  // Prevent overflow
+  const result = privateValue.safeAdd(input);
+  
+  // Additional checks
+  require(result.isValid());
+  
+  return result > 0;
+}
+```
+
+## Testing verification circuits
+
+```typescript
+import { CircuitTester } from '@midnight-ntwrk/circuit-testing';
+
+describe('Private verification tests', () => {
+  let tester: CircuitTester;
+  
+  beforeEach(async () => {
+    tester = await CircuitTester.create('verifyAge');
+  });
+  
+  test('Verifies adult age without revealing exact age', async () => {
+    const witness = {
+      age: 25n
+    };
+    
+    const proof = await tester.prove(witness);
+    const valid = await tester.verify(proof);
+    
+    expect(valid).toBe(true);
+    expect(proof.publicOutputs.isAdult).toBe(true);
+    expect(proof.publicOutputs.exactAge).toBeUndefined();
+  });
+  
+  test('Rejects invalid age', async () => {
+    const witness = {
+      age: 16n
+    };
+    
+    const proof = await tester.prove(witness);
+    const valid = await tester.verify(proof);
+    
+    expect(valid).toBe(true);
+    expect(proof.publicOutputs.isAdult).toBe(false);
+  });
+});
+```
+
+## Next steps
+
+You can consider implementing the following:
+
+- Multi-party computation for collaborative verification.
+- Recursive proofs for scalable verification chains.
+- Homomorphic commitments for updatable private values.
+- Threshold signatures for distributed verification.

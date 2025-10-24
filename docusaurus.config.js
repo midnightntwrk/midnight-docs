@@ -38,8 +38,8 @@ const config = {
   baseUrl: "/",
   trailingSlash: false,
 
-  organizationName: "facebook", // TODO: Update with real org name
-  projectName: "docusaurus", // TODO: Update with real repo name
+  organizationName: "midnightntwrk",
+  projectName: "midnight-docs",
 
   onBrokenLinks: "warn",
   onBrokenMarkdownLinks: "warn",
@@ -140,7 +140,10 @@ const config = {
           : undefined,
         docs: {
           sidebarPath: require.resolve("./sidebars.js"),
-          routeBasePath: "/"
+          routeBasePath: "/",
+          editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+          showLastUpdateAuthor: false,
+          showLastUpdateTime: true,
         },
         blog: false,
         theme: {

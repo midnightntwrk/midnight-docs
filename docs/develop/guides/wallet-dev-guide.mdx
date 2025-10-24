@@ -18,21 +18,21 @@ It all, to implement robustly, is a non-trivial amount of work. For that reason,
 - `@midnight-ntwrk/zswap` - reference implementation of building blocks of [Zswap](/learn/understanding-midnights-technology/zswap)
 - `@midnight-ntwrk/dapp-connector-api` - description of the API meant to be injected by browser extensions to enable DApp connections.
 - `@midnight-ntwrk/wallet-sdk-hd` - provides support for Hierarchical Deterministic (HD) Wallet.
-- `@midnight-ntwrk/wallet-sdk-address-format` - provides support for bech32m address format, allows parsing from to/hex.
+- `@midnight-ntwrk/wallet-sdk-address-format` - provides support for Bech32m address format, allows parsing from to/hex.
 
 ## Installing
 
 The Midnight wallet SDK is provided as an NPM package `@midnight-ntwrk/wallet`. 
 
 :::important
-Version 4.0.0 introduces several breaking changes! Ensure you are referencing the correct version as defined in the [release compatibility matrix](../../relnotes/comp-matrix).
+Version 4.0.0 introduces several breaking changes! Ensure you are referencing the correct version as defined in the [release compatibility matrix](../../relnotes/support-matrix).
 :::
 
 You can install it using any node package manager, including Yarn. To install the package using Yarn, run the following command:
 
 `yarn add @midnight-ntwrk/wallet/<VERSION>`
 
-Replace `<VERSION>` with the required version of the wallet SDK according to the [release compatibility matrix](../../relnotes/comp-matrix).
+Replace `<VERSION>` with the required version of the wallet SDK according to the [release compatibility matrix](../../relnotes/support-matrix).
 
 
 ## Important information
@@ -54,14 +54,62 @@ import { WalletBuilder } from '@midnight-ntwrk/wallet';
 ```
 
 Next, the builder can be used to build instances:
-- From a seed
+- From a wallet-specific seed
 - From a serialized state snapshot (requires the original seed)
 
 :::important
 As of version 4.0.0, the `.build()` method requires an explicit seed parameter. The `.buildFromSeed()` method is deprecated and will be removed in a future release.
 :::
 
-### Creating instance from a seed
+### Obtaining wallet seed
+
+While in testing scenarios it is fine to take random bytes as the wallet seed (it is used to derive the specific secret keys), in practice, you need an HD wallet derivation. 
+The package `@midnight-ntwrk/wallet-sdk-hd` helps with that task. It implements BIP-32-based derivation following the path:
+```text
+m / 44' / 2400' / account' / role / index
+```
+
+Where:
+- `account` follows BIP-44 recommendations
+- `role` is integer `3` for Zswap role (`Roles.Zswap`); other roles are reserved for future implementations
+- `index` follows BIP-44 recommendations
+
+:::note
+This package does not handle the mnemonic-to-seed conversion. If you need to use a mnemonic, you need to convert it to a seed first using a BIP-39 implementation.
+:::
+
+```typescript
+import {
+  generateRandomSeed,
+  HDWallet,
+  Roles,
+} from "@midnight-ntwrk/wallet-sdk-hd";
+
+const seed = generateRandomSeed();
+
+function deriveDefaultWalletSeed(seed: Uint8Array) {
+  const generatedWallet = HDWallet.fromSeed(seed);
+
+  if (generatedWallet.type != "seedOk") {
+    throw new Error("Error initializing HD Wallet");
+  }
+
+  const zswapKey = generatedWallet.hdWallet
+    .selectAccount(0)
+    .selectRole(Roles.Zswap)
+    .deriveKeyAt(0);
+
+  if (zswapKey.type === "keyDerived") {
+    return zswapKey.key;
+  } else {
+    throw new Error("Error deriving key");
+  }
+}
+
+console.log(deriveDefaultWalletSeed(seed));
+```
+
+### Creating instance from a wallet seed
 
 The wallet builder offers a method that enables you to instantiate a wallet with a specific seed, resulting in obtaining the same address and keys but with a fresh state that is then synchronized with the indexer. The method requires the following parameters (in the exact order):
 
@@ -200,6 +248,59 @@ wallet.state().subscribe((state) => {
   console.log(state);
 });
 ```
+
+## Addresses
+
+Midnight wallet uses Bech32m address format by default, as implemented in `@midnight-ntwrk/wallet-sdk-address-format` package. It provides utilities to encode/decode Bech32m format while handling the Midnight-specific human-readable part, as well as defines types for the addresses in use.
+
+The human-readable prefix of any address consists of following parts, separated by an underscore (`_`):
+- constant `mn` indicating it is a Midnight address
+- type of address encoded, now, only `shield-addr` for a payment address is used, as well as `shield-esk` when interacting with the Indexer. Future implementations will use other types as well
+- network identifier, one of the following:
+  - mainnet - omit
+  - testnet - "test"
+  - devnet - "dev"
+  - undeployed - "undeployed" 
+
+An example of encoding and decoding an address for testnet is shown below:
+```typescript
+import {
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
+  MidnightBech32m,
+} from "@midnight-ntwrk/wallet-sdk-address-format";
+import { NetworkId } from "@midnight-ntwrk/zswap";
+import { Buffer } from "buffer";
+
+const coinPublicKey = new ShieldedCoinPublicKey(
+  Buffer.from(
+    "064e092a80b33bee23404c46cfc48fec75a2356a9b01178dd6a62c29f5896f67",
+    "hex",
+  ),
+);
+const encryptionPublicKey = new ShieldedEncryptionPublicKey(
+  Buffer.from(
+    "0300063c7753854aea18aa11f04d77b3c7eaa0918e4aa98d5eaf0704d8f4c2fc272899efbb8a71275f2a1aedd29f879021e0962b4730f9b47e1a",
+    "hex",
+  ),
+);
+const address = new ShieldedAddress(coinPublicKey, encryptionPublicKey);
+const encodedAddress: string = ShieldedAddress.codec
+  .encode(NetworkId.TestNet, address)
+  .asString();
+console.log(encodedAddress); //prints addr_test1qe8qj25qkva7ug6qf3rvl3y0a366ydt2nvq30rwk5ckznavfdansxqqx83m48p22agv25y0sf4mm83l25zgcuj4f34027pcymr6v9lp89zv7lwu2wyn472s6ahfflpusy8sfv268xrumgls62hqz4u
+
+const parsedAddress: MidnightBech32m = MidnightBech32m.parse(encodedAddress);
+const decodedAddress: ShieldedAddress = ShieldedAddress.codec.decode(
+  NetworkId.TestNet,
+  parsedAddress,
+);
+console.log(decodedAddress.coinPublicKeyString()); // prints 064e092a80b33bee23404c46cfc48fec75a2356a9b01178dd6a62c29f5896f67
+console.log(decodedAddress.encryptionPublicKeyString()); // prints 0300063c7753854aea18aa11f04d77b3c7eaa0918e4aa98d5eaf0704d8f4c2fc272899efbb8a71275f2a1aedd29f879021e0962b4730f9b47e1a
+
+```
+
 
 ## Working with transactions
 

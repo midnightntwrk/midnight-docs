@@ -1,0 +1,459 @@
+---
+title: Interact with deployed contract
+description: Build a command-line interface to interact with a deployed Hello World contract on Midnight Testnet.
+sidebar_position: 4
+sidebar_label: Interact with an MN app
+tags: [interaction, smart-contract, tutorial, testnet]
+slug: /getting-started/interact-with-mn-app
+toc_max_heading_level: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Interact with a deployed contract
+
+After deployment, you can use the CLI to interact with the Hello World contract on Midnight Testnet.
+
+## Prerequisites
+
+The following is required:
+
+- A `deployment.json` file containing contract address
+- A 64-character hexadecimal wallet seed
+- Project with all dependencies installed using `npm install`
+
+## Create an interactive CLI script
+
+Add a script to your project that provides an interactive menu for calling contract functions.
+
+### Update `package.json`
+
+To start, add the CLI script to the `scripts` section in `package.json`:
+
+```json
+"scripts": {
+  "compile": "cd contracts && compact compile hello-world.compact .",
+  "build": "tsc",
+  "deploy": "node dist/deploy.js",
+  "cli": "node dist/cli.js"
+}
+```
+
+## Create the CLI script
+
+<StepsProvider>
+<Step>
+
+**Create a new TypeScript file for the CLI.** This file contains all the logic for interacting with the deployed contract.
+
+```bash
+touch src/cli.ts
+```
+
+</Step>
+<Step>
+
+**Import required libraries for contract interaction.** These modules provide wallet management, contract connectivity, and command-line interface functionality.
+
+Add to `src/cli.ts`:
+
+```typescript
+import * as readline from "readline/promises";
+import { WalletBuilder } from "@midnight-ntwrk/wallet";
+import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { NodeZkConfigProvider } from "@midnight-ntwrk/midnight-js-node-zk-config-provider";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import {
+  NetworkId,
+  setNetworkId,
+  getZswapNetworkId,
+  getLedgerNetworkId,
+} from "@midnight-ntwrk/midnight-js-network-id";
+import { createBalancedTx } from "@midnight-ntwrk/midnight-js-types";
+import { Transaction } from "@midnight-ntwrk/ledger";
+import { Transaction as ZswapTransaction } from "@midnight-ntwrk/zswap";
+import { WebSocket } from "ws";
+import * as path from "path";
+import * as fs from "fs";
+import * as Rx from "rxjs";
+```
+
+</Step>
+<Step>
+
+**Configure network settings for Midnight Testnet connection.** This establishes the endpoints needed to communicate with the blockchain network.
+
+```typescript
+// Fix WebSocket for Node.js environment
+// @ts-ignore
+globalThis.WebSocket = WebSocket;
+
+// Configure for Midnight Testnet
+setNetworkId(NetworkId.TestNet);
+
+// Testnet connection endpoints
+const TESTNET_CONFIG = {
+  indexer: "https://indexer.testnet-02.midnight.network/api/v1/graphql",
+  indexerWS: "wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws",
+  node: "https://rpc.testnet-02.midnight.network",
+  proofServer: "http://127.0.0.1:6300",
+};
+```
+
+</Step>
+<Step>
+
+**Create the main function that initializes the CLI interface.** This function checks for deployment files and prompts for wallet credentials.
+
+```typescript
+async function main() {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  console.log("Hello World Contract CLI\n");
+
+  try {
+    // Check for deployment file
+    if (!fs.existsSync("deployment.json")) {
+      console.error("No deployment.json found! Run npm run deploy first.");
+      process.exit(1);
+    }
+
+    const deployment = JSON.parse(fs.readFileSync("deployment.json", "utf-8"));
+    console.log(`Contract: ${deployment.contractAddress}\n`);
+
+    // Get wallet seed
+    const walletSeed = await rl.question("Enter your wallet seed: ");
+
+    console.log("\nConnecting to Midnight network...");
+
+    // Additional logic follows...
+
+  } catch (error) {
+    console.error("\nError:", error);
+  } finally {
+    rl.close();
+  }
+}
+```
+
+</Step>
+<Step>
+
+**Build and synchronize the wallet with the network.** This creates a wallet instance from the seed and waits for it to sync with the blockchain state.
+
+Add inside `try` block:
+
+```typescript
+// Build wallet
+const wallet = await WalletBuilder.buildFromSeed(
+  TESTNET_CONFIG.indexer,
+  TESTNET_CONFIG.indexerWS,
+  TESTNET_CONFIG.proofServer,
+  TESTNET_CONFIG.node,
+  walletSeed,
+  getZswapNetworkId(),
+  "info"
+);
+
+wallet.start();
+
+// Wait for sync
+await Rx.firstValueFrom(
+  wallet.state().pipe(Rx.filter((s) => s.syncProgress?.synced === true))
+);
+```
+
+</Step>
+<Step>
+
+**Load the compiled contract module from the file system.** This imports the contract code that was compiled in the previous steps.
+
+```typescript
+// Load contract
+const contractPath = path.join(process.cwd(), "contracts");
+const contractModulePath = path.join(
+  contractPath,
+  "managed",
+  "hello-world",
+  "contract",
+  "index.cjs"
+);
+const HelloWorldModule = await import(contractModulePath);
+const contractInstance = new HelloWorldModule.Contract({});
+```
+
+</Step>
+<Step>
+
+**Create a wallet provider to handle transaction operations.** This provider manages the cryptographic signing and submission of transactions to the network.
+
+```typescript
+// Create wallet provider
+const walletState = await Rx.firstValueFrom(wallet.state());
+
+const walletProvider = {
+  coinPublicKey: walletState.coinPublicKey,
+  encryptionPublicKey: walletState.encryptionPublicKey,
+  balanceTx(tx: any, newCoins: any) {
+    return wallet
+      .balanceTransaction(
+        ZswapTransaction.deserialize(
+          tx.serialize(getLedgerNetworkId()),
+          getZswapNetworkId()
+        ),
+        newCoins
+      )
+      .then((tx) => wallet.proveTransaction(tx))
+      .then((zswapTx) =>
+        Transaction.deserialize(
+          zswapTx.serialize(getZswapNetworkId()),
+          getLedgerNetworkId()
+        )
+      )
+      .then(createBalancedTx);
+  },
+  submitTx(tx: any) {
+    return wallet.submitTransaction(tx);
+  },
+};
+```
+
+</Step>
+<Step>
+
+**Configure providers and establish connection to the deployed contract.** These providers handle state management, data queries, and proof generation for contract interactions.
+
+```typescript
+// Configure providers
+const providers = {
+  privateStateProvider: levelPrivateStateProvider({
+    privateStateStoreName: "hello-world-state",
+  }),
+  publicDataProvider: indexerPublicDataProvider(
+    TESTNET_CONFIG.indexer,
+    TESTNET_CONFIG.indexerWS
+  ),
+  zkConfigProvider: new NodeZkConfigProvider(contractPath),
+  proofProvider: httpClientProofProvider(TESTNET_CONFIG.proofServer),
+  walletProvider: walletProvider,
+  midnightProvider: walletProvider,
+};
+
+// Connect to contract
+const deployed: any = await findDeployedContract(providers, {
+  contractAddress: deployment.contractAddress,
+  contract: contractInstance,
+  privateStateId: "helloWorldState",
+  initialPrivateState: {},
+});
+
+console.log("Connected to contract\n");
+```
+
+</Step>
+<Step>
+
+**Implement the interactive menu loop for user operations.** This creates a command-line menu that allows users to store messages, read messages, or exit the application.
+
+```typescript
+// Main menu loop
+let running = true;
+while (running) {
+  console.log("--- Menu ---");
+  console.log("1. Store message");
+  console.log("2. Read current message");
+  console.log("3. Exit");
+
+  const choice = await rl.question("\nYour choice: ");
+
+  switch (choice) {
+    case "1":
+      console.log("\nStoring custom message...");
+      const customMessage = await rl.question("Enter your message: ");
+      try {
+        const tx = await deployed.callTx.storeMessage(customMessage);
+        console.log("Success!");
+        console.log(`Message: "${customMessage}"`);
+        console.log(`Transaction ID: ${tx.public.txId}`);
+        console.log(`Block height: ${tx.public.blockHeight}\n`);
+      } catch (error) {
+        console.error("Failed to store message:", error);
+      }
+      break;
+
+    case "2":
+      console.log("\nReading message from blockchain...");
+      try {
+        const state = await providers.publicDataProvider.queryContractState(
+          deployment.contractAddress
+        );
+        if (state) {
+          const ledger = HelloWorldModule.ledger(state.data);
+          const message = Buffer.from(ledger.message).toString();
+          console.log(`Current message: "${message}"\n`);
+        } else {
+          console.log("No message found\n");
+        }
+      } catch (error) {
+        console.error("Failed to read message:", error);
+      }
+      break;
+
+    case "3":
+      running = false;
+      console.log("\nGoodbye!");
+      break;
+
+    default:
+      console.log("Invalid choice. Please enter 1, 2, or 3.\n");
+  }
+}
+
+// Clean up
+await wallet.close();
+```
+
+</Step>
+<Step>
+
+**Add the main function call to start the CLI application.** This line at the end of the file initiates the script execution.
+
+```typescript
+main().catch(console.error);
+```
+
+</Step>
+<Step>
+
+**Start the proof server in a new terminal window.** This Docker container generates the zero-knowledge proofs required for contract interactions.
+
+Open a new terminal and run:
+
+```bash
+docker run -p 6300:6300 midnightnetwork/proof-server -- 'midnight-proof-server --network testnet'
+```
+
+Keep this terminal open while running the CLI.
+
+</Step>
+<Step>
+
+**Compile the TypeScript CLI application to JavaScript.** This converts the TypeScript code into executable JavaScript that Node.js can run.
+
+In the original terminal:
+
+```bash
+npm run build
+```
+
+</Step>
+<Step>
+
+**Run the CLI application to interact with the contract.** This starts the interactive menu system for reading and writing messages to the blockchain.
+
+```bash
+npm run cli
+```
+
+Follow the prompts to:
+- Enter wallet seed when prompted
+- Wait for script to connect to network and sync wallet
+- Use menu to interact with contract
+
+</Step>
+</StepsProvider>
+
+## Understand CLI options
+
+The CLI presents an interactive menu with various options for interacting with the deployed contract. Each option performs a specific blockchain operation, from writing data to the contract to reading its current state.
+
+<br />
+
+<Tabs>
+<TabItem value="store" label="Store messages">
+
+**Store a new message on the blockchain**
+
+Calls `storeMessage` function in smart contract to write a new message:
+
+- Prompts for custom message input
+- Creates transaction and generates zero-knowledge proof
+- Submits transaction to blockchain
+- Costs gas fees and takes 10-30 seconds to complete
+
+**Example output**:
+
+```
+Storing custom message...
+Enter your message: Privacy is powerful!
+Success!
+Message: "Privacy is powerful!"
+Transaction ID: 0x5678...efgh
+Block height: 123457
+```
+
+</TabItem>
+<TabItem value="read" label="Read messages">
+
+**Read the current message from the blockchain**
+
+Queries public state of contract to retrieve the stored message:
+
+- Queries indexer for contract data
+- No transaction created, no proof generated
+- Free and instant operation
+- Returns immediately with current message
+
+**Example output**:
+
+```
+Reading message from blockchain...
+Current message: "Privacy is powerful!"
+```
+
+</TabItem>
+<TabItem value="exit" label="Exit">
+
+**Exit the CLI application**
+
+Safely terminates the program:
+
+- Closes wallet connection
+- Releases network resources
+- Exits the application cleanly
+
+**Example output**:
+
+```
+Goodbye!
+```
+
+</TabItem>
+</Tabs>
+
+:::tip Multiple interactions
+You can call `storeMessage()` multiple times. Each call creates a new transaction that updates contract state with the latest message.
+:::
+
+## Next steps
+
+The CLI successfully interacts with a privacy-preserving smart contract that accepts user input. You can explore advanced features:
+
+### Enhanced contract features
+
+- **Message validation**: Add logic to contract to enforce length limits or filter content
+- **Message history**: Modify contract to store an array of past messages
+- **Private messaging**: Use private state and witnesses to store confidential data
+
+### UI improvements
+
+- **Web interface**: Build frontend using React or Next.js
+- **Real-time updates**: Use WebSocket connection to listen for blockchain events
+- **Transaction status**: Display status of pending and confirmed transactions
