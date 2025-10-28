@@ -200,6 +200,14 @@ const config = {
       },
       items: [
         {
+          type: "docSidebar",
+          sidebarId: "compact",
+          docId: "develop/reference/compact/index",
+          label: "Compact",
+          position: "left",
+          className: "hide-on-mobile"
+        },
+        {
           to: "/blog",
           label: "Dev Diaries",
           position: "left",
@@ -214,6 +222,15 @@ const config = {
           activeBasePath: "/academy",
           activeBaseRegex: "^/academy/?",
           className: "hide-on-mobile"
+        },
+        
+        {
+          type: "docSidebar",
+          sidebarId: "compact",
+          docId: "develop/reference/compact/index",
+          label: "Compact language",
+          position: "left",
+          className: "hide-on-desktop"
         },
         {
           to: "/blog",

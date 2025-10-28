@@ -222,51 +222,17 @@ module.exports = {
       ]
     },
 
-    // COMPACT LANGUAGE - All existing content
+    // COMPACT LANGUAGE
     {
       type: "category",
       label: "Compact language",
       collapsed: true,
       items: [
         {
-          type: "category",
-          label: "Language reference",
-          link: { type: "doc", id: "develop/reference/compact/index" },
-          items: [
-            "develop/reference/compact/writing",
-            "develop/reference/compact/lang-ref",
-            "develop/reference/compact/compact-grammar",
-            "develop/reference/compact/ledger-adt",
-            "develop/reference/compact/opaque_data",
-            "develop/reference/compact/explicit_disclosure",
-            {
-              type: "category",
-              label: "Compact standard library",
-              link: {
-                type: "doc",
-                id: "develop/reference/compact/compact-std-library/README"
-              },
-              items: ["develop/reference/compact/compact-std-library/exports"]
-            }
-          ]
-        },
-        {
-          type: "category",
-          label: "Tools",
-          link: { type: "doc", id: "develop/reference/tools/index" },
-          items: [
-            "develop/reference/tools/compiler-usage",
-            {
-              type: "category",
-              label: "VS Code plugin",
-              link: {
-                type: "doc",
-                id: "develop/reference/tools/vsc-plugin/index"
-              },
-              items: []
-            }
-          ]
-        }
+          type: "doc",
+          id: "develop/reference/compact/index",
+          label: "Open Compact language docs"
+        } 
       ]
     },
 
@@ -1068,7 +1034,7 @@ module.exports = {
           ]
         }
       ]
-    },
+    }, 
 
     // TROUBLESHOOTING
     {
@@ -1194,7 +1160,7 @@ module.exports = {
           label: "Compatibility matrix"
         }
       ]
-    },
+    }, 
 
     // GLOSSARY
     {
@@ -1208,6 +1174,56 @@ module.exports = {
       type: "link",
       label: "Dev diaries",
       href: "/blog"
+    }
+  ],
+
+  // Standalone sidebar showing only Compact language content
+  compact: [
+    {
+      type: "category",
+      label: "Compact language",
+      collapsed: false,
+      items: [
+        {
+          type: "category",
+          label: "Language reference",
+          link: { type: "doc", id: "develop/reference/compact/index" },
+          items: [
+            "develop/reference/compact/writing",
+            "develop/reference/compact/lang-ref",
+            "develop/reference/compact/compact-grammar",
+            "develop/reference/compact/ledger-adt",
+            "develop/reference/compact/opaque_data",
+            "develop/reference/compact/explicit_disclosure",
+            {
+              type: "category",
+              label: "Compact standard library",
+              link: {
+                type: "doc",
+                id: "develop/reference/compact/compact-std-library/README"
+              },
+              items: ["develop/reference/compact/compact-std-library/exports"]
+            }
+          ]
+        },
+        {
+          type: "category",
+          label: "Tools",
+          link: { type: "doc", id: "develop/reference/tools/index" },
+          items: [
+            "develop/reference/tools/compiler-usage",
+            {
+              type: "category",
+              label: "VS Code plugin",
+              link: {
+                type: "doc",
+                id: "develop/reference/tools/vsc-plugin/index"
+              },
+              items: []
+            }
+          ]
+        }
+      ]
     }
   ]
 };
