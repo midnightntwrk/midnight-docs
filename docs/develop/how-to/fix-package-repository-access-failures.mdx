@@ -1,0 +1,364 @@
+---
+title: Fix package repository access failures (403 errors)
+description: Resolve 403 Forbidden errors when installing Midnight npm packages with three proven solutions.
+sidebar_label: Fix Package Repository Issues
+sidebar_position: 7
+tags: [npm, installation, errors]
+slug: /how-to/fix-package-repository-access-failures
+toc_max_heading_level: 2
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# How to fix package repository access failures (403 errors)
+
+Resolve 403 Forbidden errors encountered when installing Midnight packages.
+
+## Understanding the error
+
+When installing Midnight packages, the following errors may appear:
+
+```bash
+npm install @midnight-ntwrk/compact-runtime
+
+npm ERR! code E403
+npm ERR! 403 Forbidden - GET https://registry.npmjs.org/@midnight-ntwrk/compact-runtime
+npm ERR! 403 In most cases, you or one of your dependencies are requesting
+npm ERR! 403 a package version that is forbidden by your security policy
+```
+
+## Solution 1: Reset npm registry
+
+The most common cause is an npm configuration pointing to the wrong registry.
+
+<StepsProvider>
+
+<Step>
+
+### Check current registry
+
+```bash
+npm config get registry
+```
+
+If the output differs from https://registry.npmjs.org/, the registry configuration is incorrect.
+
+</Step>
+
+<Step>
+
+### Reset to default registry
+
+```bash
+npm config set registry https://registry.npmjs.org/
+npm config delete @midnight-ntwrk:registry
+npm cache clean --force
+```
+
+</Step>
+
+<Step>
+
+### Test installation
+
+```bash
+npm install @midnight-ntwrk/compact-runtime
+```
+
+**Verification**: Package installs successfully without errors.
+
+</Step>
+
+</StepsProvider>
+
+## Solution 2: Fix VPN and proxy issues
+
+Corporate VPNs or proxies can block npm access.
+
+<StepsProvider>
+
+<Step>
+
+### Disable VPN temporarily
+
+:::info Corporate Networks
+On corporate networks, disabling a VPN connection may not be permitted.
+:::
+
+Disconnect from the VPN and test:
+
+```bash
+npm install @midnight-ntwrk/compact-runtime
+```
+
+If the installation succeeds, VPN restrictions are blocking npm access. Configure proxy settings instead.
+
+</Step>
+
+<Step>
+
+### Configure proxy (if VPN is required)
+
+```bash
+# Set proxy settings
+npm config set proxy http://proxy.company.com:8080
+npm config set https-proxy http://proxy.company.com:8080
+
+# With authentication
+npm config set proxy http://username:password@proxy.company.com:8080
+npm config set https-proxy http://username:password@proxy.company.com:8080
+```
+
+</Step>
+
+<Step>
+
+### Test installation
+
+```bash
+npm install @midnight-ntwrk/compact-runtime
+```
+
+**Verification**: Package installs successfully through proxy.
+
+</Step>
+
+</StepsProvider>
+
+## Solution 3: Clear configuration and start fresh
+
+Conflicting npm configurations can cause 403 errors. Reset npm to restore defaults.
+
+<StepsProvider>
+
+<Step>
+
+### Back up and clear configuration
+
+:::warning Important
+Back up the npm configuration before clearing it, as this process removes all custom settings.
+:::
+
+```bash
+# Back up existing config
+cp ~/.npmrc ~/.npmrc.backup
+
+# Remove all settings
+npm config delete registry
+npm config delete proxy
+npm config delete https-proxy
+npm config delete @midnight-ntwrk:registry
+```
+
+</Step>
+
+<Step>
+
+### Set defaults and clean project
+
+:::caution Data Loss Warning
+The following commands delete node_modules and package-lock.json. Ensure the correct project directory is active before proceeding.
+:::
+
+```bash
+# Set registry
+npm config set registry https://registry.npmjs.org/
+
+# Clean project
+rm -rf node_modules package-lock.json
+npm cache clean --force
+```
+
+</Step>
+
+<Step>
+
+### Test installation
+
+```bash
+npm install @midnight-ntwrk/compact-runtime
+```
+
+**Verification**: Package installs successfully.
+
+</Step>
+
+</StepsProvider>
+
+## Platform-specific fixes
+
+<Tabs>
+<TabItem value="windows" label="Windows/WSL">
+
+```bash
+# Configure git line endings
+git config --global core.autocrlf false
+
+# Use native WSL paths (not /mnt/c/...)
+cd /home/yourusername/project
+
+# Clear Windows npm cache
+rm -rf /mnt/c/Users/YourName/AppData/Roaming/npm-cache
+```
+
+</TabItem>
+<TabItem value="linux" label="Linux">
+
+```bash
+# Configure npm without sudo
+mkdir ~/.npm-global
+npm config set prefix '~/.npm-global'
+
+# Add to ~/.bashrc
+export PATH=~/.npm-global/bin:$PATH
+source ~/.bashrc
+```
+
+</TabItem>
+<TabItem value="mac" label="macOS">
+
+:::note macOS Security
+The system may prompt for a password when running this command.
+:::
+
+```bash
+# Clear keychain credentials
+security delete-generic-password -s 'npm' -a 'bearer'
+```
+
+</TabItem>
+</Tabs>
+
+## Quick fix script
+
+Create an automated fix script:
+
+```bash title="fix-midnight-npm.sh"
+#!/bin/bash
+
+echo "🔧 Fixing Midnight npm installation..."
+
+# Clear configuration
+npm config delete registry
+npm config delete @midnight-ntwrk:registry
+npm config delete proxy
+npm config delete https-proxy
+
+# Set defaults
+npm config set registry https://registry.npmjs.org/
+npm cache clean --force
+
+# Clean project (only if package.json exists)
+if [ -f "package.json" ]; then
+    echo "📁 Cleaning project files..."
+    rm -rf node_modules package-lock.json
+else
+    echo "⚠️  No package.json found - skipping project cleanup"
+fi
+
+# Test installation
+echo "🧪 Testing package installation..."
+npm install @midnight-ntwrk/compact-runtime
+
+if [ $? -eq 0 ]; then
+    echo "✅ Success! Midnight packages are accessible."
+else
+    echo "❌ Installation failed. Try disconnecting from VPN or checking firewall settings."
+fi
+```
+
+Run the script:
+
+```bash
+chmod +x fix-midnight-npm.sh
+./fix-midnight-npm.sh
+```
+
+## Verify the fix
+
+Confirm that all configurations and installations are functioning correctly:
+
+```bash
+# Check registry
+npm config get registry
+# Expected output: https://registry.npmjs.org/
+
+# Test package access
+npm view @midnight-ntwrk/compact-runtime
+# Expected output: package information
+
+# Verify installation
+npm install @midnight-ntwrk/compact-runtime
+# Expected result: successful installation
+```
+
+## Still not working?
+
+<details>
+<summary><strong>Enable verbose logging</strong></summary>
+
+Display detailed error information:
+
+```bash
+npm install @midnight-ntwrk/compact-runtime --verbose
+```
+
+Common issues include:
+
+- SSL certificate issues
+- Proxy configuration problems
+- DNS resolution failures
+
+</details>
+
+<details>
+<summary><strong>Test direct connection</strong></summary>
+
+Verify registry access:
+
+```bash
+curl https://registry.npmjs.org/@midnight-ntwrk/compact-runtime
+```
+
+A failed request indicates a network connectivity issue.
+
+</details>
+
+## Next steps
+
+After installation completes successfully, verify the development environment:
+
+```bash
+# Check installed packages
+npm list @midnight-ntwrk
+
+# Verify compiler
+compact --version
+
+# Test runtime import
+node -e "const runtime = require('@midnight-ntwrk/compact-runtime'); console.log('✅ Runtime loaded');"
+```
+
+:::tip Related guides
+
+## Install Development Tools
+
+- [Installation guide](/getting-started/installation) - Comprehensive setup guide covering the Lace wallet, test tokens, Compact compiler, and proof server installation
+
+- [Build a DApp tutorial](/develop/tutorial/building/) - Detailed instructions for installing Node.js, the Compact developer tools, and verifying your installation
+
+- [Install the Compact developer tools](/develop/tutorial/building/#install-the-compact-developer-tools) - Specific section on installing and managing the Compact compiler toolchain
+
+## Configure Your Environment
+
+- [Development Environment for Writing and Deploying Midnight Applications](/academy/module-5#development-environment-for-writing-and-deploying-midnight-applications) - Step-by-step environment setup including Docker, Chrome browser, Lace wallet, and proof server configuration
+
+- [Environment Setup and First Contract](/academy/module-6#environment-setup-and-first-contract) - Foundational steps for configuring your development environment with all necessary tools
+
+- [Prerequisites](/develop/tutorial/using/) - Platform requirements and Docker setup instructions
+
+These guides cover everything from basic prerequisites (Docker, Node.js) to installing the Compact compiler and setting up the proof server for local development.
+
+:::
