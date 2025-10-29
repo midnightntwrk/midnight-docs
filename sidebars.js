@@ -97,6 +97,11 @@ module.exports = {
         },
         {
           type: "doc",
+          id: "develop/how-to/react-wallet-connect",
+          label: "Create a React Wallet Connector"
+        },
+        {
+          type: "doc",
           id: "develop/how-to/verify-private-data",
           label: "Verify private data"
         },
