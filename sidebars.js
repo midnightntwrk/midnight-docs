@@ -102,6 +102,11 @@ module.exports = {
         },
         {
           type: "doc",
+          id: "develop/how-to/nextjs-wallet-connect",
+          label: "Create a NextJs Wallet Connector"
+        },
+        {
+          type: "doc",
           id: "develop/how-to/verify-private-data",
           label: "Verify private data"
         },
