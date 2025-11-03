@@ -3,33 +3,33 @@ SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 ---
 
-# The Compact JavaScript Runtime: run your contracts off-chain
+# The Compact JavaScript Implementation: run your contracts off-chain
 
 If you’ve written smart contracts before, you’re probably used to languages like Solidity or Rust that compile to on-chain bytecode.
 
 The **Midnight blockchain** takes a different approach. It uses a domain-specific language called **Compact**, designed from the ground up for [zero-knowledge smart contracts](https://docs.midnight.network/develop/reference/compact): programs that can prove that private data exists (and is known) and that satisfies the constraints required by the contract.
 
-When you compile a Compact contract, the compiler doesn’t just generate the zero-knowledge circuits. It also produces a **JavaScript runtime**, typically found in a file called `index.cjs` in a subfolder next to your `.compact` file.
+When you compile a Compact contract, the compiler doesn’t just generate the zero-knowledge circuits. It also produces a **JavaScript implementation**, typically found in a file called `index.cjs` in a subfolder next to your `.compact` file.
 
-This runtime lets you execute and test your Compact contract logic directly in JavaScript, using Node.js or any standard testing framework. It’s your bridge between the high-level Compact code and the low-level ZK circuit that runs on-chain.
+This implementation lets you execute and test your Compact contract logic directly in JavaScript, using Node.js or any standard testing framework. As we have not (yet) provided a Compact contract unit testing framework, but since contracts are compiled to JavaScript, you can write JavaScript unit tests against their JavaScript implementations. It’s your bridge between the high-level Compact code and the low-level ZK circuit that runs on-chain.
 
-In this tutorial, we’ll explore the [runtime generated for the bboard contract](https://github.com/midnightntwrk/example-bboard) in depth. You’ll learn:
+In this tutorial, we’ll explore the [implementation generated for the bboard contract](https://github.com/midnightntwrk/example-bboard) in depth. You’ll learn:
 
 * How the `index.cjs` file is generated during compilation
 
 * How it’s structured and what each section does
 
-* How the runtime connects JavaScript to Compact’s zero-knowledge circuits
+* How the implementation connects JavaScript to Compact’s zero-knowledge circuits
 
 * And how you can use it to write unit tests **or** simulate contract behavior locally
 
-By the end, you’ll understand how Compact’s JavaScript runtime fits into the development workflow — and how it makes testing private smart contracts both accessible and familiar.
+By the end, you’ll understand how Compact’s JavaScript implementation fits into the development workflow — and how it makes testing private smart contracts both accessible and familiar.
 
-## **How the JavaScript Runtime Gets Generated**
+## **How the JavaScript implementation Gets Generated**
 
-When you compile a Compact contract, the compiler produces more than just zero-knowledge circuits — it also emits a matching JavaScript runtime (typically named `index.cjs`). This runtime is essential for simulating, testing, and interacting with your contract logic in a plain JavaScript environment (e.g., Node.js, browser tests). In this section, we’ll walk through *how* and *why* that runtime is generated.
+When you compile a Compact contract, the compiler produces more than just zero-knowledge circuits — it also emits a matching JavaScript implementation (typically named `index.cjs`). This implementation is essential for simulating, testing, and interacting with your contract logic in a plain JavaScript environment (e.g., Node.js, browser tests). In this section, we’ll walk through *how* and *why* that implementation is generated.
 
-### **The Compilation Pipeline: Compact → Circuits \+ JS Runtime**
+### **The Compilation Pipeline: Compact → Circuits \+ JS implementation**
 
 Here’s a high-level view of what happens under the hood:
 
@@ -40,8 +40,8 @@ Here’s a high-level view of what happens under the hood:
 
    * Constraints, witness wiring, etc., to ensure that contract logic is provable.
 
-2. **Runtime File Generation**  
-   Concurrently, the compiler generates a **JavaScript runtime file** that mirrors the contract’s structure:
+2. **Implementation File Generation**  
+   Concurrently, the compiler generates a **JavaScript implementation file** that mirrors the contract’s structure:
 
    * It knows which functions exist (their signatures, inputs, outputs).
 
@@ -49,8 +49,8 @@ Here’s a high-level view of what happens under the hood:
 
    * It wraps each contract entry point so that you can invoke it in JS, passing native JS values, and get back state transitions.
 
-3. **Linking to the Compact Runtime Library**  
-   The generated `index.cjs` does *not* reimplement arithmetic, field operations, or other foundational ZK logic; instead, it imports a shared runtime library from `@midnight-ntwrk/compact-runtime`. That library implements:
+3. **Linking to the Compact Implementation Library**  
+   The generated `index.cjs` does *not* reimplement arithmetic, field operations, or other foundational ZK logic; instead, it imports a shared implementation library from `@midnight-ntwrk/compact-implementation`. That library implements:
 
    * Finite field arithmetic
 
@@ -59,13 +59,13 @@ Here’s a high-level view of what happens under the hood:
    * Error types, type checks, alignment rules
 
    * Circuit-related helper functions  
-      The generated file and the runtime library together form a complete environment.
+      The generated file and the implementation library together form a complete environment.
 
 4. **Source Maps & Type Declarations**
 
    * A **source map** (`index.cjs.map`) is emitted so that debugging or tracing can map back to your original Compact source (line numbers, symbol names).
 
-   * A **TypeScript declaration file** (`index.d.cts`) is generated so that, when you import this runtime in a TypeScript project, you get proper types, autocomplete, and compile-time safety.
+   * A **TypeScript declaration file** (`index.d.cts`) is generated so that, when you import this implementation in a TypeScript project, you get proper types, autocomplete, and compile-time safety.
 
 Because of these steps, `index.cjs` is not a hand-written artifact but a systematically generated adapter between Compact’s ZK circuits and the JavaScript world.
 
@@ -73,17 +73,17 @@ Because of these steps, `index.cjs` is not a hand-written artifact but a systema
 
 In the next section, we’ll break down how **`index.cjs`** is structured internally, from boilerplate and imports, through type descriptors and composite types, all the way to the wrapper functions you actually call in your tests.
 
-## **Inside the JavaScript Runtime: Understanding the Structure**
+## **Inside the JavaScript Implementation: Understanding the Structure**
 
-Once you’ve compiled your Compact contract, you’ll find the generated runtime in a file named `index.cjs`.
+Once you’ve compiled your Compact contract, you’ll find the generated implementation in a file named `index.cjs`.
 
 This file is a self-contained CommonJS module that mirrors your contract’s structure,  from type definitions to callable functions.
 
 Let’s look at how it’s built, piece by piece.
 
-### **1\. Runtime Initialization and Safety Checks**
+### **1\. Implementation Initialization and Safety Checks**
 
-At the very top, the runtime ensures that the version of `@midnight-ntwrk/compact-runtime` installed in your project matches the version expected by the compiler. It also verifies that the arithmetic field used by the circuits is consistent.
+At the very top, the implementation ensures that the version of `@midnight-ntwrk/compact-runtime` installed in your project matches the version expected by the compiler. It also verifies that the arithmetic field used by the circuits is consistent.
 
 ```javascript
 'use strict';
@@ -102,13 +102,13 @@ if (expectedRuntimeVersion[0] != actualRuntimeVersion[0] || [...])
 }
 ```
 
-This boilerplate ensures that your locally installed runtime matches what the Compact compiler expected when it generated the circuits.
+This boilerplate ensures that your locally installed implementation matches what the Compact compiler expected when it generated the circuits.
 
 ### **2\. Type Definitions and Descriptors**
 
 Next, the file defines **enumerations** and **type descriptors**.
 
-These tell the runtime how to encode and decode the data types used in your contract — like integers, strings, or custom structs.
+These tell the implementation how to encode and decode the data types used in your contract — like integers, strings, or custom structs.
 
 ```javascript 
 var State;
@@ -151,7 +151,7 @@ Each of these classes provides methods like `fromValue()` and `toValue()` to con
 
 ### **4\. The Contract Class and Circuit Wrappers**
 
-This is where things get interesting; the generated runtime defines a `Contract` class that mirrors your Compact contract’s **entry points** (such as `post`, `takeDown`, etc.).
+This is where things get interesting; the generated implementation defines a `Contract` class that mirrors your Compact contract’s **entry points** (such as `post`, `takeDown`, etc.).
 
 These methods don’t execute business logic directly; instead, they prepare inputs, call the pseudo-zero-knowledge circuits, and handle proof data.
 
@@ -180,7 +180,7 @@ class Contract {
 }
 ```
 
-When you call `contract.circuits.post(context, newMessage)` in JavaScript, the runtime automatically:
+When you call `contract.circuits.post(context, newMessage)` in JavaScript, the implementation automatically:
 
 * Validates input types
 
@@ -192,7 +192,7 @@ When you call `contract.circuits.post(context, newMessage)` in JavaScript, the r
 
 ### **5\. Exports and Type Bindings**
 
-Finally, the runtime exports everything you’ll need to interact with the contract in your JavaScript code or tests.
+Finally, the implementation exports everything you’ll need to interact with the contract in your JavaScript code or tests.
 
 `exports.Contract = Contract;`
 
@@ -202,15 +202,15 @@ The corresponding `index.d.cts` file provides type hints so that when you import
 
 Each of these sections works together to make the Compact contract executable outside the blockchain, in a safe and fully verifiable way.
 
-In the next section, we’ll see how you can use this runtime in practice: setting it up in a JavaScript test environment and running contract calls just like you would on-chain.
+In the next section, we’ll see how you can use this implementation in practice: setting it up in a JavaScript test environment and running contract calls just like you would on-chain.
 
-## **Using the JavaScript Runtime**
+## **Using the JavaScript Implementation**
 
 Now that you understand how the `index.cjs` file is structured, let’s see how to use it in your own development workflow.
 
-In this section, we’ll walk through how to import the runtime, instantiate the contract, and call its functions from a regular JavaScript or TypeScript environment.
+In this section, we’ll walk through how to import the implementation, instantiate the contract, and call its functions from a regular JavaScript or TypeScript environment.
 
-### **1\. Importing the Runtime**
+### **1\. Importing the Implementation**
 
 Once you’ve compiled your Compact contract, the compiler will output three key files in the build directory:
 
@@ -218,7 +218,7 @@ Once you’ve compiled your Compact contract, the compiler will output three key
 - `index.cjs.map`  
 - `index.d.cts`
 
-You can load the runtime just like any other Node.js module:
+You can load the implementation just like any other Node.js module:
 
 `const { Contract, State } = require('./index.cjs');`
 
@@ -226,7 +226,7 @@ If you’re using TypeScript, the accompanying declaration file (`index.d.cts`) 
 
 ### **2\. Instantiating the Contract**
 
-Every Compact contract runtime expects a [**witness object**](https://docs.midnight.network/develop/reference/compact/lang-ref#declaring-witnesses-for-private-state) when it’s created.  
+Every Compact contract implementation expects a [**witness object**](https://docs.midnight.network/develop/reference/compact/lang-ref#declaring-witnesses-for-private-state) when it’s created.  
 This object typically contains references to cryptographic keys or helper functions that represent a party’s identity in the ZK system.
 
 Here’s a minimal example:
@@ -238,7 +238,7 @@ const contract = new Contract({
 });
 ```
 
-The runtime checks that this object is correctly formed before allowing any circuit execution — if you forget a required field, it throws a descriptive `CompactError`.
+The implementation checks that this object is correctly formed before allowing any circuit execution — if you forget a required field, it throws a descriptive `CompactError`.
 
 ### **3\. Calling Contract Functions**
 
@@ -262,11 +262,11 @@ const { result, proofData, context } =
 // context: The new context
 ```
 
-The `proofData` object contains the same type of witness and transcript information that the blockchain runtime would generate during an actual transaction — meaning you can verify or inspect the same structure locally.
+The `proofData` object contains the same type of witness and transcript information that the blockchain implementation would generate during an actual transaction — meaning you can verify or inspect the same structure locally.
 
 ### **4\. Writing Unit Tests**
 
-Because the Compact runtime is just a CommonJS module, you can easily integrate it with **Vitest, Jest**, **Mocha**, or any testing framework you prefer.
+Because the Compact implementation is just a CommonJS module, you can easily integrate it with **Vitest, Jest**, **Mocha**, or any testing framework you prefer.
 
 ```javascript
 describe('Bulletin Board Contract', () => {  
@@ -280,15 +280,15 @@ describe('Bulletin Board Contract', () => {
 
 This makes it easy to test your contract logic off-chain, with full control over inputs and without having to run a Midnight node or a proof server.
 
-The runtime thus serves as your **development playground**: a place to test, simulate, and reason about Compact contract logic before deploying it.
+The implementation thus serves as your **development playground**: a place to test, simulate, and reason about Compact contract logic before deploying it.
 
-In the next section, we’ll look at **why this design matters**, how the JavaScript runtime bridges human-readable code and zero-knowledge execution, and why it’s key to making privacy-preserving smart contracts developer-friendly.
+In the next section, we’ll look at **why this design matters**, how the JavaScript implementation bridges human-readable code and zero-knowledge execution, and why it’s key to making privacy-preserving smart contracts developer-friendly.
 
 ## **Why This Design Matters**
 
-In the previous section, we saw how you can import the generated runtime, instantiate your contract, and call its functions just like any normal JavaScript class.
+In the previous section, we saw how you can import the generated implementation, instantiate your contract, and call its functions just like any normal JavaScript class.
 
-But you might be wondering — *why does Compact bother generating a JavaScript runtime at all?*
+But you might be wondering — *why does Compact bother generating a JavaScript implementation at all?*
 
 Why not just compile directly to zero-knowledge circuits and leave it at that?
 
@@ -298,7 +298,7 @@ The answer comes down to **developer experience**, **reproducibility**, and **tr
 
 Zero-knowledge circuits are powerful, but they’re also complex and opaque, not something you can easily debug or test directly.
 
-The JavaScript runtime acts as a human-friendly bridge between the low-level proof system and the high-level contract logic.
+The JavaScript implementation acts as a human-friendly bridge between the low-level proof system and the high-level contract logic.
 
 When you call:
 
@@ -310,7 +310,7 @@ This means you can **validate the behavior of your contract locally** before you
 
 ### **2\. Type Safety and Consistency Across Environments**
 
-Because the runtime uses Compact’s own type descriptors (`CompactTypeBoolean`, `CompactTypeBytes`, etc.), the data you pass into your JavaScript tests is encoded in the exact same way it will be on-chain.  That consistency eliminates a whole class of subtle bugs, for example, differences in byte order, field alignment, or encoding length.
+Because the implementation uses Compact’s own type descriptors (`CompactTypeBoolean`, `CompactTypeBytes`, etc.), the data you pass into your JavaScript tests is encoded in the exact same way it will be on-chain.  That consistency eliminates a whole class of subtle bugs, for example, differences in byte order, field alignment, or encoding length.
 
 In practice, it means that if your function works in JavaScript, it will work in Compact:
 
@@ -327,7 +327,7 @@ You can test and reason about your contract logic with confidence that the ZK ci
 
 ### **3\. Reproducibility and Proof Transparency**
 
-Each call to a contract method in the runtime returns a structured `proofData` object — the input (along with a representation of the circuit) to the prover.
+Each call to a contract method in the implementation returns a structured `proofData` object — the input (along with a representation of the circuit) to the prover.
 
 That data is crucial for **reproducible testing** and **transparent verification**:
 
@@ -344,7 +344,7 @@ Having this available directly in JavaScript allows you to **record**, **replay*
 
 ### **4\. Developer Productivity Without Compromising Privacy**
 
-The runtime design lets Compact developers use familiar tools,TypeScript, Jest, VSCode, Node.js, while still working with privacy-preserving logic.
+The implementation design lets Compact developers use familiar tools,TypeScript, Jest, VSCode, Node.js, while still working with privacy-preserving logic.
 
 Instead of being locked into a specialized proving environment, you can:
 
@@ -356,7 +356,7 @@ Instead of being locked into a specialized proving environment, you can:
 
 It’s the best of both worlds: **developer-friendly ergonomics** with **cryptographic guarantees** under the hood.
 
-Compact’s JavaScript runtime isn’t just a convenience feature; it’s what makes zero-knowledge smart contract development *practical*.
+Compact’s JavaScript implementation isn’t just a convenience feature; it’s what makes zero-knowledge smart contract development *practical*.
 
 By exposing ZK logic through familiar code, it shortens the gap between concept, implementation, and verification.
 
@@ -366,15 +366,15 @@ In the next and final section, we’ll wrap up with a brief summary of what we�
 
 By now, you’ve seen how Compact smart contracts on the Midnight blockchain are more than just cryptographic programs; they’re part of a full developer workflow.
 
-When you compile a Compact contract, you don’t just get zero-knowledge circuits that the blockchain can prove; you also get a **JavaScript runtime** that mirrors those circuits and lets you test, simulate, and understand your contract logic in a familiar environment.
+When you compile a Compact contract, you don’t just get zero-knowledge circuits that the blockchain can prove; you also get a **JavaScript implementation** that mirrors those circuits and lets you test, simulate, and understand your contract logic in a familiar environment.
 
-We started by exploring **how this runtime is generated**, then walked through its **structure**, looking at type descriptors, composite data types, and the `Contract` class that wraps each circuit.
+We started by exploring **how this implementation is generated**, then walked through its **structure**, looking at type descriptors, composite data types, and the `Contract` class that wraps each circuit.
 
-From there, we learned how to **use it in practice**:  importing the runtime, creating a witness object, calling contract methods like `post`, and writing repeatable tests in JavaScript.
+From there, we learned how to **use it in practice**:  importing the implementation, creating a witness object, calling contract methods like `post`, and writing repeatable tests in JavaScript.
 
 Finally, we looked at **why this design matters**: it bridges the gap between developer experience and cryptographic correctness, letting you reason about private, verifiable logic with ordinary code.
 
-The Compact runtime is more than a side product; it’s a key part of what makes building zero-knowledge smart contracts approachable. It gives you confidence that what you test locally will behave the same way once deployed on the Midnight network.
+The Compact implementation is more than a side product; it’s a key part of what makes building zero-knowledge smart contracts approachable. It gives you confidence that what you test locally will behave the same way once deployed on the Midnight network.
 
 So the next time you compile a Compact contract and see an `index.cjs` file appear, take a moment to open it up, you’ll find a window into how your private, provable logic comes to life.
 
