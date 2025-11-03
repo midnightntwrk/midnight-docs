@@ -182,14 +182,14 @@ const config = {
       }
     },
 
-    announcementBar: {
-      id: "testnet-outage",
-      content:
-        "As we transition to Public Testnet-02, you may experience temporary disruptions. These issues are expected and will be resolved shortly.",
-      backgroundColor: "rgba(0, 0, 0, 0.7)",
-      textColor: "#FFFFFF",
-      isCloseable: true
-    },
+    //announcementBar: {
+    //  id: "testnet-outage",
+    //  content:
+    //    "Preview testnet is now available.",
+    // backgroundColor: "rgba(0, 0, 0, 0.7)",
+    //  textColor: "#FFFFFF",
+    // isCloseable: true
+    //},
 
     navbar: {
       logo: {
@@ -199,6 +199,12 @@ const config = {
         href: "https://midnight.network"
       },
       items: [
+        {
+          to: "/compact",
+          label: "Compact",
+          position: "left",
+          className: "hide-on-mobile"
+        },
         {
           to: "/blog",
           label: "Dev Diaries",
@@ -216,14 +222,20 @@ const config = {
           className: "hide-on-mobile"
         },
         {
-          to: "/blog",
-          label: "Dev Diaries",
+          to: "/compact",
+          label: "Compact",
           position: "left",
           className: "hide-on-desktop"
         },
         {
           to: "/academy",
           label: "Developer Academy",
+          position: "left",
+          className: "hide-on-desktop"
+        },
+         {
+          to: "/blog",
+          label: "Dev Diaries",
           position: "left",
           className: "hide-on-desktop"
         },
