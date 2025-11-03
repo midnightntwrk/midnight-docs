@@ -21,7 +21,7 @@ In this tutorial, we’ll explore the [implementation generated for the bboard c
 
 * How the implementation connects JavaScript to Compact’s zero-knowledge circuits
 
-* And how you can use it to write unit tests **or** simulate contract behavior locally
+* And how you can use it to write unit tests **or** run the contract locally
 
 By the end, you’ll understand how Compact’s JavaScript implementation fits into the development workflow — and how it makes testing private smart contracts both accessible and familiar.
 
@@ -34,11 +34,7 @@ When you compile a Compact contract, the compiler produces more than just zero-k
 Here’s a high-level view of what happens under the hood:
 
 1. **Circuit Generation**  
-    The compiler checks your `.compact` files and emits:
-
-   * Zero-knowledge circuits for each contract function or “entry point”.
-
-   * Constraints, witness wiring, etc., to ensure that contract logic is provable.
+    The compiler checks your `.compact` files and emits zero-knowledge circuits for each contract function or “entry point”.
 
 2. **Implementation File Generation**  
    Concurrently, the compiler generates a **JavaScript implementation file** that mirrors the contract’s structure:
@@ -147,13 +143,13 @@ class _Maybe_0 {
 }
 ```
 
-Each of these classes provides methods like `fromValue()` and `toValue()` to convert between **JavaScript objects** and **Compact-compatible encodings**.
+Each of these classes provides methods like `fromValue()` and `toValue()` to convert between **JavaScript objects** and **ledger-compatible encodings**.
 
 ### **4\. The Contract Class and Circuit Wrappers**
 
 This is where things get interesting; the generated implementation defines a `Contract` class that mirrors your Compact contract’s **entry points** (such as `post`, `takeDown`, etc.).
 
-These methods don’t execute business logic directly; instead, they prepare inputs, call the pseudo-zero-knowledge circuits, and handle proof data.
+These methods don’t execute business logic directly; instead, they prepare inputs, execute the entrypoints of the contract implementation, and handle proof data.
 
 ```javascript
 class Contract {
@@ -310,9 +306,7 @@ This means you can **validate the behavior of your contract locally** before you
 
 ### **2\. Type Safety and Consistency Across Environments**
 
-Because the implementation uses Compact’s own type descriptors (`CompactTypeBoolean`, `CompactTypeBytes`, etc.), the data you pass into your JavaScript tests is encoded in the exact same way it will be on-chain.  That consistency eliminates a whole class of subtle bugs, for example, differences in byte order, field alignment, or encoding length.
-
-In practice, it means that if your function works in JavaScript, it will work in Compact:
+Because the implementation uses Compact’s own type descriptors (`CompactTypeBoolean`, `CompactTypeBytes`, etc.), the data you pass into your JavaScript tests is encoded in the exact same way it will be on-chain.  That consistency eliminates a whole class of subtle bugs, for example, differences in byte order, field alignment, or encoding length:
 
 ```javascript
 // Your JS test environment
