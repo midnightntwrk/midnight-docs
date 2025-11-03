@@ -126,11 +126,6 @@ module.exports = {
           label: "Fix Package Repository Issue"
         },
         {
-          type: "doc",
-          id: "develop/guides/compact-javascript-runtime",
-          label: "The Compact JavaScript runtime"
-        },
-        {
           type: "category",
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
