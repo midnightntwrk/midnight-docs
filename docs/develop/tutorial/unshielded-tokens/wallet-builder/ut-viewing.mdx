@@ -1,0 +1,66 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+---
+
+# Displaying complete transaction history (Shielded & Unshielded) in a wallet
+
+To provide users with a full transaction history, your wallet must retrieve:
+
+* Unshielded transactions (public UTxOs) using the Indexer API.
+* Shielded transactions (private, ZK-protected) using specialized indexer support.
+
+## Retrieving unshielded transaction data
+
+Unshielded tokens (UTs) are publicly visible and indexed. The Midnight Indexer exposes a GraphQL API for querying and subscribing to unshielded UTxOs and their associated transactions.
+
+How to Query:
+
+* Use the `unshieldedTransactions` subscription to receive real-time and historical events for a given unshielded address.
+* Each event includes both created and spent UTxOs, with transaction details.
+
+Example GraphQL Subscription:
+
+```GraphQL
+subscription {
+  unshieldedTransactions(address: "mn_addr_test1...") {
+    __typename
+    ... on UnshieldedTransaction {
+      transaction { hash block { height } }
+      createdUtxos { owner value tokenType intentHash outputIndex }
+      spentUtxos { owner value tokenType intentHash outputIndex }
+    }
+    ... on UnshieldedTransactionsProgress {
+      highestTransactionId
+    }
+  }
+}
+```
+
+This allows your wallet to build a chronological list of all unshielded transactions for the user’s address, including both incoming and outgoing transfers.
+
+
+## Retrieving shielded transaction data
+
+Shielded transactions are private and require special handling. The recommended approach is to use an indexing service that can scan the blockchain for outputs relevant to the user’s shielded keys.
+
+How to Query:
+
+* The indexer service receives the wallet’s encryption secret key and scans for transactions containing outputs that can be decrypted by the user.
+* The service provides filtered transactions and necessary updates to the coin commitment tree, allowing the wallet to reconstruct the user’s shielded transaction history.
+
+:::note 
+The exact API endpoints and data structures for shielded transaction retrieval are not detailed in the knowledge sources, but the process involves using the indexer’s shielded token support as described above.
+:::
+
+## Integrating and displaying the transaction history
+
+1. Combine the results from both unshielded and shielded transaction queries.
+2. Sort transactions by block height or timestamp for a unified chronological view.
+3. Display transaction details (amount, token type, sender/receiver, status) as available for each type.
+
+## Summary
+
+1. Use the Indexer API’s `unshieldedTransactions` subscription to retrieve all public UT transaction history for a user’s address.
+2. For shielded transactions, integrate with the indexer’s shielded token support, providing the wallet’s encryption secret key to receive relevant, private transaction data.
+3. Merge and display both transaction types in the wallet’s UI for a complete user history.
