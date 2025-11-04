@@ -1,6 +1,6 @@
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
-  docsSidebar: [
+  academySidebar: [
     {
       type: "category",
       label: "Learning resources",
@@ -9,7 +9,7 @@ const sidebars = {
         {
           type: "category",
           label: "Midnight academy",
-          link: { type: "doc", id: "academy/index" },
+          link: { type: "doc", id: "index" },
           items: [
             "module-1",
             "module-2",

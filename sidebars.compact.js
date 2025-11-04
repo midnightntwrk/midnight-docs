@@ -5,7 +5,7 @@ const sidebars = {
       type: "category",
       label: "Compact language",
       collapsed: false,
-      link: { type: "doc", id: "index" }, // docs/develop/reference/compact/index.md(x)
+      link: { type: "doc", id: "index" },
       items: [
         "writing",               // docs/develop/reference/compact/writing.md(x)
         "lang-ref",              // docs/develop/reference/compact/lang-ref.md(x)
@@ -30,13 +30,13 @@ const sidebars = {
     {
       type: "category",
       label: "Tools",
-      link: { type: "doc", id: "../tools/index" }, // docs/develop/reference/tools/index.md(x)
+      link: { type: "doc", id: "reference/tools/index" }, // docs/develop/reference/tools/index.md(x)
       items: [
         "reference/tools/compiler-usage", // docs/develop/reference/tools/compiler-usage.md(x)
         {
           type: "category",
           label: "VS Code plugin",
-          link: { type: "doc", id: "../tools/vsc-plugin/index" }, // .../vsc-plugin/index.md(x)
+          link: { type: "doc", id: "reference/tools/vsc-plugin/index" }, // .../vsc-plugin/index.md(x)
           items: [],
         },
       ],

@@ -44,7 +44,7 @@ const config = {
       },
     ],
 
-    // MAIN DOCS (root) — with version dropdown support
+    // MAIN DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
