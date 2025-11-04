@@ -1,27 +1,48 @@
 import React from 'react';
 
-export default function Typewriter({
-  text, speed = 30, pause = 800, loop = false, ariaLabel,
-}: { text: string; speed?: number; pause?: number; loop?: boolean; ariaLabel?: string }) {
-  const [shown, setShown] = React.useState('');
-  const reduceMotion = typeof window !== 'undefined'
-    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-
+export default function Typewriter({ 
+  text = '', 
+  speed = 50, 
+  pause = 800, 
+  loop = false, 
+  ariaLabel 
+}) {
+  const [displayText, setDisplayText] = React.useState('');
+  
   React.useEffect(() => {
-    if (reduceMotion) { setShown(text); return; }
-    let i = 0, cancel = false;
-    const tick = () => {
-      if (cancel) return;
-      if (i <= text.length) { setShown(text.slice(0, i++)); setTimeout(tick, speed); }
-      else if (loop) { setTimeout(() => { i = 0; setShown(''); setTimeout(tick, speed); }, pause); }
+    // Reset when text changes
+    setDisplayText('');
+    
+    if (!text) return;
+    
+    let currentIndex = 0;
+    let timeoutId: NodeJS.Timeout;
+    
+    const type = () => {
+      if (currentIndex <= text.length) {
+        setDisplayText(text.substring(0, currentIndex));
+        currentIndex++;
+        timeoutId = setTimeout(type, speed);
+      } else if (loop) {
+        timeoutId = setTimeout(() => {
+          currentIndex = 0;
+          setDisplayText('');
+          type();
+        }, pause);
+      }
     };
-    tick();
-    return () => { cancel = true; };
-  }, [text, speed, pause, loop, reduceMotion]);
-
+    
+    type();
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [text]); // Only depend on text changing
+  
   return (
-    <span aria-label={ariaLabel} className="typewriter">
-      {shown}<span className="typewriter-caret" aria-hidden="true">▍</span>
+    <span className="typewriter">
+      {displayText}
+      <span className="typewriter-caret">▍</span>
     </span>
   );
 }

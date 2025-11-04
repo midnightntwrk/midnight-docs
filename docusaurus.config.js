@@ -55,15 +55,6 @@ const config = {
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
-
-        // Versioning config
-        lastVersion: "current",
-        onlyIncludeVersions: ["current"],
-        versions: {
-          current: {
-            label: "Testnet",
-          },
-        },
       },
     ],
 
@@ -73,7 +64,7 @@ const config = {
       {
         id: "compact",
         path: "compact",
-        routeBasePath: "./compact",
+        routeBasePath: "compact",
         sidebarPath: require.resolve("./sidebars.compact.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
@@ -87,7 +78,7 @@ const config = {
       {
         id: "academy",
         path: "academy",
-        routeBasePath: "./academy",
+        routeBasePath: "academy",
         sidebarPath: require.resolve("./sidebars.academy.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
