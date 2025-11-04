@@ -128,11 +128,6 @@ module.exports = {
           label: "Fix Package Repository Issue"
         },
         {
-          type: "doc",
-          id: "develop/guides/compact-javascript-runtime",
-          label: "The Compact JavaScript runtime"
-        },
-        {
           type: "category",
           label: "Query the blockchain",
           items: ["develop/nodes-and-dapps/nodes-endpoints"]
@@ -155,19 +150,6 @@ module.exports = {
               label: "Features",
               items: [
                 "learn/introduction/features/security",
-                "learn/introduction/features/enhanced-developer-experience"
-              ]
-            },
-            {
-              type: "category",
-              label: "Use cases",
-              link: { type: "doc", id: "learn/introduction/use-cases/index" },
-              items: [
-                "learn/introduction/use-cases/identity-verification",
-                "learn/introduction/use-cases/digital-assets",
-                "learn/introduction/use-cases/ai-llm",
-                "learn/introduction/use-cases/decentralized-credit-scoring",
-                "learn/introduction/use-cases/decentralized-voting"
               ]
             },
             {
