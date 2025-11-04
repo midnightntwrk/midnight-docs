@@ -226,12 +226,6 @@ module.exports = {
             "validate/run-a-validator/step-4"
           ]
         },
-        {
-          type: "category",
-          label: "Validator tutorials",
-          link: { type: "doc", id: "validate/tutorials/index" },
-          items: ["validate/tutorials/index"]
-        }
       ]
     },
 

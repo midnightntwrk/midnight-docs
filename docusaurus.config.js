@@ -67,13 +67,13 @@ const config = {
       },
     ],
 
-    // COMPACT DOCS (/compact)
+    // COMPACT DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
         id: "compact",
         path: "compact",
-        routeBasePath: "/compact",
+        routeBasePath: "./compact",
         sidebarPath: require.resolve("./sidebars.compact.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
@@ -81,13 +81,13 @@ const config = {
       },
     ],
 
-    // ACADEMY DOCS (/academy)
+    // ACADEMY DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
         id: "academy",
         path: "academy",
-        routeBasePath: "/academy",
+        routeBasePath: "./academy",
         sidebarPath: require.resolve("./sidebars.academy.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
