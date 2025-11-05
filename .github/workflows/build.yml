@@ -4,22 +4,38 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  ALGOLIA_APP_ID: ${{secrets.ALGOLIA_APP_ID}}
-  ALGOLIA_INDEX_NAME: ${{secrets.ALGOLIA_INDEX_NAME}}
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
-      - name: Setup Node.js
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # 5.0.0
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - name: Enable Corepack
-        run: corepack enable
-      - name: Run build
+          node-version: '22'
+          cache: yarn
+          cache-dependency-path: |
+            **/yarn.lock
+            **/.yarnrc.yml
+            **/package.json
+
+      - name: Use Corepack Yarn (from packageManager)
         run: |
-          yarn install
-          yarn run build
+          corepack enable
+          corepack install
+          yarn -v
+
+      - name: Debug env
+        run: |
+          node -v
+          pwd && ls -la
+          echo "--- .yarnrc.yml ---"; cat .yarnrc.yml || true
+          echo "--- package.json (top) ---"; sed -n '1,40p' package.json
+          echo "--- yarn config ---"; yarn config -v; yarn config --json || true
+
+      - name: Install deps
+        run: yarn install --immutable
+
+      - name: Build
+        run: yarn build
