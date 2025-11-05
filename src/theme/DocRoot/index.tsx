@@ -6,10 +6,10 @@ import NotFoundContent from '@theme/NotFound/Content';
 import type {Props} from '@theme/DocRoot';
 
 export default function DocRoot(_props: Props) {
-  const metadata = useDocRootMetadata();            // ← no args in 3.x
+  const metadata = useDocRootMetadata();
   if (!metadata) return <NotFoundContent />;
 
-  const {docElement, sidebarName} = metadata;       // ← no sidebarItems
+  const {docElement, sidebarName} = metadata;
 
   return (
     <HtmlClassNameProvider className={ThemeClassNames.wrapper.docsPages}>
