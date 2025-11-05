@@ -51,7 +51,7 @@ const config = {
         id: "main",
         path: "docs",
         routeBasePath: "/",
-        sidebarPath: false,
+        sidebarPath: require.resolve("./sidebars.main.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
@@ -65,7 +65,7 @@ const config = {
         id: "compact",
         path: "compact",
         routeBasePath: "compact",
-        sidebarPath: false,
+        sidebarPath: require.resolve("./sidebars.compact.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
@@ -79,7 +79,7 @@ const config = {
         id: "academy",
         path: "academy",
         routeBasePath: "academy",
-        sidebarPath: false,
+        sidebarPath: require.resolve("./sidebars.academy.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
@@ -292,3 +292,4 @@ const config = {
 };
 
 module.exports = config;
+
