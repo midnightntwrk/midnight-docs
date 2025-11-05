@@ -10,20 +10,21 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: .
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node (no Yarn cache here)
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      # ✅ Replace the old install + build steps with this block
       - name: Install & Build (Corepack + auto-discovery)
         run: |
           set -euxo pipefail
 
+          # --- Force Yarn 4 from "packageManager" and ignore global Yarn 1 ---
           corepack enable
           corepack install
           export YARN_IGNORE_PATH=1
@@ -35,6 +36,7 @@ jobs:
           echo "Corepack yarn version (authoritative):"
           corepack yarn -v
 
+          # --- Install at repo root (monorepo safe). Prefer immutable ---
           if [[ -f yarn.lock ]]; then
             corepack yarn install --immutable
           else
@@ -42,6 +44,7 @@ jobs:
             corepack yarn install
           fi
 
+          # --- Discover packages with a build script ---
           echo "== Discovering packages with a build script =="
           mapfile -t PKG_JSONS < <(find . \
             -type f -name package.json \
@@ -51,18 +54,22 @@ jobs:
             -not -path "./.github/*")
 
           has_build () {
-            local pkg="$1"
-            node -e "const p=require('$pkg');process.exit(!(p.scripts&&p.scripts.build));"
+            node -e "
+              const fs = require('fs');
+              const p = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+              process.exit(p && p.scripts && p.scripts.build ? 0 : 1);
+            " "$1"
           }
 
+          # --- Build root if needed ---
           if has_build "./package.json"; then
             echo "::group::Build: /"
             corepack yarn build
             echo "::endgroup::"
           fi
 
+          # --- Build each subpackage that has a build script ---
           for pkg in "${PKG_JSONS[@]}"; do
-            # skip the root package.json (already handled)
             if [[ "$pkg" == "./package.json" ]]; then
               continue
             fi
