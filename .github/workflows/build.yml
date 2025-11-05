@@ -7,35 +7,69 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
+      - name: Setup Node (no Yarn cache here)
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: yarn
-          cache-dependency-path: |
-            **/yarn.lock
-            **/.yarnrc.yml
-            **/package.json
 
-      - name: Use Corepack Yarn (from packageManager)
+      - name: Install & Build (Corepack + auto-discovery)
         run: |
+          set -euxo pipefail
+
           corepack enable
           corepack install
-          yarn -v
+          export YARN_IGNORE_PATH=1
 
-      - name: Debug env
-        run: |
+          echo "== Versions =="
           node -v
-          pwd && ls -la
-          echo "--- .yarnrc.yml ---"; cat .yarnrc.yml || true
-          echo "--- package.json (top) ---"; sed -n '1,40p' package.json
-          echo "--- yarn config ---"; yarn config -v; yarn config --json || true
+          echo "PATH yarn (may be Yarn 1; we won't rely on it):" || true
+          yarn -v || true
+          echo "Corepack yarn version (authoritative):"
+          corepack yarn -v
 
-      - name: Install deps
-        run: yarn install --immutable
+          if [[ -f yarn.lock ]]; then
+            corepack yarn install --immutable
+          else
+            export YARN_ENABLE_HARDENED_MODE=0
+            corepack yarn install
+          fi
 
-      - name: Build
-        run: yarn build
+          echo "== Discovering packages with a build script =="
+          mapfile -t PKG_JSONS < <(find . \
+            -type f -name package.json \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.yarn/*" \
+            -not -path "*/.git/*" \
+            -not -path "./.github/*")
+
+          has_build () {
+            local pkg="$1"
+            node -e "const p=require('$pkg');process.exit(!(p.scripts&&p.scripts.build));"
+          }
+
+          if has_build "./package.json"; then
+            echo "::group::Build: /"
+            corepack yarn build
+            echo "::endgroup::"
+          fi
+
+          for pkg in "${PKG_JSONS[@]}"; do
+            # skip the root package.json (already handled)
+            if [[ "$pkg" == "./package.json" ]]; then
+              continue
+            fi
+            dir="$(dirname "$pkg")"
+            if has_build "$pkg"; then
+              echo "::group::Build: $dir"
+              corepack yarn --cwd "$dir" build
+              echo "::endgroup::"
+            fi
+          done
