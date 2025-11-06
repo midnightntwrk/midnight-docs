@@ -28,22 +28,6 @@ const config = {
   onBrokenMarkdownLinks: "warn",
 
   plugins: [
-    [
-      "docusaurus-pushfeedback",
-      {
-        project: process.env.PUSHFEEDBACK_PROJECT_ID,
-        buttonStyle: "dark",
-        requireEmail: true,
-        requireComment: true,
-        messagePlaceholder:
-          "Enter a brief title on the first line, then describe the issue",
-        emailPlaceholder: "Your email address",
-        modalTitle: "Share your feedback",
-        modalTitleSuccess: "Thank you!",
-        modalTitleError: "Something went wrong",
-      },
-    ],
-
     // MAIN DOCS
     [
       "@docusaurus/plugin-content-docs",
@@ -121,6 +105,7 @@ const config = {
   },
 
   scripts: [
+    /*
     {
       src: "https://widget.kapa.ai/kapa-widget.bundle.js",
       "data-website-id": "54f87db5-cd75-47b9-8bcc-94cd1c5cc86f",
@@ -135,6 +120,7 @@ const config = {
       "data-modal-title": "Need help with Midnight? Ask me anything!",
       async: true,
     },
+    */
     { src: "/add-theme-class.js", async: true },
     { src: "/theme-sync.js", async: true },
     { src: "/force-theme.js", async: true },
