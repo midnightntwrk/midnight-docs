@@ -15,7 +15,9 @@ const config = {
   favicon: "img/favicon.ico",
 
   markdown: { mermaid: true },
-  themes: ["@docusaurus/theme-mermaid"],
+  themes: [
+    "@docusaurus/theme-mermaid",
+  ],
 
   url: "https://docs.midnight.network",
   baseUrl: "/",
@@ -28,7 +30,7 @@ const config = {
   onBrokenMarkdownLinks: "warn",
 
   plugins: [
-    // MAIN DOCS
+    // ✅ MAIN DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
@@ -42,7 +44,7 @@ const config = {
       },
     ],
 
-    // COMPACT DOCS
+    // ✅ COMPACT DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
@@ -56,7 +58,7 @@ const config = {
       },
     ],
 
-    // ACADEMY DOCS
+    // ✅ ACADEMY DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
@@ -70,7 +72,7 @@ const config = {
       },
     ],
 
-    // Blog
+    // ✅ BLOG (leave your override untouched)
     [
       "./plugins/blog-plugin.js",
       {
@@ -80,7 +82,7 @@ const config = {
         showReadingTime: true,
         routeBasePath: "blog",
         path: "./blog",
-        blogListComponent: require.resolve("./src/pages/blog/index.js"),
+        blogListComponent: require.resolve("./src/pages/blog/index.js"), // <-- keep this
         blogPostComponent: "@theme/BlogPostPage",
         blogTagsListComponent: "@theme/BlogTagsListPage",
         blogTagsPostsComponent: "@theme/BlogTagsPostsPage",
@@ -105,22 +107,6 @@ const config = {
   },
 
   scripts: [
-    /*
-    {
-      src: "https://widget.kapa.ai/kapa-widget.bundle.js",
-      "data-website-id": "54f87db5-cd75-47b9-8bcc-94cd1c5cc86f",
-      "data-project-name": "Shielded",
-      "data-project-color": "#000000",
-      "data-project-logo":
-        "https://pbs.twimg.com/profile_images/1707073625214582784/MsMpvtzV_200x200.jpg",
-      "data-modal-z-index": "10000",
-      "data-button-position-bottom": "120px",
-      "data-button-position-right": "10px",
-      "data-modal-override-open-id": "custom-ask-ai-button",
-      "data-modal-title": "Need help with Midnight? Ask me anything!",
-      async: true,
-    },
-    */
     { src: "/add-theme-class.js", async: true },
     { src: "/theme-sync.js", async: true },
     { src: "/force-theme.js", async: true },
@@ -138,8 +124,7 @@ const config = {
         gtag: process.env.GOOGLE_TAG_MANAGER_ID
           ? { trackingID: process.env.GOOGLE_TAG_MANAGER_ID }
           : undefined,
-        // Using standalone docs plugins above
-        docs: false,
+        docs: false, // we use standalone docs plugins
         blog: false,
         theme: {
           customCss: [
@@ -154,7 +139,6 @@ const config = {
   /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
   themeConfig: {
     image: "img/og-image.png",
-
     metadata: [
       { name: "algolia-site-verification", content: "71D46C846F83C714" },
     ],
@@ -166,8 +150,6 @@ const config = {
       contextualSearch: true,
       searchPagePath: "search",
       searchParameters: {},
-      // Remove path rewrite since docs are at "/"
-      // replaceSearchResultPathname: { from: "/docs/", to: "/" },
     },
 
     navbar: {
@@ -178,21 +160,10 @@ const config = {
         href: "https://midnight.network",
       },
       items: [
-        // Top-level tabs (no dropdown)
-        { to: "/", label: "Docs", position: "left" },          // main docs
-        { to: "/compact", label: "Compact", position: "left" }, // compact
-        { to: "/academy", label: "Academy", position: "left" }, // academy
+        { to: "/", label: "Docs Home", position: "left" },
+        { to: "/compact", label: "Compact", position: "left" },
+        { to: "/academy", label: "Academy", position: "left" },
         { to: "/blog", label: "Blog", position: "left", activeBaseRegex: "^/blog/?" },
-
-        // Versions dropdown for MAIN docs (right side)
-        {
-          type: "docsVersionDropdown",
-          position: "right",
-          docsPluginId: "main",
-          dropdownActiveClassDisabled: true, // avoid "active" style when at root
-        },
-
-        // Buttons on the right
         {
           type: "html",
           position: "right",
@@ -266,9 +237,7 @@ const config = {
     },
 
     colorMode: { defaultMode: "dark" },
-
     docs: { sidebar: { hideable: true } },
-
     prism: {
       theme: lightCodeTheme,
       darkTheme: darkCodeTheme,
@@ -278,4 +247,3 @@ const config = {
 };
 
 module.exports = config;
-

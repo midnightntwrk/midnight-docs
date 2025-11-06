@@ -1,7 +1,9 @@
 name: Build
+
 on:
   pull_request:
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   build:
@@ -9,20 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - name: Activate Yarn 4 via Corepack
+        run: |
+          corepack enable
+          corepack prepare yarn@4.10.3 --activate
+          yarn -v
+        env:
+          # Ensure we don't pick up any global Yarn 1.x
+          YARN_IGNORE_PATH: "1"
 
-      # Use vendored Yarn; avoid global Yarn 1
-      - name: Install deps
+      - name: Install
+        run: yarn install --immutable
         env:
           YARN_IGNORE_PATH: "1"
-        run: |
-          node .yarn/releases/yarn-4.10.3.cjs -v
-          node .yarn/releases/yarn-4.10.3.cjs install --immutable
+          YARN_ENABLE_HARDENED_MODE: "0"
 
       - name: Build
+        run: yarn build
         env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
-        run: node .yarn/releases/yarn-4.10.3.cjs build
+          YARN_IGNORE_PATH: "1"

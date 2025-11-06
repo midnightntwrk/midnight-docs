@@ -1,21 +1,22 @@
-// src/theme/DocRoot/index.tsx (or .jsx)
-import {HtmlClassNameProvider, ThemeClassNames} from '@docusaurus/theme-common';
-import {DocsSidebarProvider, useDocRootMetadata} from '@docusaurus/theme-common/internal';
+import React from 'react';
+// Use the internal hook (correct path for v3)
+import {useDocRootMetadata} from '@docusaurus/theme-common/internal';
+// Keep the default layout behavior
 import DocRootLayout from '@theme/DocRoot/Layout';
-import NotFoundContent from '@theme/NotFound/Content';
-import type {Props} from '@theme/DocRoot';
 
-export default function DocRoot(_props: Props) {
-  const metadata = useDocRootMetadata();
-  if (!metadata) return <NotFoundContent />;
+// Works with multiple docs plugin instances: main, compact, academy
+export default function DocRoot(props: React.ComponentProps<typeof DocRootLayout>) {
+  // Call the hook for each known plugin id in a stable order.
+  // Hooks are always called the same number of times, so this is safe.
+  const metaMain = useDocRootMetadata({pluginId: 'main'});
+  const metaCompact = useDocRootMetadata({pluginId: 'compact'});
+  const metaAcademy = useDocRootMetadata({pluginId: 'academy'});
 
-  const {docElement, sidebarName} = metadata;
+  const metadata = metaMain ?? metaCompact ?? metaAcademy;
 
-  return (
-    <HtmlClassNameProvider className={ThemeClassNames.wrapper.docsPages}>
-      <DocsSidebarProvider name={sidebarName}>     {/* ← no items prop */}
-        <DocRootLayout>{docElement}</DocRootLayout>
-      </DocsSidebarProvider>
-    </HtmlClassNameProvider>
-  );
+  // If we’re not on a docs route (e.g., homepage/blog), no metadata will exist.
+  // Don’t destructure; just render the layout.
+  // If you need route-specific logic, guard with `if (metadata) { ... }`.
+  return <DocRootLayout {...props} />;
 }
+
