@@ -3,23 +3,16 @@ const sidebars = {
   academySidebar: [
     {
       type: "category",
-      label: "Learning resources",
-      collapsed: true,
+      label: "Midnight academy",
+      link: { type: "doc", id: "index" }, // resolves to academy/index.mdx
       items: [
-        {
-          type: "category",
-          label: "Midnight academy",
-          link: { type: "doc", id: "index" },
-          items: [
-            "module-1",
-            "module-2",
-            "module-3",
-            "module-4",
-            "module-5",
-            "module-6",
-            "module-7",
-          ],
-        },
+        "module-1",
+        "module-2",
+        "module-3",
+        "module-4",
+        "module-5",
+        "module-6",
+        "module-7",
       ],
     },
   ],

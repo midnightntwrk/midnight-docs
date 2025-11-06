@@ -1,22 +1,31 @@
-import React from 'react';
-// Use the internal hook (correct path for v3)
-import {useDocRootMetadata} from '@docusaurus/theme-common/internal';
-// Keep the default layout behavior
-import DocRootLayout from '@theme/DocRoot/Layout';
+import React from "react";
+import clsx from "clsx";
+import {HtmlClassNameProvider, ThemeClassNames} from "@docusaurus/theme-common";
+import {
+  DocsSidebarProvider,
+  useDocRootMetadata,
+} from "@docusaurus/theme-common/internal";
+import DocRootLayout from "@theme/DocRoot/Layout";
+import NotFoundContent from "@theme/NotFound/Content";
+import type {Props} from "@theme/DocRoot";
 
-// Works with multiple docs plugin instances: main, compact, academy
-export default function DocRoot(props: React.ComponentProps<typeof DocRootLayout>) {
-  // Call the hook for each known plugin id in a stable order.
-  // Hooks are always called the same number of times, so this is safe.
-  const metaMain = useDocRootMetadata({pluginId: 'main'});
-  const metaCompact = useDocRootMetadata({pluginId: 'compact'});
-  const metaAcademy = useDocRootMetadata({pluginId: 'academy'});
-
-  const metadata = metaMain ?? metaCompact ?? metaAcademy;
-
-  // If we’re not on a docs route (e.g., homepage/blog), no metadata will exist.
-  // Don’t destructure; just render the layout.
-  // If you need route-specific logic, guard with `if (metadata) { ... }`.
-  return <DocRootLayout {...props} />;
+export default function DocRoot(props: Props): JSX.Element {
+  const currentDocRouteMetadata = useDocRootMetadata(props);
+  if (!currentDocRouteMetadata) {
+    // We only render the not found content to avoid a double layout
+    // see https://github.com/facebook/docusaurus/pull/7966#pullrequestreview-1077276692
+    return <NotFoundContent />;
+  }
+  const {docElement, sidebarName, sidebarItems} = currentDocRouteMetadata;
+  return (
+    <HtmlClassNameProvider className={clsx(
+        ThemeClassNames.wrapper.docsPages,
+        ThemeClassNames.page.docsDocPage
+      )}
+    >
+      <DocsSidebarProvider name={sidebarName} items={sidebarItems}>
+        <DocRootLayout>{docElement}</DocRootLayout>
+      </DocsSidebarProvider>
+    </HtmlClassNameProvider>
+  );
 }
-
