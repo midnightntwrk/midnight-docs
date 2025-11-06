@@ -1,5 +1,4 @@
 name: Build
-
 on:
   pull_request:
   workflow_dispatch:
@@ -15,34 +14,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Activate Yarn 4 using Corepack
-        run: |
-          set -euxo pipefail
-          corepack enable
-          corepack prepare yarn@4.10.3 --activate
-          # ensure global Yarn 1 is ignored
-          echo "YARN_IGNORE_PATH=1" >> "$GITHUB_ENV"
-          node -v
-          corepack yarn -v
-
-      - name: Cache Yarn downloads
-        uses: actions/cache@v4
-        with:
-          path: |
-            .yarn/cache
-            .yarn/install-state.gz
-          key: ${{ runner.os }}-yarn4-${{ hashFiles('**/yarn.lock') }}
-
-      - name: Install dependencies (Yarn 4)
+      # Use vendored Yarn; avoid global Yarn 1
+      - name: Install deps
         env:
-          # allow lockfile creation on forked PRs (remove if you always commit yarn.lock)
-          YARN_ENABLE_HARDENED_MODE: "0"
+          YARN_IGNORE_PATH: "1"
         run: |
-          if [ -f yarn.lock ]; then
-            corepack yarn install --immutable
-          else
-            corepack yarn install
-          fi
+          node .yarn/releases/yarn-4.10.3.cjs -v
+          node .yarn/releases/yarn-4.10.3.cjs install --immutable
 
       - name: Build
-        run: corepack yarn build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: node .yarn/releases/yarn-4.10.3.cjs build
