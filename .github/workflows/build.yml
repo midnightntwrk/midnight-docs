@@ -2,24 +2,31 @@ name: Build
 
 on:
   pull_request:
-  workflow_dispatch:
-
-env:
-  ALGOLIA_APP_ID: ${{secrets.ALGOLIA_APP_ID}}
-  ALGOLIA_INDEX_NAME: ${{secrets.ALGOLIA_INDEX_NAME}}
+  push:
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
-      - name: Setup Node.js
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # 5.0.0
-        with:
-          node-version: 22
-      - name: Enable Corepack
-        run: corepack enable
-      - name: Run build
+      - uses: actions/checkout@v4
+
+      - name: Activate Yarn 4 via Corepack
         run: |
-          yarn install
-          yarn run build
+          corepack enable
+          corepack prepare yarn@4.10.3 --activate
+          yarn -v
+        env:
+          # Ensure we don't pick up any global Yarn 1.x
+          YARN_IGNORE_PATH: "1"
+
+      - name: Install
+        run: yarn install --immutable
+        env:
+          YARN_IGNORE_PATH: "1"
+          YARN_ENABLE_HARDENED_MODE: "0"
+
+      - name: Build
+        run: yarn build
+        env:
+          YARN_IGNORE_PATH: "1"
