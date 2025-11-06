@@ -9,29 +9,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Activate Yarn 4 using Corepack
-        shell: bash
         run: |
           set -euxo pipefail
-
           corepack enable
           corepack prepare yarn@4.10.3 --activate
-
-          {
-            echo 'yarn() {'
-            echo '  command corepack yarn "$@";'
-            echo '}'
-          } >> "$BASH_ENV"
-          source "$BASH_ENV"
-
+          # ensure global Yarn 1 is ignored
+          echo "YARN_IGNORE_PATH=1" >> "$GITHUB_ENV"
           node -v
-          command -v corepack
           corepack yarn -v
 
       - name: Cache Yarn downloads
@@ -44,16 +35,14 @@ jobs:
 
       - name: Install dependencies (Yarn 4)
         env:
-          YARN_IGNORE_PATH: "1"
+          # allow lockfile creation on forked PRs (remove if you always commit yarn.lock)
           YARN_ENABLE_HARDENED_MODE: "0"
         run: |
           if [ -f yarn.lock ]; then
-            yarn install --immutable
+            corepack yarn install --immutable
           else
-            yarn install
+            corepack yarn install
           fi
 
       - name: Build
-        env:
-          YARN_IGNORE_PATH: "1"
-        run: yarn build
+        run: corepack yarn build
