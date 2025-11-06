@@ -7,42 +7,59 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          # Don't let it auto-detect cache - we'll handle it manually
-          cache: ''  # Empty string disables automatic cache detection
 
-      - name: Enable Corepack
-        run: corepack enable
-
-      # Optional: Set up cache manually after Corepack is enabled
-      - name: Get yarn cache directory
-        id: yarn-cache-dir
-        run: echo "dir=$(corepack yarn config get cacheFolder)" >> $GITHUB_OUTPUT
-
-      - name: Cache yarn dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.yarn-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
-
-      # Now your existing install & build step
-      - name: Install & Build (Corepack + auto-discovery)
+      - name: Activate Yarn 4 via Corepack (and force alias)
+        shell: bash
         run: |
           set -euxo pipefail
-          
-          # Your existing script continues here...
-          corepack install
-          export YARN_IGNORE_PATH=1
-          # ... rest of your script
+
+          # Hard-activate the exact Yarn you want
+          corepack enable
+          corepack prepare yarn@4.10.3 --activate
+
+          # Make sure any future `yarn` calls in this job use Corepack's yarn
+          echo 'export YARN_IGNORE_PATH=1' >> "$GITHUB_ENV"
+          {
+            echo 'yarn() {'
+            echo '  command corepack yarn "$@";'
+            echo '}'
+          } >> "$BASH_ENV"
+          source "$BASH_ENV"
+
+          node -v
+          command -v corepack
+          corepack yarn -v
+          # This will now also print 4.x because of the alias:
+          yarn -v
+
+      - name: Cache Yarn downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+          key: ${{ runner.os }}-yarn4-${{ hashFiles('**/yarn.lock') }}
+
+      - name: Install dependencies (Yarn 4)
+        env:
+          YARN_IGNORE_PATH: "1"
+          YARN_ENABLE_HARDENED_MODE: "0"
+        run: |
+          # If yarn.lock exists, use immutable; otherwise plain install
+          if [ -f yarn.lock ]; then
+            yarn install --immutable
+          else
+            yarn install
+          fi
+
+      - name: Build
+        env:
+          YARN_IGNORE_PATH: "1"
+        run: yarn build
