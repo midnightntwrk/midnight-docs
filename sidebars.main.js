@@ -94,11 +94,6 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "develop/how-to/handle-private-state-sessions",
-          label: "Handle private state sessions"
-        },
-        {
-          type: "doc",
           id: "develop/how-to/react-wallet-connect",
           label: "Create a React Wallet Connector"
         },
@@ -109,18 +104,8 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "develop/how-to/verify-private-data",
-          label: "Verify private data"
-        },
-        {
-          type: "doc",
           id: "develop/how-to/fix-version-mismatch-errors",
           label: "Fix version mismatch errors"
-        },
-        {
-          type: "doc",
-          id: "develop/how-to/write-nft-contract",
-          label: "Write NFT contracts"
         },
         {
           type: "doc",
