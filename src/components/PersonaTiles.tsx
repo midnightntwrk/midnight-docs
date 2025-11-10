@@ -9,13 +9,13 @@ const tiles: Tile[] = [
     title: "New to blockchain",
     body: "Learn core ideas related to selective disclosure, ZK proofs, commitments, and how Midnight is different.",
     to: "/academy",
-    cta: "Start here",
+    cta: "Start learning",
   },
   {
     title: "Developer",
     body: "Install tools, scaffold an app, write a contract, and send a private transaction.",
     to: "/getting-started/installation",
-    cta: "Developer quickstart",
+    cta: "Start building",
   },
   {
     title: "Node operators and SPOs",
