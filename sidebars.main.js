@@ -5,27 +5,15 @@ module.exports = {
     {
       type: "category",
       label: "Get started",
+      link: {
+        type: "doc",
+        id: "getting-started/index"  
+      },
       items: [
-        {
-          type: "doc",
-          id: "getting-started/installation",
-          label: "Get started"
-        },
-        {
-          type: "doc",
-          id: "getting-started/create-mn-app",
-          label: "Create an MN app"
-        },
-        {
-          type: "doc",
-          id: "getting-started/deploy-mn-app",
-          label: "Deploy an MN app"
-        },
-        {
-          type: "doc",
-          id: "getting-started/interact-with-mn-app",
-          label: "Interact with an MN app"
-        }
+        "getting-started/installation",
+        "getting-started/create-mn-app",
+        "getting-started/deploy-mn-app",
+        "getting-started/interact-with-mn-app"
       ]
     },
 

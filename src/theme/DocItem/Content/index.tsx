@@ -1,30 +1,23 @@
+// src/theme/DocItem/Content/index.tsx
 import React from "react";
 import clsx from "clsx";
 import { ThemeClassNames } from "@docusaurus/theme-common";
 import { useDoc } from "@docusaurus/theme-common/internal";
 import Heading from "@theme/Heading";
 import MDXContent from "@theme/MDXContent";
-/**
- Title can be declared inside md content or declared through
- front matter and added manually. To make both cases consistent,
- the added title is added under the same div.markdown block
- See https://github.com/facebook/docusaurus/pull/4882#issuecomment-853021120
+import type { Props } from "@theme/DocItem/Content";
 
- We render a "synthetic title" if:
- - user doesn't ask to hide it with front matter
- - the markdown content does not already contain a top-level h1 heading
-*/
+// Renders a synthetic H1 if front matter doesn't hide title
+// and the MDX doesn't already include a top-level heading.
 function useSyntheticTitle() {
   const { metadata, frontMatter, contentTitle } = useDoc();
-  const shouldRender =
-    !frontMatter.hide_title && typeof contentTitle === "undefined";
-  if (!shouldRender) {
-    return null;
-  }
-  return metadata.title;
+  const shouldRender = !frontMatter.hide_title && typeof contentTitle === "undefined";
+  return shouldRender ? metadata.title : null;
 }
-export default function DocItemContent({ children }) {
+
+export default function DocItemContent({ children }: Props) {
   const syntheticTitle = useSyntheticTitle();
+
   return (
     <div className={clsx(ThemeClassNames.docs.docMarkdown, "markdown")}>
       {syntheticTitle && (

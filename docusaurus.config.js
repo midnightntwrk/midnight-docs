@@ -104,6 +104,9 @@ const config = {
     posthogApiKey: process.env.POSTHOG_API_KEY,
     posthogApiHost: process.env.POSTHOG_API_HOST,
     posthogProjectId: process.env.POSTHOG_PROJECT_ID,
+
+    githubEditBase: 'https://github.com/midnightntwrk/midnight-docs/edit/main/',
+    githubRawBase:  'https://raw.githubusercontent.com/midnightntwrk/midnight-docs/main/',
   },
 
   scripts: [
@@ -174,10 +177,10 @@ const config = {
         href: "https://midnight.network",
       },
       items: [
-        { to: "/", label: "Docs Home", position: "left" },
-        { to: "/compact", label: "Compact", position: "left" },
-        { to: "/academy", label: "Academy", position: "left" },
-        { to: "/blog", label: "Blog", position: "left", activeBaseRegex: "^/blog/?" },
+        { to: "/",         label: "Docs",     position: "left",  activeBaseRegex: "^/$" },
+        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
+        { to: "/academy",  label: "Academy",  position: "left",  activeBaseRegex: "^/academy(/|$)" },
+        { to: "/blog",     label: "Blog",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
         {
           type: "html",
           position: "right",
