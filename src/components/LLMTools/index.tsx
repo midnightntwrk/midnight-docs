@@ -97,7 +97,7 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
         onClick={() => (open ? setOpen(false) : openMenu())}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Open with…"
+        aria-label="Explore with…"
       >
         Explore with… ▾
       </button>
