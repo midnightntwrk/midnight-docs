@@ -99,7 +99,7 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
         aria-expanded={open}
         aria-label="Open with…"
       >
-        Open with… ▾
+        Explore with… ▾
       </button>
 
       {open &&
