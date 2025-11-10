@@ -9,17 +9,16 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
   const btnRef = React.useRef<HTMLButtonElement | null>(null);
   const listRef = React.useRef<HTMLDivElement | null>(null);
 
-  // Build a nice, reusable prompt based on the current page
+  // Prompt built from the current page
   const pageUrl = typeof window !== 'undefined' ? window.location.href : '';
   const promptText = `Read this Midnight Docs page and answer questions about it:\n\n${pageUrl}`;
   const prompt = encodeURIComponent(promptText);
 
-  // Resolve icons from /static (works with any baseUrl)
+  // Resolve icon URLs from /static (baseUrl-safe)
   const githubSrc  = useBaseUrl('/img/icons/github.svg');
   const chatgptSrc = useBaseUrl('/img/icons/openai.svg');
   const claudeSrc  = useBaseUrl('/img/icons/anthropic.svg');
   const geminiSrc  = useBaseUrl('/img/icons/gemini.svg');
-  // (No local T3 icon—keeping your original inline SVG below)
 
   function openMenu() {
     const r = btnRef.current?.getBoundingClientRect();
@@ -55,12 +54,12 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
   const items = [
     githubUrl && {
       label: 'GitHub',
-      icon: <img src={githubSrc} alt="" width={18} height={18} />,
+      icon: <img src={githubSrc} alt="" width={18} height={18} className="llm-icon" />,
       onClick: () => window.open(githubUrl!, '_blank', 'noopener,noreferrer'),
     },
     {
       label: 'ChatGPT',
-      icon: <img src={chatgptSrc} alt="" width={18} height={18} />,
+      icon: <img src={chatgptSrc} alt="" width={18} height={18} className="llm-icon" />,
       onClick: async () => {
         try { await navigator.clipboard.writeText(promptText); } catch {}
         window.open(`https://chat.openai.com/?q=${prompt}`, '_blank', 'noopener,noreferrer');
@@ -68,13 +67,13 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
     },
     {
       label: 'Claude',
-      icon: <img src={claudeSrc} alt="" width={18} height={18} />,
+      icon: <img src={claudeSrc} alt="" width={18} height={18} className="llm-icon" />,
       onClick: () =>
         window.open(`https://claude.ai/new?q=${prompt}`, '_blank', 'noopener,noreferrer'),
     },
     {
       label: 'Gemini',
-      icon: <img src={geminiSrc} alt="" width={18} height={18} />,
+      icon: <img src={geminiSrc} alt="" width={18} height={18} className="llm-icon" />,
       onClick: () =>
         window.open(`https://gemini.google.com/app?query=${prompt}`, '_blank', 'noopener,noreferrer'),
     },
@@ -98,8 +97,9 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
         onClick={() => (open ? setOpen(false) : openMenu())}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label="Open with…"
       >
-        Explore ▾
+        Open with… ▾
       </button>
 
       {open &&
@@ -127,7 +127,6 @@ export function ViewOptions({ githubUrl }: { githubUrl?: string }) {
                   it.onClick();
                   setOpen(false);
                 }}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 8 }}
               >
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 500 }}>
                   {it.icon}
