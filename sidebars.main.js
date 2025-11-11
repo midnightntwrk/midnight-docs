@@ -124,11 +124,6 @@ module.exports = {
           id: "develop/guides/compact-javascript-runtime",
           label: "The Compact JavaScript runtime"
         },
-        {
-          type: "category",
-          label: "Query the blockchain",
-          items: ["develop/nodes-and-dapps/nodes-endpoints"]
-        }
       ]
     },
 
@@ -175,7 +170,7 @@ module.exports = {
         {
           type: "category",
           label: "Become a Midnight block producer",
-          link: { type: "doc", id: "validate/run-a-validator" },
+          link: { type: "doc", id: "validate/run-a-validator/index" },
           items: [
             "validate/run-a-validator/step-1",
             "validate/run-a-validator/step-2",
