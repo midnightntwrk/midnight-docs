@@ -31,6 +31,23 @@ module.exports = {
     },
 
     // CONCEPTS
+    {
+      type: "category",
+      label: "Concepts",
+      link: {
+        type: "doc",
+        id: "develop/how-midnight-works/index"  
+      },
+      items: [
+      "develop/how-midnight-works/advantages",
+      "develop/how-midnight-works/building-blocks",
+      "develop/how-midnight-works/smart-contracts",
+      "develop/how-midnight-works/keeping-data-private",
+      "develop/how-midnight-works/semantics",
+      "develop/how-midnight-works/zswap",
+      "develop/how-midnight-works/impact",
+      ],
+    },
 
     // BUILD
     {
