@@ -31,6 +31,23 @@ module.exports = {
     },
 
     // CONCEPTS
+    {
+      type: "category",
+      label: "Concepts",
+      link: {
+        type: "doc",
+        id: "develop/how-midnight-works/index"  
+      },
+      items: [
+      "develop/how-midnight-works/advantages",
+      "develop/how-midnight-works/building-blocks",
+      "develop/how-midnight-works/smart-contracts",
+      "develop/how-midnight-works/keeping-data-private",
+      "develop/how-midnight-works/semantics",
+      "develop/how-midnight-works/zswap",
+      "develop/how-midnight-works/impact",
+      ],
+    },
 
     // BUILD
     {
@@ -107,16 +124,44 @@ module.exports = {
           id: "develop/guides/compact-javascript-runtime",
           label: "The Compact JavaScript runtime"
         },
-        {
-          type: "category",
-          label: "Query the blockchain",
-          items: ["develop/nodes-and-dapps/nodes-endpoints"]
-        }
       ]
     },
 
+    // OPERATE
+    {
+      type: "category",
+      label: "Operate",
+      collapsed: true,
+      items: [
+        { type: "doc", id: "operate/node-intro", label: "Midnight Node" },
+        { type: "doc", id: "operate/node-endpoints", label: "Node endpoints" },
+        {
+          type: "category",
+          label: "Network architecture",
+          items: [
+            "operate/network-architecture/p2p-networking",
+            "operate/network-architecture/rpc-networking",
+            "operate/network-architecture/transactions",
+            "operate/network-architecture/consensus",
+            "operate/network-architecture/cryptography",
+            "operate/network-architecture/onchain-logic",
+            "operate/network-architecture/storage",
+          ],
+        },
+        {
+          type: "category",
+          label: "Operate nodes",
+          items: [
+            "operate/node-operations/full-node",
+            "operate/node-operations/boot-node",
+            "operate/node-operations/rpc-node",
+            "operate/node-operations/cardano-db-sync",
+          ],
+        },
+      ],
+    },
 
-    // VALIDATE - All existing content
+    // VALIDATE
     {
       type: "category",
       label: "Validate",
@@ -136,65 +181,7 @@ module.exports = {
       ]
     },
 
-    // REFERENCE - All existing content
-    {
-      type: "category",
-      label: "Reference",
-      collapsed: true,
-      items: [
-        {
-          type: "doc",
-          id: "develop/index",
-          label: "Development overview"
-        },
-        {
-          type: "category",
-          label: "How Midnight works",
-          link: { type: "doc", id: "develop/how-midnight-works/index" },
-          items: [
-            "develop/how-midnight-works/smart-contracts",
-            "develop/how-midnight-works/advantages",
-            "develop/how-midnight-works/keeping-data-private",
-            "develop/how-midnight-works/building-blocks",
-            "develop/how-midnight-works/zswap",
-            "develop/how-midnight-works/impact",
-            "develop/how-midnight-works/semantics"
-          ]
-        },
-        {
-          type: "category",
-          label: "Nodes and DApps",
-          items: [
-            {
-              type: "category",
-              label: "Node overview",
-              link: { type: "doc", id: "develop/nodes-and-dapps/node-intro" },
-              items: [
-                "develop/nodes-and-dapps/p2p-networking",
-                "develop/nodes-and-dapps/rpc-networking",
-                "develop/nodes-and-dapps/cryptography",
-                "develop/nodes-and-dapps/storage",
-                "develop/nodes-and-dapps/transactions",
-                "develop/nodes-and-dapps/onchain-logic",
-                "develop/nodes-and-dapps/consensus"
-              ]
-            },
-            {
-              type: "category",
-              label: "Node operations",
-              items: [
-                "develop/nodes-and-dapps/cardano-db-sync",
-                "develop/nodes-and-dapps/full-node",
-                "develop/nodes-and-dapps/boot-node",
-                "develop/nodes-and-dapps/rpc-node"
-              ]
-            }
-          ]
-        }
-      ]
-    },
-
-    // API DOCUMENTATION - All existing content
+    // API DOCUMENTATION
     {
       type: "category",
       label: "API documentation",
