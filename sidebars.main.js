@@ -16,8 +16,21 @@ module.exports = {
         "getting-started/interact-with-mn-app"
       ]
     },
-
     // WHAT IS MIDNIGHT
+    {
+      type: "category",
+      label: "What is Midnight",
+      collapsed: true,
+      link: {
+        type: "doc",
+        id: "learn/what-is-midnight/index",
+      },
+      items: [
+        { type: "doc", id: "learn/introduction/features/security", label: "Features" },
+      ],
+    },
+
+    // CONCEPTS
 
     // BUILD
     {
@@ -27,19 +40,20 @@ module.exports = {
       items: [
         {
           type: "category",
-          label: "Setup and prerequisites",
-          link: { type: "doc", id: "develop/tutorial/using/index" },
-          items: [
-            "develop/tutorial/using/welcome",
-            "develop/tutorial/using/chrome-ext",
-            "develop/tutorial/using/faucet",
-            "develop/tutorial/using/proof-server"
-          ]
-        },
-        {
-          type: "category",
           label: "Tutorials",
           items: [
+            {
+              type: "category",
+              label: "Build from scratch",
+              link: { type: "doc", id: "develop/tutorial/creating/index" },
+              items: [
+                "develop/tutorial/creating/scenario",
+                "develop/tutorial/creating/bboard-contract",
+                "develop/tutorial/creating/bboard-dapp",
+                "develop/tutorial/creating/local-testing",
+                "develop/tutorial/creating/updatability"
+              ]
+            },
             {
               type: "category",
               label: "Build using an example",
@@ -52,18 +66,6 @@ module.exports = {
                 "develop/tutorial/building/dapp-details"
               ]
             },
-            {
-              type: "category",
-              label: "Build from scratch",
-              link: { type: "doc", id: "develop/tutorial/creating/index" },
-              items: [
-                "develop/tutorial/creating/scenario",
-                "develop/tutorial/creating/bboard-contract",
-                "develop/tutorial/creating/bboard-dapp",
-                "develop/tutorial/creating/local-testing",
-                "develop/tutorial/creating/updatability"
-              ]
-            }
           ]
         }
       ]
@@ -113,61 +115,6 @@ module.exports = {
       ]
     },
 
-    // LEARNING RESOURCES
-    {
-      type: "category",
-      label: "Learning resources",
-      collapsed: true,
-      items: [
-        {
-          type: "category",
-          label: "Introduction to Midnight",
-          items: [
-            {
-              type: "category",
-              label: "Features",
-              items: [
-                "learn/introduction/features/security",
-              ]
-            },
-            {
-              type: "category",
-              label: "Midnight's native token",
-              items: ["learn/introduction/native-token/about-dust"]
-            },
-            "learn/introduction/wallets/index"
-          ]
-        },
-        {
-          type: "category",
-          label: "Understanding Midnight's technology",
-          link: {
-            type: "doc",
-            id: "learn/understanding-midnights-technology/index"
-          },
-          items: [
-            "learn/understanding-midnights-technology/web3",
-            "learn/understanding-midnights-technology/zero-knowledge-proofs",
-            "learn/understanding-midnights-technology/kachina",
-            "learn/understanding-midnights-technology/zswap",
-            {
-              type: "category",
-              label: "Account vs UTXO models",
-              link: {
-                type: "doc",
-                id: "learn/understanding-midnights-technology/ledgers"
-              },
-              items: [
-                "learn/understanding-midnights-technology/account",
-                "learn/understanding-midnights-technology/utxo",
-                "learn/understanding-midnights-technology/midnight-combined-model"
-              ]
-            }
-          ]
-        },
-        "learn/resources"
-      ]
-    },
 
     // VALIDATE - All existing content
     {
