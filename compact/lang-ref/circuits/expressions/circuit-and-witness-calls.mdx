@@ -1,0 +1,109 @@
+
+Circuits and witnesses, collectively referred to as functions, are called via an
+expression of the form `f(e, ...)`, where `f` is a function and `e, ...` is a
+sequence of zero or more comma-separated argument expressions.
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>fun</em>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;[<em>expr</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>}]&nbsp;&nbsp;<b><tt>)</tt></b></td></tr><tr><td><em>fun</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;[<em>targs</em>]</td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;[<em>var-or-arg</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>var-or-arg</em>}]&nbsp;&nbsp;<b><tt>)</tt></b>&nbsp;&nbsp;<b><tt>:</tt></b>&nbsp;&nbsp;[<em>type</em>]&nbsp;&nbsp;<b><tt>=></tt></b>&nbsp;&nbsp;<em>body</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;<em>fun</em>&nbsp;&nbsp;<b><tt>)</tt></b></td></tr><tr><td><em>targs</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<b><tt>\<</tt></b>&nbsp;&nbsp;[<em>targ</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>targ</em>}]&nbsp;&nbsp;<b><tt>></tt></b></td></tr><tr><td><em>targ</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>nat</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<em>type</em></td></tr><tr><td><em>var-or-arg</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>id</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<em>arg</em></td></tr><tr><td><em>arg</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;<b><tt>:</tt></b>&nbsp;&nbsp;<em>type</em></td></tr><tr><td><em>body</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>block</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<em>expr</em></td></tr></tbody></table>
+
+The function expression can take several different forms:
+
+A **function name** is the name of a circuit or witness from a circuit or
+witness declaration in scope.
+
+An **anonymous circuit** is an inline circuit definition having the form `(P,
+...) => body` or `(P, ...): R => body`, where `P, ...` are zero or more
+comma-separated parameter declarations, `R` is an optional return type
+annotation, and `body` is the circuit's body.  Each parameter consists of an
+identifier `x` (the parameter's name) and an optional type annotation `: T`
+where `T` is a Compact type.  The optional return type `R` is a Compact type.
+The body is either a block (a sequence of zero or more semicolon-delimited
+statements enclosed in curly braces (`{ }`)), or an expression.
+
+There is no syntax for generic anonymous circuits.  This is because circuits are
+not first-class values: they cannot be passed around or stored in data
+structures, they *must* be called.  And generic circuits must be specialized to
+call them, so anonymous generic circuits would have to be immediately
+specialized.  In that case, the programmer can just write the non-generic
+version themselves.
+
+A **parenthesized function** has the form `(f)` where `f` is a function
+expression, that is either a function name, an anonymous circuit, or a
+parenthesized function.
+
+Because functions are not first class, parameter names and constant names are
+not allowed as the function part of a call.  Nor are arbitrary expressions
+allowed, for the same reason.
+
+Because circuits and witnesses are not first class, parameter names and constant
+names are not allowed as the circuit or witness part of a call.  Nor are
+arbitrary expressions allowed, for the same reason.
+
+Generic functions cannot be called without explicitly specializing them with
+generic arguments enclosed in angle brackets.  Calls to generic functions must
+be fully specialized: the number of generic arguments must match the number of
+generic parameters.
+
+The *underlying function* of a function expression is a non-parenthesized
+function expression.  For a function name it is the function name, for an
+anonymous circuit it is the anonymous circuit, and for a parenthesized function
+it is the underlying function of the parenthesized function expression.
+
+Type checking a function call depends on the form of the underlying function.
+
+* **For a named function:** Function names may be *overloaded*: more than one
+  function of the same name may be present in the scope of a call to that
+  function.  A call whose underlying function is a name can thus have zero or
+  more candidate functions, i.e., all of those that have the given name and are
+  present in the scope of the call.
+
+  A candidate function is not necessarily compatible with the number and kinds
+  of the generic parameter values, nor with the number and types of the argument
+  expressions provided at the call site.  It is compatible if and only if the
+  number of generic parameters is the same as the number of generic arguments,
+  each generic argument is of the required kind (a size or a type), the number
+  of declared parameters is the same as the number of argument expressions, and
+  if the declared type of each parameter is a supertype of the corresponding
+  argument expression.  If exactly one candidate is compatible, the call is made
+  to that candidate.  It is a static type error otherwise (if there is not
+  exactly one compatible candidate).
+
+  The static type of a call to a named function is the return type of the called
+  function.
+
+* **For an anonymous circuit:** Parameters that have type annotations will be
+  type checked, and parameters that do not have type annotations will have types
+  inferred.  The argument subexpressions are type checked and then:
+
+  - If there is a type annotation for a parameter, it is a static type error if
+    the type of the corresponding argument expression is not a subtype of the
+    type annotation.
+
+  - If there is no type annotation for a parameter, the parameter's type is
+    inferred as the type of the corresponding argument expression.
+
+  If there is a return type annotation, then the circuit's body is type checked
+  under the assumption that the parameters have their declared or inferred
+  types.  It is a static type error if there is a returned subexpression whose
+  static type is not a subtype of the return type annotation.  A return
+  statement of the form `return;` is type checked as if it returned a value of
+  type `[]`.  Every control flow path through a body that does not explicitly
+  end with a return statement implicitly ends with one of the form `return;`.
+
+  If there is no return type annotation, then a return type is inferred from the
+  body.  The body is type checked under the assumption that the parameters have
+  their declared or inferred types.  The inferred return type is the least upper
+  bound of the types of all the returned subexpressions, with the same treatment
+  of `return;` and control-flow paths that do not end in an explicit return as
+  described above.
+
+  The static type of a call to an anonymous circuit is the declared or inferred
+  return type.
+
+Calls are evaluated by evaluating the argument expressions in order from left to
+right.  Then, if a circuit is being called, the statements in the body of the
+circuit are executed with the parameter names bound to the corresponding
+argument values.  The value of a circuit call is the value returned from the
+execution of the body.  If a witness is being called, the contract will invoke
+the TypeScript or JavaScript witness function with the argument values.  The
+value of a witness call is the value returned by the witness function.
+

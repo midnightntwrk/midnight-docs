@@ -1,0 +1,57 @@
+
+Compact supports expressions that perform the higher-order operations _map_ and
+(left) _fold_ over tuples that have a vector type (not arbitrary tuples).
+
+Map expressions have the form `map(f, e, e, ...)` where `map` is a keyword, `f`
+is a circuit or witness taking at least one argument, and the `e`s are
+expressions.  A circuit or witness taking _n_ arguments can be mapped over _n_
+argument vectors by providing _n_ vector subexpressions to the `map`.
+
+Fold expressions have the form `fold(f, init, e, e, ...)` where `fold` is a
+keyword, `f` is a circuit or witness, and `init` and the `e`s are expressions.
+A circuit or witness taking _n_+1 arguments can be folded over an initial value
+`init` and _n_ vectors by providing _n_ vector subexpressions to the `fold`.
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<b><tt>map</tt></b>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;<em>fun</em>&nbsp;&nbsp;<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>}&nbsp;&nbsp;<b><tt>)</tt></b></td></tr><tr><td></td><td>|</td><td>&nbsp;&nbsp;<b><tt>fold</tt></b>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;<em>fun</em>&nbsp;&nbsp;<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>}&nbsp;&nbsp;<b><tt>)</tt></b></td></tr></tbody></table>
+
+The syntax of the circuit or witness is given by the grammar production for
+_fun_ in the section **Circuit and witness calls** above.
+
+A map expression is type checked by checking the type of the witness or circuit
+`f` to find its parameter types and its return type `R`.  `f` must have at least
+one parameter.  The map expression must have the same number of vector subexpressions
+as the number of parameters of `f`.  Each of the vector subexpressions
+must have a vector type and all these vector types must have the same length
+`n`.  If the type of the *i*th parameter to `f` is `T`, then the type of the
+*i*th vector subexpression must be `Vector<n, S>` where `S` is a subtype of
+`T`.  The type of entire expression is `Vector<n, R>`.
+
+A fold expression is type checked by checking the type of the witness or circuit
+`f` to find its parameter types and its return type `R`.  `f` must have at least
+two parameters, and the type of the first parameter must be the same type as the
+return type `R`.  The fold expression must have one fewer vector subexpression
+than the number of parameters of `f`.  The subexpression `e` gives the initial
+value for the fold.  It must have a type which is a subtype `R`.  Each of the
+vector subexpressions must have a vector type and all these vector types must
+have the same length `n`.  If the type of the *i*+1th parameter of `f` is `T`
+then the type of the *i*th vector subexpression must be `Vector<n, S>` where `S`
+is a subtype of `T`.  The type of the entire expression is `R`.
+
+Map expressions are evaluated by evaluating the vector subexpressions from left
+to right.  These values are the input vector values.  The witness or circuit `f`
+is then applied in turn, from index 0 up to index `n`-1, to arguments taken from
+the input vector values.  The result is a vector of length `n` where each *i*th
+element is the result of applying `f` to the *i*th element of the corresponding
+input vector values.
+
+Fold expressions are evaluated by evaluating the initial value expression `e`
+and then evaluating the vector subexpressions from left to right.  The values of
+the vector expressions are the input vector values.  The witness or circuit `f`
+is then applied in turn, from index 0 up to index `n`-1, to an accumulator value
+argument and arguments taken from the input vector values.  The 0th (initial)
+accumulator value is the value of the expression `e`, and each subsequent
+*i*+1th accumulator value is the result of applying `f` to the *i*th accumulator
+value and to the *i*th element of the corresponding input vector values.  The
+result is the `n`th (final) accumulator value where `n` is the length of the
+input vectors.
+

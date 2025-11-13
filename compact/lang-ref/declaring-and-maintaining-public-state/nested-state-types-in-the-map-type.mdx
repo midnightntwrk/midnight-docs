@@ -1,0 +1,72 @@
+# Nested state types in the `Map` type
+
+The only ledger state type in which values of other state types may be
+held is `Map`.  The key values in a `Map` must be non-state types
+(simple Compact types), but the mapped values may be counters, sets,
+lists, other maps, and so on.
+
+Here is a small example:
+
+```compact
+import CompactStandardLibrary;
+
+ledger fld: Map<Boolean, Map<Field, Counter>>;
+
+export circuit initNestedMap(b: Boolean): [] {
+  fld.insert(b, default<Map<Field, Counter>>);
+}
+
+export circuit initNestedCounter(b: Boolean, n: Field): [] {
+  fld.lookup(b).insert(n, default<Counter>);
+}
+
+export circuit incrementNestedCounter(b: Boolean, n: Field, k: Uint<16>): [] {
+  fld.lookup(b).lookup(n).increment(k);
+}
+
+export circuit readNestedCounter1(b: Boolean, n: Field): Uint<64> {
+  return fld.lookup(b).lookup(n).read();
+}
+
+export circuit readNestedCounter2(b: Boolean, n: Field): Uint<64> {
+  return fld.lookup(b).lookup(n);
+}
+```
+
+In this example,
+- `fld` is bound to a `Map` from `Boolean` values to `Map`s from `Field` values to `Counter`s
+- `initNestedMap` can be used to create the inner `Map` for a particular outer-`Map` key
+- `initNestedCounter` can be used to create a `Counter` for a given outer-`Map` key and a given inner-`Map` key
+- `incrementNestedCounter` can be used to increment an existing `Counter` for a given outer-`Map` key and a given inner-`Map` key
+- either `readNestedCounter1` or `readNestedCounter2` can be used to read the value of an existing `Counter`
+  for a given outer-`Map` key and a given inner-`Map` key.
+
+Notes:
+
+1. Nesting is permitted only within `Map` values.  That is, nesting is not permitted in
+   `Map` keys or within any ledger state type other than `Map`.
+2. Nested values must be initialized before first use.  The syntax `default<T>`
+   is used to create default ledger state type values, just as it can be used to
+   create default Compact type values.
+3. Ledger state type values are not first-class objects, so when
+   accessing a nested value, the entire indirection chain must be
+   used.  For example, the following will result in a compiler error:
+   ```compact
+   export circuit incrementNestedCounter(b: Boolean, n: Field, k: Uint<16>): [] {
+     fld.lookup(b); // ERROR: incomplete chain of indirects 
+   }
+   ```
+4. When the last lookup is a read of a base type one can omit the
+   explicit `read()` indirect, as illustrated by the definitions of
+   `readNestedCounter1` and `readNestedCounter2` above, which have the
+   same behavior.
+5. For convenience, local variables can hold default ledger state type values,
+   so the following definition of `initNestedMap` is equivalent to the one
+   above.
+   ```compact
+   export circuit initNestedMap(b: Boolean): [] {
+     const t = default<Map<Field, Counter>>; 
+     fld.insert(b, t); 
+   }
+   ```
+
