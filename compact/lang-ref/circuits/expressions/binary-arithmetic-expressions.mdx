@@ -1,0 +1,40 @@
+
+Binary arithmetic expressions are of the form `e0 op e1` where `e0` and `e1`
+are expressions and `op` is one of Compact's binary arithmetic operators.  The
+binary arithmetic operators are **add** (`+`), **subtract** (`-`) and
+**multiply** (`*`).
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;<b><tt>+</tt></b>&nbsp;&nbsp;<em>expr</em></td></tr><tr><td></td><td>|</td><td>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;<b><tt>-</tt></b>&nbsp;&nbsp;<em>expr</em></td></tr><tr><td></td><td>|</td><td>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;<b><tt>*</tt></b>&nbsp;&nbsp;<em>expr</em></td></tr></tbody></table>
+
+Arithmetic expressions require the type of both subexpressions to be numeric
+types, that is, either a `Field` or a `Uint`.  The type of the result will
+depend on the types of the subexpressions as follows:
+
+- If either subexpression has type `Field`, the result will have type `Field`
+- Otherwise the left subexpression will have type `Uint<0..m>` and the right
+  subexpression will have type `Uint<0..n>` for some bounds `m` and `n`. The
+  type of the result depends on the operation as follows:
+  - For add, the result will have type `Uint<0..m+n>`
+  - For subtract, the result will have type `Uint<0..m>`
+  - For multiply, the result will have type `Uint<0..m*n>`
+
+For arithmetic operations with `Uint` result types, it is a static type error if
+the result's bound would be greater than the maximum unsigned integer.
+
+Arithmetic expressions are evaluated by first evaluating the subexpressions in
+order from left to right.  Integer addition, subtraction, or multiplication is
+then used on the subexpression values.  The overflow and underflow behavior
+differs for `Field` and `Uint` operations:
+
+- `Field` arithmetic overflow and underflow wraps around 0; that is, the result
+  of an arithmetic operation whose result is a `Field` is the actual arithmetic
+  value modulo `k`, where `k` is one more than the maximum field value.
+- `Uint` addition and multiplication cannot overflow: the static type of the
+  result will always be large enough to hold the result value
+- `Uint` subtraction checks if the value of the right subexpression is greater
+  than the value of the left subexpression.  If so, it is a runtime error (the
+  result would be negative).  Otherwise the unsigned subtraction is performed.
+
+The static typing rules imply that if `Field` arithmetic semantics is desired,
+then at least one of the operands must have static type `Field`.
+

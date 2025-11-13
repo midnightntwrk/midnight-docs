@@ -1,0 +1,62 @@
+
+A Compact program interacts with its public state by invoking operations upon
+the ledger or ledger state types.  There are two different forms of ledger
+calls.
+
+__Kernel operations__ are operations that do not depend on specific ledger 
+state.  They can be invoked by expressions of the form `k.op(e, ...)`, where
+`k` is the name of a ledger field declared to have the special ADT type `Kernel`,
+`op` is the name of a builtin kernel operation and
+`e, ...` is a comma separated sequence of zero or more argument expressions.
+The `CompactStandardLibrary` predefines the ledger field name `kernel` to have
+ledger type `Kernel`, so for example, the built-in `self` operation can be called
+from a circuit as follows:
+
+```compact
+import CompactStandardLibrary;
+circuit f(): ContractAddress {
+  return kernel.self();
+}
+```
+
+__Ledger ADT operations__ are operations on the program's public ledger state.
+They are invoked by expressions of the form `member.op(e, ...)....`,
+where `member` is a ledger field name ([declared via a `ledger` field declaration](#declaring-and-maintaining-public-state))
+and `.op(e, ...)....` are a sequence of zero or more ledger
+ADT operation invocations, where each `op` is the name of a ledger ADT
+operation and each `e, ...` is a sequence of zero or more comma-separated
+argument expressions.
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<b><tt>ledger</tt></b>&nbsp;&nbsp;<em>ledger-accessor</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<b><tt>ledger</tt></b>&nbsp;&nbsp;<b><tt>.</tt></b>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;\{<em>ledger-accessor</em>}</td></tr><tr><td><em>ledger-accessor</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<b><tt>.</tt></b>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;<b><tt>(</tt></b>&nbsp;&nbsp;[<em>expr</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>expr</em>}]&nbsp;&nbsp;<b><tt>)</tt></b></td></tr></tbody></table>
+
+Note that ledger ADT operations can be chained, because the result of a ledger 
+ADT operation might itself have a ledger state type.  Kernel operations cannot
+be chained, because the kernel is not a ledger state type and is not returned
+by any operation.
+
+The static type of a kernel operation expression is the return type of the
+corresponding kernel operation according to the ledger data types reference.
+
+The static type of a ledger ADT operation expression is the return type of the
+corresponding ADT operation according to the ledger data types reference.  Note
+that this might be a Compact type or it might be a ledger ADT type.  Values of
+ledger ADT types can have ADT operations invoked (immediately) on them, but
+any other use would be a static type error.
+
+Kernel operations are evaluated by evaluating the argument subexpressions in 
+order from left to right and then invoking the corresponding kernel operation
+with the argument values.
+
+A ledger ADT operation `member` (that is not followed by a ledger
+accessor) is implicitly an invocation of the `read` operation.  It is evaluated
+as if it were `member.read()`.
+
+A ledger ADT operation `member.op(e, ...)` is evaluated by evaluating the
+argument subexpressions from left to right, and then invoking the operation
+`op` on the public ledger member `member` with the argument values.
+
+A ledger ADT operation `adt.op(e, ...)` where `adt` is itself a ledger ADT 
+operation is evaluated by first evaluating `adt`, then evaluating the argument
+subexpressions from left to right, and then invoking the operation `op` on the
+ledger ADT value of `adt` with the argument values.
+
