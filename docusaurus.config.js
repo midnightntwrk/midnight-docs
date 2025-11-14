@@ -101,6 +101,7 @@ const config = {
   },
 
   customFields: {
+    turnstileSiteKey: process.env.TURNSTILE_SITE_KEY || "",
     posthogApiKey: process.env.POSTHOG_API_KEY,
     posthogApiHost: process.env.POSTHOG_API_HOST,
     posthogProjectId: process.env.POSTHOG_PROJECT_ID,
@@ -116,6 +117,11 @@ const config = {
   {
     src: "https://cmp.osano.com/AzZXI3TYiFWNB5yus/1489a4c7-fc85-49c4-99a3-1367c5a5ba96/osano.js",
     async: false,
+  },
+  {
+    src: "https://challenges.cloudflare.com/turnstile/v0/api.js",
+    async: true,
+    defer: true,
   },
   {
     src: "https://widget.kapa.ai/kapa-widget.bundle.js",
