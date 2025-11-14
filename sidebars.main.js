@@ -48,7 +48,7 @@ module.exports = {
       "develop/how-midnight-works/impact",
       ],
     },
-
+    "faucet",
     // BUILD
     {
       type: "category",
