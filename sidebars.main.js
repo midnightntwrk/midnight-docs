@@ -5,6 +5,7 @@ module.exports = {
     {
       type: "category",
       label: "Get started",
+      collapsed: false,
       link: {
         type: "doc",
         id: "getting-started/index"  
@@ -16,6 +17,7 @@ module.exports = {
         "getting-started/interact-with-mn-app"
       ]
     },
+    
     // WHAT IS MIDNIGHT
     {
       type: "category",
