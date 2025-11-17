@@ -6,7 +6,7 @@ type Props = {
   autoplay?: boolean;
 };
 
-export default function Video({ id, title = "Video", autoplay = false }: Props) {
+const VideoPlayer = ({ id, title = "Video", autoplay = false }: Props) => {
   const autoplayFlag = autoplay ? 1 : 0;
 
   return (
@@ -19,7 +19,6 @@ export default function Video({ id, title = "Video", autoplay = false }: Props) 
       />
     </div>
   );
-}
-
+};
 
 export default VideoPlayer;
