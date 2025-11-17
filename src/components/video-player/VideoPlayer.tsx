@@ -1,52 +1,25 @@
-import React, { FC } from "react";
+import React from "react";
 
 type Props = {
-  url: string;
+  id: string;
+  title?: string;
   autoplay?: boolean;
 };
 
-let ReactPlayer: any;
-if (typeof window !== "undefined") {
-  ReactPlayer = require("react-player").default;
-}
-
-const VideoPlayer: FC<Props> = ({ url, autoplay = false }) => {
-  if (typeof window === "undefined" || !ReactPlayer) {
-    return (
-      <div
-        style={{
-          position: "relative",
-          paddingTop: "56.25%",
-          borderRadius: "12px",
-          background: "#000",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.8rem",
-            opacity: 0.6,
-          }}
-        >
-          Video will load in the browser
-        </div>
-      </div>
-    );
-  }
+export default function Video({ id, title = "Video", autoplay = false }: Props) {
+  const autoplayFlag = autoplay ? 1 : 0;
 
   return (
-    <ReactPlayer
-      controls
-      playing={autoplay}
-      width="100%"
-      height="450px"
-      url={url}
-    />
+    <div className="mn-video-responsive">
+      <iframe
+        src={`https://www.youtube.com/embed/${id}?autoplay=${autoplayFlag}&rel=0`}
+        title={title}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowFullScreen
+      />
+    </div>
   );
-};
+}
+
 
 export default VideoPlayer;
