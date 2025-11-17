@@ -217,7 +217,7 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "validate/index",
+          id: "validate/tutorials/index",
           label: "Set up SPO"
         }
       ]
