@@ -28,8 +28,9 @@ module.exports = {
         id: "learn/what-is-midnight/index",
       },
       items: [
-        { type: "doc", id: "learn/introduction/features/security", label: "Features" },
-        { type: "doc", id: "develop/how-midnight-works/advantages", label: "Midnight model" }
+        { type: "doc", id: "learn/what-is-midnight/why-midnight", label: "Why Midnight" },
+        { type: "doc", id: "learn/what-is-midnight/midnight-combined-model", label: "Architecture" },
+        { type: "doc", id: "learn/what-is-midnight/advantages", label: "Midnight model" }  
       ],
     },
 
@@ -37,6 +38,10 @@ module.exports = {
     {
       type: "category",
       label: "Concepts",
+      link: {
+        type: "doc",
+        id: "develop/how-midnight-works/index"  
+      },
       items: [
         {
           type: "category",
@@ -54,7 +59,7 @@ module.exports = {
 
         {
           type: "category",
-          label: "Building concepts",
+          label: "Build concepts",
           items: [
             "develop/how-midnight-works/building-blocks",
             "develop/how-midnight-works/smart-contracts",
@@ -66,7 +71,7 @@ module.exports = {
         },
       ],
     },
-    
+
     // BUILD
     {
       type: "category",
@@ -79,18 +84,6 @@ module.exports = {
           items: [
             {
               type: "category",
-              label: "Build from scratch",
-              link: { type: "doc", id: "develop/tutorial/creating/index" },
-              items: [
-                "develop/tutorial/creating/scenario",
-                "develop/tutorial/creating/bboard-contract",
-                "develop/tutorial/creating/bboard-dapp",
-                "develop/tutorial/creating/local-testing",
-                "develop/tutorial/creating/updatability"
-              ]
-            },
-            {
-              type: "category",
               label: "Build using an example",
               link: { type: "doc", id: "develop/tutorial/building/index" },
               items: [
@@ -99,6 +92,18 @@ module.exports = {
                 "develop/tutorial/building/counter-run",
                 "develop/tutorial/building/contract-details",
                 "develop/tutorial/building/dapp-details"
+              ]
+            },
+            {
+              type: "category",
+              label: "Build from scratch",
+              link: { type: "doc", id: "develop/tutorial/creating/index" },
+              items: [
+                "develop/tutorial/creating/scenario",
+                "develop/tutorial/creating/bboard-contract",
+                "develop/tutorial/creating/bboard-dapp",
+                "develop/tutorial/creating/local-testing",
+                "develop/tutorial/creating/updatability"
               ]
             },
           ]
@@ -120,12 +125,12 @@ module.exports = {
         {
           type: "doc",
           id: "develop/how-to/react-wallet-connect",
-          label: "Create a React Wallet Connector"
+          label: "Create a React wallet connector"
         },
         {
           type: "doc",
           id: "develop/how-to/nextjs-wallet-connect",
-          label: "Create a NextJs Wallet Connector"
+          label: "Create a NextJs wallet connector"
         },
         {
           type: "doc",
@@ -135,12 +140,27 @@ module.exports = {
         {
           type: "doc",
           id: "develop/how-to/fix-package-repository-access-failures",
-          label: "Fix Package Repository Issue"
+          label: "Fix package repository issues"
         },
         {
           type: "doc",
           id: "develop/guides/compact-javascript-runtime",
           label: "The Compact JavaScript runtime"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/acquire-tokens",
+          label: "Acquire tokens"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/lace-wallet",
+          label: "Install the Lace wallet"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/run-proof-server",
+          label: "Run the proof server"
         },
       ]
     },
@@ -179,7 +199,6 @@ module.exports = {
       ],
     },
 
-    // VALIDATE
     {
       type: "category",
       label: "Validate",
@@ -196,6 +215,11 @@ module.exports = {
             "validate/run-a-validator/step-4"
           ]
         },
+        {
+          type: "doc",
+          id: "validate/index",
+          label: "Set up SPO"
+        }
       ]
     },
 
