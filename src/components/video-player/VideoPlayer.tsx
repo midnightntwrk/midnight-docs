@@ -2,19 +2,20 @@ import React from "react";
 
 type Props = {
   id: string;
-  title?: string;
+  title: string;
   autoplay?: boolean;
 };
 
-const VideoPlayer = ({ id, title = "Video", autoplay = false }: Props) => {
-  const autoplayFlag = autoplay ? 1 : 0;
-
+const VideoPlayer = ({ id, title }: Props) => {
   return (
-    <div className="mn-video-responsive">
+    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
       <iframe
-        src={`https://www.youtube.com/embed/${id}?autoplay=${autoplayFlag}&rel=0`}
+        width="100%"
+        height="450"
+        src={`https://www.youtube.com/embed/${id}`}
         title={title}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        style={{ border: 0 }}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
       />
     </div>
