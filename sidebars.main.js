@@ -5,6 +5,7 @@ module.exports = {
     {
       type: "category",
       label: "Get started",
+      collapsed: false,
       link: {
         type: "doc",
         id: "getting-started/index"  
@@ -16,6 +17,7 @@ module.exports = {
         "getting-started/interact-with-mn-app"
       ]
     },
+    
     // WHAT IS MIDNIGHT
     {
       type: "category",
@@ -26,11 +28,13 @@ module.exports = {
         id: "learn/what-is-midnight/index",
       },
       items: [
-        { type: "doc", id: "learn/introduction/features/security", label: "Features" },
+        { type: "doc", id: "learn/what-is-midnight/why-midnight", label: "Why Midnight" },
+        { type: "doc", id: "learn/what-is-midnight/midnight-combined-model", label: "Architecture" },
+        { type: "doc", id: "learn/what-is-midnight/advantages", label: "Midnight model" }  
       ],
     },
 
-    // CONCEPTS
+     // CONCEPTS
     {
       type: "category",
       label: "Concepts",
@@ -39,13 +43,32 @@ module.exports = {
         id: "develop/how-midnight-works/index"  
       },
       items: [
-      "develop/how-midnight-works/advantages",
-      "develop/how-midnight-works/building-blocks",
-      "develop/how-midnight-works/smart-contracts",
-      "develop/how-midnight-works/keeping-data-private",
-      "develop/how-midnight-works/semantics",
-      "develop/how-midnight-works/zswap",
-      "develop/how-midnight-works/impact",
+        {
+          type: "category",
+          label: "Core concepts",
+          items: [
+            "learn/understanding-midnights-technology/account",
+            "learn/understanding-midnights-technology/ledgers",
+            "learn/understanding-midnights-technology/utxo",
+            "learn/understanding-midnights-technology/web3",
+            "learn/understanding-midnights-technology/zero-knowledge-proofs",
+            "learn/understanding-midnights-technology/kachina",
+            "learn/understanding-midnights-technology/zswap",
+          ],
+        },
+
+        {
+          type: "category",
+          label: "Build concepts",
+          items: [
+            "develop/how-midnight-works/building-blocks",
+            "develop/how-midnight-works/smart-contracts",
+            "develop/how-midnight-works/keeping-data-private",
+            "develop/how-midnight-works/semantics",
+            "develop/how-midnight-works/zswap",
+            "develop/how-midnight-works/impact",
+          ],
+        },
       ],
     },
 
@@ -61,18 +84,6 @@ module.exports = {
           items: [
             {
               type: "category",
-              label: "Build from scratch",
-              link: { type: "doc", id: "develop/tutorial/creating/index" },
-              items: [
-                "develop/tutorial/creating/scenario",
-                "develop/tutorial/creating/bboard-contract",
-                "develop/tutorial/creating/bboard-dapp",
-                "develop/tutorial/creating/local-testing",
-                "develop/tutorial/creating/updatability"
-              ]
-            },
-            {
-              type: "category",
               label: "Build using an example",
               link: { type: "doc", id: "develop/tutorial/building/index" },
               items: [
@@ -81,6 +92,18 @@ module.exports = {
                 "develop/tutorial/building/counter-run",
                 "develop/tutorial/building/contract-details",
                 "develop/tutorial/building/dapp-details"
+              ]
+            },
+            {
+              type: "category",
+              label: "Build from scratch",
+              link: { type: "doc", id: "develop/tutorial/creating/index" },
+              items: [
+                "develop/tutorial/creating/scenario",
+                "develop/tutorial/creating/bboard-contract",
+                "develop/tutorial/creating/bboard-dapp",
+                "develop/tutorial/creating/local-testing",
+                "develop/tutorial/creating/updatability"
               ]
             },
           ]
@@ -102,12 +125,12 @@ module.exports = {
         {
           type: "doc",
           id: "develop/how-to/react-wallet-connect",
-          label: "Create a React Wallet Connector"
+          label: "Create a React wallet connector"
         },
         {
           type: "doc",
           id: "develop/how-to/nextjs-wallet-connect",
-          label: "Create a NextJs Wallet Connector"
+          label: "Create a NextJs wallet connector"
         },
         {
           type: "doc",
@@ -117,12 +140,27 @@ module.exports = {
         {
           type: "doc",
           id: "develop/how-to/fix-package-repository-access-failures",
-          label: "Fix Package Repository Issue"
+          label: "Fix package repository issues"
         },
         {
           type: "doc",
           id: "develop/guides/compact-javascript-runtime",
           label: "The Compact JavaScript runtime"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/acquire-tokens",
+          label: "Acquire tokens"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/lace-wallet",
+          label: "Install the Lace wallet"
+        },
+        {
+          type: "doc",
+          id: "develop/how-to/run-proof-server",
+          label: "Run the proof server"
         },
       ]
     },
@@ -161,7 +199,6 @@ module.exports = {
       ],
     },
 
-    // VALIDATE
     {
       type: "category",
       label: "Validate",
@@ -178,6 +215,11 @@ module.exports = {
             "validate/run-a-validator/step-4"
           ]
         },
+        {
+          type: "doc",
+          id: "validate/tutorials/index",
+          label: "Set up SPO"
+        }
       ]
     },
 
