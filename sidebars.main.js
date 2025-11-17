@@ -29,28 +29,44 @@ module.exports = {
       },
       items: [
         { type: "doc", id: "learn/introduction/features/security", label: "Features" },
+        { type: "doc", id: "develop/how-midnight-works/advantages", label: "Midnight model" }
       ],
     },
 
-    // CONCEPTS
+     // CONCEPTS
     {
       type: "category",
       label: "Concepts",
-      link: {
-        type: "doc",
-        id: "develop/how-midnight-works/index"  
-      },
       items: [
-      "develop/how-midnight-works/advantages",
-      "develop/how-midnight-works/building-blocks",
-      "develop/how-midnight-works/smart-contracts",
-      "develop/how-midnight-works/keeping-data-private",
-      "develop/how-midnight-works/semantics",
-      "develop/how-midnight-works/zswap",
-      "develop/how-midnight-works/impact",
+        {
+          type: "category",
+          label: "Core concepts",
+          items: [
+            "learn/understanding-midnights-technology/account",
+            "learn/understanding-midnights-technology/ledgers",
+            "learn/understanding-midnights-technology/utxo",
+            "learn/understanding-midnights-technology/web3",
+            "learn/understanding-midnights-technology/zero-knowledge-proofs",
+            "learn/understanding-midnights-technology/kachina",
+            "learn/understanding-midnights-technology/zswap",
+          ],
+        },
+
+        {
+          type: "category",
+          label: "Building concepts",
+          items: [
+            "develop/how-midnight-works/building-blocks",
+            "develop/how-midnight-works/smart-contracts",
+            "develop/how-midnight-works/keeping-data-private",
+            "develop/how-midnight-works/semantics",
+            "develop/how-midnight-works/zswap",
+            "develop/how-midnight-works/impact",
+          ],
+        },
       ],
     },
-
+    
     // BUILD
     {
       type: "category",
