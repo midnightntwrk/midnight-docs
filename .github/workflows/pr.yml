@@ -22,12 +22,16 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
         with:
           fetch-depth: 2
+      - name: Enable Corepack (Pre-Setup)
+        run: corepack enable
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # 5.0.0
         with:
           node-version: 22
       - name: Enable Corepack
-        run: corepack enable
+        run: |
+          corepack enable
+          corepack prepare yarn@4.10.3 --activate
       - name: Install Vercel CLI
         run: npm install --global vercel@canary
       - name: Pull Vercel Environment Information
@@ -44,11 +48,15 @@ jobs:
     needs: [deploy-preview]
     uses: ./.github/workflows/light-house-ci.yml
     secrets: inherit
+    with:
+      preview_url: pr-${{ github.event.number }}-midnight-docs.vercel.app
 
   run-PWCI-workflow:
     needs: [deploy-preview]
     uses: ./.github/workflows/playwright-visual-regression.yml
     secrets: inherit
+    with:
+      preview_url: pr-${{ github.event.number }}-midnight-docs.vercel.app
 
   comment-preview-url:
     needs: [deploy-preview]
@@ -62,7 +70,9 @@ jobs:
         with:
           script: |
             const previewUrl = `https://pr-${{ github.event.number }}-midnight-docs.vercel.app`;
-            const commentHeader = "### Preview Deployment URL";
+            const commentHeader = "### 🚀 Preview Deployment";
+            const timestamp = new Date().toISOString();
+            const commitSha = context.sha.substring(0, 7);
 
             // Fetch existing comments
             const { data: comments } = await github.rest.issues.listComments({
@@ -74,10 +84,16 @@ jobs:
             // Look for an existing comment we created earlier
             const existing = comments.find(c =>
               c.user.type === "Bot" &&
-              c.body.startsWith(commentHeader)
+              c.body.includes(commentHeader)
             );
 
-            const body = `${commentHeader}\n\n${previewUrl}\n\n(Updated automatically on new commits)`;
+            const dateStr = new Date(timestamp).toLocaleString('en-US', {
+              timeZone: 'UTC',
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            });
+
+            const body = `${commentHeader}\n\n✅ **Deployment Ready**\n\n🔗 **Preview URL:** ${previewUrl}\n\n📝 **Latest commit:** \`${commitSha}\`\n⏰ **Updated:** ${dateStr} UTC\n\n---\n*This preview updates automatically when you push new commits to this PR.*`;
 
             if (existing) {
               // Update existing comment
@@ -87,6 +103,7 @@ jobs:
                 repo: context.repo.repo,
                 body
               });
+              console.log('Updated existing preview URL comment');
             } else {
               // Create new comment
               await github.rest.issues.createComment({
@@ -95,4 +112,5 @@ jobs:
                 repo: context.repo.repo,
                 body
               });
+              console.log('Created new preview URL comment');
             }

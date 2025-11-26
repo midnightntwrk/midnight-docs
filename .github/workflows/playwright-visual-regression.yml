@@ -6,6 +6,9 @@ on:
       config-path:
         required: false
         type: string
+      preview_url:
+        required: true
+        type: string
     secrets:
       token:
         required: false
@@ -19,14 +22,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
 
+      - name: Enable Corepack (Pre-Setup)
+        run: corepack enable
+
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # 5.0.0
         with:
           node-version: 22
 
-      - name: Enable corepack
+      - name: Enable Corepack
         run: |
           corepack enable
-          corepack prepare yarn@4 --activate
+          corepack prepare yarn@4.10.3 --activate
 
       - name: Install dependencies
         run: yarn install
@@ -34,22 +40,10 @@ jobs:
       - name: Install Playwright
         run: npx playwright install
 
-      - name: Vercel Preview URL
-        id: vercel_preview_url
-        uses: zentered/vercel-preview-url@fba568fc6d882ae788a9724d7e28dee618728771 # 1.4.0
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_HEAD_REF: ${{ github.head_ref }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        with:
-          vercel_project_id: ${{ secrets.VERCEL_PROJECT_ID }}
-          vercel_team_id: ${{ secrets.VERCEL_ORG_ID }}
-
       - name: Read paths from file and generate full URLs
         id: read-urls
         run: |
-          base_url="https://${{ steps.vercel_preview_url.outputs.preview_url }}"
+          base_url="https://${{ inputs.preview_url }}"
           full_urls=""
           paths=$(jq -r '.paths[]' packages/tests/pipelines-urls.json)
           for path in $paths; do
@@ -67,7 +61,7 @@ jobs:
       - name: Run Playwright Visual Regression Tests
         continue-on-error: true
         env:
-          BASE_URL: "https://${{ steps.vercel_preview_url.outputs.preview_url }}"
+          BASE_URL: "https://${{ inputs.preview_url }}"
           VERCEL_BYPASS_TOKEN: ${{ secrets.VERCEL_BYPASS_TOKEN }}
         run: npx playwright test packages/tests/visual-regression.test.ts --config=packages/tests/playwright.config.ts --reporter=list
 
