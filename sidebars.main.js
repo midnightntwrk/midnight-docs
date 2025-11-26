@@ -71,7 +71,7 @@ module.exports = {
         },
       ],
     },
-
+    "faucet",
     // BUILD
     {
       type: "category",
