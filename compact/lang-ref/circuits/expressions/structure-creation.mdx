@@ -1,0 +1,92 @@
+
+Structure values are created with structure creation expressions.  The
+expression `S {f, ...}` is a structure creation expression, where `S` is a
+structure type and `f` is a sequence of zero or more comma-separated field
+value specifiers.
+
+A field value specifier can be one of three things:
+
+* A **positional** field value is an expression.  Evaluating the expression
+  gives the value for the field.  Positional field values must be given in the
+  order that fields are declared in the corresponding structure declaration.
+* A **named** field value is of the form `id: e` where `id` is a field name and
+  `e` is an expression.  Evaluating the expression gives the value for the
+  corresponding named field.  Named fields can appear in any order.  If named
+  and positional fields are mixed, all the named fields must appear after all
+  the positional fields.
+* A **spread** expression is of the form `...e` where `...` is the literal three
+  dots (ellipsis) token and `e` is an expression.  Evaluating the expression
+  must give a value of the same structure type as the one being created.  The
+  fields of the created structure are given values from the spread structure as
+  described below.  If there is a spread expression, it must occur as the first
+  field value specifier and all other specifiers must be named field values.
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>tref</em>&nbsp;&nbsp;<b><tt>\{</tt></b>&nbsp;&nbsp;[<em>new-field</em>&nbsp;&nbsp;\{<b><tt>,</tt></b>&nbsp;&nbsp;<em>new-field</em>}]&nbsp;&nbsp;<b><tt>}</tt></b></td></tr><tr><td><em>new-field</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>expr</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;<b><tt>:</tt></b>&nbsp;&nbsp;<em>expr</em></td></tr><tr><td>&nbsp;</td><td>|</td><td>&nbsp;&nbsp;<b><tt>...</tt></b>&nbsp;&nbsp;<em>expr</em></td></tr><tr><td><em>tref</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>id</em>&nbsp;&nbsp;[<em>targs</em>]</td></tr></tbody></table>
+
+The examples below demonstrate the use of positional and spread field values:
+
+```compact
+struct S { a: Uint<32>, b: Boolean, c: Bytes<8> }
+circuit f(x: Uint<32>, y: Boolean, z: Bytes<8>): S {
+  const s1 = S { c: z, a: x, b: y };
+  // Alternatively, s1 can be created with the positional syntax S { x, y, z }
+  // or a mix of positional and named field values S { x, c: z, b: y }.
+
+  const s2 = S { ...s1, b: true };
+  // s2 is created using the spread syntax.  So, s2 has the same field values
+  // as s1 except that b is true.
+
+  const s3 = S { ...s2, c: 'abcdefgh' };
+  // s3 is also created using the spread syntax.  s3 has the same field values
+  // as s2 except that c is 'abcdefgh'.
+
+  return s3;
+}
+```
+
+The structure type must come from a structure declaration in scope.  If the
+structure is generic, then it must be explicitly specialized with generic
+arguments enclosed in angle brackets.  Generic structures must be fully
+specialized: the number of generic arguments must match the number of generic
+parameters.
+
+The static type of a non-generic structure creation expression is the named
+structure type.
+
+The generic arguments to a generic structure can be types, natural number
+literals, or the names of generic parameters in scope.  A generic structure
+creation expression is type checked by substituting the generic arguments for
+the generic parameters in the structure's definition.  The static type of a
+generic structure creation expression is a structure with the same name as the
+generic type and field types obtained by substituting the generic arguments for
+the generic parameters in the structure's declaration.
+
+**If there is no spread field specifier:** It is a static error if the number of
+field specifiers does not match the number of fields in the corresponding
+structure declaration (a value must be given for every field).  It is a static
+error if a named field specifier occurs before a positional field specifier.  It
+is a static error if a field name occurs more than once, and it is a static
+error if a field name occurs that is not the name of a field in the
+corresponding structure declaration.  It is a static type error if the type of a
+positional field subexpression is not a subtype of the declared type of the
+(positionally) corresponding field in the structure declaration.  It is a static
+type error if the type of a named field subexpression is not a subtype of the
+declared type of the corresponding (named) field in the structure declaration.
+
+**If there is a spread field specifier:** It is a static error if the spread
+field specifier does not come first in the sequence.  It is a static type error
+if the type of the spread subexpression is not the same type as structure to be
+created.  It is a static error if there are any positional field specifiers.  It
+is a static error if a field name occurs that is not the name of a field in the
+corresponding structure declaration.  It is a static type error if the type of a
+named field subexpression is not a subtype of the declared type of the
+corresponding (named) field in the structure declaration.
+
+A structure creation expression is evaluated by evaluating the field specifier
+subexpressions in order from left to right.  The result is a structure value
+whose fields have values based on the corresponding field specifier: if there is
+a positional or named field specifier for the field, the field value is the
+value of the subexpression, otherwise there must be a spread expression and the
+field value is the value of the corresponding field in the (structure) value of
+the spread subexpression.
+
