@@ -1,28 +1,19 @@
 import React from 'react';
-import clsx from 'clsx';
-import {useThemeConfig} from '@docusaurus/theme-common';
-import Logo from '@theme/Logo';
 import CollapseButton from '@theme/DocSidebar/Desktop/CollapseButton';
-import Content from '@theme/DocSidebar/Desktop/Content';
+import DocSidebarItems from '@theme/DocSidebar/Desktop/Items';
+import EnvSelector from '@site/src/components/EnvSelector';
 import styles from './styles.module.css';
-function DocSidebarDesktop({path, sidebar, onCollapse, isHidden}) {
-  const {
-    navbar: {hideOnScroll},
-    docs: {
-      sidebar: {hideable},
-    },
-  } = useThemeConfig();
+
+export default function DocSidebarDesktop({ path, sidebar }) {
   return (
-    <div
-      className={clsx(
-        styles.sidebar,
-        hideOnScroll && styles.sidebarWithHideableNavbar,
-        isHidden && styles.sidebarHidden,
-      )}>
-      {hideOnScroll && <Logo tabIndex={-1} className={styles.sidebarLogo} />}
-      <Content path={path} sidebar={sidebar} />
-      {hideable && <CollapseButton onClick={onCollapse} />}
+    <div className={styles.sidebarContainer}>
+      <div className={styles.collapseRow}>
+        <CollapseButton />
+      </div>
+      <div className={styles.selectorRow}>
+        <EnvSelector />
+      </div>
+      <DocSidebarItems items={sidebar} activePath={path} />
     </div>
   );
 }
-export default React.memo(DocSidebarDesktop);

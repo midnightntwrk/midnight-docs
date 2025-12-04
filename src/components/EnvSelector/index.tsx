@@ -1,17 +1,20 @@
+// src/components/EnvSelector/index.tsx
 import React from 'react';
-import { useLocation, useHistory } from '@docusaurus/router';
+import {useLocation, useHistory} from '@docusaurus/router';
 import styles from './styles.module.css';
-
-const STORAGE_KEY = 'midnight-docs-env';
 
 type EnvId = 'testnet-02';
 
-const ENVIRONMENTS: { id: EnvId; label: string; prefix: string }[] = [
-  {
-    id: 'testnet-02',
-    label: 'Testnet-02',
-    prefix: '/docs',
-  },
+type EnvConfig = {
+  id: EnvId;
+  label: string;
+  prefix: string;
+};
+
+const STORAGE_KEY = 'midnight-docs-env';
+
+const ENVIRONMENTS: EnvConfig[] = [
+  { id: 'testnet-02', label: 'Testnet-02', prefix: '/docs' },
 ];
 
 function getEnvFromPath(pathname: string): EnvId {
@@ -24,11 +27,11 @@ export default function EnvSelector() {
   const history = useHistory();
 
   const currentEnvId = getEnvFromPath(location.pathname);
-  const currentEnv = ENVIRONMENTS.find(env => env.id === currentEnvId)!;
+  const currentEnv = ENVIRONMENTS.find(e => e.id === currentEnvId)!;
 
   function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
     const nextEnvId = event.target.value as EnvId;
-    const nextEnv = ENVIRONMENTS.find(env => env.id === nextEnvId);
+    const nextEnv = ENVIRONMENTS.find(e => e.id === nextEnvId);
     if (!nextEnv) return;
 
     const docPath = location.pathname.slice(currentEnv.prefix.length);
@@ -43,7 +46,6 @@ export default function EnvSelector() {
       <label htmlFor="env-selector" className={styles.label}>
         Environment
       </label>
-
       <select
         id="env-selector"
         value={currentEnvId}

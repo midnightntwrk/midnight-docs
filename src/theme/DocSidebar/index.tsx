@@ -1,14 +1,16 @@
 import React from 'react';
-import OriginalDocSidebar from '@theme-original/DocSidebar';
+import DocSidebar from '@theme-original/DocSidebar';
 import EnvSelector from '@site/src/components/EnvSelector';
 
-export default function DocSidebarWrapper(props) {
+export default function DocSidebarWrapper(props: any) {
   if (!props.sidebar) return null;
 
   return (
-    <>
-      <EnvSelector />
-      <OriginalDocSidebar {...props} />
-    </>
+    <div className={props.className}>
+      <div style={{ paddingTop: '4rem' }}>
+        <EnvSelector />
+      </div>
+      <DocSidebar {...props} />
+    </div>
   );
 }
