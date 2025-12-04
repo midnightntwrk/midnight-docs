@@ -1,20 +1,14 @@
-import React from "react";
-import { useWindowSize } from "@docusaurus/theme-common";
-import DocSidebarDesktop from "@theme/DocSidebar/Desktop";
-import DocSidebarMobile from "@theme/DocSidebar/Mobile";
+import React from 'react';
+import DocSidebar from '@theme-original/DocSidebar';
+import EnvSelector from '@site/src/components/EnvSelector';
 
-import type { Props } from "@theme/DocSidebar";
-
-export default function DocSidebar(props: Props) {
-  const windowSize = useWindowSize();
-  const shouldRenderSidebarDesktop =
-    windowSize === "desktop" || windowSize === "ssr";
-  const shouldRenderSidebarMobile = windowSize === "mobile";
+export default function DocSidebarWrapper(props: any) {
+  if (!props.sidebar) return null;
 
   return (
-    <>
-      {shouldRenderSidebarDesktop && <DocSidebarDesktop {...props} />}
-      {shouldRenderSidebarMobile && <DocSidebarMobile {...props} />}
-    </>
+    <div className={props.className}>
+      <EnvSelector />
+      <DocSidebar {...props} />
+    </div>
   );
 }
