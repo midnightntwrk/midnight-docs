@@ -1,13 +1,17 @@
 import React from 'react';
-import {useLocation, useHistory} from '@docusaurus/router';
+import { useLocation, useHistory } from '@docusaurus/router';
 import styles from './styles.module.css';
 
 const STORAGE_KEY = 'midnight-docs-env';
 
-type EnvId = 'testnet-02'; // Will add other envs when live
+type EnvId = 'testnet-02';
 
 const ENVIRONMENTS: { id: EnvId; label: string; prefix: string }[] = [
-  { id: 'testnet-02', label: 'Testnet-02', prefix: '/docs' },
+  {
+    id: 'testnet-02',
+    label: 'Testnet-02',
+    prefix: '/docs',
+  },
 ];
 
 function getEnvFromPath(pathname: string): EnvId {
@@ -20,11 +24,11 @@ export default function EnvSelector() {
   const history = useHistory();
 
   const currentEnvId = getEnvFromPath(location.pathname);
-  const currentEnv = ENVIRONMENTS.find(e => e.id === currentEnvId)!;
+  const currentEnv = ENVIRONMENTS.find(env => env.id === currentEnvId)!;
 
   function handleChange(event: React.ChangeEvent<HTMLSelectElement>) {
     const nextEnvId = event.target.value as EnvId;
-    const nextEnv = ENVIRONMENTS.find(e => e.id === nextEnvId);
+    const nextEnv = ENVIRONMENTS.find(env => env.id === nextEnvId);
     if (!nextEnv) return;
 
     const docPath = location.pathname.slice(currentEnv.prefix.length);
@@ -36,7 +40,6 @@ export default function EnvSelector() {
 
   return (
     <div className={styles.container}>
-      {/* 👉 Just "Environment", no colon, no extra text */}
       <label htmlFor="env-selector" className={styles.label}>
         Environment
       </label>
