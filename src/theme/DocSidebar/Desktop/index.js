@@ -1,5 +1,4 @@
 import React from 'react';
-import CollapseButton from '@theme/DocSidebar/Desktop/CollapseButton';
 import DocSidebarItems from '@theme/DocSidebar/Desktop/Items';
 import EnvSelector from '@site/src/components/EnvSelector';
 import styles from './styles.module.css';
@@ -7,9 +6,6 @@ import styles from './styles.module.css';
 export default function DocSidebarDesktop({ path, sidebar }) {
   return (
     <div className={styles.sidebarContainer}>
-      <div className={styles.collapseRow}>
-        <CollapseButton />
-      </div>
       <div className={styles.selectorRow}>
         <EnvSelector />
       </div>
