@@ -82,13 +82,15 @@ const config = {
         showReadingTime: true,
         routeBasePath: "blog",
         path: "./blog",
-        blogListComponent: require.resolve("./src/pages/blog/index.js"), // <-- keep this
+        blogListComponent: require.resolve("./src/components/BlogIndex/index.js"),
         blogPostComponent: "@theme/BlogPostPage",
         blogTagsListComponent: "@theme/BlogTagsListPage",
         blogTagsPostsComponent: "@theme/BlogTagsPostsPage",
         postsPerPage: "ALL",
         blogSidebarTitle: "All posts",
         blogSidebarCount: "ALL",
+        onInlineAuthors: "ignore",
+        onUntruncatedBlogPosts: "ignore",
       },
     ],
 
@@ -104,6 +106,11 @@ const config = {
     posthogApiKey: process.env.POSTHOG_API_KEY,
     posthogApiHost: process.env.POSTHOG_API_HOST,
     posthogProjectId: process.env.POSTHOG_PROJECT_ID,
+
+    // Typesense search-only API key (safe to expose in client)
+    typesenseSearchApiKey: process.env.TYPESENSE_SEARCH_API_KEY,
+    typesenseHost: process.env.TYPESENSE_HOST,
+    typesenseCollectionName: process.env.TYPESENSE_COLLECTION_NAME || 'midnight-docs',
 
     githubEditBase: 'https://github.com/midnightntwrk/midnight-docs/edit/main/',
     githubRawBase:  'https://raw.githubusercontent.com/midnightntwrk/midnight-docs/main/',

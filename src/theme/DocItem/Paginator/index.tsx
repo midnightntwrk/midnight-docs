@@ -1,5 +1,5 @@
-import React from 'react';
-import {useDoc} from '@docusaurus/theme-common/internal';
+import React, {type ReactNode} from 'react';
+import {useDoc} from '@docusaurus/plugin-content-docs/client';
 import DocPaginator from '@theme/DocPaginator';
 /**
  * This extra component is needed, because <DocPaginator> should remain generic.

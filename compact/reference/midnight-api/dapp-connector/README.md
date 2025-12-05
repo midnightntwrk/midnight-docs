@@ -132,7 +132,7 @@ try {
 
 ## Balancing and proving a transaction
 
-To balance and prove a transaction, begin by creating a transaction in your DApp. You can [follow the guide on how to create a transaction here](docs/develop/guides/wallet-dev-guide.mdx#working-with-transactions).
+To balance and prove a transaction, begin by creating a transaction in your DApp. You can [follow the guide on how to create a transaction here](/develop/guides/wallet-dev-guide#working-with-transactions).
 
 This method accepts the following properties:
 

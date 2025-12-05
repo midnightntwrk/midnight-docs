@@ -12,8 +12,11 @@
 // limitations under the License.
 
 import React, { useState, useCallback } from 'react';
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 
 export default function TypesenseSearch() {
+  const { siteConfig } = useDocusaurusContext();
+  const { typesenseSearchApiKey, typesenseHost, typesenseCollectionName } = siteConfig.customFields;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -32,10 +35,10 @@ export default function TypesenseSearch() {
 
     try {
       const response = await fetch(
-        `https://u7f18spo9kdwzy42p-1.a1.typesense.net/collections/midnight-docs/documents/search?q=${encodeURIComponent(searchQuery)}&query_by=title,content&limit=10`,
+        `https://${typesenseHost}/collections/${typesenseCollectionName}/documents/search?q=${encodeURIComponent(searchQuery)}&query_by=title,content&limit=10`,
         {
           headers: {
-            'x-typesense-api-key': 'iB2c4BLpQXVhvNz5MnkP6rO4FFgbClHF'
+            'x-typesense-api-key': typesenseSearchApiKey
           }
         }
       );

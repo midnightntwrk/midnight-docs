@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { useDoc } from '@docusaurus/theme-common/internal';
+import { useDoc } from '@docusaurus/plugin-content-docs/client';
 import { ViewOptions } from '@site/src/components/LLMTools';
 
 export default function DocTools() {
