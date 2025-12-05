@@ -1,6 +1,5 @@
 import React from 'react';
 import DocSidebar from '@theme-original/DocSidebar';
-import EnvSelector from '@site/src/components/EnvSelector';
 
 export default function DocSidebarWrapper(props: any) {
   if (!props.sidebar) return null;
@@ -8,7 +7,7 @@ export default function DocSidebarWrapper(props: any) {
   return (
     <div className={props.className}>
       <div style={{ paddingTop: '4rem' }}>
-        <EnvSelector />
+       
       </div>
       <DocSidebar {...props} />
     </div>
