@@ -82,13 +82,15 @@ const config = {
         showReadingTime: true,
         routeBasePath: "blog",
         path: "./blog",
-        blogListComponent: require.resolve("./src/pages/blog/index.js"), // <-- keep this
+        blogListComponent: require.resolve("./src/components/BlogIndex/index.js"),
         blogPostComponent: "@theme/BlogPostPage",
         blogTagsListComponent: "@theme/BlogTagsListPage",
         blogTagsPostsComponent: "@theme/BlogTagsPostsPage",
         postsPerPage: "ALL",
         blogSidebarTitle: "All posts",
         blogSidebarCount: "ALL",
+        onInlineAuthors: "ignore",
+        onUntruncatedBlogPosts: "ignore",
       },
     ],
 
