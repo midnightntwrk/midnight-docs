@@ -32,6 +32,7 @@ const releases = [
   {
     id: 2,
     version: '0.2.0',
+    status: 'UNSUPPORTED',
     date: '15 August 2025',
     summary: 'Summary of Release 0.2.0',
     details: [
@@ -46,6 +47,7 @@ const releases = [
   {
     id: 3,
     version: '0.1.0',
+    status: 'UNSUPPORTED',
     date: '31 July 2025',
     summary: 'Summary of Release 0.1.0',
     details: [
@@ -153,11 +155,6 @@ const DynamicListWithDropdownFilters = () => {
               {release.status}
             </span>
           </h3>
-
-          {/* Compactc version */}
-          <h4 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.3rem' }}>
-            Compact language {release.compactVersion}
-          </h4>
 
           {/* Release date */}
           <p style={{ fontSize: '0.9rem', marginTop: '1rem', marginBottom: '1rem' }}>{release.date}</p>
