@@ -17,9 +17,21 @@ import Link from '@docusaurus/Link';
 const releases = [
   {
     id: 1,
-    version: '0.2.0',
-    compactVersion: '0.17.0',
+    version: '0.3.0',
     status: 'LATEST',
+    date: '5 December 2025',
+    summary: 'Summary of Release 0.3.0',
+    details: [
+      'Compact fixup subcommand',
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.3.0' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-3-0',
+  },
+  {
+    id: 2,
+    version: '0.2.0',
     date: '15 August 2025',
     summary: 'Summary of Release 0.2.0',
     details: [
@@ -32,10 +44,8 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-2-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '0.1.0',
-    compactVersion: '0.16.0',
-    status: 'LATEST',
     date: '31 July 2025',
     summary: 'Summary of Release 0.1.0',
     details: [
