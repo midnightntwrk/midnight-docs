@@ -992,6 +992,11 @@ module.exports = {
       items: [
         {
           type: "doc",
+          id: "contribute/contribute-docs",
+          label: "Docs contributions"
+        },
+        {
+          type: "doc",
           id: "contribute/style-guide",
           label: "Style guide"
         },

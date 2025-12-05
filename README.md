@@ -41,7 +41,7 @@ If you see an error message like 'algolia.appId is required', verify your `.env`
 5. Don't put links or references to other private repositories in documentation.
 6. Directory structure should be at a maximum of two levels deep.
 7. Headings should be a maximum of three levels deep at maximum — `###`.
-8. All ambiguous and not widely-known terms should be described in [Glossary](./docs/learn/04-glossary.mdx) section.
+8. All ambiguous and not widely-known terms should be described in [Glossary](./docs/learn/glossary.mdx) section.
 9. API documentation should be automatically updated in [midnight-api](./docs/develop/reference/midnight-api/).
 
 ## Details
