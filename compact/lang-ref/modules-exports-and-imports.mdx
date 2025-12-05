@@ -1,0 +1,151 @@
+# Modules, exports, and imports
+
+A module is a collection of definitions whose namespace is hidden from
+surrounding code. A module is defined with
+
+```compact
+module Mod1 {
+  ...
+}
+
+module Mod2<T> {
+  ...
+}
+```
+
+By default, identifiers defined within the body of a module are
+visible only within the module, i.e., they are not exported from
+the module.  Any identifier defined at or imported into the top
+level of a module can be exported from the module in one of two
+ways: (1) by prefixing the definition with the `export` keyword,
+or by listing the identifier in a separate `export` declaration.
+For example, the following module exports `G` and `S` but not `F`.
+
+```compact
+module M {
+  export { G };
+  export struct S { x: Uint<16>, y: Boolean }
+  circuit F(s: S): Boolean {
+    return s.y;
+  }
+  circuit G(s: S): Uint<16> {
+    return F(s) ? s.x : 0;
+  }
+}
+```
+
+A module can be imported into another definition scope, bringing
+all its exported entries into that scope, potentially with a prefix. For
+instance:
+
+```compact
+module Runner {
+  export circuit run(): [] {}
+}
+import Runner;
+// run is now in scope
+import Runner prefix SomePrefix_;
+// SomePrefix_run is now in scope
+
+module Identity<T> {
+  export { id }
+  circuit id(x: T): T {
+    return x;
+  }
+}
+import Identity<Field>;
+// id is now in scope, with Field as type T
+```
+
+Compact's standard library can be imported by `import CompactStandardLibrary`.
+The standard library defines a number of useful types and circuits along with
+ledger ADTs such as `Counter`, `Map`, and `MerkleTree`.
+
+When importing module `M`, if the program does not contain a visible module definition
+the compiler looks in the file system in the relative path of the current directory for `M.compact`.
+In the case where a module is defined in a different program (file), the program must only contain
+a top-level module definition. Otherwise, the compiler throws a static error stating that the program
+does not contain a single module definition. For example, the program `M.compact` below defines
+a module:
+
+```compact title=M.compact
+module M {
+  export { F };
+  export struct S { x: Uint<16>, y: Boolean }
+  circuit F(x: S): Boolean {
+    return S.y;
+  }
+}
+// circuit cant_exists() : [] {}
+// If cant_exists is uncommented, the compiler will throw an error when compiling
+// test.compact
+```
+
+Then, `test.compact` imports `M`:
+
+```compact title=test.compact
+//module M {
+//  export { G };
+//  export struct S { x: Uint<16>, y: Boolean }
+//  circuit G(x: S): Boolean {
+//    return S.y;
+//  }
+//}
+// If M is uncommented, the compiler will import this module and not the one
+// defined in M.compact. In this case, the compiler will throw an error for
+// exporting F.
+
+import M;
+export { F };
+```
+
+The import syntax allows the module to be identified by a string pathname. In this case, the compiler
+first looks for the imported module relative to the current directory (the path of the importing
+program) and then in the directories identified by `COMPACT_PATH`. Importing by a pathname allows
+importing multiple modules with the same name. For example, consider the program `M.compact`:
+
+```compact title=M.compact
+module M {
+  export { F };
+  export struct S { x: Uint<16>, y: Boolean }
+  circuit F(x: S): Boolean {
+    return S.y;
+  }
+}
+```
+
+And the program `A/M.compact`:
+
+```compact title=A/M.compact
+module M {
+  export { F };
+  export struct S { x: Uint<16>, y: Boolean }
+  circuit F(x: S): Boolean {
+    return S.y;
+  }
+}
+```
+
+And finally the program `test.compact` can export both `$F` and `A_F` but not `$G`:
+
+```compact title=test.compact
+module M {
+  export { G };
+  export struct S { x: Uint<16>, y: Boolean }
+  circuit G(x: S): Boolean {
+    return S.y;
+  }
+}
+
+import "M" prefix $;
+// this imports M.compact and not the module M defined above
+
+import "A/M" prefix A_;
+
+export { $F
+  ,A_F
+//  ,$G
+// uncommenting this will result in an error
+  };
+```
+

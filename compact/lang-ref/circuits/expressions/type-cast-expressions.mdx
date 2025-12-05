@@ -1,0 +1,111 @@
+
+Type cast expressions in Compact are of the form `e as T` where `e` is an
+expression, `as` is a reserved words, and `T` is a Compact type.
+
+TypeScript-style casts of the form `<T>e` are not supported in Compact.
+
+<table className="lang-ref-table"><tbody><tr><td><em>expr</em>&nbsp;&nbsp;</td><td>→</td><td>&nbsp;&nbsp;<em>expr</em>&nbsp;&nbsp;<b><tt>as</tt></b>&nbsp;&nbsp;<em>type</em></td></tr></tbody></table>
+
+Type cast expressions are type checked by checking the type of the
+subexpression.  If the cast from the subexpression's type to the
+type `T` named in the type cast is allowed, then the static type
+of the expression will be `T`.  Otherwise, it is a static type
+error.
+
+Upcasts, i.e., casts from a type to a supertype, are allowed but
+never required and never result in a static or run-time error.
+
+The table below describes the allowed type casts.  Casting between
+types not shown in the table is not allowed.  The entries in the
+table can be one of:
+
+- **static:** the type cast only changes the static type and does
+  not have any effect at runtime
+- **conversion:** the type cast always succeeds but has the runtime
+  effect of converting between different source and target
+  representations, which normally has a low cost
+- **checked:** the type cast is checked at runtime and can fail
+- **no:** the type cast is not allowed
+- a number: see the corresponding note below the table
+
+<table>
+  <thead>
+    <tr>
+      <th colspan="2"></th>
+      <th colspan="4">TO</th>
+    </tr>
+    <tr>
+      <th colspan="2"></th>
+      <th><tt>Field</tt></th>
+      <th><tt>Uint\<0..n></tt></th>
+      <th><tt>Boolean</tt></th>
+      <th><tt>Bytes\<n></tt></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th rowspan="5">FROM</th>
+      <th><tt>Field</tt></th>
+      <td>static</td>
+      <td>checked</td>
+      <td>1</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <th><tt>Uint\<0..m></tt></th>
+      <td>static</td>
+      <td>3</td>
+      <td>conversion</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <th>enum type</th>
+      <td>conversion</td>
+      <td>no</td>
+      <td>no</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <th><tt>Boolean</tt></th>
+      <td>conversion</td>
+      <td>4</td>
+      <td>no</td>
+      <td>no</td>
+    </tr>
+    <tr>
+      <th><tt>Bytes\<m></tt></th>
+      <td>5</td>
+      <td>no</td>
+      <td>no</td>
+      <td>6</td>
+    </tr>
+  </tbody>
+</table>
+
+1. `Field` to `Boolean`: the value `0` is converted to `false` and all other
+   values are converted to `true`.
+2. `Field` to `Bytes<n>`: the value of the field is converted into `Bytes` of
+   the given length, with the least-significant byte of the field occurring
+   first in the `Bytes`. The `Bytes` will be padded to the length with trailing
+   zeros.  It is a runtime error if the field value does not fit in the length.
+3. `Uint<0..m>` to `Uint<0..n>`: if `m` is less than or equal to `n` this is a
+   static cast.  Otherwise it is checked and will fail at runtime if the value
+   is greater than `n`.
+4. `Boolean` to `Uint<0..n>`: If `n` is not 0 then this is a conversion of
+   `false` to 0 and `true` to 1. Otherwise, it is checked and will fail at
+   runtime if the value is `true` (and convert `false` to 0).
+5. `Bytes<m>` to `Field`: the bytes are converted into a field with the
+   least-significant byte of the field occurring first in the `Bytes`.  It is a
+   runtime error if the result would exceed the maximum `Field` value.
+6. `Bytes<m>` to `Bytes<n>`: the cast is a static cast if `m` equals `n`, and is
+   not allowed otherwise.
+
+Allowed type casts are evaluated by first evaluating the subexpression.
+Then, if the cast is static, the result is the subexpression's value
+interpreted as the type `T` mentioned in the cast expression.  If the
+cast is a conversion, the JavaScript representation of the subexpression's
+value is converted into the representation of a value of type `T`. If the
+cast is checked, the check is performed before conversion and the cast
+fails (at runtime) if the check fails.  The exceptions noted in the table
+are evaluated as described above after evaluating the subexpression.
+

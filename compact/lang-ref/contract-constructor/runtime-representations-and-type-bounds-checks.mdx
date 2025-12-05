@@ -1,0 +1,57 @@
+# Runtime representations and type/bounds checks
+
+The TypeScript type representing a Compact type is defined in [Representations
+in TypeScript](../types/representations-in-typescript).
+
+Compact represents values exactly as TypeScript represents values, i.e., as
+ordinary JavaScript values.  So a Compact boolean is represented at run time
+as a JavaScript boolean, a Compact tuple is represented as a JavaScript
+array, and enum values are represented by numbers.
+
+To maintain type safety, Compact verifies at run time that values
+passed by an outside caller to an exported circuit or returned from an
+outside witness have the expected types.
+This is necessary even when the caller or witness is written in properly
+typed TypeScript because some Compact types have size and range limits
+that are not expressible via the TypeScript type system:
+
+- `Field` values are limited by a maximum field value
+- `Uint` values are limited by the declared bounds
+- `Bytes` and tuple values are limited by their lengths
+- enum values are limited by the maximum index for the enum elements 
+
+It is also necessary because compile-time type checks are easily
+defeated in TypeScript and are nonexistent when a caller or witness
+is coded in JavaScript.
+
+Certain values to be stored in public state require size, length, and other
+properties to be maintained explicitly, because these properties cannot
+be determined solely from the JavaScript representation of the value.
+For this purpose, the `@midnight/compact-runtime` package provides explicit
+runtime types satisfying the `CompactType<T>` interface, where `T` is the
+corresponding TypeScript type.
+This representation is *not* user-facing most of the time, except
+when replicating the behavior of the operations implemented
+in `@midnight/compact-runtime`.
+
+The following constructors can be used to create a `CompactType` instance
+for a primitive type:
+
+- `Boolean` - `new CompactTypeBoolean()`
+- `Field` - `new CompactTypeField()`
+- `Uint<0..n>` - `new CompactTypeUnsignedInteger(n, length)`, where
+  `length` is the number of bytes required to store `n`
+- `Uint<n>` - as `Uint<0..(2 ** n) - 1>`
+- `Bytes<n>` - `new CompactTypeBytes(n)`
+- `Vector<n, T>` - `new CompactTypeVector(n, rt_T)`, where `rt_T` is the runtime
+  type of `T`
+- `Opaque<"String">` - `new CompactTypeString()`
+- `Opaque<"Uint8Array">` - `new CompactTypeUint8Array()`.
+
+For user-defined types, structures are not currently easily
+constructed at runtime and require implementing `CompactType<T>`
+manually or using compiler internals.  Enumerations are exposed
+through `new CompactTypeEnum(maxValue, length)`, where `maxValue` is
+the maximum permissible integer assignable, and `length` its
+representation length in bytes (almost always 1).
+

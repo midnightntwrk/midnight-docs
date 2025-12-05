@@ -1,0 +1,44 @@
+# Structure of the exported TypeScript
+
+The exported TypeScript exposes a number of declarations that can be used
+to interact with the contract from any TypeScript application. Some of these
+also require use of the `@midnight/compact-runtime` library, which all
+contracts depend upon and which implements key built-in behaviors.
+
+A contract exports the following in the TypeScript module:
+
+- The TypeScript type corresponding to each user-defined type exported from the
+  contract's top level
+- A `Witnesses<T>` type, which describes the format external witnesses must
+  satisfy to instantiate the contract
+- A `ImpureCircuits<T>` type, which describes the set of impure circuits exported
+  from the contract's top level
+- A `PureCircuits` type, which describes the set of pure circuits exported from
+  the contract's top level
+- A `Circuits<T>` type, which describes the set of all exported circuits
+- A `Contract<T, W extends Witnesses<T> = Witnesses<T>>` class, which:
+  - can be constructed by passing in an instance of `W`
+  - exposes members `circuits: Circuits<T>` and `impureCircuits: ImpureCircuits<T>`
+  - provides initial contract states via 
+    `initialState(privateState: T): [T, runtime.ContractState]`
+- A constant `pureCircuits: PureCircuits` object, providing all pure circuits
+  as pure functions
+- A `Ledger` type, providing views into a current ledger state, by permitting
+  direct calls of all read functions of `ledger` objects, as well of some
+  TypeScript specific ones that cannot be called from Compact, such as iterators
+- A `ledger(state: runtime.StateValue): Ledger` constructor of the `Ledger` type,
+  giving access to the values of exported ledger fields.
+
+The argument `T` for a number of these should be interpreted as the type of the
+local/private state. For the most part, `circuit` and `witness` functions are
+translated simply by translating their Compact types into corresponding
+TypeScript types for parameters and return values. For `PureCircuits`, this is
+all that happens, for the other `_Circuits` instances, they receive an
+additional first parameter of type `runtime.CircuitContext<T>`, and their
+result type `R` is wrapped in `runtime.CircuitResults<T, R>`. For `Witnesses`,
+they receive an additional first parameter of type
+`runtime.WitnessContext<Ledger, T>`, and their result type `R` is wrapped in
+`[T, R]`. See the [runtime API docs](/docs/develop/reference/midnight-api/compact-runtime/README.md) for the details of
+these types. This wrapping makes the entirety of the contract code
+*functional*, ensuring calls have no hidden side effects.
+
