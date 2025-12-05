@@ -173,4 +173,5 @@ The midnight-docs repository required multiple improvements across security, bui
 | `00a5fd3` | Build warnings |
 | `ac55da1`, `5abbdf9` | Broken markdown links |
 | `840adc0`, `248ac91`, `3089c5a` | Sidebar improvements |
+| `444561f` | Merge PR #440 (fix/broken-url-slugs) - README link fixes |
 
