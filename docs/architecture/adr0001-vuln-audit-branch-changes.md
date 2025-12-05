@@ -85,7 +85,7 @@ The midnight-docs repository required multiple improvements across security, bui
 
 **Context:** Multiple documentation files contained broken links using outdated path patterns.
 
-**Changes (`ac55da1`):**
+**Changes (`ac55da1`, `5abbdf9`):**
 
 | Pattern | Fix |
 |---------|-----|
@@ -93,8 +93,9 @@ The midnight-docs repository required multiple improvements across security, bui
 | `/docs/develop/tutorial/*` | Changed to `/develop/tutorial` |
 | `/docs/learn/04-glossary.mdx` | Changed to `/learn/glossary` |
 | `::note` admonition syntax | Changed to `:::note` with closing `:::` |
+| `*/README` or `*/README.md` absolute links | Changed to directory path (README.md becomes index page) |
 
-**Files affected:** 10 files across `compact/` and `docs/` directories
+**Files affected:** 13 files across `compact/` and `docs/` directories
 
 **Rationale:** Broken links degrade documentation usability and user experience.
 
@@ -170,6 +171,6 @@ The midnight-docs repository required multiple improvements across security, bui
 | `3a4cf35` | Security: Checkmarx findings |
 | `b7f9133` | Dependency version conflicts |
 | `00a5fd3` | Build warnings |
-| `ac55da1` | Broken markdown links |
+| `ac55da1`, `5abbdf9` | Broken markdown links |
 | `840adc0`, `248ac91`, `3089c5a` | Sidebar improvements |
 
