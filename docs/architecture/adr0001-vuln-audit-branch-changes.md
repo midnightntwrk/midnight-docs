@@ -67,7 +67,7 @@ The midnight-docs repository required multiple improvements across security, bui
 
 **Context:** Multiple build warnings were affecting CI output and could mask genuine issues.
 
-**Changes (`00a5fd3`):**
+**Changes (`00a5fd3`, `a4ed4a5`):**
 
 | Warning | Fix |
 |---------|-----|
@@ -76,6 +76,7 @@ The midnight-docs repository required multiple improvements across security, bui
 | Blog posts without truncation markers | Added `onUntruncatedBlogPosts: 'ignore'` to blog plugin config |
 | Inline authors warning | Added `onInlineAuthors: 'ignore'` to blog plugin config |
 | CSS @import order | Moved `@import url()` before `@tailwind` directives |
+| CSS minimizer animation warning | Changed shorthand to longhand animation properties |
 
 **Rationale:** Clean builds make it easier to identify genuine issues.
 
@@ -170,7 +171,7 @@ The midnight-docs repository required multiple improvements across security, bui
 | `3ff5ce3` | CI: Vercel deploy rate limit fix |
 | `3a4cf35` | Security: Checkmarx findings |
 | `b7f9133` | Dependency version conflicts |
-| `00a5fd3` | Build warnings |
+| `00a5fd3`, `a4ed4a5` | Build warnings (blog, CSS) |
 | `ac55da1`, `5abbdf9` | Broken markdown links |
 | `840adc0`, `248ac91`, `3089c5a` | Sidebar improvements |
 | `444561f` | Merge PR #440 (fix/broken-url-slugs) - README link fixes |
