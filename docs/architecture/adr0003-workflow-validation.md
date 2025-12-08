@@ -3,6 +3,9 @@
 **Date:** 2025-12-08  
 **Status:** Accepted  
 
+**Sources:**
+- Related PRs: #446
+
 ## Context and Problem Statement
 
 The production deployment workflow (`prod.yml`) only runs after code is merged to the main branch, not during pull request review. This means configuration errors in `prod.yml` are not detected until after merge, when they cause production deployment failures.

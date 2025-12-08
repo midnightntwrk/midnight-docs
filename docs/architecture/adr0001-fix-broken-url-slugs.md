@@ -4,7 +4,6 @@
 **Status:** Accepted  
 
 **Sources:**
-- Work Package Plan: .ai/planning/2025-12-05-fix-broken-url-slugs/
 - PR: #440
 
 ## Context and Problem Statement

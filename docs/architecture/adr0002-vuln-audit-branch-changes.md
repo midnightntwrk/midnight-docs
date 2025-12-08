@@ -4,7 +4,6 @@
 **Status:** Accepted  
 
 **Sources:**
-- Branch: `vuln_audit`
 - Related PRs: #431, #433, #439, #440
 
 ## Context and Problem Statement
