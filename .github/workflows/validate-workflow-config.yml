@@ -1,0 +1,91 @@
+name: Validate Workflow Configuration
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
+
+      - name: Validate prod.yml has pre-setup corepack
+        run: |
+          echo "Checking prod.yml for 'Enable Corepack (Pre-Setup)' step..."
+          
+          if ! grep -q "Enable Corepack (Pre-Setup)" .github/workflows/prod.yml; then
+            echo ""
+            echo "❌ ERROR: prod.yml is missing the 'Enable Corepack (Pre-Setup)' step"
+            echo ""
+            echo "The production workflow must enable corepack BEFORE the 'Setup Node.js' step"
+            echo "to prevent the actions/setup-node action from interfering with corepack."
+            echo ""
+            echo "Expected pattern in prod.yml:"
+            echo "  - name: Enable Corepack (Pre-Setup)"
+            echo "    run: corepack enable"
+            echo "  - name: Setup Node.js"
+            echo "    uses: actions/setup-node@..."
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ prod.yml has correct pre-setup corepack step"
+
+      - name: Validate yarn versions match package.json
+        run: |
+          echo "Extracting expected yarn version from package.json..."
+          EXPECTED_VERSION=$(jq -r '.packageManager' package.json | grep -oP 'yarn@\K[0-9.]+')
+          
+          if [ -z "$EXPECTED_VERSION" ]; then
+            echo "❌ ERROR: Could not extract yarn version from package.json packageManager field"
+            exit 1
+          fi
+          
+          echo "Expected yarn version: $EXPECTED_VERSION"
+          echo ""
+          
+          ERRORS=0
+          for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
+            # Skip if file doesn't exist (handles .yaml extension)
+            [ -f "$workflow" ] || continue
+            
+            if grep -q "corepack prepare yarn@" "$workflow"; then
+              WORKFLOW_VERSION=$(grep "corepack prepare yarn@" "$workflow" | grep -oP 'yarn@\K[0-9.]+' | head -1)
+              
+              if [ "$WORKFLOW_VERSION" != "$EXPECTED_VERSION" ]; then
+                echo "❌ ERROR: $workflow uses yarn@$WORKFLOW_VERSION"
+                echo "   Expected: yarn@$EXPECTED_VERSION (from package.json)"
+                ERRORS=$((ERRORS + 1))
+              else
+                echo "✅ $workflow uses correct yarn version ($WORKFLOW_VERSION)"
+              fi
+            fi
+          done
+          
+          echo ""
+          if [ $ERRORS -gt 0 ]; then
+            echo "❌ Found $ERRORS workflow(s) with incorrect yarn version"
+            echo ""
+            echo "Please update all workflows to use: corepack prepare yarn@$EXPECTED_VERSION --activate"
+            exit 1
+          fi
+          
+          echo "✅ All workflows use the correct yarn version"
+
+      - name: Validation Summary
+        if: success()
+        run: |
+          echo ""
+          echo "✅ All workflow configuration validations passed!"
+          echo ""
+          echo "Validated:"
+          echo "  ✓ prod.yml has pre-setup corepack step"
+          echo "  ✓ All workflows use correct yarn version from package.json"
+
