@@ -1,28 +1,48 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.11.0**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / CircuitContext
 
-# Interface: CircuitContext\<T\>
+# Interface: CircuitContext\<PS\>
 
 The external information accessible from within a Compact circuit call
 
 ## Type Parameters
 
-### T
+### PS
 
-`T`
+`PS` = `any`
 
 ## Properties
+
+### costModel
+
+```ts
+costModel: CostModel;
+```
+
+The cost model to use for the execution.
+
+***
 
 ### currentPrivateState
 
 ```ts
-currentPrivateState: T;
+currentPrivateState: PS;
 ```
 
 The current private state for the contract.
+
+***
+
+### currentQueryContext
+
+```ts
+currentQueryContext: QueryContext;
+```
+
+The current on-chain context the transaction is evolving.
 
 ***
 
@@ -36,20 +56,10 @@ The current Zswap local state. Tracks inputs and outputs produced during circuit
 
 ***
 
-### originalState
+### gasLimit?
 
 ```ts
-originalState: ContractState;
+optional gasLimit: RunningCost;
 ```
 
-The original contract state the circuit call was started at.
-
-***
-
-### transactionContext
-
-```ts
-transactionContext: QueryContext;
-```
-
-The current on-chain context the transaction is evolving.
+The gas limit for this circuit.

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.11.0**](../README.md)
 
 ***
 
@@ -42,10 +42,10 @@ A list of all contract addresses (references) present in the given ledger state.
 
 The algorithm has three main stages:
 
-         1. It unwraps the PublicLedgerSegments in the given [ContractReferenceLocations](../type-aliases/ContractReferenceLocations.md) until a [SparseCompactADT](../type-aliases/SparseCompactADT.md) is reached.
-            Each time a PublicLedgerSegments is unwrapped, it casts the current state value to a state value array and proceeds recursively with each
+         1. It unwraps the [PublicLedgerSegments](../type-aliases/PublicLedgerSegments.md) in the given [ContractReferenceLocations](../type-aliases/ContractReferenceLocations.md) until a [SparseCompactADT](../type-aliases/SparseCompactADT.md) is reached.
+            Each time a [PublicLedgerSegments](../type-aliases/PublicLedgerSegments.md) is unwrapped, it casts the current state value to a state value array and proceeds recursively with each
             of the state values and unwrapped ledger segments.
-         2. It unwraps each [SparseCompactADT](../type-aliases/SparseCompactADT.md) in the current PublicLedgerSegments until a [SparseCompactType](../type-aliases/SparseCompactType.md) is reached.
+         2. It unwraps each [SparseCompactADT](../type-aliases/SparseCompactADT.md) in the current [PublicLedgerSegments](../type-aliases/PublicLedgerSegments.md) until a [SparseCompactType](../type-aliases/SparseCompactType.md) is reached.
             Each time a [SparseCompactADT](../type-aliases/SparseCompactADT.md) is unwrapped, it casts the current state value to a state representation indicated by
             the [SparseCompactADT](../type-aliases/SparseCompactADT.md).
          3. Once the current state can no longer be reduced, it must represent a Compact contract address somewhere inside the state,

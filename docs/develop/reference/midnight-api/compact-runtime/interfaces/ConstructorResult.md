@@ -1,18 +1,18 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.11.0**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / ConstructorResult
 
-# Interface: ConstructorResult\<T\>
+# Interface: ConstructorResult\<PS\>
 
 The result of executing a contract constructor.
 
 ## Type Parameters
 
-### T
+### PS
 
-`T`
+`PS` = `any`
 
 ## Properties
 
@@ -29,7 +29,7 @@ The contract's initial ledger (public state).
 ### currentPrivateState
 
 ```ts
-currentPrivateState: T;
+currentPrivateState: PS;
 ```
 
 The contract's initial private state. Potentially different from the private state passed in [ConstructorContext](ConstructorContext.md).

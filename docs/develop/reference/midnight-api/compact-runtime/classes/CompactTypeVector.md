@@ -1,29 +1,29 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.11.0**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / CompactTypeVector
 
-# Class: CompactTypeVector\<a\>
+# Class: CompactTypeVector\<A\>
 
 Runtime type of the builtin `Vector` types
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Implements
 
-- [`CompactType`](../interfaces/CompactType.md)\<`a`[]\>
+- [`CompactType`](../interfaces/CompactType.md)\<`A`[]\>
 
 ## Constructors
 
 ### Constructor
 
 ```ts
-new CompactTypeVector<a>(length, type): CompactTypeVector<a>;
+new CompactTypeVector<A>(length, type): CompactTypeVector<A>;
 ```
 
 #### Parameters
@@ -34,11 +34,11 @@ new CompactTypeVector<a>(length, type): CompactTypeVector<a>;
 
 ##### type
 
-[`CompactType`](../interfaces/CompactType.md)\<`a`\>
+[`CompactType`](../interfaces/CompactType.md)\<`A`\>
 
 #### Returns
 
-`CompactTypeVector`\<`a`\>
+`CompactTypeVector`\<`A`\>
 
 ## Properties
 
@@ -53,7 +53,7 @@ readonly length: number;
 ### type
 
 ```ts
-readonly type: CompactType<a>;
+readonly type: CompactType<A>;
 ```
 
 ## Methods
@@ -79,7 +79,7 @@ The field-aligned binary alignment of this type.
 ### fromValue()
 
 ```ts
-fromValue(value): a[];
+fromValue(value): A[];
 ```
 
 Converts this type's field-aligned binary representation to its TypeScript
@@ -94,7 +94,7 @@ ignoring superflous data for chaining.
 
 #### Returns
 
-`a`[]
+`A`[]
 
 #### Implementation of
 
@@ -115,7 +115,7 @@ representation
 
 ##### value
 
-`a`[]
+`A`[]
 
 #### Returns
 

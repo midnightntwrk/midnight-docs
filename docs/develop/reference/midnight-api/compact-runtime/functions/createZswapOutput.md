@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.11.0**](../README.md)
 
 ***
 
@@ -25,7 +25,7 @@ The current circuit context.
 
 ### coinInfo
 
-[`EncodedCoinInfo`](../interfaces/EncodedCoinInfo.md)
+[`EncodedShieldedCoinInfo`](../interfaces/EncodedShieldedCoinInfo.md)
 
 The coin to produce.
 
