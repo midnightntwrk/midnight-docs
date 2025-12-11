@@ -10,18 +10,18 @@ This version compiles Compact language version 0.19, which is an updated version
 
 :::important
 
-This is the first version of the compiler which targets the new "Pre-Production Testnet" and "Preview Testnet" environments of the Midnight Network.
+This is the first version of the compiler which targets the new "Preproduction Testnet" and "Preview Testnet" environments of the Midnight Network.
 Contracts compiled with compiler version 0.27.0 or later will not work with the previous environment (known as "testnet" or "testnet-02").
-Similarly, contracts compiled with version 0.26 or earlier will not work with the Pre-Production or Preview environments.
+Similarly, contracts compiled with version 0.26 or earlier will not work with the Preproduction or Preview environments.
 
 :::
 
-This release is part of an important milestone for the Midnight Network: the launch of the new Pre-Production Testnet and Preview Testnet environments.
+This release is part of an important milestone for the Midnight Network: the launch of the new Preproduction Testnet and Preview Testnet environments.
 Read these release notes carefully to note the breaking changes.
 
 ### Summary of changes
 
-The Pre-Production and Preview environment are using Midnight ledger version 6 (compared to testnet's ledger version 4).
+The Preproduction and Preview environments are using Midnight ledger version 6 (compared to testnet's ledger version 4).
 This version of the ledger has new support for native unshielded tokens.
 The Compact standard library has new APIs for unshielded tokens, and some breaking renaming changes to existing APIs.
 
@@ -94,15 +94,17 @@ import { getMatch, putMatch as originalPutMatch } from Matching prefix M_;
 
 will import `getMatch` as `M_getMatch` and `putMatch` as `M_originalPutMatch`
 
-Note that this works for the standard library too, because `CompactStandardLibrary` is a module.
+Note that selective import and renaming works for the standard library too, because `CompactStandardLibrary` is a module.
 
-This is a non-breaking change and the original form of import is still supported.
+The original form of import is still supported, though technically this is a breaking change because `from` has been added to the set of reserved words.
 
-### The menaing of `Uint` ranges has changed
+### The meaning of `Uint` ranges has changed
 
 `Uint` ranges for bounded unsigned integers, of the form `Uint<0..n>` (**not** sized unsigned integers of the form `Uint<n>`)
 are changed to be inclusive on the left (which must be 0) and exclusive on the right (the `n`).
 Previously they were inclusive on both the left and the right.
+
+For example, now the type `Uint<0..3>` is interpreted as the set of values {0, 1, 2} where previously it was the set {0, 1, 2, 3}.
 
 These were changed these because they were inconsistent with ranges elsewhere in the language, e.g., in `for` loops.
 Such inconsistencies can be a source of subtle bugs.
@@ -119,14 +121,14 @@ To fix code using generic size parameters, you will have to find the _uses_ of t
 
 ### The maximum representable unsigned integer value has changed to be smaller
 
-`Uint` ranges for bounded unsigned integers, of the form `Uint<0..n>` (**not** sized unsigned integers of the form `Uint<n>`)
-are changed to be limited to 248 bits.
-They were previously limited to 254 bits (which is not quite a full 32 bytes).
+The on-chain representation of bounded Unsigned integers constrains them to fit within the number of whole bytes in a `Field`, which is currently 31.
+Attempts to use unsigned values outside of this range would sometimes have resulted in unexplained proof failures.
 
-The reason for this change is that unsigned integers that actually used more than 248 bits were not correctly represented in the ZK circuit and on chain.
-To avoid erroneous conversions, the range has been limited.
+The maximum values of `n` in `Uint<n>` and `m` in `Uint<0..m>` have therefore been reduced
+to 248 (8 * 31) for `n`
+and 452312848583266388373324160190187140051835877600158453279131187530910662656 (2^248) for `m`.
 
-This is a breaking change for the bounded `Uint` type.
+This is a breaking change for the `Uint` type.
 Note that the maximum `Field` value is unchanged.
 
 ### There are compiler-enforced size bounds
@@ -138,7 +140,8 @@ There is also a maximum depth bound for `MerkleTree` and `HistoricMerkleTree` le
 This maximum bound is depth 32.
 
 These limits were imposed because such programs did not practically work.
-It is better in that case for the compiler to fail to compiler, instead of learning of the problem later when a contract is deployed.
+For tuples, vectors, and byte values, cryptographic key generation would fail or else the compiler would fail to terminate altogether.
+The Merkle tree depth limit is due to a corresponding limit in the Midnight blockchain ledger.
 
 ### Generated JavaScript code and the Compact runtime now uses ES modules (ESM)
 
@@ -155,6 +158,21 @@ You will likely have to change the way that you import the contract code and the
 
 There are numerous bug fixes, and the size of the circuit representation for making proofs has been reduced in some cases.
 
-One bug fix is a breaking change: previously not all unreachable statements were reported as such by the compiler.
-Now they are correctly reported, but this means that contracts that previously compile might not compile now.
-The fix is to remove the unreachable code, or even just comment it out.
+Some of these changes are breaking changes:
+
+* Previously not all unreachable statements were reported as such by the compiler.
+  Now they are correctly reported, but this means that contracts that previously compile might not compile now.
+  The fix is to remove the unreachable code, or even just comment it out.
+
+* The compiler now type checks certain unimported modules that it was not type checking before.
+  This can cause programs to fail to compile due to type errors that were not previously caught.
+  The fix is to fix the type errors.
+
+* The compiler now rejects multiple-binding `const` binding statements
+  and destructuring `const` binding statements
+  that occur in single-statement contexts (like a branch of an `if` statement or the body of a `for` loop).
+  These could cause confusing downstream compiler errors.
+  These are highly unlikely to reflect the programmer's intent because the constants cannot be used anywhere.
+
+* The compiler does not allow casts back and forth from `Bytes<0>` to `Field` or `Uint` values.
+  This could sometimes work but could also cause confusing downstream compiler errors.
