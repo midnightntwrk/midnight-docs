@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.11.0**](../README.md)
 
 ***
 
@@ -97,7 +97,7 @@ encode(): EncodedStateValue;
 
 #### Returns
 
-`EncodedStateValue`
+[`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
 
 ***
 
@@ -134,12 +134,12 @@ toString(compact?): string;
 ### type()
 
 ```ts
-type(): "map" | "null" | "cell" | "array" | "boundedMerkleTree";
+type(): "cell" | "map" | "array" | "null" | "boundedMerkleTree";
 ```
 
 #### Returns
 
-`"map"` \| `"null"` \| `"cell"` \| `"array"` \| `"boundedMerkleTree"`
+`"cell"` \| `"map"` \| `"array"` \| `"null"` \| `"boundedMerkleTree"`
 
 ***
 
@@ -155,7 +155,7 @@ static decode(value): StateValue;
 
 ##### value
 
-`EncodedStateValue`
+[`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
 
 #### Returns
 
