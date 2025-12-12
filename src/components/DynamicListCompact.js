@@ -26,7 +26,7 @@ const releases = [
         'New APIs for unshielded tokens',
         'Name changes to APIs for shielded tokens',
         'Selective module importing and renaming',
-        'The menaing of `Uint` ranges has changed',
+        'The meaning of `Uint` ranges has changed',
         'The maximum representable unsigned integer value has changed to be smaller',
         'There are compiler-enforced size bounds',
         'Generated JavaScript code and the Compact runtime now uses ES modules (ESM)',
