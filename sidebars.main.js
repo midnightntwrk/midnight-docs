@@ -176,7 +176,7 @@ module.exports = {
         },
         {
           type: "doc",
-          id: "develop/how-to/bun-compact-installation",
+          id: "develop/how-to/install-bun-runtime-midnight",
           label: "Bun runtime with Midnight development"
         }
       ]
