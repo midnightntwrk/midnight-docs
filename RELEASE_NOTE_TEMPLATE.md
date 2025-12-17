@@ -1,6 +1,6 @@
 # Release notes template
 
-### Version/Release Name
+### Version/Release name
 
 **Version:** &lt;version number&gt;  
 **Date:** &lt;YYYY-MM-DD&gt;  
@@ -100,14 +100,14 @@ For each item, include:
 
 &lt;insert migration example here&gt;
 
-### Known Issues
+### Known issues
 
 ### **Issue:** &lt;name&gt;
 
 **Description:** &lt;what’s affected + conditions&gt;  
 **Workaround (if any):** &lt;instructions&gt;
 
-### Links and References
+### Links and references
 
 - PRs: &lt;link&gt;
 - Engineering docs: &lt;link&gt;
@@ -119,4 +119,6 @@ For each item, include:
 
 The following defects were fixed in &lt;release&gt;.
 
-<table><tbody><tr><td colspan="1" rowspan="1"><p><strong>Defect number</strong></p></td><td colspan="1" rowspan="1"><p><strong>Description</strong></p></td></tr><tr><td colspan="1" rowspan="1"><p>PR-XX</p></td><td colspan="1" rowspan="1"><p>The app crashes when you type ‘explode.’</p></td></tr><tr><td colspan="1" rowspan="1"><p></p></td><td colspan="1" rowspan="1"><p></p></td></tr><tr><td colspan="1" rowspan="1"><p></p></td><td colspan="1" rowspan="1"><p></p></td></tr><tr><td colspan="1" rowspan="1"><p></p></td><td colspan="1" rowspan="1"><p></p></td></tr></tbody></table>
+| **Defect number** | **Description** |
+| ----------------- | --------------- |
+| PR-XX | The app crashes when you type 'explode.' |
