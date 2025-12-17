@@ -119,6 +119,6 @@ For each item, include:
 
 The following defects were fixed in &lt;release&gt;.
 
-| **Defect number** | **Description** |
-| ----------------- | --------------- |
-| PR-XX | The app crashes when you type 'explode.' |
+| **Defect number** | **Description**                          |
+| ----------------- | ---------------------------------------- |
+| PR-XX             | The app crashes when you type 'explode.' |
