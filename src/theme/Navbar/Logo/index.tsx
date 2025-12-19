@@ -14,19 +14,6 @@ export default function NavbarLogo() {
         imageClassName="navbar__logo"
         titleClassName="navbar__title text--truncate"
       />
-      {/* Docs Home Link */}
-      <Link
-        to="/"
-        className="navbar__item navbar__link"
-        style={{
-          fontWeight: "bold",
-          fontSize: "1rem",
-          textDecoration: "none",
-          color: "inherit"
-        }}
-      >
-        Docs Home
-      </Link>
     </div>
   );
 }

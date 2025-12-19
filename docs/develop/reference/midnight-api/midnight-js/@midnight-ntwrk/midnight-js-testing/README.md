@@ -241,7 +241,7 @@ Library is provided with set of predefined environment configurations i.e.:
 - Testnet2TestEnvironment
 
 By using `getTestEnvironment(logger);` based on environment variable MN_TEST_ENVIRONMENT test environment configuration is provided.
-However, you can either create your own class defining the environment endpoints or use below enviroment variables.
+However, you can either create your own class defining the environment endpoints or use the below environment variables.
 
 Here's an example of fully customized endpoints of the test environment, that you can provide using environment variables:
 

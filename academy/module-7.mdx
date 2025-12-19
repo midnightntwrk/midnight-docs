@@ -1,0 +1,252 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+id: module-7
+title: Security and Best Practices for Midnight DApps
+displayed_sidebar: academySidebar
+---
+
+import QuizWithRetry from '@site/src/components/QuizWithRetry';
+import AuthGuard from '@site/src/components/AuthGuard';
+import LoggedInUserInfo from '@site/src/components/LoggedInUserInfo';
+import LogoutButton from '@site/src/components/LogoutButton';
+
+# Module 7: Security and Best Practices for Midnight DApps
+
+## Introduction
+
+Midnight introduces new paradigms for decentralized applications (DApps), emphasizing privacy, zero-knowledge proof systems, and selective disclosure. This module summarizes the best practices developers should follow to maintain privacy, integrity, and security when building DApps on Midnight.
+
+## Learning Objectives
+
+By the end of this module, you will be able to:
+
+- Apply zero-knowledge principles to enforce privacy-preserving logic in Compact smart contracts.
+- Minimize data exposure using explicit disclosure and the principle of least disclosure.
+- Architect DApps that handle sensitive user data without sending it on-chain.
+- Use opaque types and proof-based validation patterns.
+- Test your application securely in isolated environments using Midnight’s local stack.
+- Ensure compatibility by tracking SDK updates and address format changes.
+
+## Core Security Principles
+
+### Leverage Zero-Knowledge Proofs (ZKPs)
+
+Midnight DApps must use ZKPs to validate private data conditions without revealing the data itself. Contracts written in Compact rely on zkSNARKs, ensuring proofs are generated off-chain and only validation artifacts are submitted. Never design a workflow that depends on exposing raw private data for validation. Use ZKPs to prove knowledge, eligibility, or compliance.
+
+### Enforce Explicit Disclosure
+
+Compact treats all data as private by default. Developers must use the `disclose()` function when specific information must be shared. Review every disclosure call in your contract. Make sure the disclosure is necessary, documented, and limited in scope.
+
+### Keep Private Data Off-Chain
+
+Private data should never be sent to Midnight’s ledger or included in indexer requests. It must be processed by the proof server and referenced on-chain only through commitments. Ensure DApp frontends do not inadvertently expose private input values in API calls, query parameters, logs, or analytics tools.
+
+### Follow the Principle of Least Disclosure
+
+Design contracts to expose only the minimum amount of data required for functionality, regulation, or UX. Use proof-based flows (e.g., “over 18”, “verified voter”) instead of identity or full document disclosure.
+
+Be mindful that even zero-knowledge proofs can leak information depending on how they’re structured. For example, proving that a user can bid up to a certain amount in an auction may unintentionally reveal that amount. Design proofs carefully to minimize unintended disclosure.
+
+#### Example explained - the naïve auction
+
+Suppose you design an auction where each bidder submits a ZK proof that they can pay up to a certain amount (say, 10 tokens). The proof proves knowledge of a balance `≥10`. But here's the catch:
+
+* If you prove can bid up to 10, you're disclosing that your max bid is exactly 10.
+* A more privacy-preserving way might be to prove "I can outbid the current highest bid" or "I can pay _some amount_ above X", without revealing what that amount is.
+
+So even though it's a ZK proof, the way the proof is constructed leaks info (i.e., your exact budget).
+
+#### Example explained – public key reuse vs. derived keys
+
+Even public key strategies can inadvertently leak information. Many developers use `ZswapCoinPublicKey` (provided by the wallet) to simplify integration and composability. However, this convenience comes at a potential privacy cost.
+
+If the same public key is used across multiple contracts, an observer can correlate interactions between contracts—even when the data itself is protected. For example:
+
+* If Alice’s public key appears in two unrelated ledgers, a curious observer can infer that the same entity interacted with both contracts.
+* This allows behavioral profiling (e.g., usage patterns, dApp preferences) even if balances or actions themselves remain hidden.
+
+A more privacy-conscious approach is to derive a unique public key per contract, using inputs like a round ID or contract-specific salt. While this adds complexity (e.g., wallet portability, key migration), it prevents linkage between actions across contracts.
+
+### Use Opaque Types for Sensitive Inputs
+
+Opaque types allow user inputs to pass through the system without revealing internal structure or values to the contract. Use opaque wrappers whenever possible, especially for sensitive inputs such as credentials or identity proofs.
+
+### Test in Isolated Environments
+
+Midnight provides a local stack using Docker Compose. This allows developers to simulate contract execution, wallet flows, and proof generation without any external visibility. Always run unit and integration tests in a local environment before publishing contracts to TestNet-02.
+
+### Stay Updated
+
+Address formats (e.g., Bech32m) and APIs evolve. Midnight frequently updates the Lace wallet, Compact compiler, and SDKs. Track release notes and upgrade SDKs to avoid compatibility issues or broken signing workflows.
+
+<AuthGuard>
+  <>
+    <LoggedInUserInfo />
+    <LogoutButton />
+
+    <QuizWithRetry
+      questions={[
+        {
+          question: 'Why should you avoid exposing raw private data in a Midnight DApp?',
+          options: [
+            'It slows down the transaction speed significantly.',
+            'It increases gas fees and computational cost.',
+            'It violates Midnight’s privacy model, which relies on zero-knowledge proofs.',
+            'It is only necessary for anonymous transactions.',
+          ],
+          answer: 2,
+        },
+        {
+          question: 'What is the role of the disclose() function in Compact?',
+          options: [
+            'It sends public data to the wallet.',
+            'It reveals private state intentionally when disclosure is needed.',
+            'It creates an alias for secret values.',
+            'It encrypts contract logs for auditing purposes.',
+          ],
+          answer: 1,
+        },
+        {
+          question: 'Where should private user inputs be processed in a Midnight DApp?',
+          options: [
+            'On the blockchain to ensure immutability.',
+            'In the indexer for easy search and indexing.',
+            'Inside the Compact smart contract.',
+            'On the proof server, never on-chain.',
+          ],
+          answer: 3,
+        },
+        {
+          question: 'What does the principle of least disclosure suggest?',
+          options: [
+            'Always share user data with third parties to improve analytics.',
+            'Avoid hiding any contract state to improve transparency.',
+            'Disclose only the minimum amount of information required for functionality or compliance.',
+            'Show detailed credentials and full documents in case of errors.',
+          ],
+          answer: 2,
+        },
+        {
+          question: 'Why are opaque types important in Compact contracts?',
+          options: [
+            'They allow encrypted data to be permanently stored on-chain.',
+            'They let the contract parse and inspect user input safely.',
+            'They prevent contract logic from accessing sensitive internal values while allowing valid use.',
+            'They provide an easier way to log data in cleartext.',
+          ],
+          answer: 2,
+        },
+        {
+          question: 'What is the benefit of testing in Midnight’s local environment?',
+          options: [
+            'You can run UI tests without needing a wallet.',
+            'It simulates a complete network stack while keeping data private and isolated.',
+            'It allows instant mainnet deployment.',
+            'It connects directly to other blockchains for benchmarking.',
+          ],
+          answer: 1,
+        },
+        {
+          question: 'Why is it important to stay updated with SDK and wallet versions?',
+          options: [
+            'To get access to newer fonts and design templates.',
+            'Because Compact code won’t compile without them.',
+            'To avoid compatibility issues and maintain correct address formatting.',
+            'Because Midnight blocks older versions from running.',
+          ],
+          answer: 2,
+        },
+      ]}
+    />
+  </>
+</AuthGuard>
+
+
+## Real-World Application Scenarios
+
+### Secure Voting System
+
+A voting DApp built on Midnight can verify eligibility without disclosing voter identity. Votes are encrypted and submitted to the ledger. Tallying is done using zero-knowledge aggregation, allowing for publicly auditable results without revealing how anyone voted.
+
+### KYC-Compliant Token Sales
+
+DApps can accept users who submit off-chain credentials (like passports) to a trusted party. That party then issues a verifiable credential, and the user generates a ZKP to prove facts—such as age or residency—without disclosing the underlying documents.
+
+### Whistleblower Portal
+
+Anonymous reporting DApps can prove that a complaint came from a verified internal user, without revealing identity. The report is encrypted on-chain and can only be decrypted by authorized investigators, maintaining anonymity and auditability.
+
+### Private Asset Transfers
+
+Midnight enables private transfers of tokenized assets (e.g., property or collectibles) where ownership changes are shielded. The history remains verifiable through proof chains, but the identities of transactors remain hidden unless explicitly disclosed to an authority.
+
+### Data Marketplaces
+
+Users can sell or share personal data by proving authenticity (e.g., "this chat log comes from a real user") without revealing the content until a transaction is finalized. Midnight allows the buyer to verify the proof without accessing the raw data upfront.
+
+<AuthGuard>
+  <>
+    <LoggedInUserInfo />
+    <LogoutButton />
+
+    <QuizWithRetry
+      questions={[
+        {
+          question: 'How does a Midnight voting DApp maintain voter anonymity?',
+          options: [
+            'By storing encrypted voter names on-chain.',
+            'By verifying eligibility off-chain and deleting voter records.',
+            'By using zk-proofs to verify eligibility and encrypting votes on-chain.',
+            'By publishing vote tallies without individual votes.',
+          ],
+          answer: 2,
+        },
+        {
+          question: 'In a Midnight-based KYC token sale, how is user compliance enforced?',
+          options: [
+            'By requiring users to upload their passport to the smart contract.',
+            'By submitting zero-knowledge proofs derived from off-chain credentials.',
+            'By scanning biometrics with the Lace wallet.',
+            'By using public address blacklists stored on-chain.',
+          ],
+          answer: 1,
+        },
+        {
+          question: 'How does a whistleblower DApp on Midnight protect identity?',
+          options: [
+            'By allowing users to post reports anonymously with no verification.',
+            'By encrypting reports and proving employee status with zk-proofs.',
+            'By using rotating wallet addresses on-chain.',
+            'By storing complaints in plaintext but masking the sender’s name.',
+          ],
+          answer: 1,
+        },
+        {
+          question: 'What makes asset transfers on Midnight private?',
+          options: [
+            'Tokens are sent using quantum-resistant encryption.',
+            'Ownership changes are only visible in the Lace wallet UI.',
+            'Transfers are shielded using zk-proofs and do not reveal sender/receiver.',
+            'Midnight replaces all token metadata with random hashes.',
+          ],
+          answer: 2,
+        },
+        {
+          question: 'How does a data marketplace DApp ensure privacy before purchase?',
+          options: [
+            'It shares raw data only after NDA approval.',
+            'It sells encrypted data that cannot be verified.',
+            'It verifies data authenticity with zk-proofs before sharing content.',
+            'It requires buyers to submit identification before browsing.',
+          ],
+          answer: 2,
+        },
+      ]}
+    />
+  </>
+</AuthGuard>
+
+## Module Summary
+
+This module covered key security practices for Midnight DApp development, including the use of zero-knowledge proofs, explicit data disclosure, and off-chain handling of private data. You learned how to apply opaque types, test securely in isolated environments, and stay aligned with the latest SDK and address formats. Real-world examples showed how these principles support secure, privacy-preserving applications on Midnight.
