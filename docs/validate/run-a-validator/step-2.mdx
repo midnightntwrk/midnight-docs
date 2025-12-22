@@ -1,222 +1,179 @@
----
-SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
----
+# Configure partner chain dependencies
 
-# Configure Partner-Chains Dependencies
-
-This guide describes how to configure partner-chain dependencies, including [Cardano-node](https://github.com/IntersectMBO/cardano-node), [Cardano-db-sync](https://github.com/IntersectMBO/cardano-db-sync), PostgreSQL, and [Ogmios](https://ogmios.dev/). Why are these services needed?
+This guide explains how to set up the required partner chain services for a Midnight validator: **cardano-node**, **cardano-db-sync**, **PostgreSQL**, and **Ogmios**.
 
 ```mermaid
 graph TD
-    A[Cardano-node] -->|Synchronizes blockchain data| B[Cardano-db-sync]
-    B -->|Indexes data into| C[PostgreSQL]
-    C -->|Persistent connection| D[Midnight-node]
-    A -->|Provides blockchain access| E[Ogmios WebSocket API]
-    E -->|Ogmios port for| F[Partner-chains CLI Wizards]
-    D -->|Follows Cardano chain via| C
-    F -->|Interacts with Cardano chain via| E
+    CardanoNode[cardano-node] -->|Feeds blockchain data| DbSync[cardano-db-sync]
+    DbSync -->|Indexes data| Postgres[PostgreSQL]
+    Postgres -->|Persistent connection| MidnightNode[Midnight node]
+    CardanoNode -->|Provides access| Ogmios[Ogmios]
+    Ogmios -->|Used by| CLI[Partner chains CLI]
+    MidnightNode -->|Tracks Cardano chain| Postgres
+    CLI -->|Submits transactions| Ogmios
 ```
 
-- **Cardano-node**: Cardano-node is the underlining client that downloads and synchronizes the Cardano chain.
-- **Cardano-db-sync** & **PostgresSQL**: Cardano-db-sync indexes the Cardano-node database into a PostgreSQL database which is accessible via a Postgres port. The Midnight-node needs a persistent connection to the Postgres port in order to follow the Cardano chain.
-- **Ogmios**: Ogmios is a WebSocket API that allows applications to interact with the Cardano chain. An Ogmios port is needed when invoking the partner-chains CLI wizards that you will use throughout the registration process.
+These services support the following functions:
 
-You can use the provided `compose-partner-chains.yml` file with [Docker Compose](https://docs.docker.com/compose/) to more easily launch these services.
+- **cardano-node** – Downloads and synchronizes the Cardano blockchain.
+- **cardano-db-sync** and **PostgreSQL** – Indexes Cardano blockchain data into a PostgreSQL database. The Midnight node requires a persistent connection to this database to track the Cardano chain.
+- **Ogmios** – Provides a lightweight WebSocket API for interacting with the Cardano chain. The partner chains CLI uses Ogmios during registration and other operations.
+
+Use the provided `compose-partner-chains.yml` Docker Compose file to deploy these services easily.
 
 ## Prerequisites
 
-Before you begin, ensure the following:
+Before you start:
 
-- Your system meets the minimum server requirements (#system-requirements).
-- You have administrative access to the server.
-- Docker and Docker Compose are installed. For installation instructions, see [Install Docker Engine](https://docs.docker.com/engine/install/) and [Install Docker Compose](https://docs.docker.com/compose/install/).
-- **Docker is configured to run in [Rootless mode](https://docs.docker.com/engine/security/rootless/).**
-- **Configure Docker to respect UFW by editing `/etc/docker/daemon.json`**
-   ```bash
-   {
-      "iptables": false
-   }
-   ```
-   - Restart Docker and verify firewall rules:
-   ```bash
-   sudo systemctl restart docker
-   sudo ufw status
-   ```
+- Your server meets the hardware requirements (see the system requirements section).
+- You have administrative (sudo) access to the server.
+- Docker and Docker Compose are installed. For instructions, see:
+  - [Install Docker Engine](https://docs.docker.com/engine/install/)
+  - [Install Docker Compose](https://docs.docker.com/compose/install/)
+- Docker is configured to run in [rootless mode](https://docs.docker.com/engine/security/rootless/) (recommended for security).
+- Docker respects UFW firewall rules. Edit `/etc/docker/daemon.json`:
 
-:::note
+  ```json
+  {
+    "iptables": false
+  }
+  ```
 
-Always validate firewall settings after configuration to ensure security.
+  Then restart Docker and verify firewall rules:
 
-:::
+  ```bash
+  sudo systemctl restart docker
+  sudo ufw status
+  ```
 
+> [!NOTE]
+> Always verify firewall settings after changes to maintain security.
 
-## Set up dependencies with Docker Compose
+## Deploy dependencies with Docker Compose
 
-Follow these steps to configure and start partner-chain dependencies using Docker Compose.
+### Install direnv (optional but recommended)
 
-### Install direnv
+`direnv` automatically manages environment variables for the project.
 
-Install `direnv` to manage environment variables. For more detailed instructions, see [direnv Installation](https://direnv.net/docs/installation.html).
+For detailed instructions, see the [direnv installation guide](https://direnv.net/docs/installation.html).
 
-- Install `direnv`:
+On Ubuntu/Debian:
 
 ```bash
 sudo apt install direnv
 ```
 
-Once installed, `direnv` must be *hooked* to your shell profile.
-
-- Append `.bashrc` with the following line
+Hook direnv into your shell by adding this line to `~/.bashrc`:
 
 ```bash
 eval "$(direnv hook bash)"
 ```
 
-- Reload shell
+Reload your shell:
 
-```shell
+```bash
 source ~/.bashrc
 ```
 
-### Clone the `Midnight-node-docker` repository
-
-Clone the `midnight-node-docker` repository and navigate to the project directory:
+### Clone the repository
 
 ```bash
 git clone git@github.com:midnightntwrk/midnight-node-docker.git
 cd midnight-node-docker
 ```
 
-Upon entering the directory, `direnv` prompts you to allow the `.envrc` file. Inspect the file to ensure it is safe:
+When you enter the directory, direnv prompts you to allow the `.envrc` file. Review it first:
 
 ```bash
 cat .envrc
 ```
 
-If the file is acceptable, run:
+If it is safe, allow it:
 
 ```bash
 direnv allow
 ```
 
-This command enables `direnv` to set environment variables automatically when you enter the directory and unset them when you leave.
+direnv now loads the required environment variables automatically.
 
-### Configure environment variables
+### (Optional) Customize environment variables
 
-(The environment variables set in `.envrc` should not need changing. This section is optional)
+The default settings in `.envrc` work for most setups. Edit the file only if you need custom PostgreSQL credentials.
 
-Edit the `.envrc` file to configure `PostgreSQL` settings for `Cardano-db-sync`:
+A random PostgreSQL password is generated automatically and stored in `postgres.password` when services start.
 
-- Open the `.envrc` file in a text editor, such as Visual Studio Code or `vim`:
+### Start the services
 
-```shell
-vim .envrc
-```
+> [!NOTE]
+> Docker Desktop users: Run all commands in your system terminal, not the Docker Desktop UI. Ensure Docker Desktop is running in the background.
 
-- In `vim`, press `i` to enter insert mode.
-- Locate and update the `POSTGRES_*` variables, for example:
-
-:::note
-
-Your random PostgreSQL password is stored in the file `postgres.password` in the same directory as your `.envrc` file. This file will be automatically generated when you start the services in the next step.
-
-:::
-
-- Save and exit:
-   - In `vim`, press `Esc`, then type `:wq` and press `Enter`.
-
-These settings configure the database used by `Cardano-db-sync` and will be read by `midnight-node`.
-
-### Start partner-chains dependency services
-
-:::note Docker Desktop users
-Docker Desktop is a graphical app, but it cannot run commands such as `docker compose`. It only provides the background Docker engine. All Midnight commands must be run in your system terminal.
-
-Before running any commands:
-
-1. Open **Docker Desktop**  
-2. Wait until it shows **“Docker is running”**  
-3. Leave Docker Desktop open — do not try to run containers from the UI  
-4. Run all commands exactly as shown in this guide from your terminal  
-:::
-
-
-
-
-
-
-Launch the partner-chain dependencies in detached mode:
+Start the partner chain services in detached mode:
 
 ```bash
 docker compose -f compose-partner-chains.yml up -d
 ```
 
-:::note
-Use the modern syntax `docker compose` (with a space).  
-If you’re on an older Docker installation that does not support this, use the legacy command `docker-compose`.
-:::
+> [!NOTE]
+> Use the modern `docker compose` command (with a space). On older Docker versions, use `docker-compose` (with a hyphen).
 
-
-Example output:
+Expected output example:
 
 ```bash
 [+] Running 5/5
- ✔ Network midnight-node-docker_default  Created                                                                 0.0s 
- ✔ Container cardano-ogmios              Started                                                                 0.3s 
- ✔ Container db-sync-postgres            Healthy                                                                 5.8s 
- ✔ Container cardano-node                Started                                                                 0.3s 
- ✔ Container cardano-db-sync             Started                                                                 5.9s 
+ ✔ Network midnight-node-docker_default  Created
+ ✔ Container cardano-ogmios              Started
+ ✔ Container db-sync-postgres            Healthy
+ ✔ Container cardano-node                Started
+ ✔ Container cardano-db-sync             Started
 ```
 
-:::important
+> [!IMPORTANT]
+> Initial synchronization with the Cardano network can take several hours or longer, depending on your connection and hardware. Wait for full sync before continuing.
 
-Synchronization with the Cardano network may take several hours. Ensure all dependencies are fully synced before proceeding.
-
-:::
+### Common issues and fixes
 
 <details>
-<summary><b>Common Errors</b></summary>
+<summary>PostgreSQL authentication error in cardano-db-sync logs</summary>
 
-1. **The error in the cardano-db-sync logs indicates that the PostgreSQL authentication is failing due to an incorrect password for the postgres user:**
+Error example:
+
+```
+cardano-db-sync: libpq: failed (connection to server at "postgres" (...), port 5432 failed: FATAL: password authentication failed for user "postgres")
+```
+
+**Cause**: The PostgreSQL data volume retains an old password from a previous run.
+
+**Fix**:
 
 ```bash
-cardano-db-sync: libpq: failed (connection to server at "postgres" (172.18.0.3), port 5432 failed: FATAL:  password authentication failed for user "postgres")
+docker compose -f compose-partner-chains.yml down
+docker volume rm midnight-node-docker_postgres-data
+docker compose -f compose-partner-chains.yml up -d
 ```
-   - **Cause**: The `postgres` container may have initialized with a different password in a previous run, and the `postgres-data` volume retained that configuration. If you regenerated the `postgres.password` file or changed the password in `.envrc`, the `postgres` service might still be using the old password stored in the persistent volume.
-   - **Solution**: Clear the PostgresSQL data volume:
-   ```bash
-   docker compose -f compose-partner-chains.yml down
-   docker volume rm midnight-node-docker_postgres-data
-   docker compose -f compose-partner-chains.yml up -d
-   ```
-   This removes the persistent PostgreSQL data, forcing the `postgres` container to reinitialize with the current `POSTGRES_PASSWORD`.
+
+This clears the persistent data and reinitializes PostgreSQL with the current password.
 
 </details>
 
-### Manage and monitor services:
+## Manage and monitor services
 
-1. **Verify status of services and ports:**
+### Check container status
 
-   - List active Docker containers along with their status, ports, and container IDs:
+```bash
+docker container list
+```
 
-   ```bash
-   docker container list
-   ```
+Example output:
 
-   Example output:
+```
+CONTAINER ID   IMAGE                                           COMMAND                  STATUS                   PORTS                                       NAMES
+aeddf39b71f7   ghcr.io/intersectmbo/cardano-db-sync:13.5.0.2   ...                      Up                       ...                                         db-sync
+61a6eb0ed321   cardanosolutions/ogmios:v6.5.0                  ...                      Up (healthy)             0.0.0.0:1337->1337/tcp                      ogmios
+b514a818da45   postgres:15.3                                   ...                      Up (healthy)             0.0.0.0:5432->5432/tcp                      db-sync-postgres
+558d2b49eddc   ghcr.io/intersectmbo/cardano-node:10.1.2        ...                      Up                       0.0.0.0:3001->3001/tcp                      cardano-node
+```
 
-   ```shell
-   CONTAINER ID   IMAGE                                           COMMAND                  CREATED         STATUS                   PORTS                                       NAMES
-   aeddf39b71f7   ghcr.io/intersectmbo/cardano-db-sync:13.5.0.2   "/nix/store/mvypj83y…"   9 minutes ago   Up 9 minutes                                                         db-sync
-   61a6eb0ed321   cardanosolutions/ogmios:v6.5.0                  "/bin/ogmios --node-…"   9 minutes ago   Up 9 minutes (healthy)   0.0.0.0:1337->1337/tcp, :::1337->1337/tcp   ogmios
-   b514a818da45   postgres:15.3                                   "docker-entrypoint.s…"   9 minutes ago   Up 9 minutes (healthy)   0.0.0.0:5432->5432/tcp, :::5432->5432/tcp   db-sync-postgres
-   558d2b49eddc   ghcr.io/intersectmbo/cardano-node:10.1.2        "entrypoint"             9 minutes ago   Up 9 minutes             0.0.0.0:3001->3001/tcp, :::3001->3001/tcp   cardano-node
-   ```
-
-2. **View logs of specific containers:**
-
-To view logs of a particular container, use `docker logs <container name or container ID>`:
+### View logs
 
 ```bash
 docker logs cardano-ogmios
@@ -225,67 +182,52 @@ docker logs db-sync-postgres
 docker logs cardano-node
 ```
 
-3. **Useful docker-compose commands:**
+### Useful Docker Compose commands
 
-   To learn more about Docker Compose, visit the official [Docker Compose documentation](https://docs.docker.com/compose/). However, here are some common commands:
+| Command                        | Description                          |
+|--------------------------------|--------------------------------------|
+| `docker compose stop`          | Stop running containers              |
+| `docker compose start`         | Start stopped containers             |
+| `docker compose restart`       | Restart containers                   |
+| `docker compose down`          | Stop and remove containers/networks  |
+| `docker compose stats`         | Show resource usage                  |
 
-   ```shell
-   docker-compose stop # stop containers
-   docker-compose start # start containers
-   docker-compose restart # restart containers
-   docker-compose down # stop and remove containers
-   docker-compose stats # display resource usage statistics
-   ```
+For full documentation, see [Docker Compose reference](https://docs.docker.com/compose/reference/).
 
-4. **Monitor Ogmios service:**
+### Monitor Ogmios
 
-   - View Ogmios dashboard at http://localhost:1337/. If Ogmios is running on a remote service then simply visit http://x.x.x.x:1337 in a browser with the respective IP address and PORT.
-   - Query Ogmios healthcheck:
-   ```
-   curl -s localhost:1337/health | jq '.'
-   ```
+- Open the health dashboard: http://localhost:1337 (or http://<server-ip>:1337 for remote servers).
+- Check health via curl:
 
-5. **Query Cardano-db-sync synchronization progress:**
+  ```bash
+  curl -s localhost:1337/health | jq '.'
+  ```
 
-   - **Using `psql` directly:**
+### Check cardano-db-sync progress
 
-     If you don’t already have the PostgreSQL client installed, you can install it using:
+Install the PostgreSQL client if needed:
 
-     ```shell
-     sudo apt-get install postgresql-client
-     ```
+```bash
+sudo apt-get install postgresql-client
+```
 
-     Log in to PostgreSQL shell using `psql`: 
-     
-     ```shell
-      psql -h localhost -U postgres -d cexplorer -p 5432
-      ```
-     
-      Optionally, log in to PostgreSQL shell using `docker`: 
+Run this query locally:
 
-     ```shell
-     docker exec -it db-sync-postgres psql -U postgres -d cexplorer
-     ```
+```bash
+psql -h localhost -U postgres -d cexplorer -p 5432 -c \
+"SELECT 100 * (EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) / (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) AS sync_percent FROM block;"
+```
 
-     Then, run the following query inside the PostgreSQL shell:
+Or from inside the container:
 
-     ```sql
-     SELECT 100 * (
-         EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) -
-         EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))
-     ) / (
-         EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) -
-         EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))
-     ) AS sync_percent
-     FROM block;
-     ```
+```bash
+docker exec -it db-sync-postgres psql -U postgres -d cexplorer -c "...same query..."
+```
 
-   - **Using `ssh` remotely:**
+For remote servers via SSH:
 
-     If you want to query remotely, run this command via SSH:
-     
-     ```shell
-     ssh user@x.x.x.x -C "psql -d cexplorer -h localhost -p 5432 -U postgres -c \"SELECT 100 * (EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) / (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) AS sync_percent FROM block;\""
-     ```
+```bash
+ssh user@your-server-ip -C "psql -d cexplorer -h localhost -p 5432 -U postgres -c \"SELECT 100 * (EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) / (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) AS sync_percent FROM block;\""
+```
 
-     Replace `user@x.x.x.x` with your SSH username and server IP address.
+Once synchronization reaches ~100%, you are ready to proceed with Midnight node configuration.
