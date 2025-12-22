@@ -26,7 +26,7 @@ const tiles: Tile[] = [
   {
     title: "Research and compliance",
     body: "Explore the runtime, proving system, transaction semantics, and audit paths.",
-    to: "/develop/how-midnight-works/concepts/index",
+    to: "/develop/how-midnight-works",
     cta: "View architecture",
   },
 ];
