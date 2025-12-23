@@ -1,6 +1,6 @@
 # Compact runtime API
 
-**@midnight-ntwrk/compact-runtime v0.9.0**
+**@midnight-ntwrk/compact-runtime v0.11.0**
 
 ***
 
@@ -9,7 +9,7 @@
 This API provides runtime primitives used by Compact's TypeScript output, both
 for use by the compiler output directly, and to utilise it or reproduce its
 behaviour. This API re-exports a number of items from
-`@midnight-ntwrk/onchain-runtime`, and wraps others in a more TypeScript-friendly
+`@midnight-ntwrk/onchain-runtime-v1`, and wraps others in a more TypeScript-friendly
 API. Key parts of the API are:
 
 -  setNetworkId, required to ensure the right network is being targeted
