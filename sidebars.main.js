@@ -119,7 +119,7 @@ module.exports = {
       items: [
         {
           type: "doc",
-          id: "develop/how-to/migrate-from-testnest-02-to-preview",
+          id: "develop/how-to/migrate-from-testnet-02-to-preview",
           label: "Migrate from Testnet-02 to Preview"
         },
         {
