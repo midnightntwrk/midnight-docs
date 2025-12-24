@@ -17,8 +17,32 @@ import Link from '@docusaurus/Link';
 const releases = [
   {
     id: 1,
-    version: '2.1.0',
+    version: '3.0.0',
     status: 'LATEST',
+    date: '17 December 2025',
+    summary: 'Summary of Release 3.0.0',
+    details: [
+      'Configurable password provider for encrypted storage',
+      'Async transaction handling',
+      'AES-256-GCM storage encryption',
+      'BalancedProvingRecipe types (3 discriminated types)',
+      'Compact compiler 0.27.0 with .js output',
+      'Fixed ESM/CJS dual package support',
+      'Unshielded token support (NIGHT)',
+      'High-level transaction functions (submitDeployTx, submitCallTx)',
+      'Transaction TTL configuration',
+      'Changed from enum to string literal',
+      '`submitTx` now returns `Promise<TransactionId>`'
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-3-0-0',
+  },
+  {
+    id: 2,
+    version: '2.1.0',
+    status: 'DEPRECATED',
     date: '1 October 2025',
     summary: 'Summary of Release 2.1.0',
     details: [
@@ -39,7 +63,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-1-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '2.0.2',
     status: 'DEPRECATED',
     date: '11 June 2025',
@@ -54,7 +78,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-2',
   },
   {
-    id: 3,
+    id: 4,
     version: '2.0.1',
     status: 'DEPRECATED',
     date: '30 May 2025',
@@ -69,7 +93,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-1',
   },
   {
-    id: 4,
+    id: 5,
     version: '2.0.0',
     status: 'DEPRECATED',
     date: '12 May 2025',
@@ -106,7 +130,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-0',
   },
   {
-    id: 5,
+    id: 6,
     version: '1.0.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -125,7 +149,7 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-1-0-0',
   },
   {
-    id: 6,
+    id: 7,
     version: '0.2.5',
     status: 'DEPRECATED',
     date: '3 February 2025',
