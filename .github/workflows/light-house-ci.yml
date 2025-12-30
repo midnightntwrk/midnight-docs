@@ -6,9 +6,15 @@ on:
       config-path:
         required: false
         type: string
+      preview_url:
+        required: true
+        type: string
     secrets:
       token:
         required: false
+
+permissions:
+  contents: read
 
 jobs:
   generate_lighthouse_audit:
@@ -16,18 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "### Running Lighthouse audit... :rocket:" >> $GITHUB_STEP_SUMMARY
-      - name: Vercel Preview URL
-        id: vercel_preview_url
-        uses: zentered/vercel-preview-url@fba568fc6d882ae788a9724d7e28dee618728771 # 1.4.0
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          GITHUB_REF: ${{ github.ref }}
-          GITHUB_HEAD_REF: ${{ github.head_ref }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-
-        with:
-          vercel_project_id: ${{secrets.VERCEL_PROJECT_ID}}
-          vercel_team_id: ${{secrets.VERCEL_ORG_ID}}
 
       - name: Install Chrome
         run: |
@@ -38,12 +32,12 @@ jobs:
           export CHROME_PATH=$(which google-chrome)
           echo "Chrome is installed at $CHROME_PATH"
       - name: Checkout code
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # 6.0.1
 
       - name: Read paths from file and generate full URLs
         id: read-urls
         run: |
-          base_url="https://${{ steps.vercel_preview_url.outputs.preview_url }}"
+          base_url="https://${{ inputs.preview_url }}"
           full_urls=""
           paths=$(jq -r '.paths[]' packages/tests/pipelines-urls.json)
           for path in $paths; do
@@ -73,7 +67,7 @@ jobs:
 
       - name: Format lighthouse score
         id: format_lighthouse_score
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  #v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  #v8.0.0
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |

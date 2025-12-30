@@ -14,19 +14,19 @@ const tiles: Tile[] = [
   {
     title: "Developer",
     body: "Install tools, scaffold an app, write a contract, and send a private transaction.",
-    to: "/getting-started/installation",
+    to: "/getting-started",
     cta: "Start building",
   },
   {
     title: "Node operators and SPOs",
     body: "Run nodes, monitor health, validate blocks, and follow ops best practices.",
-    to: "/getting-started/installation",
+    to: "/validate/run-a-validator",
     cta: "Operate nodes",
   },
   {
     title: "Research and compliance",
     body: "Explore the runtime, proving system, transaction semantics, and audit paths.",
-    to: "/getting-started/installation",
+    to: "/develop/how-midnight-works",
     cta: "View architecture",
   },
 ];
