@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useLocation } from '@docusaurus/router';
+import ExecutionEnvironment from '@docusaurus/ExecutionEnvironment';
 
 declare global {
   interface Navigator {
@@ -18,6 +19,9 @@ export default function BraveShieldsWarning() {
   const location = useLocation();
 
   useEffect(() => {
+    // Only run in browser environment
+    if (!ExecutionEnvironment.canUseDOM) return;
+
     const checkBrave = async () => {
       // Only show on /academy routes
       if (!location.pathname.startsWith('/academy')) {
@@ -26,9 +30,9 @@ export default function BraveShieldsWarning() {
       }
 
       // Check if it's Brave browser
-      if (navigator.brave !== undefined && (await navigator.brave.isBrave())) {
+      if (typeof navigator !== 'undefined' && navigator.brave !== undefined && (await navigator.brave.isBrave())) {
         // Check if user has already dismissed the warning
-        const isDismissed = localStorage.getItem(STORAGE_KEY) === 'true';
+        const isDismissed = typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY) === 'true';
         if (!isDismissed) {
           setIsVisible(true);
         }
@@ -39,7 +43,9 @@ export default function BraveShieldsWarning() {
   }, [location.pathname]);
 
   const handleDismiss = () => {
-    localStorage.setItem(STORAGE_KEY, 'true');
+    if (ExecutionEnvironment.canUseDOM && typeof localStorage !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, 'true');
+    }
     setIsVisible(false);
   };
 
