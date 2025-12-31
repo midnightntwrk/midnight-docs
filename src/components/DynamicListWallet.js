@@ -50,7 +50,7 @@ const releases = [
     artifacts: [
       { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/4.0.0' },
     ],
-    link: '/relnotes/wallet/wallet-5-0-0',
+    link: '/relnotes/wallet/wallet-4-0-0',
   },
   {
     id: 3,
