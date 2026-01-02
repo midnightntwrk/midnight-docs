@@ -1,120 +1,138 @@
-# name: Preview Deploy
+name: Preview Deploy
 
 on:
-  - pull_request
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
 
 permissions:
   contents: read
   pull-requests: write
 
-env:
-  NEXT_TELEMETRY_DISABLED: 1
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-  ALGOLIA_APP_ID: ${{secrets.ALGOLIA_APP_ID}}
-  ALGOLIA_INDEX_NAME: ${{secrets.ALGOLIA_INDEX_NAME}}
-
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   deploy-preview:
     runs-on: ubuntu-latest
+
+    # 🔐 Required reviewers gate + scoped secrets
+    environment:
+      name: Preview
+
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # 6.0.1
+      # ⚠️ This checks out PR code ONLY AFTER environment approval
+      - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
-      - name: Enable Corepack (Pre-Setup)
-        run: corepack enable
-      - name: Setup Node.js
-        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # 6.1.0
-        with:
-          node-version: 22
+
       - name: Enable Corepack
         run: |
           corepack enable
           corepack prepare yarn@4.12.0 --activate
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
       - name: Install Vercel CLI
         run: npm install --global vercel@canary
+
       - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }}
-      - name: Build Project Artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }}
-      - name: Deploy Project Artifacts to Vercel
         run: |
-          DEPLOYMENT_URL=$(vercel deploy --prebuilt --archive=tgz --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }})
-          echo "Deployment URL: $DEPLOYMENT_URL"
-          vercel alias set $DEPLOYMENT_URL pr-${{ github.event.number }}-midnight-docs.vercel.app --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }}
+          vercel pull --yes \
+            --environment=preview \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.VERCEL_ORG_ID }}"
+
+      - name: Build Project Artifacts
+        run: |
+          vercel build \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.VERCEL_ORG_ID }}"
+
+      - name: Deploy Project Artifacts to Vercel
+        id: deploy
+        run: |
+          DEPLOYMENT_URL=$(vercel deploy --prebuilt --archive=tgz \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.VERCEL_ORG_ID }}")
+
+          echo "deployment_url=$DEPLOYMENT_URL" >> "$GITHUB_OUTPUT"
+
+          vercel alias set \
+            "$DEPLOYMENT_URL" \
+            pr-${{ github.event.pull_request.number }}-midnight-docs.vercel.app \
+            --token="${{ secrets.VERCEL_TOKEN }}" \
+            --scope="${{ secrets.VERCEL_ORG_ID }}"
 
   run-LHCI-workflow:
     needs: [deploy-preview]
     uses: ./.github/workflows/light-house-ci.yml
     secrets: inherit
     with:
-      preview_url: pr-${{ github.event.number }}-midnight-docs.vercel.app
+      preview_url: pr-${{ github.event.pull_request.number }}-midnight-docs.vercel.app
 
   run-PWCI-workflow:
     needs: [deploy-preview]
     uses: ./.github/workflows/playwright-visual-regression.yml
     secrets: inherit
     with:
-      preview_url: pr-${{ github.event.number }}-midnight-docs.vercel.app
+      preview_url: pr-${{ github.event.pull_request.number }}-midnight-docs.vercel.app
 
   comment-preview-url:
     needs: [deploy-preview]
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+
     steps:
       - name: Create or update PR comment with preview URL
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  #v8.0.0
+        uses: actions/github-script@v8
         with:
           script: |
-            const previewUrl = `https://pr-${{ github.event.number }}-midnight-docs.vercel.app`;
+            const pr = context.payload.pull_request;
+            const previewUrl = `https://pr-${pr.number}-midnight-docs.vercel.app`;
             const commentHeader = "### 🚀 Preview Deployment";
-            const timestamp = new Date().toISOString();
-            const commitSha = context.sha.substring(0, 7);
+            const commitSha = pr.head.sha.substring(0, 7);
 
-            // Fetch existing comments
             const { data: comments } = await github.rest.issues.listComments({
-              issue_number: context.issue.number,
+              issue_number: pr.number,
               owner: context.repo.owner,
               repo: context.repo.repo
             });
 
-            // Look for an existing comment we created earlier
             const existing = comments.find(c =>
               c.user.type === "Bot" &&
               c.body.includes(commentHeader)
             );
 
-            const dateStr = new Date(timestamp).toLocaleString('en-US', {
-              timeZone: 'UTC',
-              dateStyle: 'medium',
-              timeStyle: 'short'
-            });
-
-            const body = `${commentHeader}\n\n✅ **Deployment Ready**\n\n🔗 **Preview URL:** ${previewUrl}\n\n📝 **Latest commit:** \`${commitSha}\`\n⏰ **Updated:** ${dateStr} UTC\n\n---\n*This preview updates automatically when you push new commits to this PR.*`;
+            const body =
+              `${commentHeader}\n\n` +
+              `✅ **Deployment Ready**\n\n` +
+              `🔗 **Preview URL:** ${previewUrl}\n\n` +
+              `📝 **Latest commit:** \`${commitSha}\`\n` +
+              `⏰ **Updated:** ${new Date().toUTCString()}\n\n` +
+              `---\n*This preview updates automatically when this PR is approved again.*`;
 
             if (existing) {
-              // Update existing comment
               await github.rest.issues.updateComment({
                 comment_id: existing.id,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body
               });
-              console.log('Updated existing preview URL comment');
             } else {
-              // Create new comment
               await github.rest.issues.createComment({
-                issue_number: context.issue.number,
+                issue_number: pr.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body
               });
-              console.log('Created new preview URL comment');
             }
