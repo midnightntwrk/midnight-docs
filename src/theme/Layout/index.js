@@ -24,7 +24,7 @@ function MetaTitleUpdater({ children }) {
   const path = location.pathname;
   const isBrowser = useIsBrowser();
   
-  // Compute title suffix based on path (works during SSR)
+  // Compute title suffix based on path (works during SSR).
   let titleSuffix = 'Midnight Docs';
   if (path.startsWith('/blog') || path.includes('dev-diaries')) {
     titleSuffix = 'Midnight Dev Diaries';
