@@ -11,17 +11,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '@theme-original/Layout';
 import { Auth0Provider } from '@auth0/auth0-react';
-import BrowserOnly from '@docusaurus/BrowserOnly';
+import useIsBrowser from '@docusaurus/useIsBrowser';
 import Head from '@docusaurus/Head';
 import { useLocation } from '@docusaurus/router';
+import ExecutionEnvironment from '@docusaurus/ExecutionEnvironment';
 
 function MetaTitleUpdater({ children }) {
   const location = useLocation();
   const path = location.pathname;
-
+  const isBrowser = useIsBrowser();
+  
+  // Compute title suffix based on path (works during SSR).
   let titleSuffix = 'Midnight Docs';
   if (path.startsWith('/blog') || path.includes('dev-diaries')) {
     titleSuffix = 'Midnight Dev Diaries';
@@ -29,8 +32,16 @@ function MetaTitleUpdater({ children }) {
     titleSuffix = 'Midnight Academy';
   }
 
-  const defaultTitle = document?.title?.split('|')[0]?.trim();
-  const finalTitle = defaultTitle ? `${defaultTitle} | ${titleSuffix}` : titleSuffix;
+  const [finalTitle, setFinalTitle] = useState(titleSuffix);
+
+  useEffect(() => {
+    if (!isBrowser) return;
+
+    // On client, read the actual page title set by Docusaurus and append suffix.
+    const defaultTitle = document?.title?.split('|')[0]?.trim();
+    const computedTitle = defaultTitle ? `${defaultTitle} | ${titleSuffix}` : titleSuffix;
+    setFinalTitle(computedTitle);
+  }, [path, isBrowser, titleSuffix]);
 
   return (
     <>
@@ -44,23 +55,34 @@ function MetaTitleUpdater({ children }) {
   );
 }
 
+function Auth0ProviderWrapper({ children }) {
+  const isBrowser = useIsBrowser();
+
+  if (!isBrowser) {
+    // During SSR, render children without Auth0Provider
+    return <>{children}</>;
+  }
+
+  return (
+    <Auth0Provider
+      domain="dev-600zbek4g7efcqgw.us.auth0.com"
+      clientId="ScPFNYUlxRQgIoPun7hxGKmX4UF78LRt"
+      authorizationParams={{
+        redirect_uri: ExecutionEnvironment.canUseDOM ? window.location.origin : '',
+        connection: 'github',
+      }}
+    >
+      {children}
+    </Auth0Provider>
+  );
+}
+
 export default function LayoutWrapper(props) {
   return (
-    <BrowserOnly>
-      {() => (
-        <Auth0Provider
-          domain="dev-600zbek4g7efcqgw.us.auth0.com"
-          clientId="ScPFNYUlxRQgIoPun7hxGKmX4UF78LRt"
-          authorizationParams={{
-            redirect_uri: window.location.origin,
-            connection: 'github',
-          }}
-        >
-          <MetaTitleUpdater>
-            <Layout {...props} />
-          </MetaTitleUpdater>
-        </Auth0Provider>
-      )}
-    </BrowserOnly>
+    <Auth0ProviderWrapper>
+      <MetaTitleUpdater>
+        <Layout {...props} />
+      </MetaTitleUpdater>
+    </Auth0ProviderWrapper>
   );
 }
