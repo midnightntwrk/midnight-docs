@@ -14,7 +14,6 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '@theme-original/Layout';
 import { Auth0Provider } from '@auth0/auth0-react';
-
 import useIsBrowser from '@docusaurus/useIsBrowser';
 import Head from '@docusaurus/Head';
 import { useLocation } from '@docusaurus/router';
