@@ -19,7 +19,7 @@ export default function BraveShieldsWarning() {
   const location = useLocation();
 
   useEffect(() => {
-    // Only run in browser environment
+    // Only run in browser environment.
     if (!ExecutionEnvironment.canUseDOM) return;
 
     const checkBrave = async () => {
