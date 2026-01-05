@@ -37,7 +37,7 @@ function MetaTitleUpdater({ children }) {
   useEffect(() => {
     if (!isBrowser) return;
 
-    // On client, read the actual page title set by Docusaurus and append suffix
+    // On client, read the actual page title set by Docusaurus and append suffix.
     const defaultTitle = document?.title?.split('|')[0]?.trim();
     const computedTitle = defaultTitle ? `${defaultTitle} | ${titleSuffix}` : titleSuffix;
     setFinalTitle(computedTitle);
