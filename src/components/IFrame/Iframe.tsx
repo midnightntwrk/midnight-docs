@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { FC } from "react";
+import ExecutionEnvironment from "@docusaurus/ExecutionEnvironment";
 
 type Props = {
   src: string;
@@ -8,7 +9,7 @@ type Props = {
 const Iframe: FC<Props> = ({ src }) => {
   const ref = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
-    if (!ref.current) return;
+    if (!ref.current || !ExecutionEnvironment.canUseDOM || typeof window === 'undefined') return;
     const iFrame = ref.current;
     function integrateIframe() {
       if (!iFrame || !iFrame.contentWindow) return;
