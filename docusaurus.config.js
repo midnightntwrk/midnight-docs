@@ -41,6 +41,7 @@ const config = {
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
+        // exclude: ["**/relnotes/*/**"],
       },
     ],
 
@@ -52,6 +53,36 @@ const config = {
         path: "compact",
         routeBasePath: "compact",
         sidebarPath: require.resolve("./sidebars.compact.js"),
+        editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+        showLastUpdateTime: true,
+        showLastUpdateAuthor: false,
+      },
+    ],
+
+    // API REFERENCE DOCS
+
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "apis",
+        path: "api-reference",
+        routeBasePath: "api-reference",
+        sidebarPath: require.resolve("./sidebars.apis.js"),
+        editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+        showLastUpdateTime: true,
+        showLastUpdateAuthor: false,
+      },
+    ],
+
+    // SDKs DOCS
+
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "sdks",
+        path: "sdks",
+        routeBasePath: "sdks",
+        sidebarPath: require.resolve("./sidebars.sdks.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
@@ -181,13 +212,14 @@ const config = {
         alt: "Midnight Logo",
         src: "img/midnight-header-logo-light.svg",
         srcDark: "img/midnight-header-logo-dark.svg",
-        href: "https://midnight.network",
+        href: "/",
       },
       items: [
-        { to: "/",         label: "Docs",     position: "left",  activeBaseRegex: "^/$" },
         { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
         { to: "/academy",  label: "Academy",  position: "left",  activeBaseRegex: "^/academy(/|$)" },
-        { to: "/blog",     label: "Blog",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
+        { to: "/api-reference", label: "API Reference", position: "left", activeBaseRegex: "^/api-reference(/|$)" },
+        { to: "/sdks", label: "SDKs and client libraries", position: "left", activeBaseRegex: "^/sdks(/|$)" },
+        { to: "/blog", label: "Dev diaries",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
         {
           type: "html",
           position: "right",
