@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -25,7 +25,7 @@ value
 
 ##### state
 
-[`StateValue`](StateValue.md)
+[`ChargedState`](ChargedState.md)
 
 ##### address
 
@@ -50,17 +50,17 @@ The address of the contract
 ### block
 
 ```ts
-block: BlockContext;
+block: CallContext;
 ```
 
 The block-level information accessible to the contract
 
 ***
 
-### comIndicies
+### comIndices
 
 ```ts
-readonly comIndicies: Map<string, bigint>;
+readonly comIndices: Map<string, bigint>;
 ```
 
 The commitment indices map accessible to the contract, primarily via
@@ -82,7 +82,7 @@ match those declared in a [Transcript](../type-aliases/Transcript.md)
 ### state
 
 ```ts
-readonly state: StateValue;
+readonly state: ChargedState;
 ```
 
 The current contract state retained in the context
@@ -115,54 +115,16 @@ index to later spend them
 
 ***
 
-### ~~intoTranscript()~~
-
-```ts
-intoTranscript(program, cost_model): [
-  | undefined
-  | Transcript<AlignedValue>, 
-  | undefined
-  | Transcript<AlignedValue>];
-```
-
-Finalizes a sequence of operations against their initial context,
-resulting in a guaranteed and fallible [Transcript](../type-aliases/Transcript.md), optimally
-allocated, and heuristically covered for gas fees.
-
-#### Parameters
-
-##### program
-
-[`Op`](../type-aliases/Op.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>[]
-
-##### cost\_model
-
-[`CostModel`](CostModel.md)
-
-#### Returns
-
-\[
-  \| `undefined`
-  \| `Transcript`\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>, 
-  \| `undefined`
-  \| `Transcript`\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>\]
-
-#### Deprecated
-
-Please use the ledger's `partitionTranscripts` instead.
-
-***
-
 ### qualify()
 
 ```ts
-qualify(coin): undefined | Value;
+qualify(coin): Value | undefined;
 ```
 
 **`Internal`**
 
 Internal counterpart to [insertCommitment](#insertcommitment); upgrades an encoded
-[CoinInfo](../type-aliases/CoinInfo.md) to an encoded [QualifiedCoinInfo](../type-aliases/QualifiedCoinInfo.md) using the
+[ShieldedCoinInfo](../type-aliases/ShieldedCoinInfo.md) to an encoded [QualifiedShieldedCoinInfo](../type-aliases/QualifiedShieldedCoinInfo.md) using the
 inserted commitments
 
 #### Parameters
@@ -173,7 +135,7 @@ inserted commitments
 
 #### Returns
 
-`undefined` \| [`Value`](../type-aliases/Value.md)
+[`Value`](../type-aliases/Value.md) \| `undefined`
 
 ***
 
@@ -201,7 +163,7 @@ gather.
 
 ##### gas\_limit?
 
-`bigint`
+[`RunningCost`](../type-aliases/RunningCost.md)
 
 #### Returns
 
@@ -223,7 +185,7 @@ from after the execution.
 
 ##### transcript
 
-`Transcript`\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+[`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
 
 ##### cost\_model
 
@@ -250,3 +212,17 @@ toString(compact?): string;
 #### Returns
 
 `string`
+
+***
+
+### toVmStack()
+
+```ts
+toVmStack(): VmStack;
+```
+
+Converts the QueryContext to [VmStack](VmStack.md).
+
+#### Returns
+
+[`VmStack`](VmStack.md)

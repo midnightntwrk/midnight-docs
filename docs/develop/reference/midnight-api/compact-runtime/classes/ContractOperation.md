@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -39,14 +39,8 @@ verifierKey: Uint8Array;
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array;
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-##### networkid
-
-[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -75,7 +69,7 @@ toString(compact?): string;
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractOperation;
+static deserialize(raw): ContractOperation;
 ```
 
 #### Parameters
@@ -83,10 +77,6 @@ static deserialize(raw, networkid): ContractOperation;
 ##### raw
 
 `Uint8Array`
-
-##### networkid
-
-[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

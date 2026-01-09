@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: persistentHash()
 
 ```ts
-function persistentHash<a>(rt_type, value): Uint8Array;
+function persistentHash<A>(rtType, value): Uint8Array;
 ```
 
 The Compact builtin `persistent_hash` function
@@ -22,19 +22,19 @@ cannot be relied upon as a consistent representation.
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Parameters
 
-### rt\_type
+### rtType
 
-[`CompactType`](../interfaces/CompactType.md)\<`a`\>
+[`CompactType`](../interfaces/CompactType.md)\<`A`\>
 
 ### value
 
-`a`
+`A`
 
 ## Returns
 
@@ -42,4 +42,4 @@ cannot be relied upon as a consistent representation.
 
 ## Throws
 
-If `rt_type` encodes a type containing Compact 'Opaque' types
+If `rtType` encodes a type containing Compact 'Opaque' types

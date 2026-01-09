@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function createZswapOutput(
    circuitContext, 
    coinInfo, 
-   recipient): void;
+   recipient): [];
 ```
 
 Adds a coin to the list of outputs produced by the circuit.
@@ -25,7 +25,7 @@ The current circuit context.
 
 ### coinInfo
 
-[`EncodedCoinInfo`](../interfaces/EncodedCoinInfo.md)
+[`EncodedShieldedCoinInfo`](../interfaces/EncodedShieldedCoinInfo.md)
 
 The coin to produce.
 
@@ -38,4 +38,4 @@ The coin recipient - either a coin public key representing an end user or a cont
 
 ## Returns
 
-`void`
+\[\]
