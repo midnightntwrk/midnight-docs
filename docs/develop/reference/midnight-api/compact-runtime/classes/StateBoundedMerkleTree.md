@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -73,12 +73,13 @@ If the indices are out-of-bounds for the tree, or `end < start`
 ### findPathForLeaf()
 
 ```ts
-findPathForLeaf(leaf): AlignedValue;
+findPathForLeaf(leaf): AlignedValue | undefined;
 ```
 
 **`Internal`**
 
-Internal implementation of the finding path primitive
+Internal implementation of the finding path primitive.
+Returns undefined if the leaf is not in the tree.
 
 #### Parameters
 
@@ -88,11 +89,7 @@ Internal implementation of the finding path primitive
 
 #### Returns
 
-[`AlignedValue`](../type-aliases/AlignedValue.md)
-
-#### Throws
-
-If the leaf is not in the tree
+[`AlignedValue`](../type-aliases/AlignedValue.md) \| `undefined`
 
 ***
 
@@ -126,19 +123,36 @@ If the index is out-of-bounds for the tree
 
 ***
 
+### rehash()
+
+```ts
+rehash(): StateBoundedMerkleTree;
+```
+
+Rehashes the tree, updating all internal hashes and ensuring all
+node hashes are present. Necessary because the onchain runtime does
+not automatically rehash trees.
+
+#### Returns
+
+`StateBoundedMerkleTree`
+
+***
+
 ### root()
 
 ```ts
-root(): Value;
+root(): AlignedValue | undefined;
 ```
 
 **`Internal`**
 
-Internal implementation of the merkle tree root primitive
+Internal implementation of the merkle tree root primitive.
+Returns undefined if the tree has not been fully hashed.
 
 #### Returns
 
-[`Value`](../type-aliases/Value.md)
+[`AlignedValue`](../type-aliases/AlignedValue.md) \| `undefined`
 
 ***
 
