@@ -209,7 +209,7 @@ const config = {
       items: [
         { to: "/",         label: "Docs",     position: "left",  activeBaseRegex: "^/$" },
         { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
-        { to: "/academy",  label: "Academy",  position: "left",  activeBaseRegex: "^/academy(/|$)" },
+        { to: "https://academy.midnight.network/",  label: "Academy",  position: "left" },
         { to: "/blog",     label: "Blog",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
         {
           type: "html",
