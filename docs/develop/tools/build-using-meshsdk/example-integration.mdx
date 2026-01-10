@@ -1,0 +1,382 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+---
+
+# Example integration
+
+The fastest way to build on Midnight Network with pre-built smart contracts, complete API, and ready-to-use code snippets.
+
+## Try the project
+
+To test the complete setup locally, follow these steps strictly:
+
+**Repository:** [https://github.com/MeshJS/midnight-setup](https://github.com/MeshJS/midnight-setup)
+
+### Clone the repository
+
+Clone the repo locally using HTTPS or SSH.
+
+- using https:
+```bash
+git clone https://github.com/MeshJS/midnight-setup.git
+```
+
+- using ssh:
+```bash
+git clone git@github.com:MeshJS/midnight-setup.git
+```
+
+### Navigate to the folder
+
+Change into the cloned repo directory.
+
+```bash
+cd midnight-setup
+```
+
+### Install dependencies
+
+Install all workspace dependencies.
+
+```bash
+yarn install
+```
+
+### Set environment variable
+
+Set the network ID for the UI app.
+
+```bash
+cd packages/ui && echo 'VITE_NETWORK_ID="TestNet"' > .env
+```
+
+### Build all packages
+
+Build all packages in the monorepo.
+
+```bash
+cd ../../ && yarn build:all
+```
+
+### Download fetch parameters
+
+Download the required zk parameters for local runs.
+
+```bash
+cd packages/cli && ./fetch-zk-params.sh
+```
+
+### Start testnet with Docker
+
+Start the local testnet services with Docker Compose.
+
+```bash
+docker-compose -f testnet.yml up -d
+```
+
+### Run the frontend
+
+Start the UI app dev server.
+
+```bash
+cd ../ui && yarn start
+```
+
+Your application will be available at `http://localhost:8080`.
+
+
+## Provider setup
+
+Set up the required providers before interacting with the contract APIs.
+
+```typescript
+import { FetchZkConfigProvider } from "@midnight-ntwrk/midnight-js-fetch-zk-config-provider";
+import { httpClientProofProvider } from "@midnight-ntwrk/midnight-js-http-client-proof-provider";
+import { indexerPublicDataProvider } from "@midnight-ntwrk/midnight-js-indexer-public-data-provider";
+import { levelPrivateStateProvider } from "@midnight-ntwrk/midnight-js-level-private-state-provider";
+import type { MidnightSetupContractProviders } from "@meshsdk/midnight-setup";
+
+export async function setupProviders(): Promise<MidnightSetupContractProviders> {
+  const wallet = window.midnight?.mnLace;
+  if (!wallet) {
+    throw new Error("Please install Lace Beta Wallet for Midnight Network");
+  }
+  
+  const walletAPI = await wallet.enable();
+  const walletState = await walletAPI.state();
+  const uris = await wallet.serviceUriConfig();
+  
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: "my-dapp-state",
+    }),
+    zkConfigProvider: new FetchZkConfigProvider(
+      window.location.origin,
+      fetch.bind(window),
+    ),
+    proofProvider: httpClientProofProvider(uris.proverServerUri),
+    publicDataProvider: indexerPublicDataProvider(
+      uris.indexerUri,
+      uris.indexerWsUri,
+    ),
+    walletProvider: {
+      coinPublicKey: walletState.coinPublicKey,
+      encryptionPublicKey: walletState.encryptionPublicKey,
+      balanceTx: (tx, newCoins) => {
+        return walletAPI.balanceAndProveTransaction(tx, newCoins);
+      },
+    },
+    midnightProvider: {
+      submitTx: (tx) => {
+        return walletAPI.submitTransaction(tx);
+      },
+    },
+  };
+}
+```
+
+## Core operations
+
+These examples show the core contract workflows available in the SDK.
+
+### Deploy a contract
+
+Deploy a new contract instance and capture its address.
+
+```typescript
+import { MidnightSetupAPI } from "@meshsdk/midnight-setup";
+import { setupProviders } from "./providers";
+
+async function deployContract() {
+  const providers = await setupProviders();
+  const contractInstance = new MyContract({});
+  const api = await MidnightSetupAPI.deployContract(providers, contractInstance);
+  
+  console.log("Contract deployed at:", api.deployedContractAddress);
+  return api;
+}
+```
+
+### Join existing contract
+
+Connect to an already deployed contract by address.
+
+```typescript
+async function joinContract(contractAddress: string) {
+  const providers = await setupProviders();
+  const contractInstance = new MyContract({});
+  const api = await MidnightSetupAPI.joinContract(providers, contractInstance, contractAddress);
+  
+  return api;
+}
+```
+
+### Read contract state
+
+Query the contract and ledger state from the API.
+
+```typescript
+// Get contract state
+const contractState = await api.getContractState();
+console.log("Contract data:", contractState.data);
+
+// Get ledger state
+const ledgerState = await api.getLedgerState();
+console.log("Message:", ledgerState.ledgerState?.message);
+```
+
+## React integration
+
+Use the hook and component patterns below to wire the SDK into a React app.
+
+### Custom hook
+
+Wrap the deploy and join flows in a reusable React hook.
+
+```typescript
+import { useState, useCallback } from 'react';
+import { MidnightSetupAPI } from '@meshsdk/midnight-setup';
+import { setupProviders } from './providers';
+
+export const useMidnightContract = () => {
+  const [api, setApi] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const deployContract = useCallback(async (contractInstance) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const providers = await setupProviders();
+      const newApi = await MidnightSetupAPI.deployContract(providers, contractInstance);
+      setApi(newApi);
+      return newApi;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const joinContract = useCallback(async (contractInstance, address) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const providers = await setupProviders();
+      const newApi = await MidnightSetupAPI.joinContract(providers, contractInstance, address);
+      setApi(newApi);
+      return newApi;
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  return {
+    api,
+    deployContract,
+    joinContract,
+    isLoading,
+    error
+  };
+};
+```
+
+### React component
+
+Use the hook in a simple contract manager UI.
+
+```typescript
+import React, { useState } from 'react';
+import { useMidnightContract } from './hooks/useMidnightContract';
+
+function ContractManager() {
+  const { 
+    api, 
+    deployContract, 
+    joinContract, 
+    isLoading, 
+    error 
+  } = useMidnightContract();
+  
+  const [contractAddress, setContractAddress] = useState('');
+  
+  const handleDeploy = async () => {
+    try {
+      const contractInstance = new MyContract({});
+      const newApi = await deployContract(contractInstance);
+      console.log('Deployed:', newApi.deployedContractAddress);
+    } catch (err) {
+      console.error('Deploy failed:', err);
+    }
+  };
+
+  const handleJoin = async () => {
+    try {
+      const contractInstance = new MyContract({});
+      await joinContract(contractInstance, contractAddress);
+      console.log('Joined contract:', contractAddress);
+    } catch (err) {
+      console.error('Join failed:', err);
+    }
+  };
+
+  return (
+    <div className="contract-manager">
+      <h2>Contract Manager</h2>
+      
+      {error && (
+        <div className="error">Error: {error}</div>
+      )}
+      
+      <div className="actions">
+        <button onClick={handleDeploy} disabled={isLoading}>
+          {isLoading ? 'Deploying...' : 'Deploy Contract'}
+        </button>
+        
+        <div className="join-section">
+          <input
+            type="text"
+            placeholder="Contract Address"
+            value={contractAddress}
+            onChange={(e) => setContractAddress(e.target.value)}
+          />
+          <button onClick={handleJoin} disabled={isLoading}>
+            Join Contract
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+## Error handling
+
+Use these patterns to surface common SDK errors and protect the UI.
+
+### Common error patterns
+
+Map known SDK errors to friendly messages.
+
+```typescript
+const handleMidnightError = (error: Error) => {
+  if (error.message.includes('Please install Lace Beta Wallet')) {
+    return 'Please install Lace Beta Wallet for Midnight Network';
+  }
+  
+  if (error.message.includes('Insufficient funds')) {
+    return 'Insufficient funds for transaction';
+  }
+  
+  if (error.message.includes('Contract not found')) {
+    return 'Contract address not found or invalid';
+  }
+  
+  return 'An unexpected error occurred';
+};
+```
+
+### Error boundary
+
+Catch rendering errors and show a fallback UI.
+
+```typescript
+import React from 'react';
+
+export class MidnightErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Midnight Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-fallback">
+          <h2>Something went wrong with Midnight Network</h2>
+          <button onClick={() => window.location.reload()}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
