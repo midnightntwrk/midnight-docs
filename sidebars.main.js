@@ -8,7 +8,7 @@ module.exports = {
       collapsed: false,
       link: {
         type: "doc",
-        id: "getting-started/index"  
+        id: "getting-started/index"
       },
       items: [
         "getting-started/installation",
@@ -17,7 +17,7 @@ module.exports = {
         "getting-started/interact-with-mn-app"
       ]
     },
-    
+
     // WHAT IS MIDNIGHT
     {
       type: "category",
@@ -25,22 +25,34 @@ module.exports = {
       collapsed: true,
       link: {
         type: "doc",
-        id: "learn/what-is-midnight/index",
+        id: "learn/what-is-midnight/index"
       },
       items: [
-        { type: "doc", id: "learn/what-is-midnight/why-midnight", label: "Why Midnight" },
-        { type: "doc", id: "learn/what-is-midnight/midnight-combined-model", label: "Architecture" },
-        { type: "doc", id: "learn/what-is-midnight/advantages", label: "Midnight model" }  
-      ],
+        {
+          type: "doc",
+          id: "learn/what-is-midnight/why-midnight",
+          label: "Why Midnight"
+        },
+        {
+          type: "doc",
+          id: "learn/what-is-midnight/midnight-combined-model",
+          label: "Architecture"
+        },
+        {
+          type: "doc",
+          id: "learn/what-is-midnight/advantages",
+          label: "Midnight model"
+        }
+      ]
     },
 
-     // CONCEPTS
+    // CONCEPTS
     {
       type: "category",
       label: "Concepts",
       link: {
         type: "doc",
-        id: "develop/how-midnight-works/index"  
+        id: "develop/how-midnight-works/index"
       },
       items: [
         {
@@ -53,8 +65,8 @@ module.exports = {
             "learn/understanding-midnights-technology/web3",
             "learn/understanding-midnights-technology/zero-knowledge-proofs",
             "learn/understanding-midnights-technology/kachina",
-            "learn/understanding-midnights-technology/zswap",
-          ],
+            "learn/understanding-midnights-technology/zswap"
+          ]
         },
 
         {
@@ -66,10 +78,10 @@ module.exports = {
             "develop/how-midnight-works/keeping-data-private",
             "develop/how-midnight-works/semantics",
             "develop/how-midnight-works/zswap",
-            "develop/how-midnight-works/impact",
-          ],
-        },
-      ],
+            "develop/how-midnight-works/impact"
+          ]
+        }
+      ]
     },
 
     // BUILD
@@ -105,7 +117,7 @@ module.exports = {
                 "develop/tutorial/creating/local-testing",
                 "develop/tutorial/creating/updatability"
               ]
-            },
+            }
           ]
         },
         {
@@ -134,6 +146,11 @@ module.exports = {
       label: "How to",
       collapsed: true,
       items: [
+        {
+          type: "doc",
+          id: "develop/how-to/migrate-from-testnet-02-to-preview",
+          label: "Migrate from Testnet-02 to Preview"
+        },
         {
           type: "doc",
           id: "develop/guides/wallet-dev-guide",
@@ -179,6 +196,11 @@ module.exports = {
           id: "develop/how-to/run-proof-server",
           label: "Run the proof server"
         },
+        {
+          type: "doc",
+          id: "develop/how-to/install-bun-runtime-midnight",
+          label: "Bun runtime with Midnight development"
+        }
       ]
     },
 
@@ -200,8 +222,8 @@ module.exports = {
             "operate/network-architecture/consensus",
             "operate/network-architecture/cryptography",
             "operate/network-architecture/onchain-logic",
-            "operate/network-architecture/storage",
-          ],
+            "operate/network-architecture/storage"
+          ]
         },
         {
           type: "category",
@@ -210,10 +232,10 @@ module.exports = {
             "operate/node-operations/full-node",
             "operate/node-operations/boot-node",
             "operate/node-operations/rpc-node",
-            "operate/node-operations/cardano-db-sync",
-          ],
-        },
-      ],
+            "operate/node-operations/cardano-db-sync"
+          ]
+        }
+      ]
     },
 
     {
