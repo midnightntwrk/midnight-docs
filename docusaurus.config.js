@@ -41,7 +41,33 @@ const config = {
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
-        // exclude: ["**/relnotes/*/**"],
+        async sidebarItemsGenerator({defaultSidebarItemsGenerator, ...args}) {
+          const sidebarItems = await defaultSidebarItemsGenerator(args);
+          
+          // Filter function to process sidebar items recursively
+          const processItems = (items) => {
+            return items.map((item) => {
+              // If this is a category
+              if (item.type === 'category') {
+                // Check if this is the Release notes category
+                if (item.label === 'Release notes' && item.items) {
+                  // Filter out all subcategories, keep only doc items
+                  const docsOnly = item.items.filter(subItem => subItem.type === 'doc');
+                  return { ...item, items: docsOnly };
+                }
+                
+                // For other categories, recursively process their items
+                if (item.items) {
+                  return { ...item, items: processItems(item.items) };
+                }
+              }
+              
+              return item;
+            });
+          };
+          
+          return processItems(sidebarItems);
+        },
       },
     ],
 
