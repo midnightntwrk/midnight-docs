@@ -1,3 +1,7 @@
+---
+title: midnight-js-network-id
+---
+
 [**Midnight.js API Reference v2.0.2**](../../README.md)
 
 ***

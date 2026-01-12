@@ -1,3 +1,7 @@
+---
+title: midnight-js-http-client-proof-provider
+---
+
 [**Midnight.js API Reference v2.0.2**](../../README.md)
 
 ***

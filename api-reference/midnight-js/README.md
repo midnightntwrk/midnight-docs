@@ -1,3 +1,8 @@
+---
+id: index
+sidebar_label: Midnight.js API
+title: Midnight.js API
+---
 **Midnight.js API Reference v2.0.2**
 
 ***
