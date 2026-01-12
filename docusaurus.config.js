@@ -243,8 +243,8 @@ const config = {
       items: [
         { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
         { to: "/academy",  label: "Academy",  position: "left",  activeBaseRegex: "^/academy(/|$)" },
-        { to: "/api-reference", label: "API Reference", position: "left", activeBaseRegex: "^/api-reference(/|$)" },
-        { to: "/sdks", label: "SDKs and client libraries", position: "left", activeBaseRegex: "^/sdks(/|$)" },
+        { to: "/api-reference", label: "API reference", position: "left", activeBaseRegex: "^/api-reference(/|$)" },
+        { to: "/sdks", label: "SDKs", position: "left", activeBaseRegex: "^/sdks(/|$)" },
         { to: "/blog", label: "Dev diaries",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
         {
           type: "html",
