@@ -8,7 +8,7 @@ const tiles: Tile[] = [
   {
     title: "New to blockchain",
     body: "Learn core ideas related to selective disclosure, ZK proofs, commitments, and how Midnight is different.",
-    to: "/academy",
+    to: "https://academy.midnight.network/",
     cta: "Start learning",
   },
   {
