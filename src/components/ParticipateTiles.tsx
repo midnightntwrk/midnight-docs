@@ -43,7 +43,7 @@ export default function ParticipateTiles() {
       {ITEMS.map((t) => (
         <Link key={t.title} to={t.to} className={styles.participateCard}>
           <h4 className={styles.participateTitle}>{t.title}</h4>
-          <p className={styles.participateDesc}>{t.desc}</p>
+          <p className={styles.participateDesc}>{t.body}</p>
         </Link>
       ))}
     </div>
