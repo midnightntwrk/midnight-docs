@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -7,8 +7,8 @@
 # Function: persistentCommit()
 
 ```ts
-function persistentCommit<a>(
-   rt_type, 
+function persistentCommit<A>(
+   rtType, 
    value, 
    opening): Uint8Array;
 ```
@@ -26,19 +26,19 @@ cannot be relied upon as a consistent representation.
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Parameters
 
-### rt\_type
+### rtType
 
-[`CompactType`](../interfaces/CompactType.md)\<`a`\>
+[`CompactType`](../interfaces/CompactType.md)\<`A`\>
 
 ### value
 
-`a`
+`A`
 
 ### opening
 
@@ -50,5 +50,5 @@ cannot be relied upon as a consistent representation.
 
 ## Throws
 
-If `rt_type` encodes a type containing Compact 'Opaque' types, or
+If `rtType` encodes a type containing Compact 'Opaque' types, or
 `opening` is not 32 bytes long

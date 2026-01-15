@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0-rc.0**](../README.md)
 
 ***
 
@@ -32,7 +32,7 @@ Runs a VM program against an initial stack, with an optional gas limit
 
 ### gas\_limit?
 
-`bigint`
+[`RunningCost`](../type-aliases/RunningCost.md)
 
 ## Returns
 
