@@ -1,0 +1,454 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+---
+
+# Midnight wallet - developer guide
+
+There are many flavors of wallet software - browser extensions, wallets used in various backend systems, CLI apps, wallets integrated into testing environments, etc. In Midnight, they all need to implement common functionalities, like:
+- deriving keys
+- deriving token balance from chain data
+- managing coins and data needed to generate necessary zero-knowledge proofs
+- managing connection with an indexer instance
+- creating token transfers and balancing transactions (i.e. paying fees for a contract call), including proof generation requests
+
+It all, to implement robustly, is a non-trivial amount of work. For that reason, there are a couple of packages available to help with integration of wallet functionality:
+- `@midnight-ntwrk/wallet-api` - high-level wallet interfaces, target abstraction to be used by code utilizing wallet functionality (e.g. browser extension implementation);
+- `@midnight-ntwrk/wallet` - implementation of the `@midnight-ntwrk/wallet-api`, with some additional tools and helpers
+- `@midnight-ntwrk/zswap` - reference implementation of building blocks of [Zswap](/learn/understanding-midnights-technology/zswap)
+- `@midnight-ntwrk/dapp-connector-api` - description of the API meant to be injected by browser extensions to enable DApp connections.
+- `@midnight-ntwrk/wallet-sdk-hd` - provides support for Hierarchical Deterministic (HD) Wallet.
+- `@midnight-ntwrk/wallet-sdk-address-format` - provides support for Bech32m address format, allows parsing from to/hex.
+
+## Installing
+
+The Midnight wallet SDK is provided as an NPM package `@midnight-ntwrk/wallet`. 
+
+:::important
+Version 4.0.0 introduces several breaking changes! Ensure you are referencing the correct version as defined in the [release compatibility matrix](../../relnotes/support-matrix).
+:::
+
+You can install it using any node package manager, including Yarn. To install the package using Yarn, run the following command:
+
+`yarn add @midnight-ntwrk/wallet/<VERSION>`
+
+Replace `<VERSION>` with the required version of the wallet SDK according to the [release compatibility matrix](../../relnotes/support-matrix).
+
+
+## Important information
+
+The wallet SDK uses the `@midnight-ntwrk/zswap` library to manage its local state and construct transactions. The serialization format, which ensures transactions are processed correctly depending on the network (eg, TestNet or MainNet) they belong to, relies on the [`NetworkId`](../reference/midnight-api/zswap/enumerations/NetworkId.md) provided when building the wallet.
+
+As of version 4.0.0, secret keys are no longer included in the serialized wallet state. If you're restoring a wallet from a serialized snapshot, you must also provide the associated seed. Ensure that sensitive data is securely managed and not stored in snapshots.
+
+---
+
+## Managing wallet SDK instances
+
+The `@midnight-ntwrk/wallet` package offers a builder that enables you to create wallets in various ways. Once created and started, each wallet will automatically connect to the specified node for submitting transactions, indexer for state synchronization, and proving server for generation of zero-knowledge proofs.
+
+To create a wallet instance, begin by importing the builder from the `@midnight-ntwrk/wallet` package:
+
+```ts
+import { WalletBuilder } from '@midnight-ntwrk/wallet';
+```
+
+Next, the builder can be used to build instances:
+- From a wallet-specific seed
+- From a serialized state snapshot (requires the original seed)
+
+:::important
+As of version 4.0.0, the `.build()` method requires an explicit seed parameter. The `.buildFromSeed()` method is deprecated and will be removed in a future release.
+:::
+
+### Obtaining wallet seed
+
+While in testing scenarios it is fine to take random bytes as the wallet seed (it is used to derive the specific secret keys), in practice, you need an HD wallet derivation. 
+The package `@midnight-ntwrk/wallet-sdk-hd` helps with that task. It implements BIP-32-based derivation following the path:
+```text
+m / 44' / 2400' / account' / role / index
+```
+
+Where:
+- `account` follows BIP-44 recommendations
+- `role` is integer `3` for Zswap role (`Roles.Zswap`); other roles are reserved for future implementations
+- `index` follows BIP-44 recommendations
+
+:::note
+This package does not handle the mnemonic-to-seed conversion. If you need to use a mnemonic, you need to convert it to a seed first using a BIP-39 implementation.
+:::
+
+```typescript
+import {
+  generateRandomSeed,
+  HDWallet,
+  Roles,
+} from "@midnight-ntwrk/wallet-sdk-hd";
+
+const seed = generateRandomSeed();
+const privateKeyPartOfSeed = seed.subarray(0, 32);
+
+function deriveDefaultWalletSeed(seed: Uint8Array) {
+  const generatedWallet = HDWallet.fromSeed(privateKeyPartOfSeed);
+
+  if (generatedWallet.type != "seedOk") {
+    throw new Error("Error initializing HD Wallet");
+  }
+
+  const zswapKey = generatedWallet.hdWallet
+    .selectAccount(0)
+    .selectRole(Roles.Zswap)
+    .deriveKeyAt(0);
+
+  if (zswapKey.type === "keyDerived") {
+    return zswapKey.key;
+  } else {
+    throw new Error("Error deriving key");
+  }
+}
+
+console.log(deriveDefaultWalletSeed(seed));
+```
+
+### Creating instance from a wallet seed
+
+The wallet builder offers a method that enables you to instantiate a wallet with a specific seed, resulting in obtaining the same address and keys but with a fresh state that is then synchronized with the indexer. The method requires the following parameters (in the exact order):
+
+| Name | Data type | Required? | Default |
+|---|---|---|---|
+| **Indexer URL** | String  | Yes | N/A|
+| **Indexer WebSocket URL** | String  | Yes | N/A|
+| **Proving server URL** | String  | Yes | N/A|
+| **Node URL** | String  | Yes | N/A|
+| **Seed** | String  | Yes | N/A|
+| **Network ID** | NetworkId | Yes | N/A|
+| **Log level** | LogLevel  | No | warn |
+| **Discard Transaction History** | Boolean  | No | false |
+
+
+```ts
+import { WalletBuilder } from '@midnight-ntwrk/wallet';
+import { NetworkId } from '@midnight-ntwrk/zswap';
+
+const wallet = await WalletBuilder.build(
+  'https://indexer.testnet-02.midnight.network/api/v1/graphql', // Indexer URL
+  'wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws', // Indexer WebSocket URL
+  'http://localhost:6300', // Proving Server URL
+  'https://rpc.testnet-02.midnight.network', // Node URL
+  '0000000000000000000000000000000000000000000000000000000000000000',
+  NetworkId.TestNet,
+  'error' // LogLevel
+);
+```
+
+### Creating a random, disposable instance
+
+Starting from version 4.0.0, you must provide a seed when creating a wallet instance. The concept of ephemeral wallets (without seed) is deprecated.
+
+This requires the following parameters (in the precise order):
+
+| Name | Data type | Required? | Default |
+|---|---|---|---|
+| **Indexer URL** | String  | Yes | N/A|
+| **Indexer WebSocket URL** | String  | Yes | N/A|
+| **Proving server URL** | String  | Yes | N/A|
+| **Node URL** | String  | Yes | N/A|
+| **Seed** | String  | Yes | N/A|
+| **Network ID** | NetworkId | Yes | N/A|
+| **Log level** | LogLevel  | No | warn |
+| **Discard Transaction History** | Boolean  | No | false |
+
+
+
+```ts
+import { WalletBuilder } from '@midnight-ntwrk/wallet';
+import { NetworkId } from '@midnight-ntwrk/zswap';
+
+import { generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
+
+const randomSeed = generateRandomSeed();
+
+const wallet = await WalletBuilder.build(
+  'https://indexer.testnet-02.midnight.network/api/v1/graphql', // Indexer URL
+  'wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws', // Indexer WebSocket URL
+  'http://localhost:6300', // Proving Server URL
+  'https://rpc.testnet-02.midnight.network',  // Node URL
+  randomSeed,
+  NetworkId.TestNet,
+  'error'
+);
+```
+
+### State snapshots
+
+The wallet state can be serialized for later restoration. This is especially useful in environments like browser extensions or mobile apps, where you want to quickly restore a user's wallet without full resynchronization from genesis.
+
+To create a snapshot of the current wallet state, use the `serialize()` method.
+
+As of version 4.0.0, secret keys are no longer included in the serialized state. To restore a wallet, you must also provide the original seed used to create it.
+
+To create a wallet instance from the serialized state use method `WalletBuilder.restore`. This method requires the following parameters (in the precise order):
+
+| Name | Data type | Required? | Default |
+|---|---|---|---|
+| **Indexer URL** | String  | Yes | N/A |
+| **Indexer WebSocket URL** | String  | Yes | N/A |
+| **Proving server URL** | String  | Yes | N/A |
+| **Node URL** | String  | Yes | N/A |
+| **Serialized state** | String  | Yes | N/A |
+| **Log level** | LogLevel  | No | warn |
+| **Discard Transaction History** | Boolean  | No | false |
+
+Note that this builder method doesn't provide a network ID parameter, because it is stored in the serialized snapshot.
+
+The example below shows how to prepare a state snapshot and later restore wallet from it:
+
+```ts
+import { WalletBuilder } from '@midnight-ntwrk/wallet';
+
+const originalWallet = await WalletBuilder.build(/* ... */);
+// Start, sync, and use the wallet...
+
+const serializedState = await originalWallet.serialize();
+
+const restoredWallet = await WalletBuilder.restore(
+  'https://indexer.testnet-02.midnight.network/api/v1/graphql', // Indexer URL
+  'wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws', // Indexer WebSocket URL
+  'http://localhost:6300', // Proving Server URL
+  'https://rpc.testnet-02.midnight.network', // Node URL
+  '0000000000000000000000000000000000000000000000000000000000000000', // seed associated with serializedState
+  serializedState,
+  'error'
+);
+```
+
+## Wallet instance lifecycle
+
+Creating a wallet does only initialize its internal state.
+
+To begin synchronizing the wallet with the indexer, use the `start()` method on wallet instance:
+
+```ts
+ wallet.start();
+```
+
+To gracefully close a wallet instance, use the `close()` method:
+
+```ts
+await wallet.close();
+```
+
+Returned promise will resolve after all resources used for synchronization are released.
+
+## Accessing the wallet state
+
+The [wallet state](/develop/reference/midnight-api/wallet-api/type-aliases/WalletState) is provided through an `rx.js` observable. You can operate on the state value using various operators supported by `rx.js`. The simplest use is to simply log the state upon each change:
+
+```ts
+wallet.state().subscribe((state) => {
+  console.log(state);
+});
+```
+
+## Addresses
+
+Midnight wallet uses Bech32m address format by default, as implemented in `@midnight-ntwrk/wallet-sdk-address-format` package. It provides utilities to encode/decode Bech32m format while handling the Midnight-specific human-readable part, as well as defines types for the addresses in use.
+
+The human-readable prefix of any address consists of following parts, separated by an underscore (`_`):
+- constant `mn` indicating it is a Midnight address
+- type of address encoded, now, only `shield-addr` for a payment address is used, as well as `shield-esk` when interacting with the Indexer. Future implementations will use other types as well
+- network identifier, one of the following:
+  - mainnet - omit
+  - testnet - "test"
+  - devnet - "dev"
+  - undeployed - "undeployed" 
+
+An example of encoding and decoding an address for testnet is shown below:
+```typescript
+import {
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
+  MidnightBech32m,
+} from "@midnight-ntwrk/wallet-sdk-address-format";
+import { NetworkId } from "@midnight-ntwrk/zswap";
+import { Buffer } from "buffer";
+
+const coinPublicKey = new ShieldedCoinPublicKey(
+  Buffer.from(
+    "064e092a80b33bee23404c46cfc48fec75a2356a9b01178dd6a62c29f5896f67",
+    "hex",
+  ),
+);
+const encryptionPublicKey = new ShieldedEncryptionPublicKey(
+  Buffer.from(
+    "0300063c7753854aea18aa11f04d77b3c7eaa0918e4aa98d5eaf0704d8f4c2fc272899efbb8a71275f2a1aedd29f879021e0962b4730f9b47e1a",
+    "hex",
+  ),
+);
+const address = new ShieldedAddress(coinPublicKey, encryptionPublicKey);
+const encodedAddress: string = ShieldedAddress.codec
+  .encode(NetworkId.TestNet, address)
+  .asString();
+console.log(encodedAddress); //prints addr_test1qe8qj25qkva7ug6qf3rvl3y0a366ydt2nvq30rwk5ckznavfdansxqqx83m48p22agv25y0sf4mm83l25zgcuj4f34027pcymr6v9lp89zv7lwu2wyn472s6ahfflpusy8sfv268xrumgls62hqz4u
+
+const parsedAddress: MidnightBech32m = MidnightBech32m.parse(encodedAddress);
+const decodedAddress: ShieldedAddress = ShieldedAddress.codec.decode(
+  NetworkId.TestNet,
+  parsedAddress,
+);
+console.log(decodedAddress.coinPublicKeyString()); // prints 064e092a80b33bee23404c46cfc48fec75a2356a9b01178dd6a62c29f5896f67
+console.log(decodedAddress.encryptionPublicKeyString()); // prints 0300063c7753854aea18aa11f04d77b3c7eaa0918e4aa98d5eaf0704d8f4c2fc272899efbb8a71275f2a1aedd29f879021e0962b4730f9b47e1a
+
+```
+
+
+## Working with transactions
+
+Conceptually, preparing a transaction and submitting it to network is done in 3 steps:
+1. Prepare an unproven transaction - outline of transaction to be created
+2. Compute needed zero-knowledge proofs and convert outline into the final transaction
+3. Submit the transaction
+
+:::note
+
+It is important to ensure that wallet's synchronization progress has reached the tip of the chain before preparing a transaction. Otherwise, there is a very likely possibility of spending a coin, which was already spent, but wallet instance has not learned that fact yet, and in turn - node rejecting the transaction because of detected double spend attempt.
+
+:::
+
+### Preparing transaction - making a transfer
+
+The wallet API includes a `transferTransaction()` method that enables you to construct transactions specifying the token type, amount, and recipient address.
+
+This method requires an array of objects containing the following properties:
+
+| Name | Data type | Required? |
+|---|---|---|
+| **amount** | BigInt  | Yes |
+| **type** | TokenType | Yes |
+| **receiverAddress** | Address | Yes |
+
+
+Below, you can see an example of how you can utilize the API:
+
+```ts
+import { nativeToken } from '@midnight-ntwrk/zswap';
+
+const transferRecipe = await wallet.transferTransaction([
+  {
+    amount: 1n,
+    receiverAddress: '<midnight-wallet-address>',
+    type: nativeToken() // tDUST token type
+  }
+]);
+```
+
+### Preparing transaction - balancing an existing transaction
+
+Balancing an existing transaction is particularly useful, when working with DApps or complementing a swap. It is a process, where transaction is inspected for imbalances between values of provided inputs and outputs, and then a complementary transaction is created, which provides or extracts value (by adding inputs or outputs) needed to pay fees and reduce imbalances. It can be done with `balanceTransaction` method, which requires the following parameters:
+
+| Name | Data type | Required? |
+|---|---|---|
+| **transaction** | Transaction  | Yes |
+| **newCoins** | CoinInfo[]  | No |
+
+:::note
+
+The `newCoins` parameter is intended for cases where a new coin is created, such as when a DApp mints one and intends to send it to the wallet. Due to the nature of the Midnight TestNet, these newly created coins must be explicitly provided to the wallet using this method. This allows the wallet to monitor and incorporate them into its state effectively.
+
+:::
+
+```ts
+const balancedRecipe = await wallet.balanceTransaction(transaction);
+```
+
+### Proving a transaction
+
+Once unproven transaction is ready - it can be proven. Wallet does wrap the results of `transferTransaction` and `balanceTransaction` into objects called `ProvingRecipe` - they allow passing the results of these methods directly to `proveTransaction` method, without conditional logic between to decide what exactly needs to be proven and merged. It takes following parameters:
+
+| Name | Data type | Required? |
+|---|---|---|
+| **provingRecipe** | ProvingRecipe  | Yes |
+
+
+For example, the `transferRecipe` created [above](#preparing-transaction---making-a-transfer) has a following shape and can be proven like below:
+
+```ts
+import { TRANSACTION_TO_PROVE } from '@midnight-ntwrk/wallet-api';
+
+const recipe = {
+  type: TRANSACTION_TO_PROVE, // available from the Wallet API
+  transaction: anUnprovenTransferTransaction // this is a balanced, unproven transaction
+};
+
+const provenTransaction = await wallet.proveTransaction(recipe);
+```
+
+:::note
+
+Computing zero-knowledge proofs is a very computationally heavy operation. For that reason one needs to expect that calls to `proveTransaction` take tens of seconds. This is also reason why a proving server is needed at this moment - running native code makes the zero-knowledge technology feasible to use in Midnight.
+
+:::
+
+
+### Submitting a transaction
+
+Once final, proven transaction is created, it can be submitted. To submit a transaction, you need to use the `submitTransaction` method, which requires the following parameters:
+
+| Name | Data type | Required? |
+|---|---|---|
+| **transaction** | Transaction  | Yes |
+
+
+The transaction must be balanced (value of tokens in inputs needs to be at least equal to value of tokens in output, as well as cover fees) and proven for it to be accepted by the node.
+
+The example below uses the `provenTransaction` from the section above:
+
+```ts
+const submittedTransaction = await wallet.submitTransaction(provenTransaction);
+```
+
+## Connecting to a DApp
+
+See the [DApp connector overview](/develop/reference/midnight-api/dapp-connector/) and [Wallet Provider](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/WalletProvider) for more details. The former is the API expected to be injected by a browser extension wallet, the latter is interface used by Midnight.js to interact with wallet.
+
+## Examples
+
+In this section, you'll find examples of how you can fully utilize the wallet APIs.
+
+### Transferring tDUST
+
+This example instantiates a new wallet and uses it to transfer one tDUST to another wallet:
+
+```ts
+import { WalletBuilder } from '@midnight-ntwrk/wallet';
+import { NetworkId, nativeToken } from '@midnight-ntwrk/zswap';
+
+try {
+  const wallet = await WalletBuilder.build(
+    'https://indexer.testnet-02.midnight.network/api/v1/graphql',
+    'wss://indexer.testnet-02.midnight.network/api/v1/graphql/ws',
+    'http://localhost:6300',
+    'https://rpc.testnet-02.midnight.network',
+    '0000000000000000000000000000000000000000000000000000000000000000',
+    NetworkId.TestNet
+  );
+
+  wallet.start();
+
+  const transferRecipe = await wallet.transferTransaction([
+    {
+      amount: 1n,
+      type: nativeToken(),
+      receiverAddress: 'mn_shield-addr_test1kjwksfp8x2tachehsfvufsdl35ljg5cxzdcysjdn6ntadspyxn3qxqrxypgjm055c2azrpuyn7un0ge2vm25vkfv38d24rj3ewcku5wmdc94gjr9' // Example Bech32m address
+    }
+  ]);
+
+  const provenTransaction = await wallet.proveTransaction(transferRecipe);
+  const submittedTransaction = await wallet.submitTransaction(provenTransaction);
+
+  console.log('Transaction submitted:', submittedTransaction);
+} catch (error) {
+  console.error('An error occurred:', error);
+}
+```

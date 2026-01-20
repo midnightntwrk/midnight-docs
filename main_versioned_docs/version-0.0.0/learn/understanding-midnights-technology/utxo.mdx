@@ -1,0 +1,234 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+id: utxo
+---
+
+# UTXO model
+
+Welcome to the world of UTXOs—a fundamentally different way of thinking about digital value! If the Account model felt familiar because it mirrors traditional banking, the UTXO model might initially seem strange. But this "strangeness" is actually its superpower. Once you understand it, you'll see why Bitcoin pioneered this approach, why Cardano adopted and refined it, and why Midnight chose it as the foundation for achieving both transparency and privacy.
+
+UTXO stands for "Unspent Transaction Output"—but let's demystify this technical term. Think of each UTXO as a discrete digital coin or bill, just like the physical cash in your wallet. Each has a specific value, belongs to a specific owner, and crucially, must be spent in its entirety. This constraint, which might seem limiting at first, is actually what enables the UTXO model's most powerful features.
+
+## The Digital Cash Metaphor: Why It's Perfect
+
+The cash metaphor isn't just a teaching tool—it's a precise description of how UTXOs actually work. Let's explore this deeply:
+
+Imagine you're at a coffee shop and your latte costs $3.50. You reach into your wallet and find you have:
+
+* One $20 bill
+* One $5 bill
+* Two $1 bills
+
+You can't tear the $5 bill to extract exactly $3.50. Instead, you must hand over the entire $5 bill and receive $1.50 in change. The original $5 bill leaves your possession forever—it's been "consumed" in the transaction—and you receive new bills as change.
+
+The UTXO model implements this exact pattern digitally:
+
+```solidity
+// Your wallet contains discrete UTXOs (like bills):
+AliceWallet = [
+    UTXO_1: { value: 100 NIGHT, id: "abc123..." },
+    UTXO_2: { value: 50 NIGHT, id: "def456..." },
+    UTXO_3: { value: 25 NIGHT, id: "ghi789..." }
+]
+
+// To send 60 NIGHT, you must consume entire UTXOs:
+Transaction {
+    inputs: [UTXO_1],  // Consume the 100 NIGHT UTXO entirely
+    outputs: [
+        { value: 60, recipient: Bob },      // Payment
+        { value: 40, recipient: Alice }     // Change back to yourself
+    ]
+}
+```
+
+## Deep Dive: Core UTXO Concepts
+
+Let's explore the fundamental principles that make the UTXO model work, with particular attention to how Midnight implements them.
+
+### UTXOs Are Truly Indivisible
+
+This isn't just a design choice—it's a fundamental requirement for the security model. Each UTXO is cryptographically sealed as a complete unit:
+
+```solidity
+// This is IMPOSSIBLE in UTXO systems:
+❌ UTXO_100.spend(30)  // Can't spend part of a UTXO
+
+// You MUST do this instead:
+✅ Transaction {
+    inputs: [UTXO_100],  // Consume entirely
+    outputs: [
+        { value: 30, owner: recipient },
+        { value: 70, owner: self }  // Change
+    ]
+}
+```
+
+This indivisibility might seem inconvenient, but it's what enables atomic transactions, parallel processing, and crucially for Midnight, the ability to represent Shielded Tokens.
+
+### The Nullifier Set: Midnight's Elegant Solution
+
+Here's where Midnight's implementation differs significantly from Bitcoin. Instead of simply marking UTXOs as "spent" in a database, Midnight uses a sophisticated nullifier set approach:
+
+```solidity
+// When a UTXO is spent in Midnight:
+1. UTXO_abc123 is consumed in a transaction
+2. A nullifier is computed: nullifier = Hash(UTXO_abc123, ownerSecret)
+3. This nullifier is added to the global nullifier set
+4. Future transactions check: isNullified(UTXO) before accepting
+
+// The nullifier set grows over time:
+NullifierSet = {
+    "0xn1a2b3c4...",  // From spent UTXO_1
+    "0xn5d6e7f8...",  // From spent UTXO_2
+    "0xn9g0h1i2...",  // From spent UTXO_3
+    // ... millions more
+}
+```
+
+This approach is crucial because:
+
+* **No Pruning Needed**: Unlike Bitcoin, Midnight doesn't remove spent UTXOs from history
+* **Privacy Compatible**: The nullifier can be computed without revealing which UTXO was spent
+* **Mathematically Secure**: Once a nullifier is in the set, that UTXO can never be spent again
+* **Efficient Verification**: Checking set membership is a fast O(1) operation
+
+### Transaction Atomicity Through Output Creation
+
+Every UTXO transaction is atomic—all inputs are consumed and all outputs are created together, or nothing happens:
+
+
+```solidity
+// A multi-party payment showcasing atomicity:
+Transaction {
+    inputs: [
+        UTXO_A: 100 NIGHT,  // From Alice
+        UTXO_B: 50 NIGHT    // Also from Alice
+    ],
+    outputs: [
+        { value: 40, owner: Bob },
+        { value: 30, owner: Carol },
+        { value: 20, owner: Dave },
+        { value: 60, owner: Alice }  // Change
+    ]
+}
+// Either ALL of this happens, or NONE of it does
+```
+
+### The UTXO Lifecycle in Midnight
+
+Understanding the complete lifecycle helps grasp why this model is so powerful:
+
+```solidity
+// 1. BIRTH: UTXO created in a transaction
+NewUTXO = {
+    value: 100 NIGHT,
+    owner: AlicePublicKey,
+    id: Hash(transaction, outputIndex),
+    commitment: PedersenCommit(value, randomness)  // For privacy
+}
+
+// 2. LIFE: UTXO exists in the unspent set
+UnspentSet.add(NewUTXO)
+// Can be queried, proven, but not modified
+
+// 3. DEATH: UTXO consumed in a transaction
+Transaction.consume(NewUTXO)
+nullifier = ComputeNullifier(NewUTXO, AlicePrivateKey)
+NullifierSet.add(nullifier)
+
+// 4. AFTERLIFE: Nullifier prevents resurrection
+if (NullifierSet.contains(nullifier)) {
+    reject("UTXO already spent!")
+}
+```
+
+## Why This "Complicated" System? The Hidden Advantages
+
+You might wonder why Bitcoin invented this seemingly complex approach when account balances are so simple. The answer lies in the profound advantages that only become clear when you try to build certain features.
+
+### Parallelism: The Natural Consequence
+
+The UTXO model doesn't just allow parallelism—it makes it inevitable:
+
+```solidity
+// Account Model: Forced Sequential Processing
+// These transactions MUST process in order:
+Tx1: Alice.balance -= 50  // Must complete first
+Tx2: Alice.balance -= 30  // Must wait for Tx1
+// Why? Both modify the same global state
+
+// UTXO Model: Natural Parallel Processing
+// These transactions can process SIMULTANEOUSLY:
+Tx1: Consume UTXO_A (50 NIGHT) → Send to Bob
+Tx2: Consume UTXO_B (30 NIGHT) → Send to Carol
+// Why? They touch completely independent objects
+```
+
+This isn't a minor optimization. In high-throughput scenarios, this architectural difference can mean 10x or even 100x better performance. It's like the difference between a single-lane road and a multi-lane highway.
+
+### Privacy: Built Into the Foundation
+
+The UTXO model's structure naturally supports privacy features that account models struggle with:
+
+```solidity
+// Account Model: Everything linked to one address
+AliceAccount: {
+    balance: 1000,
+    history: [every transaction ever]
+}
+// Privacy requires complex workarounds
+
+// UTXO Model: Natural isolation
+UTXO_1: { value: 100, owner: AddressA }  // For receiving salary
+UTXO_2: { value: 50, owner: AddressB }   // For online shopping
+UTXO_3: { value: 25, owner: AddressC }   // For donations
+// Shielded and Unshielded Tokens (UTXO's) can be used as required
+```
+
+In Midnight, this becomes even more powerful. Tokens can be either a Shielded or Unshielded type, creating a system where you choose privacy levels per transaction, not per account.
+
+### State Management: Elegant Efficiency
+
+The UTXO model's approach to state is fundamentally different and more scalable:
+
+```solidity
+// What nodes need to track:
+ActiveState = {
+    // Account Model: Every account that exists
+    accounts: Map<Address, Balance>,  // Grows forever
+    
+    // UTXO Model: Only unspent outputs
+    utxos: Set<UTXO>,  // Naturally bounded
+    nullifiers: Set<Hash>  // Prevents double-spends
+}
+
+// The key insight: In UTXO, spent history can be archived
+// In accounts, all history affects current state
+```
+
+## Deep Comparison: Beyond the Surface
+
+Let's go beyond simple comparisons to understand the profound implications:
+
+| Aspect                   | Account Model              | UTXO Model                    | Why It Matters for Midnight           |
+|--------------------------|-----------------------------|-------------------------------|----------------------------------------|
+| Value Storage            | Single mutable balance      | Immutable discrete coins      | Enables shielded tokens                |
+| Transaction Model        | State updates               | State transitions             | Natural audit trail and provability    |
+| Concurrency              | Lock → Process → Unlock     | No locks needed               | Massive throughput potential           |
+| Privacy Approach         | Mix entire balance          | Shielded Tokens (UTXOs)       | Granular privacy control               |
+| Double-Spend Prevention  | Balance arithmetic check    | Nullifier set membership      | Works even with hidden values          |
+| State Growth             | Unbounded (all accounts)    | Bounded (active UTXOs only)   | Long-term sustainability               |
+| Determinism              | Depends on execution order  | Order-independent             | Predictable outcomes                   |
+
+## Key Insights: The UTXO Paradigm Shift
+
+The UTXO model represents more than just a different way to track balances—it's a fundamental reimagining of how digital value should work:
+
+* From Mutable to Immutable: Instead of changing balances, we create and consume discrete values. This immutability enables powerful cryptographic proofs and audit trails.
+
+* From Sequential to Parallel: By eliminating shared state, we enable natural concurrency. This isn't just faster—it's architecturally superior for distributed systems.
+
+* From Monolithic to Granular: Each UTXO is independent, enabling fine-grained control over privacy, spending, and ownership.
+
+* From Accounts to Capabilities: UTXOs can represent not just value, but capabilities, rights, or any discrete digital asset.

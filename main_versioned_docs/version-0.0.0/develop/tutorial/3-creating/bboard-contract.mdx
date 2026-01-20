@@ -1,0 +1,271 @@
+---
+sidebar_label: "Bulletin board contract"
+---
+
+# Bulletin board contract
+
+Just as with the counter DApp, there are separate subdirectories in
+the [`example-bboard`](https://github.com/midnightntwrk/example-bboard) repository for the contract and the user
+interaction code.
+Unlike the simple counter DApp, however, the bulletin board DApp
+demonstrates an additional useful separation: between user interface
+code and the underlying application logic that is independent of the
+user interface.  Keeping the user interface separate from the
+application logic allows you to create a command-line version of the
+bulletin board in this part of the tutorial and a web-based version in
+a later part.
+- `contract` - contains the Compact source for the bulletin board
+  contract, plus associated TypeScript
+- `api` - contains TypeScript source that implements the core behavior
+  of the DApp, such as posting messages and taking them down, and
+  depends on the `contract` code
+- `bboard-cli` - contains the command-line interface for the text-based
+  DApp and depends on both the `contract` and `api` code.
+
+
+:::tip
+
+This page walks step by step through the design of the bulletin board
+contract.  The finished contract appears at the end of the page.  Midnight
+recommends viewing and editing the contract using the
+[Visual Studio Code extension for Compact](/docs/develop/tutorial/2-building/index.mdx#optional-visual-studio-code-vscode-extension-for-compact),
+where you get nice colors and auto-completion of names.
+
+:::
+
+To create a Midnight contract for the bulletin board scenario, we need
+to identify:
+- The components of the contract's public state
+- The visible operations that can be performed on the contract
+- The private data and operations, used by the visible operations in
+  ways that are provably valid, but not shared publicly.
+
+The public state of the contract and the transaction history of the
+public operations appear on the ledger of the Midnight blockchain.
+Anyone can verify them.  The private data never has to leave the
+DApp user's computer.
+
+## Public ledger state on the blockchain
+
+The public ledger state of the bulletin board consists of four
+values:
+1. A state: vacant or occupied
+2. A message
+3. A counter to identify *which* specific post is current
+4. A public token produced by the user who made the current post, but
+   from which their private identity cannot be derived.
+
+The third value is perhaps less obvious than the others; it
+corresponds to the 'that message' constraint mentioned on the
+previous page.  When its value is 15, it says, 'The current message
+is the 15th post.'  If you have ever implemented any sort of software
+lock, it will not surprise you that the correct behavior is to
+increment this counter whenever the board becomes vacant (not when it
+becomes occupied), because that is the point at which the bulletin board
+no longer holds the (previous) numbered post.
+
+The fourth value should be a non-reversible hash of the owner's
+identity and the posting sequence number (the counter).  No one can
+figure out who posted the message from the token, but the user who
+created the post can reliably derive that token again to satisfy the
+identity-verification obligation.
+
+Here is the type of that ledger state, specified in Midnight's Compact
+contract language:
+
+import CodeFromGithub from '@site/src/components/CodeFromGithub';
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L18-L37"
+  language="compact"
+/>
+
+
+
+Some notes about the types used in this ledger declaration:
+- Notice that Compact includes support for declaring new types, such as the
+  enumeration type that encodes the vacant or occupied state of the bulletin
+  board.  With the `export` modifier added to the declaration, the Compact
+  compiler will generate TypeScript representations for the enumeration type and
+  its values.
+- Ledger fields with Compact types (such as `STATE`, `Maybe`, and `Bytes`)
+  represent a mutable cell in the ledger, whose value can be updated by
+  circuits.
+- The ledger's `Counter` type (automatically initialized to zero), can be
+  incremented by circuits.
+- The builtin Compact `Opaque` type describes values whose internal structure is
+  irrelevant to the contract.
+- The standard library's `Maybe` type describes values that may be absent.  Its
+  values are created using the `some` or `none` constructors.
+- The owner's identity tokens are 256-bit hashes, which occupy 32 bytes.
+- The standard library `CompactStandardLibrary` contains `Maybe`, `some`,
+  `none`, and `Counter`.  (`Opaque` and `Bytes` are builtin Compact types.)
+
+The contract need not explicitly initialize the `owner` field when
+the ledger is constructed, because its value is not meaningful yet.
+Every ledger field that is not explicitly initialized in the constructor
+is initialized to the default value of its type if the type has a default
+value.
+
+## Enforcing the contract: circuits
+
+Remember, anyone who uses this bulletin board will be required to
+abide by its rules, but *they* must do the work of proving they
+satisfied the contract.  When they make changes to the bulletin board,
+they submit proofs that they followed the rules, and observers
+can quickly verify their proofs.  Such proofs, which observers
+can verify without access to the data that enabled the proof
+construction, are called *zero-knowledge* proofs, and they are
+implemented using *mathematical circuits*.
+
+These ideas are not at all new; some of the important papers about
+zero-knowledge proofs were published in the 1980s.  The more recent
+developments are advances in the way such proofs can be generated and
+verified automatically, without human intervention, and the way they
+can be combined with public blockchains.
+
+One of *Midnight's unique contributions* to this space is to make the
+definition of zero-knowledge-based smart contracts and their
+supporting circuits *accessible to general programmers*.
+
+Begin by writing the `post` operation as a Compact `circuit`
+definition.  The main obligation to be satisfied in this part of the
+contract is the bulletin board's first rule: posting can occur only
+when the board is vacant.
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L41-L46"
+  language="compact"
+/>
+
+
+A `circuit` definition is much like a function definition.  It can specify input
+parameters and a return value.  The current state of the ledger is also
+implicitly available in the circuit definition.  As with the `enum STATE` type,
+an `export` modifier has been added to this definition, so that the `post`
+circuit can be called from TypeScript.
+
+To establish enforced contractual obligations, the definition uses the `assert`
+statement, which checks that some Boolean expression is true.  If the expression
+is false, the transaction is aborted, reporting the failure using the message
+specified in the `assert` statement.  The `assert` above checks that the board
+is vacant when someone tries to post a message (rule 1).
+
+What is this generated 'public key' that the `post` circuit writes
+into the ledger's `owner` field to identify the user posting the
+message?  It is derived by hashing a string with the sequence number
+of the post and the user's secret key, which is not sent over the
+network.  The code above has used a call to a 'helper' circuit
+`publicKey`, which is defined in the same contract.  Here is its
+definition:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L58-L60"
+  language="compact"
+/>
+
+
+Three notes about this  definition:
+1. The `persistentHash` function is defined in Compact's standard
+   library.
+2. Typically, you would not export helper circuits like this one,
+   because there would be no reason to call them from TypeScript.  In
+   this case, `publicKey` is exported so that its value can be logged
+   by the DApp, for debugging purposes.
+3. While this circuit is named `publicKey`, its return value is *not*
+   truly one side of a key pair from public key cryptography.
+   Instead, zero-knowledge circuits can be understood as a kind of
+   generalization of public key cryptography.  The result of this
+   circuit serves the same role as a public key, though, so its
+   naming is intended to evoke that sense.
+
+## Accessing private state
+
+So, how to retrieve secret key needed by the `post` circuit and passed
+to `publicKey`?  The function `localSecretKey` cannot be another
+circuit, because the values returned by circuits are publicly
+verifiable, and the value returned by this function should never
+appear in the ledger.
+
+This kind of function is called a *witness*.  Witness functions
+provide the API to the private state of a contract, as maintained by
+individual DApps that use the contract.  The contract does not
+describe the definition of the witness; it merely declares the
+witness's existence.  The DApp must implement it.  Here is the
+declaration in the contract:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L39"
+  language="compact"
+/>
+
+
+
+The return values of witnesses are presumed to be private data.  The Compact
+compiler tracks them through the program and prevents them from leaking by being
+revealed in the public ledger state.  Specifically, in the `post` circuit, the
+result of `localSecretKey()` is presumed to be private.  Because this value is
+passed to `publicKey`, the result of `publicKey` is also presumed to be
+private (or at least, based on private data).  The compiler would signal an
+error if it were written into the public ledger state.  In this case however,
+the hash of the owner's identity combined with the sequence counter will not
+leak the owner's identity.  Wrapping the public key value in `disclose` tells
+the Compact compiler that this disclosure is intended.
+
+With all these tools at hand, you can write the `takeDown` circuit,
+which enforces the rule that only the owner of the current post can
+take it down.  Of course, it also makes no sense to take down a post
+from a vacant board, so the circuit checks that first:
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact#L48-L56"
+  language="compact"
+/>
+
+
+This circuit returns the message that was taken down, to demonstrate
+that public circuits can return values, too.
+
+When a DApp submits a `takeDown` transaction to the Midnight network, it does
+not include the private data that would allow other contract participants to
+check the second `assert`.  Notice that the Compact compiler does not require
+`publicKey` to be explicitly `disclose`d in this circuit.  The `takeDown`
+transaction includes a verifiable proof that each `assert` has been checked.
+The compiler generates all the material to make this possible 'behind the
+scenes,' without the DApp programmer ever having to write code that appears to
+generate and transmit proofs.
+
+## Compiling the contract
+
+That's everything.  Here is the complete contract.
+
+<CodeFromGithub
+  url="https://github.com/midnightntwrk/example-bboard/blob/main/contract/src/bboard.compact"
+  language="compact"
+/>
+
+
+In the `contract` subdirectory of `bboard-tutorial`, there is a build
+script to run the Compact compiler as part of the build, but it is
+instructive to run the compiler manually this time.
+
+Compile the `bboard.compact` with the Compact compiler
+like this (assuming that you have added the Compact compiler's
+directory to your `PATH` following the instructions provided in
+[Running Midnight Compact compiler](/docs/develop/tutorial/2-building/index.mdx#running-midnight-compact-compiler)
+and that your current directory is the
+`contract` directory when you run the command):
+
+```shell
+compact compile src/bboard.compact src/managed/bboard
+```
+
+You should see a message about the circuit complexity for each of the
+public circuits (`post`, `takeDown`, and `publicKey`) when you run
+the compiler.  If you see an error message, check your code for
+mistakes.  If you need help, contact the Midnight Developer Relations
+team or your fellow developers on Discord.
+
+You can see the TypeScript API that the Compact compiler generated for
+the contract in `src/managed/bboard/contract/index.d.cts`.  The DApp
+will rely on this API to deploy the contract and call the circuits.

@@ -37,6 +37,14 @@ const config = {
         id: "main",
         path: "docs",
         routeBasePath: "/",
+        versions: {
+          current: {
+            label: "Canary 🚧",
+          },
+          "0.0.0": {
+            label: "v0.0.0",
+          },
+        },
         sidebarPath: require.resolve("./sidebars.main.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
@@ -211,6 +219,11 @@ const config = {
         { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
         { to: "https://academy.midnight.network/",  label: "Academy",  position: "left" },
         { to: "/blog",     label: "Blog",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
+        {
+          type: 'docsVersionDropdown',
+          position: "right",
+          docsPluginId: 'main',
+        },
         {
           type: "html",
           position: "right",
