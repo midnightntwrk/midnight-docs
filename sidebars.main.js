@@ -65,7 +65,8 @@ module.exports = {
             "learn/understanding-midnights-technology/web3",
             "learn/understanding-midnights-technology/zero-knowledge-proofs",
             "learn/understanding-midnights-technology/kachina",
-            "learn/understanding-midnights-technology/zswap"
+            "learn/understanding-midnights-technology/zswap",
+            "learn/understanding-midnights-technology/private-state"
           ]
         },
 
