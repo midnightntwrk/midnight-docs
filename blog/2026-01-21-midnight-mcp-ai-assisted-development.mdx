@@ -1,0 +1,281 @@
+---
+slug: midnight-mcp-ai-assisted-development
+title: Midnight MCP - AI-assisted development for Compact smart contracts
+authors: [Idris]
+tags: [compact, mcp, ai, developer-tools]
+date: 2026-01-21
+image: /img/blog/zkp.jpg
+---
+
+# Midnight MCP: AI-assisted development for Compact smart contracts
+
+AI coding assistants like Claude, GitHub Copilot, and Cursor have transformed how developers write code. But they have a fundamental limitation: they only know what was in their training data.
+
+Compact, Midnight's smart contract language, isn't in that training data. When you ask an AI assistant to write a Compact contract, it hallucinates. It invents syntax that doesn't exist, references functions that were never defined, and produces code that fails at compile time.
+
+Midnight MCP solves this problem.
+
+## What is MCP?
+
+The Model Context Protocol (MCP) is an open standard that allows AI assistants to access external tools and data sources. Instead of relying solely on training data, an AI assistant with MCP can query live documentation, search codebases, and call APIs.
+
+Midnight MCP is an MCP server purpose-built for Midnight development. It gives AI assistants:
+
+- **Indexed knowledge** of 102 Midnight repositories
+- **Real compiler validation** before showing you code
+- **Semantic search** across documentation and examples
+- **Version-aware syntax references** for Compact
+
+When you ask Claude to write a Compact contract, it queries Midnight MCP for the correct syntax, generates the code, validates it against the real compiler, and only shows you working code.
+
+## The problem with AI-generated Compact code
+
+Consider this prompt:
+
+"Write a simple counter contract in Compact"
+
+Without Midnight MCP, an AI assistant might generate:
+
+```
+contract Counter {
+    state count: Int = 0;
+
+    function increment(): Void {
+        count = count + 1;
+    }
+}
+```
+
+This looks plausible. It's also completely wrong:
+
+- Compact uses `ledger` for state, not `state`
+- There is no `Int` type in Compact, it uses `Uint<32>`, `Field`, etc.
+- `Void` doesn't exist, Compact uses `[]` for the unit type
+- State mutations require witness functions, not direct assignment
+
+The AI hallucinated a language that resembles Solidity but isn't Compact. A developer unfamiliar with Compact might spend hours debugging code that was never valid.
+
+## Installation
+
+Midnight MCP requires no API keys and installs in under 60 seconds.
+
+Add this configuration to your AI assistant:
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "midnight": {
+      "command": "npx",
+      "args": ["-y", "midnight-mcp@latest"]
+    }
+  }
+}
+```
+
+**Cursor (.cursor/mcp.json in your project root):**
+
+```json
+{
+  "mcpServers": {
+    "midnight": {
+      "command": "npx",
+      "args": ["-y", "midnight-mcp@latest"]
+    }
+  }
+}
+```
+
+**Or globally at \~/.cursor/mcp.json (macOS/Linux) or %USERPROFILE%\\.cursor\\mcp.json (Windows).**
+
+**VS Code with GitHub Copilot** (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
+    "midnight": {
+      "command": "npx",
+      "args": ["-y", "midnight-mcp@latest"]
+    }
+  }
+}
+```
+
+Restart your AI assistant. You now have access to 29 Midnight-specific tools.
+
+## How Midnight MCP works
+
+Midnight MCP operates as a local server that connects your AI assistant to Midnight's ecosystem.
+
+![Midnight MCP Architecture](/img/blog/mcp-flow.png)
+When you ask for a Compact contract:
+
+1. The AI assistant calls `midnight-get-latest-syntax` to retrieve current Compact syntax
+2. It generates code using the correct patterns
+3. It calls `midnight-compile-contract` to validate against the real compiler
+4. If compilation fails, it reads the error, fixes the code, and retries
+5. You receive verified, working code
+
+This compile-validate-fix loop happens automatically. You never see the broken intermediate versions.
+
+## Real compiler integration
+
+Most code-generation tools rely on pattern matching and hope. Midnight MCP validates code against the actual Compact compiler hosted.
+
+The compiler catches errors that static analysis cannot:
+
+- **Type mismatches**: Using `Field` where `Uint<64>` is expected
+- **Sealed field violations**: Attempting to access sealed state incorrectly
+- **Disclose rule errors**: Missing or malformed privacy annotations
+- **Unbound identifiers**: References to undefined variables or types
+
+When the compiler returns an error, the response includes the exact line number and column:
+
+```
+success: false
+message: "Line 12:8 - unbound identifier 'totalSupply'"
+errorDetails:
+  line: 12
+  column: 8
+  errorType: error
+```
+
+The AI assistant uses this information to fix the code and try again.
+
+### Graceful fallback
+
+If the hosted compiler is unavailable, Midnight MCP falls back to static analysis. The response indicates which validation method was used:
+
+```
+validationType: "compiler"           # Real compiler validation
+validationType: "static-analysis-fallback"  # Compiler unavailable
+```
+
+You always receive validation. The tool never fails silently.
+
+## Semantic search across 102 repositories
+
+Today, Midnight MCP indexes every non-archived repository in the Midnight ecosystem:
+
+- All 88 repositories from `midnightntwrk`
+- 14 community and partner repositories (OpenZeppelin contracts, hackathon winners, etc.)
+
+The search is semantic, not keyword-based. When you ask "find code that handles shielded transactions," it understands the concept and returns relevant results even if those exact words don't appear in the code.
+
+```
+Prompt: "How do I implement a token with transfer limits?"
+
+midnight-search-compact returns:
+- Token contract examples from midnight-examples
+- Rate limiting patterns from community repos
+- Relevant documentation sections
+```
+
+## 29 tools for Midnight development
+
+Midnight MCP provides 29 tools organized by function:
+
+### Search tools
+
+| Tool                         | Purpose                                             |
+| :--------------------------- | :-------------------------------------------------- |
+| `midnight-search-compact`    | Search Compact language code across indexed repos   |
+| `midnight-search-docs`       | Search official Midnight documentation              |
+| `midnight-search-typescript` | Search TypeScript SDK implementations               |
+| `midnight-fetch-docs`        | Fetch live documentation from docs.midnight.network |
+
+### Analysis tools
+
+| Tool                                  | Purpose                                         |
+| :------------------------------------ | :---------------------------------------------- |
+| `midnight-compile-contract`           | Validate code against the real Compact compiler |
+| `midnight-analyze-contract`           | Run 15 static security checks                   |
+| `midnight-review-contract`            | AI-powered security review                      |
+| `midnight-extract-contract-structure` | Parse contract structure and exports            |
+
+### Generation tools
+
+| Tool                         | Purpose                                               |
+| :--------------------------- | :---------------------------------------------------- |
+| `midnight-generate-contract` | Generate contracts from natural language descriptions |
+| `midnight-document-contract` | Generate documentation in Markdown or JSDoc format    |
+
+### Repository tools
+
+| Tool                           | Purpose                                             |
+| :----------------------------- | :-------------------------------------------------- |
+| `midnight-get-file`            | Retrieve files from any indexed Midnight repository |
+| `midnight-get-file-at-version` | Get file content at a specific version              |
+| `midnight-compare-syntax`      | Compare syntax between Compact versions             |
+| `midnight-get-latest-syntax`   | Current Compact syntax reference                    |
+| `midnight-get-repo-context`    | Everything needed to start coding (compound tool)   |
+| `midnight-list-examples`       | List available example contracts                    |
+
+### Version management tools
+
+| Tool                              | Purpose                                    |
+| :-------------------------------- | :----------------------------------------- |
+| `midnight-upgrade-check`          | Full upgrade analysis (compound tool)      |
+| `midnight-check-breaking-changes` | Identify breaking changes between versions |
+| `midnight-get-migration-guide`    | Step-by-step migration instructions        |
+
+## Resources and prompts
+
+Beyond tools, Midnight MCP provides 9 built-in resources and 5 interactive prompts.
+
+**Resources** are always-available references:
+
+```
+midnight://syntax/latest      Current Compact syntax
+midnight://examples/counter   Counter contract example
+midnight://examples/token     Token contract example
+midnight://docs/compact       Compact language reference
+```
+
+**Prompts** are templates for common tasks:
+
+```
+create-compact-contract      Start a new contract
+debug-compact-error          Fix compilation errors
+security-review              Full security audit
+compare-compact-versions     Migration assistance
+```
+
+## Architecture
+
+Midnight MCP is built for reliability:
+
+- **Token efficiency**: Outputs YAML by default (20-30% fewer tokens than JSON)
+- **Compound tools**: Single calls that combine multiple operations
+- **Graceful degradation**: Falls back to cached data when services are unavailable
+- **Progress notifications**: Real-time updates during long operations
+
+The codebase is fully tested with 206 tests across 10 test suites.
+
+## What's next
+
+Midnight MCP is open source and actively developed. The roadmap includes:
+
+- **Full ZK circuit output parsing** from compiler results
+- **Contract deployment** directly from AI chat
+- **TypeScript SDK integration** for automatic prover code generation
+- **Testnet interaction** for querying balances and submitting transactions
+
+## Get started
+
+Install Midnight MCP and start building:
+
+```shell
+npx midnight-mcp@latest
+```
+
+Explore the source code and contribute:
+
+→ [GitHub repository](https://github.com/Olanetsoft/midnight-mcp)
+
+→ [npm package](https://npmjs.com/package/midnight-mcp)
+
+→ [API documentation](https://github.com/Olanetsoft/midnight-mcp/blob/main/docs/API.md)
+
+_Midnight MCP is a community project. Contributions, issues, and feature requests are welcome._
