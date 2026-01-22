@@ -1,0 +1,246 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact compiler 0.21.0 (Compact language 0.14.0)
+displayed_sidebar: sidebar
+---
+
+# Compact compiler 0.21.0 (Compact language 0.14.0)
+
+Compact is Midnight's dedicated smart contract programming language, designed for building secure, efficient, and adaptable decentralized applications.
+
+Compact compiler translates Compact smart contract code into executable bytecode and proof-generating circuits.
+
+---
+
+<div 
+  style={{
+    marginTop: '0',
+    fontSize: '1rem',
+    fontWeight: 'normal',
+    marginBottom: '0.5rem'
+  }}
+>
+  23 January 2025
+</div>
+
+## Compact compiler 0.21.0 (Compact language 0.14.0) release notes
+
+Today we are releasing version 0.21.0 of the Compact compiler. This release updates the language version to 0.14.0, which contains a number of improvements over language version 0.13.x, and some breaking changes. This is a big update to the language, so read these release notes carefully to understand the changes.
+
+The new release is available for you to try out. If you recompile your Compact code with the new compiler, you may need to update your code to accommodate the breaking changes.
+
+## Summary of Changes
+
+### Language Changes
+
+- **[Breaking change]** Witness return values may need to be "disclosed."
+- Square brackets construct TypeScript-compatible tuples.
+- You can use TypeScript-compatible destructuring.
+- **[Breaking change]** The `Void` type is removed.
+- **[Breaking change]** The syntax of `for` loops is aligned with TypeScript.
+- **[Breaking change]** The `Cell` ledger ADT is now implicit.
+- **[Breaking change]** Ledger ADT names are now part of the standard library.
+- Exported circuits are allowed to have the same name as witnesses.
+- Improved syntax error messages.
+
+---
+
+## Language Changes
+
+### **[Breaking Change]** Witness Return Values May Need to Be "Disclosed"
+
+In Compact 0.14.0, witness return values are considered private data. To prevent unintentional "leaks" of this data (e.g., writing it to the public ledger), the compiler now enforces explicit disclosure using the new `disclose` syntax.
+
+#### Example:
+
+```compact
+// Pre-0.14.0 version:
+poster = public_key(local_secret_key(), instance as Field as Bytes<32>);
+
+// Post-0.14.0 version with disclosure:
+poster = disclose(public_key(local_secret_key(), instance as Field as Bytes<32>));
+```
+
+#### Why We Made This Change
+
+To ensure contract developers are deliberate about revealing potentially private data.
+
+#### How to Fix Your Code
+
+Wrap witness return values with `disclose` when intentionally revealing private data.
+
+---
+
+### Square Brackets Construct TypeScript-Compatible Tuples
+
+Square brackets now construct tuples instead of vectors. Tuples allow precise tracking of element types and are compatible with TypeScript.
+
+#### Example:
+
+```compact
+// Tuple example:
+const tuple = [1, 2, 3]; // Type: [Uint<0..0>, Uint<0..1>, Uint<0..2>]
+
+// Tuple subtyping example:
+const vector: Vector<3, Uint<8>> = tuple;
+```
+
+Vector types still exist; tuples with identical element types are equivalent to vectors.
+
+---
+
+### You Can Use TypeScript-Compatible Destructuring
+
+Destructuring is now supported for tuples, vectors, and structs in const bindings and circuit parameters, including arrow circuits.
+
+#### Example:
+
+```compact
+const [x, y] = [1, 2];
+
+circuit example([a, b]: [Uint<8>, Uint<8>]): Uint<8> {
+  return a + b;
+}
+```
+
+#### Limitations:
+
+- The `...` (spread) syntax is not yet supported.
+- Destructuring does not work for ledger field assignments.
+
+---
+
+### **[Breaking Change]** The `Void` Type Is Removed
+
+The `Void` type has been replaced with the empty tuple type `[]`. A circuit or witness that does not return a useful value should now return `[]`.
+
+#### Example:
+
+```compact
+// Old syntax:
+circuit foo(): Void {
+  return;
+}
+
+// New syntax:
+circuit foo(): [] {
+  return [];
+}
+```
+
+#### Why We Made This Change
+
+`Void` behaved in unintuitive ways and was replaced with a simpler and more consistent unit type.
+
+#### How to Fix Your Code
+
+Replace occurrences of `Void` with `[]`.
+
+---
+
+### **[Breaking Change]** The Syntax of `for` Loops Is Aligned with TypeScript
+
+The syntax for `for` loops now matches TypeScript. Use `for (const x of collection)` instead of the previous Compact-specific syntax.
+
+#### Examples:
+
+```compact
+// Old syntax:
+for x in v do {
+  // Loop body
+}
+
+// New syntax:
+for (const x of v) {
+  // Loop body
+}
+```
+
+#### Why We Made This Change
+
+To reduce syntactic differences with TypeScript.
+
+#### How to Fix Your Code
+
+Update `for` loops to use the new syntax.
+
+---
+
+### **[Breaking Change]** The `Cell` Ledger ADT Is Now Implicit
+
+Ledger fields no longer explicitly declare `Cell`. Instead, Compact treats them as cells implicitly.
+
+#### Example:
+
+```compact
+// Old syntax:
+ledger state: Cell<STATE>;
+
+// New syntax:
+ledger state: STATE;
+```
+
+#### Why We Made This Change
+
+To simplify ledger field declarations.
+
+#### How to Fix Your Code
+
+Remove `Cell` from ledger field declarations.
+
+---
+
+### **[Breaking Change]** Ledger ADT Names Are Now Part of the Standard Library
+
+Ledger ADT type names (e.g., `Counter`, `Set`) are no longer built-in identifiers. They are now part of the standard library and must be imported explicitly.
+
+#### Example:
+
+```compact
+import CompactStandardLibrary;
+
+const counter: Counter = CompactStandardLibrary.Counter();
+```
+
+#### Why We Made This Change
+
+To allow more flexible naming and modularity.
+
+#### How to Fix Your Code
+
+Import the standard library if you use ledger ADTs.
+
+---
+
+### Exported Circuits Are Allowed to Have the Same Name as Witnesses
+
+Exported circuits can now share names with witnesses. The compiler will flag ambiguities as errors, but most valid use cases will work without modification.
+
+---
+
+### Improved Syntax Error Messages
+
+Syntax error messages now indicate both the expected syntax and the issue encountered, making it easier to understand and resolve errors.
+
+---
+
+## TL;DR
+
+🚀 Compact language 0.14.0 introduces breaking changes and improvements:
+
+- **Witness disclosure**: Use `disclose` for witness return values when needed.
+- **Tuples**: Square brackets now create tuples, compatible with TypeScript.
+- **Destructuring**: TypeScript-compatible destructuring for tuples, vectors, and structs.
+- **`Void` removed**: Use the empty tuple type `[]` instead.
+- **`for` loops**: Aligned with TypeScript syntax.
+- **Ledger fields**: `Cell` is now implicit.
+- **Ledger ADTs**: Part of the standard library.
+- **Error messages**: More helpful syntax errors.
+
+Make sure to update your code to take advantage of these changes!
+
+## Artifacts
+
+- [Compiler Linux](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.21.0/compactc-linux.zip)
+- [Compiler macOS](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.21.0/compactc-macos.zip)

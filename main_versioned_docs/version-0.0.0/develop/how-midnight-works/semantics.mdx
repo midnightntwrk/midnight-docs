@@ -1,0 +1,96 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+---
+
+# Transaction semantics
+
+## Ledger states
+
+Midnight's ledger consists of two items:
+- Zswap's state
+  - a Merkle tree of coin commitments
+  - an index to the first free slot of the coin commitment tree
+  - a set of nullifiers
+  - a set of valid past Merkle tree roots
+- a map from contract addresses to contract states.
+
+### Contract state
+
+A contract state consists of:
+- an [Impact state value](./impact#values)
+- a map of entry point names to operations, where entry points
+  correspond to exported circuits in a contract.
+
+A contract operation consists of a Snark verifier key that is used to validate
+contract calls made against this contract and entry point.
+
+## Transaction fallibility
+
+Transactions execute in three stages:
+- well-formedness check
+- guaranteed phase
+- fallible phase.
+
+The well-formedness check is run without any state and checks the general
+integrity and consistency of the transaction. In contrast, both the guaranteed
+and fallible phases are run against the ledger state and either produce a new 
+state or fail. If a transaction fails during the guaranteed phase, it is *not
+included in the ledger*. If it fails during the fallible phase,
+any effects of the guaranteed phase *still apply*, and the ledger will record
+the transaction as a *partial success*.
+
+The fees for all phases of execution are collected in the *guaranteed* phase
+and are forfeited if a transaction fails in the fallible phase.
+
+## Well-formedness
+
+The well-formedness check verifies that a transaction is in a canonical format, and that:
+- all zero-knowledge proofs in [Zswap](./zswap.mdx) offers can be verified
+- the Schnorr proof in the contract section can verified
+- the guaranteed offer is balanced with respect to the following adjustments:
+  - subtraction of the fees of the entire transaction
+  - addition of any mints performed in guaranteed transcripts
+- the fallible offer is balanced with respect to the following adjustment:
+  - Addition of any mints performed in fallible transcripts
+- each contract-owned input or output is claimed exactly once by the same
+  contract in the effects section of the transcript matching the fallibility of
+  the offer it appears in
+- any outputs claimed as being created by a contract in the effects section of a
+  transcript are claimed at most once, and they appear in the offer matching the
+  fallibility of the transcript
+- any contract calls that are claimed in a transcript are present and claimed at most
+  once
+- if a contract call has both a guaranteed and fallible section, the fallible
+  section starts with a `ckpt` operation.
+
+## Phase execution
+
+Other than the notes in the [transaction fallibility
+section](#transaction-fallibility), the guaranteed and fallible phases operate
+similarly, except that the following additional work is performed in
+the guaranteed phase:
+- contract operations for all calls are looked up, and the zero-knowledge
+  proofs are verified against them
+- the fallible Zswap section is also applied during the guaranteed section, to
+  ensure that it cannot invalidate the fallible section by itself. [^1]
+
+Then:
+1. The phase's Zswap offer is applied, by inserting new commitments
+into the Merkle tree and nullifiers into the nullifier set (aborting if they are
+already present), checking that the Merkle roots used are valid past roots
+(aborting otherwise), and updating the past roots set
+2. The above additional checks for the guaranteed phase are performed, if
+   applicable
+3. For each contract call in sequence, the transcript relevant to this
+   execution phase is applied
+   1. The contract's current state is loaded
+   2. The context is set up from the transaction
+   3. The [Impact](./impact.mdx) program is executed against the context, an empty
+      effects set, the transcript program, and the declared gas limit, in
+      verification mode
+   4. The resulting effects are tested to be equal to the declared effects
+   5. The resulting state is stored as the contract's state, iff it is "strong".
+
+[^1] This would permit invalidating any fallible section by merging with an
+invalid spend otherwise.

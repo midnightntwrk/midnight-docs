@@ -37,10 +37,45 @@ const config = {
         id: "main",
         path: "docs",
         routeBasePath: "/",
+        versions: {
+          current: {
+            label: "Canary 🚧",
+          },
+          "0.0.0": {
+            label: "v0.0.0",
+          },
+        },
         sidebarPath: require.resolve("./sidebars.main.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
+        async sidebarItemsGenerator({defaultSidebarItemsGenerator, ...args}) {
+          const sidebarItems = await defaultSidebarItemsGenerator(args);
+          
+          // Filter function to process sidebar items recursively
+          const processItems = (items) => {
+            return items.map((item) => {
+              // If this is a category
+              if (item.type === 'category') {
+                // Check if this is the Release notes category
+                if (item.label === 'Release notes' && item.items) {
+                  // Filter out all subcategories, keep only doc items
+                  const docsOnly = item.items.filter(subItem => subItem.type === 'doc');
+                  return { ...item, items: docsOnly };
+                }
+                
+                // For other categories, recursively process their items
+                if (item.items) {
+                  return { ...item, items: processItems(item.items) };
+                }
+              }
+              
+              return item;
+            });
+          };
+          
+          return processItems(sidebarItems);
+        },
       },
     ],
 
@@ -66,6 +101,34 @@ const config = {
         path: "academy",
         routeBasePath: "academy",
         sidebarPath: require.resolve("./sidebars.academy.js"),
+        editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+        showLastUpdateTime: true,
+        showLastUpdateAuthor: false,
+      },
+    ],    
+
+    // API REFERENCE DOCS
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "apis",
+        path: "api-reference",
+        routeBasePath: "api-reference",
+        sidebarPath: require.resolve("./sidebars.apis.js"),
+        editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+        showLastUpdateTime: true,
+        showLastUpdateAuthor: false,
+      },
+    ],
+
+    // SDKs DOCS
+    [
+      "@docusaurus/plugin-content-docs",
+      {
+        id: "sdks",
+        path: "sdks",
+        routeBasePath: "sdks",
+        sidebarPath: require.resolve("./sidebars.sdks.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
@@ -204,18 +267,15 @@ const config = {
         alt: "Midnight Logo",
         src: "img/midnight-header-logo-light.svg",
         srcDark: "img/midnight-header-logo-dark.svg",
-        href: "https://midnight.network",
+        href: "/",
       },
       items: [
-        { to: "/",         label: "Docs",     position: "left",  activeBaseRegex: "^/$" },
-        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
-        { to: "https://academy.midnight.network/",  label: "Academy",  position: "left" },
-        { to: "/blog",     label: "Blog",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
+        { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
+        { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
         {
-          type: "html",
+          type: 'docsVersionDropdown',
           position: "right",
-          value:
-            '<a href="/relnotes/overview" class="button button--primary">Release Notes</a>',
+          docsPluginId: 'main',
         },
         {
           type: "html",
@@ -238,6 +298,7 @@ const config = {
           title: "Resources",
           items: [
             { label: "Midnight Foundation", href: "https://midnight.network/" },
+            { label: "Developer blog", href: "/blog" },
             { label: "Glacier Drop", href: "https://www.midnight.gd/" },
             { label: "Careers", href: "https://midnight.network/careers" },
           ],
