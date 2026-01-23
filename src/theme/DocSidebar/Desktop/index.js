@@ -7,7 +7,7 @@ export default function DocSidebarDesktop({ path, sidebar }) {
   return (
     <div className={styles.sidebarContainer}>
       <div className={styles.selectorRow}>
-        <EnvSelector />
+        {/* <EnvSelector /> */}
       </div>
       <DocSidebarItems items={sidebar} activePath={path} />
     </div>

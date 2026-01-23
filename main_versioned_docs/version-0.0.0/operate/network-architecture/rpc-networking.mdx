@@ -1,0 +1,117 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: RPC Interface
+sidebar_label: RPC Interface
+description: A reference on RPC interface.
+keywords: [node]
+---
+
+# RPC (Remote Procedure Calls) Interface
+
+The RPC layer allows external clients (e.g., DApps, wallets, explorers, or services) to interact with a running Midnight node over HTTP/HTTPS or WebSocket connections. In Midnight, RPCs follow the JSON-RPC standard and expose methods for:
+
+* Submitting transactions (triggering state transitions)
+* Querying contract state (on-chain)
+* Fetching auxiliary data (off-chain or metadata)
+
+These methods form the interface for building tools and applications on top of Midnight.
+
+### Core RPC Methods
+
+Midnight nodes expose a set of custom RPC methods focused on ledger state, contract state, and system information. Key methods include:
+
+```rust
+#[method(name = "midnight_jsonContractState")]
+fn get_json_state(
+    &self,
+    contract_address: String,
+    at: Option<BlockHash>,
+) -> Result<String, StateRpcError>;
+```
+
+Returns the JSON-encoded state of a given smart contract.
+
+```rust
+#[method(name = "midnight_contractState")]
+fn get_state(
+    &self,
+    contract_address: String,
+    at: Option<BlockHash>,
+) -> Result<String, StateRpcError>;
+```
+
+Returns the raw (binary-encoded) contract state at a specific block (or latest).
+
+```rust
+#[method(name = "midnight_unclaimedAmount")]
+fn get_unclaimed_amount(
+    &self,
+    beneficiary: String,
+    at: Option<BlockHash>,
+) -> Result<u128, StateRpcError>;
+```
+
+Fetches the amount of unclaimed tokens or rewards for a beneficiary address.
+
+```rust
+#[method(name = "midnight_zswapChainState")]
+fn get_zswap_chain_state(
+    &self,
+    contract_address: String,
+    at: Option<BlockHash>,
+) -> Result<String, StateRpcError>;
+```
+
+Returns the current ZSwap chain state for a contract—used for zero-knowledge state rollups.
+
+```rust
+#[method(name = "midnight_apiVersions")]
+fn get_supported_api_versions(&self) -> RpcResult<Vec<u32>>;
+```
+
+Lists all supported RPC API versions, useful for tooling compatibility checks.
+
+```rust
+#[method(name = "midnight_ledgerVersion")]
+fn get_ledger_version(&self, at: Option<BlockHash>) -> Result<String, BlockRpcError>;
+```
+
+
+Provides a snapshot of the ledger’s full state at the specified block.
+
+### Polkadot SDK RPC Support
+
+Midnight also supports the default Polkadot SDK RPC methods, such as:
+
+* `system_health`
+
+* `chain_getBlock`
+
+* `state_getStorage`
+
+* `rpc_methods` – returns a list of all supported RPC endpoints. NOTE: some RPC methods don't currently appear in the https://polkadot.js.org/ webapp but you will see them here.
+
+You can call `rpc_methods` at any time to dynamically retrieve the full list of methods exposed by your node.
+
+:::note
+A mostly up-to-date reference list of general polkadot-sdk RPC methods is also available [here](https://polkadot.js.org/docs/substrate/rpc/). Midnight at any time has some overlap of implemented methods with this list.
+:::
+
+### Partnerchain RPCs
+
+Midnight exposes partnerchain-specific RPC methods, especially relevant for block producers and sidechain integration. These methods are designed to query consensus signals, relay finality info, or coordinate between chains.
+
+### Security Note for Block Producers
+
+:::warning
+Not all RPC methods are safe to expose on public or production nodes.
+:::
+
+If you’re running a block-producing node, be cautious about which RPC endpoints are enabled. Some methods may leak sensitive data or expose performance risks.
+
+To minimize risk:
+* Use the `--rpc-methods Safe` flag to limit exposed methods to a safer subset.
+* **Avoid** using `--rpc-external` unless absolutely necessary, as it exposes RPC interfaces to external networks.
+
+Always review your node’s RPC configuration to ensure it aligns with your intended threat model and operational role (e.g., validator vs. observer).

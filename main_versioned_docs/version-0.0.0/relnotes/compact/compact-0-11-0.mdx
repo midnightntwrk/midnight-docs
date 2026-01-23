@@ -1,0 +1,190 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact compiler 0.19.0 (Compact language 0.11.0)
+displayed_sidebar: sidebar
+---
+
+# Compact compiler 0.19.0 (Compact language 0.11.0)
+
+Compact is Midnight's dedicated smart contract programming language, designed for building secure, efficient, and adaptable decentralized applications.
+
+Compact compiler translates Compact smart contract code into executable bytecode and proof-generating circuits.
+
+---
+
+<div 
+  style={{
+    marginTop: '0',
+    fontSize: '1rem',
+    fontWeight: 'normal',
+    marginBottom: '0.5rem'
+  }}
+>
+  18 October 2024
+</div>
+
+## Compact compiler 0.19.0 (Compact language 0.11.0) release notes
+
+Today we are releasing version 0.19.0 of the Compact compiler. This release works for Compact language version 0.11.0, which includes some breaking changes from Compact version 0.10.x. These changes are intended to make the Compact language look and work more like TypeScript, and to prepare the way for future language features.
+
+This new release is available for you to download and try out. If you recompile your Compact code with the new version of the compiler, you will need to update the code as described below. You are not required to upgrade to `compactc` 0.19.0 — you can continue to use `compactc` 0.18.x without updating your Compact code, and everything should still work. However, we do not plan to release any more bug fixes to `compactc` 0.18.x.
+
+## Summary of Changes
+
+- Generics now use angle brackets.
+- Size parameters in generics are prefixed with `#`.
+- `Unsigned Integer` is changed to `Uint`.
+- Bounded unsigned integers have new syntax.
+- `null()` for default values is now `default<>`.
+- `map` and `fold` expressions have different syntax.
+
+---
+
+## Generics Now Use Angle Brackets
+
+Compact’s generics used square brackets both at their declaration (`struct Foo[n, T] {...}`) and at their uses (`Foo[3, Field]`). We are changing them to use angle brackets instead. You will now write `struct Foo<n, T> {...}` and `Foo<3, Field>`.
+
+This is a **breaking change**. The old syntax will no longer work.
+
+### Why We Made This Change
+
+The square brackets were there for historical reasons, and there is no good reason for us to differ from TypeScript in this case. The difference makes it difficult for TypeScript developers to read Compact code and makes it awkward to switch between the two languages.
+
+### How to Fix Your Code
+
+Change the square brackets `[]` in generic declarations and uses into angle brackets `<>`. Note that this affects generic-like built-in types (`Vector`, `Bytes`, `Unsigned Integer` (but see the type renaming change below), and `Opaque`) as well. The compiler will signal a syntax error if you don’t change this.
+
+Be careful not to change the square brackets used for vector creation expressions or for vector indexing in Compact. The compiler will signal a syntax error if you accidentally change this.
+
+---
+
+## Size Parameters in Generics Are Prefixed with `#`
+
+Compact has two kinds of generic parameters: types (instantiated with Compact types) and sizes (instantiated with literal integers). We are changing the syntax of generic declarations to have size parameters prefixed with the number sign (`#`). Type parameters do not have any prefix. For example:
+
+```compact
+struct Foo<#m, #n, T> {
+  b: Bytes<m>;
+  v: Vector<n, T>;
+}
+```
+
+This is a **breaking change**. The number sign is now required for generic size parameter declarations, and it will be a syntax error if it’s omitted.
+
+### Why We Made This Change
+
+The previous syntax required you to read the entire body of a generic declaration to figure out whether a generic argument should be a type or a number. The annotation on generic size parameters means you only have to read the first line of the declaration to know what kind each parameter is.
+
+This change also allows better error reporting in the future. The compiler can indicate declaration errors at the declaration itself, rather than allowing an incorrect declaration and signaling errors remotely at the uses.
+
+### How to Fix Your Code
+
+Inspect generic declarations and add a prefix number sign to size parameters. If you forget to annotate a size parameter, the compiler will signal an error wherever the generic is instantiated with a size.
+
+---
+
+## `Unsigned Integer` Is Changed to `Uint`
+
+We have changed the spelling of the Compact unsigned integer type. It was previously `Unsigned Integer` and it is now changed to `Uint`.
+
+This is a **breaking change**.
+
+### Why We Made This Change
+
+`Unsigned Integer` was too verbose for a commonly used type. We felt that it made reading and writing Compact code awkward. It was also misleading, as `Unsigned` looked like a modifier, but `Integer` alone was not a type.
+
+### How to Fix Your Code
+
+Replace occurrences of `Unsigned Integer` with `Uint`. This should be a search-and-replace operation, but be careful to find all occurrences if you’ve put non-standard whitespace between `Unsigned` and `Integer`.
+
+---
+
+## Bounded Unsigned Integers Have New Syntax
+
+Compact has two kinds of unsigned integer types: sized types (parameterized over how many bits it takes to represent their maximum value, like `Uint<32>`), and bounded types (parameterized over their upper bound, like `Unsigned Integer[<= 99]`). We are changing the syntax of bounded integer types to include both a lower and an upper bound. For now, the lower bound is required to be `0`. Both bounds are inclusive.
+
+The bounded type above will now be written as:
+
+```compact
+Uint<0..99>
+```
+
+This is a **breaking change**. The old “less than or equals” syntax will no longer work.
+
+### Why We Made This Change
+
+After changing generics to use angle brackets, we felt `Uint<<= 99>` was awkward to read and write, due to the double left angle brackets. We also wanted a syntax that supported an obvious (and concise) extension for lower bounds in the future.
+
+### How to Fix Your Code
+
+Replace `<=` in bounded integer types with `0..`.
+
+---
+
+## `null()` for Default Values Is Now `default<>`
+
+Every type in Compact has a default value of that type. For a type `Foo`, the default value was previously written `null(Foo)`. We have changed this syntax to `default<Foo>`.
+
+This is a **breaking change**. `null` will no longer work.
+
+### Why We Made This Change
+
+The default value of a Compact type is very different from `null` in TypeScript. In Compact, every type has a default value (a value of that type). In TypeScript, `null` is the only value of the distinct type `Null`. This change avoids confusion and aligns Compact’s syntax more closely with TypeScript.
+
+### How to Fix Your Code
+
+Replace `null(...)` with `default<...>`.
+
+---
+
+## `map` and `fold` Expressions Have Different Syntax
+
+Compact has `map` and `fold` keywords to operate over vectors. The old syntax for mapping a two-argument circuit over a pair of vectors was written as:
+
+```compact
+map add over v0 over v1
+```
+
+Likewise, folding a two-argument circuit over a vector with an initial value was written as:
+
+```compact
+fold add 0 over v
+```
+
+We’ve changed the syntax to look more like function invocations. The above examples will now be written as:
+
+```compact
+map(add, v0, v1)
+fold(add, 0, v)
+```
+
+This is a **breaking change**.
+
+### Why We Made This Change
+
+We felt that `map` and `fold` expressions were awkward to read and write. The new syntax makes the arguments more obvious and aligns better with TypeScript.
+
+### How to Fix Your Code
+
+Ensure `map` and `fold` expressions use parentheses and commas for their arguments. Remove occurrences of the `over` keyword.
+
+---
+
+## TL;DR
+
+🚀 Compact language 0.11.0 release introduces breaking syntax changes aligning more closely with TypeScript:
+
+- **Generics syntax**: Now uses angle brackets `<>` instead of square brackets.
+- **Size parameters**: Prefixed with `#` in generic declarations.
+- **Type renaming**: `Unsigned Integer` renamed to `Uint`.
+- **Bounded integer syntax**: Now has both lower and upper bounds, e.g., `Uint<0..99>`.
+- **Default value syntax**: Changed from `null(Foo)` to `default<Foo>`.
+- **`map` and `fold` syntax**: Changed to function-like calls.
+
+These updates require code adjustments to compile with the new version.
+
+## Artifacts
+
+- [Compiler Linux](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.19.0/compactc-linux.zip)
+- [Compiler macOS](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.19.0/compactc-macos.zip)

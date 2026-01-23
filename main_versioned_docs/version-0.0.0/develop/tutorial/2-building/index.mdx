@@ -1,0 +1,494 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+---
+
+# Build a DApp
+
+Build and deploy decentralized applications (DApps) on the Midnight network. This guide covers toolchain installation, contract compilation, DApp deployment, and node operation. The following example implementation demonstrates a counter contract.
+
+
+## Prerequisites
+
+- **Operating System:** Linux, macOS, or Windows (via WSL)
+- **Node.js:** v18 LTS or higher (NVM recommended)
+- **Yarn**
+- **Git**
+- **Terminal:** Bash, Zsh, or compatible shell
+- **Disk Space:** ≥ 2 GB
+- **Network:** Internet connection
+
+## Objectives
+
+This guide enables developers to:
+
+1. Install the tools necessary to compile a Midnight contract and DApp from source code
+2. Download the example code needed for development
+3. Build a simple example from source
+4. Run the example and deploy a smart contract
+5. Install and run a Midnight network node and its associated Indexer
+
+:::important
+Use compatible versions of example code and the Compact compiler, as shown in the [release compatibility matrix](../../../relnotes/support-matrix).
+:::
+
+The final sections examine the Compact code for the example contract and the TypeScript code for the example DApp in detail.
+
+Upon completion, developers have built a DApp from source, deployed a contract, and run a non-voting Midnight node connected to the Midnight network.
+
+The example contract creates a counter on the ledger and provides a circuit to increment it. The contract enforces only constraints implied by the `Counter` type. While this example doesn't demonstrate Midnight's full privacy capabilities, it provides the foundation for building and deploying contracts on the Midnight network.
+
+
+## Node
+
+Many Midnight Testnet features are provided as TypeScript packages, including example applications and APIs. These packages require Node.js as their runtime environment and use npm (Node Package Manager) for dependency management. Node Version Manager (NVM) provides the best way to install and manage Node.js versions because it enables switching between different Node versions for different projects and ensures compatibility with Midnight's requirements.
+
+Find installation and troubleshooting instructions on [the NVM GitHub site](https://github.com/nvm-sh/nvm#installing-and-updating). For macOS users installing via Homebrew, the installation process differs slightly from the standard script installation. Homebrew places NVM in a different directory and requires specific additions to shell profile files for proper initialization.
+
+After following NVM installation instructions, verify installation:
+
+```shell
+nvm --version
+```
+
+The command displays a version number such as `0.39.5`. If the command isn't found, the shell profile modifications weren't applied correctly. Ensure the NVM initialization script is added to the appropriate shell configuration file (`~/.bashrc` for Bash, `~/.zshrc` for Zsh).
+
+Install LTS version of Node 18x or greater:
+
+```shell
+nvm install 18 --lts
+```
+
+This command downloads and installs the latest Long Term Support version of Node 18. LTS versions receive critical bug fixes and security updates for an extended period, ensuring stability for production applications. The installation includes both Node.js and npm.
+
+Set Node 18 as the default version for new terminal sessions:
+
+```shell
+nvm alias default 18
+```
+
+Verify the Node installation:
+
+```shell
+node --version
+npm --version
+```
+
+> **Caution**: After modifying `~/.zshrc`, `~/.bashrc`, or installing a new Node version using `nvm`, open a new terminal window. Running `source ~/.zshrc` might not fully reload the environment and could lead to issues such as `ERR_UNSUPPORTED_DIR_IMPORT`. This error occurs when Node.js attempts to import ES modules but the environment variables aren't properly configured.
+
+## Install the Compact developer tools
+
+The Compact developer tools manage the installation and updates of the Compact toolchain, including the compiler. These tools solve the complexity of managing multiple compiler versions, platform-specific binaries, and toolchain dependencies. Before these tools existed, developers manually downloaded platform-specific ZIP files, extracted binaries, managed PATH configurations, and repeated this process for each update.
+
+Install the developer tools with a single command:
+
+```shell
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+```
+
+This command performs several operations:
+- Downloads the installation script using secure HTTPS with TLS 1.2 minimum
+- Detects the system architecture (x86_64, ARM64) and operating system
+- Downloads the appropriate binary for the platform
+- Creates the `~/.compact` directory structure for toolchain management
+- Installs the `compact` command-line tool to `~/.cargo/bin` or another appropriate location
+
+The installation script outputs instructions for adding the binary directory to your `PATH` environment variable. This step is crucial—without it, the shell cannot find the `compact` command. The exact instructions depend on your shell and existing PATH configuration. Typically, add a line like this to your shell configuration file:
+
+```shell
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+After adding the directory to your `PATH`, open a new terminal window or reload your shell configuration. Then update to the latest toolchain:
+
+```shell
+compact update
+```
+
+This command downloads the latest stable version of the Compact compiler and associated tools. The download includes:
+- The Compact compiler binary
+- Zero-knowledge proving key generator (`zkir`)
+- Platform-specific runtime dependencies
+- Standard library definitions
+
+The output shows the installed version:
+
+```
+compact: aarch64-darwin -- 0.24.0 -- installed
+compact: aarch64-darwin -- 0.24.0 -- default.
+```
+
+The first line confirms successful installation. The second line indicates this version is now the default for all compilation operations. The tools maintain multiple versions simultaneously, enabling testing with different compiler versions without conflicts.
+
+### Verify the installation
+
+Test the compiler installation to ensure all components are properly configured:
+
+```shell
+compact compile --version
+```
+
+This command displays the compiler version number, such as `0.24.0`. The version check confirms:
+- The `compact` binary is accessible via PATH
+- The default toolchain is properly linked
+- The compiler binary has appropriate execution permissions
+- All required dependencies are present
+
+If the command fails, common issues include:
+- **PATH not updated**: The shell cannot find the `compact` command. Verify the installation directory is in your PATH and reload your shell configuration
+- **No default toolchain**: Run `compact update` to install and set a default compiler version
+- **Permission issues**: On Unix systems, the binaries might lack execution permissions. The installer should handle this automatically, but manual installation might require `chmod +x` on the binaries
+
+The version number corresponds to the Compact compiler release, not the developer tools version. These versions are independent—developer tools version 0.1.0 might manage compiler version 0.24.0. Refer to the [release compatibility matrix](../../../relnotes/support-matrix) for version compatibility between compiler versions and example code.
+
+### Check for updates
+
+Regular update checks ensure access to the latest features, performance improvements, and bug fixes:
+
+```shell
+compact check
+```
+
+This command performs a network request to determine available updates. The output varies based on your current state:
+
+When updates are available:
+```
+compact: aarch64-darwin -- Update Available -- 0.24.0
+compact: Latest version available: 0.25.0.
+```
+
+This indicates version 0.25.0 is available for download. The update might include:
+- New language features for Compact contracts
+- Performance optimizations for proof generation
+- Bug fixes for edge cases in compilation
+- Enhanced error messages for better debugging
+
+When current:
+```
+compact: aarch64-darwin -- Up to date -- 0.24.0
+```
+
+This confirms you're using the latest stable release. Check the Midnight developer announcements for information about upcoming releases and their expected features.
+
+The check command only queries for updates without downloading them. This design enables checking for updates in bandwidth-constrained environments or when you need to coordinate updates across a development team.
+
+## Use the Compact compiler
+
+The Compact developer tools provide the standard method to invoke the compiler. Understanding the compilation process helps debug issues and optimize build workflows.
+
+### Basic compilation
+
+The standard compilation command:
+
+```shell
+compact compile <contract file> <output directory>
+```
+
+For example:
+
+```shell
+compact compile src/counter.compact src/managed/counter
+```
+
+This command triggers several processes:
+1. **Parsing**: The compiler reads and validates the Compact contract syntax
+2. **Type checking**: Ensures type safety across circuits, witnesses, and ledger operations
+3. **Circuit generation**: Converts high-level Compact code into zero-knowledge circuits
+4. **Proving key generation**: Creates cryptographic keys for generating and verifying proofs
+5. **TypeScript API generation**: Produces type-safe interfaces for DApp integration
+
+The compilation creates multiple output files in the specified directory:
+- `contract/index.d.cts` - TypeScript type definitions for the contract API
+- `contract/index.cjs` - JavaScript implementation of the contract
+- `zkir/` - Directory containing the zero-knowledge circuit representations
+- `proving-keys/` - Cryptographic keys for proof generation
+- `verifying-keys/` - Public keys for proof verification
+
+The compiler reports circuit complexity metrics:
+
+```
+Circuit 'increment' has complexity: 1234 constraints
+```
+
+These metrics indicate the computational cost of generating proofs. Higher constraint counts mean longer proof generation times and higher resource requirements. Optimize circuits to minimize constraints while maintaining security properties.
+
+### Version-specific compilation
+
+Override the default compiler version for testing or compatibility:
+
+```shell
+compact compile +0.23.0 <contract file> <output directory>
+```
+
+This feature enables:
+- Testing contracts against different compiler versions
+- Maintaining compatibility with deployed contracts compiled with older versions
+- Gradual migration when new compiler versions introduce breaking changes
+
+The version specifier (`+0.23.0`) must reference an already-installed version. Use `compact list --installed` to see available versions.
+
+### Environment variables
+
+The Midnight example DApps historically used environment variables for configuration and toolchain location. Understanding these variables helps when working with existing code or debugging build issues.
+
+**Legacy COMPACT_HOME variable**: Previous versions of Midnight examples required setting `COMPACT_HOME` to point to the compiler directory. The new developer tools eliminate this requirement by managing compiler locations internally. The `compact` command automatically resolves the correct compiler path based on the selected version.
+
+If working with older example code that references `COMPACT_HOME`, you have two options:
+1. **Update the build scripts**: Replace `$COMPACT_HOME/compactc` references with `compact compile` commands
+2. **Set COMPACT_HOME for compatibility**: Export the variable pointing to `~/.compact/bin` for temporary backward compatibility
+
+**Direct compiler access**: While not recommended, the installed toolchain binaries reside in `~/.compact/bin/`. This directory contains symbolic links to the current default version's binaries:
+- `compactc` - The main compiler executable
+- `zkir` - Zero-knowledge intermediate representation tool
+- Supporting libraries and runtime files
+
+Direct invocation bypasses version management benefits. Always prefer using `compact compile` for:
+- Automatic version selection
+- Consistent behavior across platforms
+- Compatibility with future toolchain updates
+- Integrated error handling and diagnostics
+
+**Project-specific configuration**: Modern Midnight projects should document their compiler version requirements in configuration files rather than relying on environment variables. Consider using:
+- `package.json` scripts that invoke `compact compile` with specific versions
+- Build configuration files that specify the required compiler version
+- CI/CD pipelines that install and use specific toolchain versions via `compact update`
+
+This approach ensures reproducible builds across different development environments and team members.
+
+## Optional: Visual Studio Code extension for Compact
+
+Use any editor to create Midnight DApps. Midnight provides a VSCode extension specifically for creating and editing Midnight contracts written in the Compact DSL. The extension transforms VSCode into a specialized Compact development environment with language-aware features that significantly improve productivity and reduce errors.
+
+### Extension features
+
+**Syntax highlighting**: Color-codes different language elements (keywords, types, functions, comments) for improved readability. The highlighting rules understand Compact-specific constructs like `circuit`, `witness`, and `ledger` declarations.
+
+**Live, dynamic contract checking**: Performs real-time semantic analysis as you type, identifying errors before compilation. This includes:
+- Type checking across circuit boundaries
+- Privacy flow analysis to prevent unintended data disclosure
+- Witness function signature validation
+- Ledger state access verification
+
+**Debugging assistance**: Provides enhanced error messages with suggested fixes. When compilation fails, the extension highlights problematic code sections and offers context-aware solutions.
+
+**Code completion and IntelliSense**: Offers intelligent suggestions for:
+- Standard library functions and types
+- Ledger field access
+- Circuit and witness declarations
+- Import statements for standard modules
+
+**Templates and snippets**: Accelerates development with pre-built patterns for:
+- New contract scaffolding with standard structure
+- Common circuit patterns (authentication, state transitions)
+- Witness function declarations
+- Standard library imports
+
+### Installation process
+
+Download the VSCode extension for Compact from [the Midnight Testnet releases repository](../../../relnotes/overview). The file name follows the pattern `compact-x.y.z.vsix` for version `x.y.z`. The VSIX file is a packaged extension format that includes all necessary dependencies.
+
+Install the plugin in VSCode:
+1. **Open the Extensions pane**: Click the Extensions icon in the Activity Bar or press `Ctrl+Shift+X` (Windows/Linux) or `Cmd+Shift+X` (macOS)
+2. **Access installation options**: Click the `...` symbol at the top of the Extensions pane to reveal additional actions
+3. **Select manual installation**: Choose "Install from VSIX..." from the dropdown menu
+4. **Locate the downloaded file**: Navigate to your Downloads folder or wherever you saved the VSIX file
+5. **Confirm installation**: VSCode installs the extension and may prompt for additional permissions
+
+VSCode typically activates newly installed extensions immediately. The extension activates automatically when opening files with the `.compact` extension. Sometimes VSCode prompts for a restart to ensure all language server components initialize properly.
+
+### Configuration
+
+The extension works with default settings but supports customization through VSCode's settings:
+
+- **Compiler path**: If not using the standard `compact` command, specify a custom compiler location
+- **Validation level**: Adjust the strictness of real-time checking (errors only, include warnings, include suggestions)
+- **Format on save**: Enable automatic code formatting when saving files
+
+Access extension settings through `File > Preferences > Settings` and search for "Compact" to find all available options.
+
+Even if VSCode isn't your primary editor, consider using the VSCode Compact extension for editing Midnight contracts while learning the language. The immediate feedback and intelligent assistance accelerate the learning process and help avoid common mistakes.
+
+## Manage toolchain versions
+
+The Compact developer tools support multiple toolchain versions simultaneously. This capability is essential for maintaining existing contracts while developing new ones, testing compatibility across versions, and gradually migrating to newer compiler releases.
+
+### List available versions
+
+View all versions available for download:
+
+```shell
+compact list
+```
+
+Output shows versions and supported platforms:
+
+```
+compact: available versions
+
+→ 0.24.0 - x86_macos, aarch64_macos, x86_linux
+  0.23.0 - aarch64_macos, x86_linux
+  0.22.0 - x86_macos, x86_linux
+```
+
+The arrow (`→`) indicates the current default version used when running `compact compile` without a version override. Platform indicators show which architectures support each version:
+- `x86_macos` - Intel-based Mac computers
+- `aarch64_macos` - Apple Silicon Macs (M1, M2, M3)
+- `x86_linux` - Standard Linux on Intel/AMD processors
+
+Not all versions support all platforms. Early releases might lack Apple Silicon support, while some versions might skip certain platforms due to build issues.
+
+### Check installed versions
+
+List versions downloaded to your system:
+
+```shell
+compact list --installed
+```
+
+Output shows only locally available versions:
+
+```
+compact: installed versions
+
+→ 0.24.0
+  0.23.0
+```
+
+Installed versions consume disk space (approximately 100-200MB each) but enable offline compilation and instant version switching. Remove unused versions by deleting their directories from `~/.compact/versions/`.
+
+### Switch between versions
+
+Change the default toolchain version:
+
+```shell
+compact update 0.23.0
+```
+
+This command:
+1. Downloads the specified version if not already installed
+2. Verifies the download integrity using checksums
+3. Updates the symbolic link at `~/.compact/bin` to point to the new version
+4. Confirms the switch with output showing the new default
+
+The switch affects all subsequent `compact compile` commands unless overridden with the `+version` syntax. Projects can document their required compiler version in README files or build scripts to ensure consistency across team members.
+
+## Developer tools maintenance
+
+The developer tools update themselves independently from the toolchain. This separation ensures that improvements to the version management system don't require compiler updates, and compiler releases don't force tool updates. The architecture enables the tools to manage multiple compiler versions while maintaining a consistent interface.
+
+### Check for tool updates
+
+Verify if newer developer tools are available:
+
+```shell
+compact self check
+```
+
+This command queries the GitHub releases API to identify the latest stable version. The check compares your installed version against the latest release and reports:
+- Current installed version of the developer tools
+- Latest available version
+- Whether an update is recommended
+
+The tools check for updates automatically once per day when running any `compact` command. This passive check doesn't interrupt workflow but notifies about available updates through a brief message after command completion.
+
+### Update the developer tools
+
+Install the latest developer tools version:
+
+```shell
+compact self update
+```
+
+The self-update process:
+1. Downloads the latest version to a temporary location
+2. Verifies the download using cryptographic signatures
+3. Replaces the current binary with the new version
+4. Preserves all installed toolchains and configuration
+
+Self-updates are backward compatible—new tool versions continue to work with existing installed toolchains. This design principle ensures that updating tools never breaks existing projects.
+
+### When to update
+
+Update the developer tools when:
+- **New features become available**: Future releases include features like `compact format` for code formatting, `compact doc` for documentation generation, and `compact test` for contract testing
+- **Bug fixes are released**: Tool updates may resolve issues with version management, platform compatibility, or command execution
+- **Security updates**: Although rare, security updates to the tools themselves should be applied promptly
+
+The release notes for each tool version (distinct from compiler release notes) describe new features and important changes. Monitor the Midnight developer announcements for significant tool updates that enhance the development experience.
+
+## Get help
+
+The `compact` tool provides comprehensive built-in documentation accessible directly from the command line. This integrated help system eliminates the need to search online documentation for basic command syntax and options.
+
+### General help
+
+Access the main help overview:
+
+```shell
+compact help
+compact --help
+```
+
+Both commands display identical output—a complete list of available subcommands with brief descriptions. The help text includes:
+- **Subcommand list**: All available operations like `compile`, `update`, `list`, `check`
+- **Global options**: Flags that apply to all subcommands, such as `--directory` for specifying the toolchain location
+- **Usage examples**: Basic command patterns showing typical invocations
+
+The help system uses a hierarchical structure. The top-level help provides an overview, while subcommand-specific help offers detailed information about individual operations.
+
+### Subcommand help
+
+Get detailed help for specific operations:
+
+```shell
+compact help update
+compact update --help
+```
+
+Subcommand help includes:
+- **Detailed description**: Explains what the command does and when to use it
+- **Argument specifications**: Required and optional parameters with their types
+- **Flag descriptions**: All available options with their effects
+- **Examples**: Real-world usage scenarios
+- **Related commands**: References to similar or complementary operations
+
+For compiler-specific help:
+
+```shell
+compact compile --help
+```
+
+This displays compiler options including:
+- **Input specifications**: Supported file formats and contract structures
+- **Output options**: Directory structure and generated file descriptions
+- **Optimization flags**: Options for controlling compilation behavior
+- **Debug options**: Flags for generating additional diagnostic information
+
+### Version information
+
+The tools provide multiple version queries for different components:
+
+**Developer tools version**:
+```shell
+compact --version
+```
+Returns the version of the `compact` command itself (e.g., `0.1.0`). This version indicates the capabilities of the version management system.
+
+**Compiler/toolchain version**:
+```shell
+compact compile --version
+```
+Returns the version of the currently selected Compact compiler (e.g., `0.24.0`). This version determines available language features and compilation behavior.
+
+**Compact language version**:
+```shell
+compact compile --language-version
+```
+Returns the version of the Compact language specification supported by the current compiler. Language versions change less frequently than compiler versions, as they represent the stable language syntax and semantics.
+
+Understanding version relationships helps diagnose compatibility issues:
+- **Language version**: Defines contract syntax and available features
+- **Compiler version**: Implements a specific language version with particular optimizations
+- **Developer tools version**: Manages compiler installations and provides development utilities
+
+When reporting issues or seeking support, provide all three version numbers for complete context.
