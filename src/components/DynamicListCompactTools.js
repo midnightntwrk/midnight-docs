@@ -19,13 +19,13 @@ const releases = [
     id: 1,
     version: '0.4.0',
     status: 'LATEST',
-    date: '21 January 2025',
+    date: '21 January 2026',
     summary: 'Summary of Release 0.4.0',
     details: [
-      'Compact fixup subcommand',
-      'Compact fixup check subcommand',
-      'Compact version subcommand',
-      'Compact language-version subcommand'
+      'Fixup subcommand interface has changed',
+      'New fixup `--check` mode',
+      'Correctly report fixup and format `--version`',
+      'Fixup and format now support `--language-version`'
     ],
     artifacts: [
       { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.4.0' }
