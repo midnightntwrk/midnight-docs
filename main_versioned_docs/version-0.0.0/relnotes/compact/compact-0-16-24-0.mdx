@@ -1,0 +1,283 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact compiler 0.24.0 (Compact language 0.16.0)
+displayed_sidebar: sidebar
+---
+
+## Compact compiler 0.24.0 (Compact language 0.16.0) release notes
+
+Today we are releasing version 0.24.0 of the Compact compiler.
+This release updates the Compact language from version 0.15.0 to 0.16.0.
+
+## Summary of Changes
+
+There is a relatively long list of changes to the Compact language and libraries, and to the way that the compiler works, including some breaking changes:
+
+- [Breaking] We have changed the spelling of very many of the standard library names
+- [Breaking] Exported circuit and constructor arguments are required to be `disclose`d
+- [Breaking] Ledger read and removal operations can now require values to be `disclose`d
+- [Breaking] Branch condition expressions are sometimes required to be `disclose`d
+- [Breaking] `assert` is now a function-like expression operator
+- The `=`, `+=`, and `-=` operators are now expressions
+- Trailing commas are now allowed at the end of argument lists
+- [Breaking] Fix for a failure to mint tokens
+- [Breaking] We have stopped changing the spelling of exported ledger fields
+- [Breaking] We no longer allow multiple exported circuits whose names differ only in casing
+- [Breaking] We have removed the `std.compact` file
+
+This release includes the following bug fixes for issues which were known to be affecting developers:
+
+- Fix for a crash due to some conditional return values
+- Fix for a bug due to incorrect precedence in generated JavaScript code
+
+We have continued to improve the compiler's functionality, especially by improving error reporting:
+
+- Improved error reporting for missing `disclose` operators
+- Improved error messages for `=`, `+=`, and `-=` expressions
+- Improved error message for duplicating names from the standard library
+- Improved error message for invalid exports
+
+## Language changes
+
+We have made some major breaking language and compiler changes with this release.
+We have changed the spelling of many standard library names to agree with TypeScript coding conventions.
+We have expanded the set of operations that will require a witness return value to be `disclose`d in the contract.
+We have changed some statements in the language to be allowed to be expressions.
+
+### [Breaking] We have changed the spelling of very many of the standard library names
+
+Most names in the standard library, including ledger ADT operations, previously used so-called `snake_case` names (all lowercase, with underscores separating words).
+(The exception to this rule was type names like `QualifiedCoinInfo` and the name of the standard library itself, `CompactStandardLibrary`.)
+We have changed the snake case names in the standard library to instead use so-called `camelCase` names (usually initial lowercase, with subsequent words capitalized).
+
+This makes the standard library follow standard TypeScript coding conventions.
+The snake case naming convention was established a relatively long time ago before we had committed to making Compact follow the design of TypeScript as much as possible.
+We felt that it was jarring to read contracts that used a mix of the two naming conventions, one for standard library circuits and one for standard library types and (usually) witnesses.
+
+This is a **breaking** change.
+Contracts that use the standard library will need to be updated to use the new names for things that have changed and they will need to be recompiled.
+Please read about the `fixup-compact` tool below for assistance in making this change.
+
+### [Breaking] Exported circuit and constructor arguments are required to be `disclose`d
+
+Compact requires witness return values that can be observed on chain to be wrapped in the `disclose` operator.
+Previously, this applied to witness return values that were written into the public ledger or that were used to derive values written into the public ledger.
+
+The argument values passed to exported circuits and to a contract's constructor can be observed on chain.
+In Compact 0.16.0, we have also required these to be wrapped in the `disclose` operator.
+
+This is a **breaking** change.
+Programs that previously compiled will now require some extra `disclose` operators.
+
+### [Breaking] Ledger read and removal operations can now require values to be `disclose`d
+
+Previously we treated ledger write operations as potentially requiring a witness return value to be wrapped in the `disclose` operator.
+However, we treated read operations and removal (e.g., `remove` from a ledger `Set`) as non-disclosing operations.
+In reality, these operations can also be observed on chain, as all ledger operations are included in the public transcript that is part of a transaction.
+We have now made these operations also potentially require witness return value disclosure.
+
+This is a **breaking** change.
+Programs that previously compiled will now require some extra `disclose` operators.
+
+### [Breaking] Branch condition expressions are sometimes required to be `disclose`d
+
+If a witness return value is used as a branch condition, its value can potentially be observed on chain.
+For instance, in the following simple contract:
+
+```compact
+ledger value: Uint<8>;
+
+witness test(): Boolean;
+
+export circuit doIt(): [] {
+  if (test()) {
+    value = 255;
+  } else {
+    value = 0;
+  }
+}
+```
+
+The ledger field update to `value` is observable on chain and this can be used to deduce the value returned by the witness `test`.
+The same reasoning applies when only one branch writes to the ledger (by observing whether the ledger write occurs or not),
+and it also applies to branch conditions that are derived from witness return values (such as `age() >= 18`).
+In all these cases, the expression used as a branch condition needs to be wrapped in the `disclose` operator.
+
+This is a **breaking** change.
+Programs that previously compiled will now require some extra `disclose` operators.
+
+### [Breaking] `assert` is now a function-like expression operator
+
+In Compact 0.14 and before, `assert` was a statement.
+It had two subexpressions, a condition and a message string literal.
+In our internal usability testing we found that TypeScript programmers were surprised by this syntax.
+They expected `assert` to look like a function call with a parenthesized argument list.
+Because it did not look that way, they were confused about when and if the first subexpression needed to be parenthesized.
+It wasn't obvious to them how to format multi-line `assert` statements.
+
+We have changed the syntax of `assert` to look like a function call.  Where you would previously write:
+
+```compact
+assert age() >= 18 "failed age check";
+```
+
+you would now write:
+
+```compact
+assert(age() >= 18, "failed age check");
+```
+
+Because it looks like an expression, we have actually made it into an expression in the language.
+This can be useful in some cases, for example, in anonymous ("arrow") circuit bodies, you can have an `assert` without having to write curly braces:
+
+```compact
+map((x) => assert(x >= 18, "failed age check"), ages);
+```
+
+It can also be used in expression sequences ("comma expressions"):
+
+```compact
+const difference = assert(x >= y, "underflow error"), x - y;
+```
+
+This is a **breaking** change.
+Contracts that have `assert` in them will need to have the `assert` statements rewritten.
+
+### The `=`, `+=`, and `-=` operators are now expressions
+
+In Compact 0.15 the `=`, `+=`, and `-=` operators were used in statements (not expressions).
+They were shorthand for calls to the ledger ADT operations `write`, `increment`, and `decrement`.
+These ledger ADT operations could be used in expressions (with type `[]`) and so there were some contexts where the explicit ledger ADT operations could be used but the shorthand forms could not be used.
+In Compact 0.16.0 we have changed the shorthand versions to also be expressions.
+
+This is a non-breaking change.
+Programs that previously compiled and ran will still have the same behavior.
+
+### Trailing commas are now allowed at the end of argument lists
+
+In Compact 0.15.0 we changed the language to allow trailing commas in most of the places that TypeScript allows them.
+However, we inadvertently missed applying this change to a few places in the language.
+Namely, we did not allow them in argument lists for circuit calls, ledger ADT operations, and in `map` and `fold` expressions.
+We have now allowed them in these places as well.
+
+This is a non-breaking change.
+Programs that compiled with Compact 0.15.0 will still compile without changes in Compact 0.16.0.
+
+### [Breaking] Fix for a failure to mint tokens
+
+The implementation of the Midnight on-chain runtime required the actual amount of tokens being minted at a single time to fit in a 64-bit integer.
+However, the Compact standard library `mint_token` function allowed this amount to be a 128-bit integer.
+This resulted in contracts that compiled correctly but could fail on chain when deployed if the amount was too large.
+We have changed `mint_token` to take a 64-bit integer.
+
+This is a **breaking** change.
+Programs that compiled correctly and happened to work will no longer compile correctly and will need to be updated.
+
+### [Breaking] We have stopped changing the spelling of exported ledger fields
+
+The TypeScript and JavaScript code produced by compiler version 0.23.0 and before would change the spelling of exported ledger field names that had underscores.
+For instance, if a field was named `foo_bar` then the name used in the generated TS/JS code would be `fooBar`.
+However, this could result in name clashes (e.g., `foo_bar` and `foo_Bar` are distinct names in Compact but they would have the same spelling in the generated TS/JS code).
+We have changed the compiler so that it does not rename these ledger fields in the generated TS/JS code.
+
+This is a **breaking** change.
+DApps that relied on the previous renaming will have to be updated to use the non-renamed names,
+or else contracts will have to be updated so that the non-renamed names agree with the intended TS/JS ones.
+
+### [Breaking] We no longer allow multiple exported circuits whose names differ only in casing
+
+The compiler previously would allow exported circuits whose names were spelled the same but differed in casing, for example `dosomething` and `doSomething`.
+The compiler generates output files for use by the proof server (in the subdirectories `zkir` and `keys` of the output directory).
+There are separate output files for each exported circuit.
+On filesystems that we not case sensitive, the file names for such exported circuits would not be distinguishable.
+The result was that only the last written output files would survive (previously ones would be overwritten).
+
+We have now made this a duplicate name clash error.
+
+This is a breaking change.
+Contracts that previously compiled may now have a compiler error and exported circuits will need to be renamed to avoid the error,
+
+### [Breaking] We have removed the `std.compact` file
+
+Several months ago we made the standard library into a builtin module that was imported via `import CompactStandardLibrary`.
+Before that change, it was a Compact source file that was included via `include 'std.compact'`.
+When we made that change, we continued to provide a `std.compact` file that contained the single line `import CompactStandardLibrary` so that the change was a non-breaking one.
+
+Most contracts that we see now properly use the `import` form.
+In compiler version 0.24.0 we have removed the `std.compact` file.
+
+This is a **breaking** change.
+The `fixup-compact` tool (see below) will automatically replace the `include` form with the correct `import` one.
+
+## Developer Tools
+
+- The Compact 0.17.0 "fixup" tool
+
+The Compact 0.16.0 release includes significant breaking changes. We plan for the Compact 0.17.0 release to include a tool that can
+update your contracts to the current version of Compact, automatically performing some necessary changes. One particular
+thing that this tool will do for is automatically update the names of standard library functions that have changed,
+when it's possible to do that safely. This should help users update their contracts to work with Compact 0.16.0 onwards.
+
+## Bug Fixes
+
+This release includes several bug fixes.
+The ones noted below were reported by external developers.
+
+### Fix for a crash due to some conditional return values
+
+The compiler would fail with an internal error in some cases when a circuit returned different values on different execution paths, where the values had different representations of the same type.
+For instance, this would happen if the circuit returned the value of a side-effecting ledger operation (like `field.write(0)`) on one path and the empty tuple (`[]`) on another.
+It would also happen if the circuit returns a vector-typed value on one path and an equivalent tuple-typed value on another.
+
+We have fixed this error.
+
+### Fix for a bug due to incorrect precedence in generated JavaScript code
+
+The Compact compiler used conditional (ternary, or `?:`) expressions in the generated JavaScript code for a contract.
+In some cases, the generated code did not correctly obey the precedence rules of JavaScript, which would result in wrong results or a JS syntax error for the generated code.
+We have fixed this issue.
+
+## Compiler Improvements
+
+### Improved error reporting for missing `disclose` operators
+
+We have improved the way that the compiler reports error messages for missing `disclose` operators.
+Previously, the compiler would report the first such failure and halt.
+We have changed it to report all such failures.
+
+We have included more information about the kind of disclosure that is occurring, to help programmer decide if it's intended.
+For indirect disclosure (i.e., disclosure of values derived from witness return values), we have included the detailed path of how the witness return value got to the disclosure site in the contract.
+This will help programmers decide if the disclosure is intended, and if so where best to insert the `disclose` operator to allow the contract to compile.
+
+Finally, disclosure that happens in the standard library implementation is reported as occurring when the contract calls into the standard library,
+rather than at an internal standard library implementation site that is not relevant to the contract programmer.
+
+### Improved error messages for `=`, `+=`, and `-=` expressions
+
+The `=`, `+=`, and `-=` operators are shorthand for ledger `write`, `increment`, and `decrement` operations respectively.
+Previously, programs that used these would report errors in, for example, `write`.
+This was potentially confusing because the contract did not explicitly use the `write` operation.
+
+Now, these errors are reported in terms of the actual source code.
+
+### Improved error message for duplicating names from the standard library
+
+When a programmer duplicated a name that was exported from the standard library, the error message confusingly mentioned a duplicate binding for the name but there was only one binding visible in the contract.
+We have changed the error message to be more clear by indicating the position of both bindings.
+In addition, we have made a couple of other improvements suggested by the new improved error reporting.
+First, errors involving ledger ADTs now correctly indicate that they are imported from the standard library.
+And second, errors involving the standard library now have a source position that renders as `<standard library>` instead of a standard library implementation line a column number that is meaningless to the programmer.
+
+### Improved error message for invalid exports
+
+When a name that was not a valid export was exported via an `export` declaration, the compiler previously indicated the `export` as the position of the error.
+Now, the compiler will indicate the specific invalid export.
+
+For example, in the following code:
+
+```compact
+export { foo, bar, baz }
+```
+
+If `bar` is the invalid export, the compiler will now indicate `bar` as the specific source of the error.

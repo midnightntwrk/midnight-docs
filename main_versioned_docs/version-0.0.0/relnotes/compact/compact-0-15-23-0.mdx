@@ -1,0 +1,205 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact compiler 0.23.0 (Compact language 0.15.0)
+displayed_sidebar: sidebar
+---
+
+## Compact compiler 0.23.0 (Compact language 0.15.0) release notes
+
+Today we are releasing version 0.23.0 of the Compact compiler.  This release
+updates the Compact language from version 0.14.0 to 0.15.0.  The new version of
+the compiler goes along with the upcoming Midnight [testnet
+upgrade](https://midnight.network/blog/upcoming-testnet-02-upgrade-all-you-need-to-know).
+
+The testnet upgrade is a **breaking** change: contracts must be compiled with
+version 0.23.0 or later of the Compact compiler to work with the upgraded
+testnet network.  Part of the upgrade to the network is a change to the proof
+system that requires new prover and verifier keys, which are generated from
+your contracts by the Compact compiler.
+
+:::important
+
+The compiler uses a separate binary file (`zkir`) to generate prover and
+verifier keys.  If you see the error message `error: unrecognized subcommand
+'compile-many'` from the compiler, that indicates it is using an incompatible
+version of the `zkir` binary.  Ensure that the `zkir` binary found in your path
+is the one that came with compiler version 0.23.0.
+
+:::
+
+There are some language changes in this release as well, which is why the
+Compact language version has been incremented to version 0.15.
+
+This release also includes a number of bug fixes and compiler improvements,
+which are additionally described below.
+
+## Summary of Changes
+
+This release includes some language changes:
+
+- [Breaking] The maximum `Field` value has changed
+- [Non-breaking] Trailing commas and semicolons are now allowed in more places
+
+In addition, this release includes the following bug fixes:
+
+- Fix for incorrect `Field` arithmetic overflow and underflow
+- Fix for a crash due to incorrect common subexpression elimination
+- Fix for a crash when trying to cast to a ledger ADT type
+- Fix for crashes involving large integer literals
+
+We have made improvements to the way that the compiler works:
+
+- There is a progress meter during key generation
+- The compiler now removes stale ZKIR files
+- Better error message when a developer attempts to use division
+
+## Language Updates
+
+This release includes a couple of changes to the Compact language.  If you write
+contracts that rely on either of the two features described below, you can
+specifically request Compact language version 0.15 with:
+
+```compact
+pragma language_version 0.15;
+```
+
+### [Breaking] The maximum `Field` value has changed
+
+The Midnight testnet upgrade includes a change to the ZK-proof system.  The
+elliptic curve used to generate zkSNARKS is switched from Pluto-Eris to
+BLS12-381.  A consequence of this switch for the Compact language is that the
+maximum field value (available from your DApp's TypeScript code as `MAX_FIELD`)
+has changed.
+
+This is a **breaking** change.  You may have to change your contracts if they
+relied on this value.
+
+### [Non-breaking] Trailing commas and semicolons are now allowed in more places
+
+TypeScript allows trailing commas in comma-separated lists, but Compact did not
+allow them in all the same places.  We have added support for trailing commas in
+syntactic lists of items everywhere in Compact except in sequence expressions
+(where they are not allowed in TypeScript, either).
+
+When we made this change, we unfortunately missed updating some places where we
+did intend to allow trailing commas: they currently will not work in argument
+lists to circuit or witness calls or in `map` or `fold` expressions.  These are
+bugs that will be fixed in a future release.
+
+Here is a silly example that illustrates trailing commas:
+
+```compact
+circuit foo<T, S,>(x: T, y: S,): [S, T,] {
+  return [y, x,];
+}
+
+export circuit bar(): Uint<8> {
+  foo<Uint<8>, Uint<8>,>(1, 2);
+  foo<Uint<8>, Uint<8>>(1, 2,);  // Unintended syntax error, due to a compiler bug.
+  return 1, 2, 3,;  // Intended syntax error, matching TypeScript.
+}
+```
+
+This is a **non-breaking** change.  Programs that compiled and ran before will
+still compile and run, with the same results.
+
+## Bug Fixes
+
+### Fix for incorrect `Field` arithmetic overflow and underflow
+
+Compact's `Field` type has a fixed maximum value which depends on the underlying
+crypto backend.  An overflow of `Field` addition and multiplication should "wrap
+around": the result should be modulo the maximum field value plus one.
+Likewise, underflow of `Field` subtraction should wrap around.  This was not
+implemented correctly in the compiler-generated JavaScript code.  In addition to
+incorrect results, this could lead to an inability to submit transactions
+(because the proof used correct arithmetic).  This has now been fixed to work as
+described in the [language
+reference](https://docs.midnight.network/develop/reference/compact/lang-ref#binary-arithmetic-expressions).
+
+### Fix for a crash due to incorrect common subexpression elimination
+
+The Compact compiler performs a number of optimizations to circuits to reduce
+the size and complexity of the proofs that need to be constructed.  One of these
+is "common subexpression elimination".  This optimization was not performed
+correctly when the first occurrence of a subexpression was in code that was
+eliminated due to another circuit optimization (dead code elimination).  In this
+example:
+
+```compact
+export circuit foo(x: Field): [] {
+  if (false) {
+    assert (x != 0) 'oops1';
+  }
+  assert (x != 0) 'oops2';
+}
+```
+
+The compiler would eliminate the second occurrence of `x != 0`, intending to use
+the first one; but it would eliminate the first occurrence as well (because it's
+not reachable).  The result was a crash due to an internal compiler error (a
+failed assertion).  This issue is fixed.
+
+### Fix for a crash when trying to cast to a ledger ADT type
+
+In Compact, ledger ADT types such as `Counter` or `Map` cannot be used as
+Compact types.  When a developer tried to cast a Compact value to a ledger ADT
+type, instead of failing with an error message the compiler would fail with an
+internal error.  This is now fixed and the compiler will report "invalid context
+for a ledger ADT type" at that position.
+
+### Fix for crashes involving large integer literals
+
+Compact integers are limited by a fixed maximum value.  This limit is dependent
+on the underlying crypto backend.  The compiler was inconsistent about handling
+integer literals that exceeded this value.  In some cases it reported an error,
+and in some cases it crashed.
+
+We have fixed the cases where the compiler would crash so that that will instead
+signal a compile time error.
+
+## Compiler Improvements
+
+### There is a progress meter during key generation
+
+One of the outputs from the compiler is a pair of cryptographic keys, the prover
+and verifier keys, used to construct and verify zkSNARKs.  There is a pair of
+keys for each exported circuit in a contract.  Key generation is normally the
+slowest part of compilation, and some users perceive the compiler as "hung"
+during key generation.
+
+We have added a progress meter during key generation so you can see that the
+compiler is making progress, and an estimate of how much work remains.
+
+### The compiler removes stale ZKIR files
+
+The compiler generates ZKIR files in a subdirectory `zkir` of the output
+directory, one such file for each circuit exported from the top level of a
+contract.  It uses these files to generate prover and verifier keys.
+Previously, the compiler would leave stale files in this directory, which would
+result in unnecessary key generation.  It could potentially cause an issue where
+key generation would fail (for example, if the proof system were updated in a
+new compiler release).
+
+So for instance, if a contract exported circuits named `foo` and `bar`, the
+compiler would generate ZKIR files and keys for both circuits.  If the contract
+was later changed to remove the circuit `bar`, the ZKIR file for `bar` would
+remain in the output directory and the compiler would continue to try to
+generate prover and verifier keys for `bar`.
+
+Now, the compiler will remove old ZKIR files when it is invoked.  Since key
+generation is the slowest part of compilation, this represent a usability
+improvement.
+
+### Better error message when a developer attempts to use division
+
+Compact does not yet support the division operator (`/`).  When a developer
+tried to use it, the compiler would complain "unexpected character ' '".  The
+compiler was trying to recognize the character `/` as the start of a Compact
+comment and looking for another `/` immediately after it.
+
+We've changed the error reported in this case to be more informative.  The
+compiler will now report that it was looking for a binary operator like `+`,
+`-`, or `*` which will hopefully allow a developer to understand that `/` is not
+supported.
