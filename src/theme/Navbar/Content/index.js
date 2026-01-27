@@ -17,6 +17,7 @@ import {
   splitNavbarItems,
   useNavbarMobileSidebar
 } from "@docusaurus/theme-common/internal";
+import { useActiveDocContext } from '@docusaurus/plugin-content-docs/client';
 import NavbarItem from "@theme/NavbarItem";
 import NavbarColorModeToggle from "@theme/Navbar/ColorModeToggle";
 import SearchBar from "@theme/SearchBar";
@@ -25,10 +26,36 @@ import NavbarLogo from "@theme/Navbar/Logo";
 import NavbarSearch from "@theme/Navbar/Search";
 import styles from "./styles.module.css";
 import Discord from "@site/src/components/svg/Discord";
+
+
 function useNavbarItems() {
   // TODO temporary casting until ThemeConfig type is improved
   return useThemeConfig().navbar.items;
 }
+
+function useFilteredNavbarItems(items) {
+  // Try to get the active doc context (will be null on non-doc pages)
+  let activeDocContext = null;
+  try {
+    activeDocContext = useActiveDocContext('main'); // 'main' is your versioned plugin ID
+  } catch (e) {
+    // Not on a doc page, show all items
+  }
+  
+  const activeVersion = activeDocContext?.activeVersion?.name;
+  
+  // Filter items based on version
+  return items.filter(item => {
+    // If it's the Compact link
+    if (item.to === '/compact') {
+      // Only show on v0.0.0, hide on current (Canary)
+      return activeVersion === '0.0.0';
+    }
+    // Show all other items
+    return true;
+  });
+}
+
 function NavbarItems({ items }) {
   return (
     <>
@@ -61,7 +88,8 @@ function NavbarContentLayout({ left, right }) {
 export default function NavbarContent() {
   const mobileSidebar = useNavbarMobileSidebar();
   const items = useNavbarItems();
-  const [leftItems, rightItems] = splitNavbarItems(items);
+  const filteredItems = useFilteredNavbarItems(items);
+  const [leftItems, rightItems] = splitNavbarItems(filteredItems);
   const searchBarItem = items.find((item) => item.type === "search");
   return (
     <NavbarContentLayout
