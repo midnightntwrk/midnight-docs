@@ -18,9 +18,9 @@ const tiles: Tile[] = [
     cta: "Start building",
   },
   {
-    title: "Node operators and SPOs",
-    body: "Run nodes, monitor health, validate blocks, and follow ops best practices.",
-    to: "/validate/run-a-validator",
+    title: "Node operators",
+    body: "Run nodes, monitor health, and follow node best practices.",
+    to: "/operate/node-intro",
     cta: "Operate nodes",
   },
   {
