@@ -1,43 +1,178 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-title: Wallet 1.0.0
+title: Wallet SDK v1.0.0 release notes
 displayed_sidebar: sidebar
+description: Release notes for the Midnight Wallet SDK 1.0.0
 ---
 
-# Wallet 1.0.0
-
-Midnight wallet is a digital wallet designed for the Midnight blockchain, enabling users to securely store private keys, manage assets, and interact with decentralized applications.
-
-[Link to related documentation](../../learn/introduction/wallets)
+* **Version**: 1.0.0 
+* **Date**: 2026-01-28 
+* **Environment**: preprod, preview
 
 ---
 
-<div 
-  style={{
-    marginTop: '0',
-    fontSize: '1rem',
-    fontWeight: 'normal',
-    marginBottom: '0.5rem'
-  }}
->
-  16 August 2022
-</div>
+## High-level summary
 
-## Wallet 1.0.0 Release Notes
+This is the initial stable release of the Midnight Wallet SDK, a TypeScript wallet implementation for the Midnight
+Network. It provides complete support for Midnight's three-token system: unshielded tokens (including NIGHT), shielded tokens with
+zero-knowledge proofs, and DUST for fee payments.
 
-Learn about the latest updates and improvements to the Midnight node, including new features, bug fixes, and breaking changes designed to enhance functionality and stability.
+---
 
-### New Features
+## Audience
 
-- Added events for the `ogmios-*` modules.
-- Added events for wallet modules.
+This release is relevant for developers who:
 
-### Breaking Changes
+- Build wallets for the Midnight network
+- Integrate Midnight token transfers into their DApps
+- Need to manage shielded (private) and unshielded token balances
+- Implement atomic swaps between parties
 
-- Updated the dependency to the new `wallet-api`.
+---
 
-### Upgrade Instructions
+## What changed (Summary of updates)
 
-- Review the ADR regarding the lack of mutation tests (`Stryker`).
-- Improved code coverage across the project.
+- Full support for unshielded tokens (including NIGHT)
+- Full support for shielded tokens with zero-knowledge proofs
+- Dust management for transaction fee payments
+- HD wallet key derivation
+- Bech32m address encoding and decoding
+- Transaction balancing across all token types
+- Atomic swap support
+
+---
+
+## New features
+Below is a detailed breakdown of the new features added in this release.
+
+### Wallet facade
+
+Unified API that enables shielded, unshielded, and dust wallet operations through a single interface.
+It handles transaction balancing, transfers, and swaps. This is the main entry point for most developers, abstracting the
+complexity of managing three separate wallet types.
+
+### Unshielded wallet
+
+Manages NIGHT and other unshielded tokens using a UTxO model with Schnorr signatures. Tracks UTxOs,
+creates offers for swaps, and provides inputs/outputs for transaction balancing. Use this for transparent token
+operations.
+
+### Shielded wallet
+
+Manages privacy-preserving shielded tokens using Zswap zero-knowledge proofs. Handles ZK proof
+generation, coin commitment tracking, and encrypted output decryption. Token values and addresses are hidden from
+observers while maintaining verifiability.
+
+### DUST wallet
+
+Manages Dust, the fee payment resource generated from NIGHT holdings. Handles Dust address designation,
+balance tracking, and automatic fee payment during transaction balancing. Required for submitting any transaction on the
+network.
+
+### HD wallet
+
+Derives cryptographic keys from a seed following BIP-32/BIP-44/CIP-1852 standards. Generates keys for
+unshielded (secp256k1), shielded (JubJub curve), and Dust (BLS12-381 curve) operations from a single mnemonic or seed.
+
+### Address format
+
+Encodes and decodes Midnight addresses using Bech32m format. Supports three address types with network
+identifiers:
+
+- `mn_addr` - Unshielded payment addresses
+- `mn_shield-addr` - Shielded payment addresses
+- `mn_dust-addr` - Dust addresses for fee generation
+
+### Transaction balancing
+
+Automatically provides inputs to cover outputs, creates change outputs for surplus, and adds Dust
+spends for fees. Works across all token types in a single transaction. This is the core operation that enables
+transfers, contract interactions, and swaps.
+
+### Atomic swaps
+
+Enables trustless token exchanges between parties using Midnight's offer system. Offers can be merged
+into a single transaction that hides the exchanged amounts from observers. Currently supports shielded-only or
+unshielded-only swaps.
+
+---
+
+## New features requiring configuration updates
+
+The following updates are required to configure the wallet to use the new features.
+
+### Prover service connection
+
+Zero-knowledge proofs for shielded transactions and Dust spends require an external prover service. The
+wallet cannot submit shielded transactions without this configuration.
+
+**Required Updates**:
+- Configure prove server endpoint URL.
+- Ensure the prove server is running and accessible via the configured endpoint URL.
+
+### Node endpoint
+
+The wallet requires a connection to a Midnight Node to submit transactions and query blockchain state.
+
+**Required Updates**:
+- Configure Midnight Node WebSocket endpoint.
+- Ensure the Midnight Node is running and accessible.
+
+### Indexer endpoint
+
+The wallet requires a connection to the indexer to synchronize UTxOs, transaction history, and state data.
+
+**Required Updates**:
+- Configure indexer GraphQL endpoint.
+- Ensure the indexer is running and accessible.
+
+---
+
+## Known issues
+
+This section lists the known issues with this release of the wallet SDK.
+
+### Pending coins not cleared on transaction failure
+
+When transaction submission or proof generation fails, coins marked as pending are not automatically
+released. This can cause the wallet to report lower available balances until the pending state is manually cleared or
+the wallet is restarted.
+
+**Workaround**: Restart the wallet or re-sync to clear the stale pending state.
+
+
+### Transaction history not implemented for shielded and dust wallets
+
+The shielded and dust wallets do not currently track transaction history. While the unshielded wallet
+maintains transaction records, the shielded and dust wallets only track coin balances without historical transaction
+data.
+
+---
+
+## Packages
+
+| Package                                        | Version | Description                                                                                                                                                             |
+| ---------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@midnight-ntwrk/wallet-sdk-facade`            | 1.0.0   | Unified API that enables shielded, unshielded, and dust wallet operations through a single interface. Handles transaction balancing, transfers, and swaps.              |
+| `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | 1.0.0   | Manages NIGHT and other unshielded tokens. Tracks UTxOs, creates offers for swaps, and provides inputs/outputs for transaction balancing.                               |
+| `@midnight-ntwrk/wallet-sdk-shielded-wallet`   | 1.0.0   | Manages privacy-preserving shielded tokens. Handles ZK proof generation, coin commitment tracking, and encrypted output decryption.                                     |
+| `@midnight-ntwrk/wallet-sdk-dust-wallet`       | 1.0.0   | Manages Dust for transaction fees. Handles Dust designation, balance tracking, and automatic fee payment during transaction balancing.                                  |
+| `@midnight-ntwrk/wallet-sdk-hd`                | 3.0.0   | Derives cryptographic keys from a seed following BIP-32/BIP-44/CIP-1852. Generates keys for unshielded (secp256k1), shielded (JubJub), and Dust (BLS12-381) operations. |
+| `@midnight-ntwrk/wallet-sdk-address-format`    | 3.0.0   | Encodes and decodes Midnight addresses using Bech32m format. Supports payment addresses, shielded addresses, and Dust addresses with network identifiers.               |
+| `@midnight-ntwrk/wallet-sdk-node-client`       | 1.0.0   | Communicates with Midnight Node. Submits transactions and queries blockchain state.                                                                                    |
+| `@midnight-ntwrk/wallet-sdk-indexer-client`    | 1.0.0   | Queries the Midnight indexer via GraphQL over websocket. Retrieves UTxOs, events and block information.                                                                 |
+| `@midnight-ntwrk/wallet-sdk-prover-client`     | 1.0.0   | Interfaces with the prover service to generate zero-knowledge proofs for shielded transactions and Dust spends.                                                         |
+| `@midnight-ntwrk/wallet-sdk-runtime`           | 1.0.0   | Organizes wallet lifecycle and state management. Supports version migration for protocol upgrades.                                                                      |
+| `@midnight-ntwrk/wallet-sdk-capabilities`      | 3.0.0   | Shared wallet features including coin selection algorithms and transaction balancing logic.                                                                             |
+| `@midnight-ntwrk/wallet-sdk-abstractions`      | 1.0.0   | Core interfaces and domain types used across all packages.                                                                                                              |
+| `@midnight-ntwrk/wallet-sdk-utilities`         | 1.0.0   | Common utilities for serialization, networking, and testing.                                                                                                            |
+
+---
+
+## Links and references
+
+- SDK documentation: [Wallet developer guide](/sdks/official/wallet-developer-guide)
+- Examples: [SDK example snippets](https://github.com/midnightntwrk/midnight-wallet/tree/main/packages/docs-snippets/src/snippets)
+- GitHub repository: [midnightntwrk/midnight-wallet](https://github.com/midnightntwrk/midnight-wallet)
+- DApp Connector API: [midnightntwrk/midnight-dapp-connector-api](https://github.com/midnightntwrk/midnight-dapp-connector-api)
