@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -16,7 +16,7 @@ const ZswapCoinPublicKeyDescriptor: {
 };
 ```
 
-## Type declaration
+## Type Declaration
 
 ### alignment()
 
