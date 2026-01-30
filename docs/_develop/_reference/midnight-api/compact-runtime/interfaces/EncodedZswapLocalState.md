@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -33,7 +33,7 @@ The Merkle tree index of the next coin produced.
 ### inputs
 
 ```ts
-inputs: EncodedQualifiedCoinInfo[];
+inputs: EncodedQualifiedShieldedCoinInfo[];
 ```
 
 The coins consumed as inputs to the circuit.
@@ -44,7 +44,7 @@ The coins consumed as inputs to the circuit.
 
 ```ts
 outputs: {
-  coinInfo: EncodedCoinInfo;
+  coinInfo: EncodedShieldedCoinInfo;
   recipient: EncodedRecipient;
 }[];
 ```
@@ -54,7 +54,7 @@ The coins produced as outputs from the circuit.
 #### coinInfo
 
 ```ts
-coinInfo: EncodedCoinInfo;
+coinInfo: EncodedShieldedCoinInfo;
 ```
 
 #### recipient

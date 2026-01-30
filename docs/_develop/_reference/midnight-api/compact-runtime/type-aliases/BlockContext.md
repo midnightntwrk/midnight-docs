@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -8,20 +8,20 @@
 
 ```ts
 type BlockContext = {
-  blockHash: string;
+  parentBlockHash: string;
   secondsSinceEpoch: bigint;
   secondsSinceEpochErr: number;
 };
 ```
 
-The context information about a block available inside the VM
+Context information about the block forwarded to [CallContext](CallContext.md).
 
 ## Properties
 
-### blockHash
+### parentBlockHash
 
 ```ts
-blockHash: string;
+parentBlockHash: string;
 ```
 
 The hash of the block prior to this transaction, as a hex-encoded string

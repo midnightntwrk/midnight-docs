@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: ecMul()
 
 ```ts
-function ecMul(a, b): CurvePoint;
+function ecMul(a, b): NativePoint;
 ```
 
 The Compact builtin `ec_mul` function
@@ -19,7 +19,7 @@ multiplicative notation)
 
 ### a
 
-[`CurvePoint`](../interfaces/CurvePoint.md)
+[`NativePoint`](../interfaces/NativePoint.md)
 
 ### b
 
@@ -27,4 +27,4 @@ multiplicative notation)
 
 ## Returns
 
-[`CurvePoint`](../interfaces/CurvePoint.md)
+[`NativePoint`](../interfaces/NativePoint.md)

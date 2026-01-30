@@ -1,33 +1,43 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / CircuitResults
 
-# Interface: CircuitResults\<T, U\>
+# Interface: CircuitResults\<PS, R\>
 
 The results of the call to a Compact circuit
 
 ## Type Parameters
 
-### T
+### PS
 
-`T`
+`PS` = `any`
 
-### U
+### R
 
-`U`
+`R` = `any`
 
 ## Properties
 
 ### context
 
 ```ts
-context: CircuitContext<T>;
+context: CircuitContext<PS>;
 ```
 
 The updated context after the circuit execution, that can be used to
 inform further runs
+
+***
+
+### gasCost
+
+```ts
+gasCost: RunningCost;
+```
+
+The gas consumption of the circuit execution
 
 ***
 
@@ -44,7 +54,7 @@ The data required to prove this circuit run
 ### result
 
 ```ts
-result: U;
+result: R;
 ```
 
 The primary result, as returned from Compact
