@@ -13,12 +13,34 @@
 
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
     id: 1,
-    version: '4.0.0',
+    version: '7.0.0',
     status: 'LATEST',
+    date: '27 January 2026',
+    summary: 'Summary of Release 7.0.0',
+    details: [
+      'Switched to Midnight SRS and midnight-zk 1.0',
+      'Introduced `addCalls` endpoint for transcript partitioning with zswap components',
+      'Changed pricing structure to use overall cost with dimension weightings',
+      'Completely disabled treasury access',
+      'Fixed multiple critical bugs including token type computation, contract balancing',
+      'Applied security audit fixes from Least Authority',
+    ],    
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger' },
+      { name: 'Zswap', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger?activeTab=versions' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnight-ntwrk/onchain-runtime?activeTab=versions' },
+    ],
+    link: '/relnotes/ledger/ledger-7-0-0',
+  },
+  {
+    id: 2,
+    version: '4.0.0',
+    status: 'DEPRECATED',
     date: '12 May 2025',
     summary: 'Summary of Release 4.0.0',
     details: [
@@ -37,7 +59,7 @@ const releases = [
     link: '/relnotes/ledger/ledger-4-0-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '3.0.6',
     status: 'DEPRECATED',
     date: '22 January 2025',
