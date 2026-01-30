@@ -14,12 +14,32 @@
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
 
+// Keep this list in order (newest release at the top).  The position of the
+// elements is used to assign a numeric `id`.
 const releases = [
   {
-    id: 1,
+    version: '0.28.0',
+    compactVersion: '0.20.0',
+    status: 'LATEST',
+    date: '28 January 2026',
+    summary: 'Summary of Release 0.28.0',
+    details: [
+      'new standard library APIs for unshielded tokens',
+      'structural ("transparent") and nominal ("opaque") type aliases',
+      'selective module import and renaming',
+      'meaning of `Uint` ranges has changed',
+      'maximum representable unsigned integer is smaller',
+      'compiler-enforced bounds on various sizes',
+      '`CurvePoint` is renamed to `NativePoint`',
+      'now uses ECMAScript modules (ESM) instead Common JS (CJS) modules',
+    ],
+    artifacts: [],
+    link: '/relnotes/compact/compact-0-20-28-0',
+  },
+  {
     version: '0.26.0',
     compactVersion: '0.18.0',
-    status: 'LATEST',
+    status: 'UNSUPPORTED',
     date: '08 October 2025',
     summary: 'Summary of Release 0.26.0',
     details: [
@@ -37,10 +57,9 @@ const releases = [
     link: '/relnotes/compact/minokawa-0-18-26-0',
   },
   {
-    id: 2,
     version: '0.25.0',
     compactVersion: '0.17.0',
-    status: 'LATEST',
+    status: 'UNSUPPORTED',
     date: '13 August 2025',
     summary: 'Summary of Release 0.25.0',
     details: [
@@ -60,10 +79,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-17-25-0',
   },
   {
-    id: 3,
     version: '0.24.0',
     compactVersion: '0.16.0',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '11 June 2025',
     summary: 'Summary of Release 0.24.0',
     details: [
@@ -87,10 +105,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-16-24-0',
   },
   {
-    id: 4,
     version: '0.23.0',
     compactVersion: '0.15.0',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '25 April 2025',
     summary: 'Summary of Release 0.23.0',
     details: ['The maximum `Field` value has changed.', 'Trailing commas and semicolons are now allowed in more places.', 'Fix for incorrect `Field` arithmetic overflow and underflow.', 'Fix for a crash due to incorrect common subexpression elimination.', 'Fix for a crash when trying to cast to a ledger ADT type.', 'Fix for crashes involving large integer literals.'],
@@ -101,10 +118,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-15-23-0',
   },
   {
-    id: 5,
     version: '0.22.0',
     compactVersion: '0.14.0',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '12 March 2025',
     summary: 'Summary of Release 0.22.0',
     details: ['Fix for an issue in ZK proofs for `Uint` circuit parameters.', 'Fix for an issue preventing coin insertion into ledger ADTs.', 'Fix for a crash when compiling `insert_index_default` for `MerkleTree`.', 'Fix for a crash when compiling `insert_default` for some `Map`s.', 'Fix for a crash when type checking incorrect programs.', 'Fix for a rare crash when reading the input file.'],
@@ -115,10 +131,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-14-22-0',
   },
   {
-    id: 6,
     version: '0.21.0',
     compactVersion: '0.14.0',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '23 January 2025',
     summary: 'Summary of Release 0.21.0',
     details: ['Witness return values may need to be “disclosed”.', 'Square brackets construct TypeScript-compatible tuples.', 'You can use TypeScript-compatible destructuring.', 'The `Void` type is removed.', 'The syntax of `for` loops is aligned with TypeScript.', 'The `Cell` ledger ADT is now implicit.', 'Ledger ADT names are now part of the standard library.', 'Exported circuits are allowed to have the same name as witnesses.', 'We have improved syntax error messages.'],
@@ -129,10 +144,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-14-0',
   },
   {
-    id: 7,
     version: '0.20.0',
     compactVersion: '0.13.0',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '27 November 2024',
     summary: 'Summary of Release 0.20.0',
     details: ['Include search order has changed.', 'Modules can be imported from files.', 'The standard library is now a builtin module.', 'New structure creation syntax.', 'Spread syntax in structure creation.', 'The `new` keyword is removed.', 'Arrow circuit syntax for `map` and `fold`.', 'Anonymous circuit syntax is removed.', 'Sequence (“comma”) expressions allowed outside parentheses.', 'Improvements to error reporting.', 'The order of exported circuits is the same in TypeScript as in Compact.', 'The `install.sh` script is removed.', 'Bug fixes.'],
@@ -143,10 +157,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-13-0',
   },
   {
-    id: 8,
     version: '0.19.0',
     compactVersion: '0.11.0',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '18 October 2024',
     summary: 'Summary of Release 0.19.0',
     details: ['Generics now use angle brackets.', 'Size parameters in generics are prefixed with `#`.', '`Unsigned Integer` is changed to `Uint`.', 'Bounded unsigned integers have new syntax.', '`null()` for default values is now `default<>`.', '`map` and `fold expressions have different syntax.'],
@@ -157,10 +170,9 @@ const releases = [
     link: '/relnotes/compact/compact-0-11-0',
   },
   {
-    id: 9,
     version: '0.18.2',
     compactVersion: '0.10.1',
-    status: 'TESTNET',
+    status: 'UNSUPPORTED',
     date: '26 September 2024',
     summary: 'Summary of Release 0.18.2',
     artifacts: [
@@ -171,6 +183,10 @@ const releases = [
     link: '/relnotes/compact/compact-0-10-1',
   },
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Sort versions (latest first)
 const sortedVersions = releases
