@@ -17,8 +17,30 @@ import Link from '@docusaurus/Link';
 const releases = [
   {
     id: 1,
-    version: '3.0.0',
+    version: '4.0.0',
     status: 'LATEST',
+    date: '28 January 2026',
+    summary: 'Summary of v4.0.0',
+    details: [
+      "Complete API redesign from interface-based to type-based architecture.",
+      "Replaced `enable()`/`isEnabled()` connection model with network-aware `connect(networkId)`.",
+      "Removed dependencies on `@midnight-ntwrk/wallet-api` and `@midnight-ntwrk/zswap`.",
+      "Added proving delegation via `getProvingProvider()` method.",
+      "Added atomic swap support via `makeIntent()` method.",
+      "Added granular balance and address methods replacing single `state()` method.",
+      "Added new error codes: `PermissionRejected` and `Disconnected`.",
+      "Changed `APIError` from class to type for cross-boundary compatibility.",
+      "Added comprehensive specification documentation.",
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api/v/4.0.0' },
+    ],
+    link: '/relnotes/dapp-connector-api/dapp-connector-api-4-0-0',
+  },
+  {
+    id: 2,
+    version: '3.0.0',
+    status: 'DEPRECATED',
     date: '12 May 2025',
     summary: 'Summary of 3.0.0',
     details: [
@@ -30,7 +52,7 @@ const releases = [
     link: '/relnotes/dapp-connector-api/dapp-connector-api-3-0-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '2.0.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -44,7 +66,7 @@ const releases = [
     link: '/relnotes/dapp-connector-api/dapp-connector-api-2-0-0',
   },
   {
-    id: 3,
+    id: 4,
     version: '1.2.3',
     status: 'DEPRECATED',
     date: '10 January 2025',
