@@ -13,6 +13,7 @@
 
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
@@ -81,24 +82,45 @@ const releases = [
   },
 ];
 
-// Ensure versions are sorted with the latest at the top
-const sortedVersions = releases
-  .map(release => release.version)
-  .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-
-const versions = ['All', ...sortedVersions];
-
-// Extract unique statuses and keep "All" at the top
-const sortedStatuses = ['All', ...new Set(releases.map(release => release.status))];
-
-// Set latest version as default if releases exist
-const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
+// Helper to determine which release set to use
+function getVersionPrefix(pathname) {
+  const versionMatch = pathname.match(/^\/(next|\d+\.\d+\.\d+)(\/|$)/);
+  if (versionMatch) {
+    return versionMatch[1];
+  }
+  return 'current'; // Default for unversioned docs
+}
 
 const DynamicListWithDropdownFilters = () => {
+  const location = useLocation();
+  const docsVersion = getVersionPrefix(location.pathname);
+  
+  // Determine version prefix for links
+  const versionPrefix = docsVersion && docsVersion !== 'current' ? `/${docsVersion}` : '';
+  
+  // Add version prefix to all release links
+  const versionedReleases = releases.map(release => ({
+    ...release,
+    link: `${versionPrefix}${release.link}`
+  }));
+
+  // Ensure versions are sorted with the latest at the top
+  const sortedVersions = versionedReleases
+    .map(release => release.version)
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+  const versions = ['All', ...sortedVersions];
+
+  // Extract unique statuses and keep "All" at the top
+  const sortedStatuses = ['All', ...new Set(versionedReleases.map(release => release.status))];
+
+  // Set latest version as default if releases exist
+  const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
+  
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  const filteredReleases = releases.filter(
+  const filteredReleases = versionedReleases.filter(
     (release) =>
       (selectedVersion === 'All' || release.version === selectedVersion) &&
       (selectedStatus === 'All' || release.status === selectedStatus)
