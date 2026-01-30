@@ -1,0 +1,91 @@
+**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](README.md) \| API
+
+***
+
+# @midnight-ntwrk/onchain-runtime v0.2.2
+
+## Enumerations
+
+- [NetworkId](enumerations/NetworkId.md)
+
+## Classes
+
+- [ContractMaintenanceAuthority](classes/ContractMaintenanceAuthority.md)
+- [ContractOperation](classes/ContractOperation.md)
+- [ContractState](classes/ContractState.md)
+- [CostModel](classes/CostModel.md)
+- [QueryContext](classes/QueryContext.md)
+- [QueryResults](classes/QueryResults.md)
+- [StateBoundedMerkleTree](classes/StateBoundedMerkleTree.md)
+- [StateMap](classes/StateMap.md)
+- [StateValue](classes/StateValue.md)
+- [VmResults](classes/VmResults.md)
+- [VmStack](classes/VmStack.md)
+
+## Type Aliases
+
+- [AlignedValue](type-aliases/AlignedValue.md)
+- [Alignment](type-aliases/Alignment.md)
+- [AlignmentAtom](type-aliases/AlignmentAtom.md)
+- [AlignmentSegment](type-aliases/AlignmentSegment.md)
+- [BlockContext](type-aliases/BlockContext.md)
+- [CoinCommitment](type-aliases/CoinCommitment.md)
+- [CoinInfo](type-aliases/CoinInfo.md)
+- [CoinPublicKey](type-aliases/CoinPublicKey.md)
+- [ContractAddress](type-aliases/ContractAddress.md)
+- [DomainSeperator](type-aliases/DomainSeperator.md)
+- [Effects](type-aliases/Effects.md)
+- [EncodedStateValue](type-aliases/EncodedStateValue.md)
+- [Fr](type-aliases/Fr.md)
+- [GatherResult](type-aliases/GatherResult.md)
+- [Key](type-aliases/Key.md)
+- [Nonce](type-aliases/Nonce.md)
+- [Nullifier](type-aliases/Nullifier.md)
+- [Op](type-aliases/Op.md)
+- [QualifiedCoinInfo](type-aliases/QualifiedCoinInfo.md)
+- [Signature](type-aliases/Signature.md)
+- [SignatureVerifyingKey](type-aliases/SignatureVerifyingKey.md)
+- [SigningKey](type-aliases/SigningKey.md)
+- [TokenType](type-aliases/TokenType.md)
+- [Transcript](type-aliases/Transcript.md)
+- [Value](type-aliases/Value.md)
+
+## Functions
+
+- [bigIntModFr](functions/bigIntModFr.md)
+- [bigIntToValue](functions/bigIntToValue.md)
+- [checkProofData](functions/checkProofData.md)
+- [coinCommitment](functions/coinCommitment.md)
+- [decodeCoinInfo](functions/decodeCoinInfo.md)
+- [decodeCoinPublicKey](functions/decodeCoinPublicKey.md)
+- [decodeContractAddress](functions/decodeContractAddress.md)
+- [decodeQualifiedCoinInfo](functions/decodeQualifiedCoinInfo.md)
+- [decodeTokenType](functions/decodeTokenType.md)
+- [degradeToTransient](functions/degradeToTransient.md)
+- [dummyContractAddress](functions/dummyContractAddress.md)
+- [ecAdd](functions/ecAdd.md)
+- [ecMul](functions/ecMul.md)
+- [ecMulGenerator](functions/ecMulGenerator.md)
+- [encodeCoinInfo](functions/encodeCoinInfo.md)
+- [encodeCoinPublicKey](functions/encodeCoinPublicKey.md)
+- [encodeContractAddress](functions/encodeContractAddress.md)
+- [encodeQualifiedCoinInfo](functions/encodeQualifiedCoinInfo.md)
+- [encodeTokenType](functions/encodeTokenType.md)
+- [hashToCurve](functions/hashToCurve.md)
+- [leafHash](functions/leafHash.md)
+- [maxAlignedSize](functions/maxAlignedSize.md)
+- [maxField](functions/maxField.md)
+- [persistentCommit](functions/persistentCommit.md)
+- [persistentHash](functions/persistentHash.md)
+- [runProgram](functions/runProgram.md)
+- [sampleContractAddress](functions/sampleContractAddress.md)
+- [sampleSigningKey](functions/sampleSigningKey.md)
+- [sampleTokenType](functions/sampleTokenType.md)
+- [signData](functions/signData.md)
+- [signatureVerifyingKey](functions/signatureVerifyingKey.md)
+- [tokenType](functions/tokenType.md)
+- [transientCommit](functions/transientCommit.md)
+- [transientHash](functions/transientHash.md)
+- [upgradeFromTransient](functions/upgradeFromTransient.md)
+- [valueToBigInt](functions/valueToBigInt.md)
+- [verifySignature](functions/verifySignature.md)

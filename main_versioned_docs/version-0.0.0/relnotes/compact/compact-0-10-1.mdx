@@ -1,0 +1,309 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact compiler 0.18.2 (Compact language 0.10.1)
+displayed_sidebar: sidebar
+---
+
+# Compact compiler 0.18.2 (Compact language 0.10.1)
+
+Compact is Midnight's dedicated smart contract programming language, designed for building secure, efficient, and adaptable decentralized applications.
+
+Compact compiler translates Compact smart contract code into executable bytecode and proof-generating circuits.
+
+---
+
+<div 
+  style={{
+    marginTop: '0',
+    fontSize: '1rem',
+    fontWeight: 'normal',
+    marginBottom: '0.5rem'
+  }}
+>
+  26 September 2024
+</div>
+
+## Compact compiler 0.18.2 (Compact language 0.10.1) release notes
+
+Today we are releasing the Midnight public testnet. Along with the testnet, we are releasing version 0.10.1 of the Compact programming language and version 0.18.2 of the `compactc` compiler.
+
+This testnet release has several changes from language version 0.5.0 on the Midnight devnet. Some of these are breaking changes that will require developers to update their code.
+
+The rest of this document describes the changes to the language and compiler.
+
+## Summary of Changes
+- There is a new public ledger declaration syntax.
+- The `ledger` keyword is no longer used for ledger field access.
+- Ledger kernel operations are available on `kernel`.
+- Ledger-field update shortcuts are now statements.
+- Unsigned Integer sizes can now be generic.
+- There is better static typing of subtraction.
+- There is new precedence for the relational operators.
+- Generics can no longer be parameterized over generics.
+- The identifier `contract` is now a reserved word.
+- The `run-compactc.sh` shell script is renamed to `compactc`.
+
+---
+
+## New Public Ledger Declaration Syntax
+
+We have changed the way the public ledger is declared. Compact 0.5.0 had at most one `ledger` block in a contract. The `ledger` block included declarations of all the ledger fields. It had at most one constructor to initialize the contract’s public state. For example, from the Bulletin Board tutorial:
+
+```compact
+ledger {
+    state: Cell[STATE];
+    message: Cell[Maybe[Opaque["string"]]];
+    instance: Counter;
+    poster: Cell[Bytes[32]];
+    constructor() {
+        ledger.state = STATE.vacant;
+        ledger.message = none[Opaque["string"]]();
+        ledger.instance.increment(1);
+    }
+}
+```
+
+Note that this is the old ledger syntax.
+
+In Compact 0.10.1, the `ledger` block has been removed and there are separate declarations for each ledger field. These declarations can occur anywhere at the top level of a contract or anywhere in a module body. There is still at most one constructor and, if present, it must occur at the top level of a contract. The Bulletin Board public state declaration now looks like:
+
+```compact
+export ledger state: Cell[STATE];
+export ledger message: Cell[Maybe[Opaque["string"]]];
+export ledger instance: Counter;
+export ledger poster: Cell[Bytes[32]];
+
+constructor() {
+    state = STATE.vacant;
+    message = none[Opaque["string"]]();
+    instance.increment(1);
+}
+```
+
+### Key Changes
+
+- **Ledger fields are declared individually** with the keyword `ledger`. They still have a name and a type as before.
+- **Ledger fields are now in the same namespace** as other declarations, either at the top level of a contract or in a module. This means ledger field names can clash with other names, resulting in a compile-time error.
+- **Ledger fields can be optionally exported** by prefixing the declaration with the keyword `export`.
+- **Exported ledger fields** are accessible to code importing the module or the DApp’s TypeScript code, providing read-only access.
+- **Sealed ledger fields** can only be set during contract initialization using the `sealed` keyword. This ensures they are immutable after initialization.
+
+### Example with `sealed` Keyword
+
+```compact
+sealed ledger field1: Cell[Unsigned Integer[32]];
+export sealed ledger field2: Cell[Unsigned Integer[32]];
+
+circuit init(x: Unsigned Integer[32]): Void {
+    field2 = x;
+}
+
+constructor(x: Unsigned Integer[16]) {
+    field1 = 2 * x;
+    init(x);
+}
+```
+
+### Why We Made These Changes
+
+We wanted to give developers the flexibility to declare ledger fields wherever it made the most sense in their code. A ledger field can now be declared together with the circuits that access it. This allows for ledger fields that are local (or "private") to a module.
+
+### How to Fix Your Code
+
+This is a **breaking change**. The old ledger declaration syntax will not work. To update your code:
+
+1. Remove the `ledger` keyword from the declaration and the curly braces around the declaration body.
+2. Prefix ledger fields (but not the constructor) with `ledger` or `export ledger`.
+3. Ensure that ledger field names do not conflict with other names in the same namespace.
+
+The compiler will provide an error if names conflict. You may need to rename the ledger field or the conflicting declaration, updating both your contract code and the TypeScript implementation of your DApp if applicable.
+
+---
+
+## The `ledger` Keyword is No Longer Used for Ledger Field Access
+
+Along with the change to ledger declarations, there is a change to ledger field access. Compact 0.5.0 used the keyword `ledger` to refer to ledger fields, e.g., `ledger.fieldName.operation(...)`. Here, `ledger` is a keyword.
+
+In Compact 0.10.1, field names are visible as unqualified identifiers in the same namespace as their declaration. The same code would now be written as `fieldName.operation(...)`.
+
+### Why We Made This Change
+
+Because ledger fields are now top-level or module-level declarations, there is no strong reason to require their names to be prefixed with a keyword.
+
+### How to Fix Your Code
+
+This is a **breaking change**. The `ledger` keyword will no longer work for field access. Update your code by:
+
+- Removing the `ledger` keyword and the dot (`.`) from ledger field accesses.
+- Ensuring that ledger field names are not shadowed by other declarations. If shadowing occurs, rename either the ledger field or the conflicting declaration.
+
+---
+
+## Ledger Kernel Operations are Available on `kernel`
+
+The Midnight ledger includes kernel operations, which are conceptually top-level operations on the ledger, independent of a particular field. In Compact 0.5.0, these used the `ledger` keyword, e.g., `ledger.kernelOperation(...)`.
+
+In Compact 0.10.1, kernel operations are accessed without the `ledger` keyword. Instead, there is a `kernel` ledger field (of type `Kernel`) in the standard library. Example:
+
+```compact
+kernel.kernelOperation(...);
+```
+
+### Why We Made This Change
+
+This change is part of removing the `ledger` syntax from ledger accesses to streamline the language’s syntax.
+
+### How to Fix Your Code
+
+This is a **breaking change**. Update your code by:
+
+1. Including the standard library if it wasn’t already.
+2. Replacing the `ledger` keyword with the identifier `kernel`.
+
+Ensure that `kernel` is not shadowed by other declarations in your code.
+
+---
+
+## Ledger-Field Update Shortcuts Are Now Statements
+
+Both Compact 0.5.0 and Compact 0.10.1 provide shortcuts for ledger write, increment, and decrement operations:
+
+```compact
+ledgerFieldAccess = expr;  // Equivalent to ledgerFieldAccess.write(expr)
+ledgerFieldAccess += expr; // Equivalent to ledgerFieldAccess.increment(expr)
+ledgerFieldAccess -= expr; // Equivalent to ledgerFieldAccess.decrement(expr)
+```
+
+In Compact 0.5.0, these shortcuts were expressions. In Compact 0.10.1, they are now statements.
+
+### Why We Made This Change
+
+These shortcuts have type `Void` and are used solely for their effect. As such, it makes more sense for them to be statements rather than expressions.
+
+### How to Fix Your Code
+
+This is a **breaking change**. Code using these shortcuts outside of statement contexts must be rewritten to use them only in statement contexts.
+
+---
+
+## Unsigned Integer Sizes Can Now Be Generic
+
+In Compact 0.5.0, the types `Unsigned Integer[<= k]` and `Unsigned Integer[k]` were valid only if `k` was a numeric literal.
+
+In Compact 0.10.1, `k` can either be a numeric literal or a generic parameter name, as illustrated by the following example:
+
+```compact
+circuit f[n](x: Unsigned Integer[8], y: Unsigned Integer[n]): Unsigned Integer[n] {
+    return x < 16 ? y : y - x;
+}
+```
+
+### Why We Made This Change
+
+The Compact 0.5.0 limitation served no purpose, and the generalization is consistent with the ability to use generics for `Bytes` and `Vector` lengths.
+
+### How to Fix Your Code
+
+This is strictly a generalization of the old syntax, so no changes should be necessary. Code that was previously replicated merely to handle multiple `Unsigned Integer` sizes or maximum values might now be generalizable by taking advantage of this change, but doing so is not necessary.
+
+---
+
+## Better Static Typing of Subtraction
+
+In Compact 0.5.0, a subtraction expression of the form `a - b` where `a` had type `Unsigned Integer[<= m]` and `b` had type `Unsigned Integer[<= n]`, resulted in a type `Unsigned Integer[<= k]` where `k` was the maximum of `m` and `n`.
+
+In Compact 0.10.1, the same operation will have type `Unsigned Integer[<= m]`. Clearly, if the subtraction does not underflow (i.e., give a negative result, which is a runtime error), the result will be bounded by `m`.
+
+### Why We Made This Change
+
+The previous typing was due to the way we implemented subtraction in the ZK proof. We changed this to provide a more precise bound on the result type.
+
+### How to Fix Your Code
+
+It should not be necessary to change anything. `Unsigned Integer[<= m]` is always a subtype of `Unsigned Integer[<= k]` where `k` is the maximum of `m` and some other bound `n`. If you had variables declared as `Unsigned Integer[<= k]`, the compiler will now insert an upcast to that type (which always succeeds and has no runtime effect).
+
+---
+
+## New Precedence for Relational Operators
+
+In Compact 0.5.0, all relational operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) had the same precedence and were left associative. For example, `a < b == c > d` parsed as `((a < b) == c) > d`, which is a type error because the greater than (`>`) comparison requires a numeric type and the result of the equality comparison (`==`) is a non-numeric Boolean type.
+
+In Compact 0.10.1, `==` and `!=` now have lower precedence than the other relational operators. All relational operators remain left associative. The expression above will now parse as `(a < b) == (c > d)`.
+
+### Why We Made This Change
+
+This change aligns the precedence of these operators with TypeScript and JavaScript, allowing programmers to omit some parentheses while maintaining expected behavior.
+
+### How to Fix Your Code
+
+It should not be necessary to change anything. The default unparenthesized parsing of chains of comparisons would have resulted in a type error in Compact 0.5.0. You might now be able to remove some redundant parentheses, but this is not required.
+
+---
+
+## Generics Can No Longer Be Parameterized Over Generics
+
+In Compact 0.5.0, you could declare a generic like a struct, circuit, witness, or module parameterized over another generic. For example:
+
+```compact
+struct Foo[F] {
+    x: F[Field];
+}
+```
+
+In Compact 0.10.1, this feature has been removed. Generics can only be parameterized over types and natural number literals.
+
+### Why We Made This Change
+
+This feature lacked a direct analog in TypeScript and did not work for exported structs. Instead of limiting its use to unexported structs, we’ve removed it for now.
+
+### How to Fix Your Code
+
+This is a **breaking change**. If you were using this feature, you will need to:
+
+1. Collect the different generic types you were specializing a generic with.
+2. Create non-generic versions for each of those types, effectively "splitting" the generic into non-generic versions for each specialization.
+
+This may cause cascading changes to the uses of those generics.
+
+---
+
+## The Identifier `contract` Is Now a Reserved Word
+
+In Compact 0.5.0, you could use the name `contract` as a normal identifier (e.g., module name, type name, circuit name, parameter name, etc.).
+
+In Compact 0.10.1, `contract` is now a reserved word.
+
+### Why We Made This Change
+
+We are adding support for contracts to call other contracts. The newly reserved word `contract` is used in the (as yet undocumented and not fully functional) syntax for contract-type declarations.
+
+### How to Fix Your Code
+
+This is a **breaking change**. Any use of `contract` as an identifier must be replaced with a different name.
+
+---
+
+## The `run-compactc.sh` Shell Script Is Renamed to `compactc`
+
+On the Midnight devnet, the compiler was invoked using the `run-compactc.sh` shell script. For the testnet, this script has been renamed to `compactc`.
+
+The compiler binary itself, previously named `compactc`, has also been renamed. Users should not invoke the compiler binary directly.
+
+### Why We Made This Change
+
+The shell script wraps the compiler invocation to correctly set environment variables. Directly invoking the compiler binary without these environment variables results in errors such as:
+
+- Inability to find the standard library.
+- Inability to generate ZK proof output from the compiler.
+
+Renaming makes it clear that the shell script is the intended command-line interface to the compiler.
+
+### How to Fix Your Code
+
+If you were invoking `run-compactc.sh`, either directly or in a script/alias, you will need to update it to invoke `compactc` instead.
+
+## Artifacts
+
+- [Compiler Linux](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.18.2/compactc-linux.zip)
+- [Compiler macOS](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.18.2/compactc-macos.zip)
