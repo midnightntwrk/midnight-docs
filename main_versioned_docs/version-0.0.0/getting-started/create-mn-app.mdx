@@ -1,0 +1,204 @@
+---
+title: Create an MN app
+description: Get started using Midnight applications. Set up your wallet, get tokens, and start using privacy-preserving DApps.
+sidebar_position: 2
+sidebar_label: Create an MN App
+tags: [getting-started, setup, user, wallet, ZK]
+slug: /getting-started/create-mn-app
+toc_max_heading_level: 2
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Create a Midnight Network app
+
+A Midnight Network (MN) app is a privacy-preserving DApp that uses zero-knowledge proofs (ZKPs) to maintain data confidentiality. The core value proposition is selective disclosure, which allows users to prove specific information while keeping other sensitive data private.
+
+## Quick start with create-mn-app
+
+The [`create-mn-app`](https://www.npmjs.com/package/create-mn-app) CLI tool scaffolds Midnight Network applications with zero configuration. The tool provides a preconfigured TypeScript setup, hot reloading, and wallet generation, with automatic dependency management for Node.js, Docker, and the Compact compiler. To install, run the following commands:
+
+```bash
+npx create-mn-app my-app
+cd my-app
+npm run setup
+```
+
+Available templates include Hello World (message storage) and Counter DApp (increment/decrement with zkProofs). Additional templates for Bulletin Board, DEX, and Midnight Kitties are in development.
+
+For manual setup, follow these steps:
+
+## Prerequisites
+
+The following software and tools are required:
+
+- **Node.js**: Version 20.x or higher. Install Node.js using [NVM](https://github.com/nvm-sh/nvm).
+  ```bash
+  nvm install 20
+  ```
+- **Command-line knowledge**: Basic familiarity with terminal operations.
+- **Code editor**: An IDE such as [Visual Studio Code](https://code.visualstudio.com).
+
+## Create a project
+
+<StepsProvider>
+<Step>
+
+**Initialize the project.** Create a project folder, navigate to the folder, and initialize an npm project. The `-y` flag accepts all default settings.
+
+```bash
+mkdir my-mn-app
+cd my-mn-app
+npm init -y
+```
+
+</Step>
+<Step>
+
+**Create the required directories.** The project requires separate folders for smart contracts and application source code.
+
+```bash
+mkdir src contracts
+```
+
+The project structure now appears as follows:
+
+```bash
+my-mn-app/
+├── contracts/
+├── src/
+└── package.json
+```
+
+</Step>
+<Step>
+
+**Create the contract file.** Create a file named `hello-world.compact` in the contracts directory.
+
+```bash
+touch contracts/hello-world.compact
+```
+
+</Step>
+</StepsProvider>
+
+## Add the pragma language version directive
+
+The `pragma language_version` directive specifies the Compact language version with which the contract is compatible. While optional, using this directive is recommended to protect against breaking changes when new language versions are released.
+
+Until Compact 1.0, minor version updates may include breaking changes. Specifying the exact language version ensures that semantic changes in future versions do not inadvertently affect your contract's behavior.
+
+<StepsProvider start={4}>
+<Step>
+
+**Add the pragma directive.** Add the following line to the top of `contracts/hello-world.compact`. This directive specifies language version `0.17`.
+
+```compact
+pragma language_version 0.17;
+```
+
+</Step>
+</StepsProvider>
+
+## Define the ledger declaration
+
+The `ledger` section defines the on-chain state variables for a contract. This section functions as a schema for data stored permanently on the blockchain. Variables can be marked with `export` to make them accessible from a DApp.
+
+**Syntax:**
+
+```compact
+ledger <identifier>: <type>;
+export ledger <identifier>: <type>;
+```
+
+This contract uses the `Opaque<"string">` type, which stores variable-length strings while preserving privacy.
+
+<StepsProvider start={5}>
+<Step>
+
+**Create the ledger declaration.** This line reserves on-chain storage for a string variable named `message`.
+
+```compact
+pragma language_version 0.17;
+
+export ledger message: Opaque<"string">;
+```
+
+</Step>
+</StepsProvider>
+
+## Define the circuit
+
+Circuits are the functions of a Compact smart contract and are compiled directly into a zero-knowledge circuit. Circuits can accept parameters, perform computations, and modify the contract state. Circuits marked with `export` can be called from external applications.
+
+**Syntax:**
+
+```compact
+circuit <name>(<parameters>): <return_type> { <body> }
+export circuit <name>(<parameters>): <return_type> { <body> }
+```
+
+<StepsProvider start={6}>
+<Step>
+
+**Define the storeMessage circuit.** This circuit accepts a custom message as input and stores the message in the `message` state variable.
+
+```compact
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+  message = disclose(customMessage);
+}
+```
+
+:::info Why disclose is required
+Compact enforces privacy by default. All user input is considered private unless explicitly made public. The `disclose` operator indicates that the message is intentionally visible on the public ledger.
+:::
+
+</Step>
+</StepsProvider>
+
+The complete `hello-world.compact` contract appears as follows:
+
+```compact
+pragma language_version 0.17;
+
+export ledger message: Opaque<"string">;
+
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+  message = disclose(customMessage);
+}
+```
+
+## Compile the smart contract
+
+Compiling a Compact contract transforms the high-level logic into zero-knowledge circuits, generates cryptographic keys, and creates TypeScript APIs for the DApp frontend. This process enforces Midnight's privacy and security guarantees.
+
+<StepsProvider start={7}>
+<Step>
+
+**Compile the contract.** Run the following command from the project root directory.
+
+```bash
+compact compile contracts/hello-world.compact contracts/managed/hello-world
+```
+
+This command generates the necessary artifacts in the `contracts/managed/hello-world` directory. The generated structure appears as follows:
+
+```
+contracts/
+└── managed
+    └── hello-world
+        ├── compiler
+        ├── contract
+        ├── keys
+        └── zkir
+```
+
+- `contract/`: Contains the compiled contract artifacts, including JSON files required for deployment and frontend integration.
+- `keys/`: Stores the cryptographic proving and verifying keys for the zero-knowledge proofs.
+- `zkir/`: Contains the Zero-Knowledge Intermediate Representation of the circuit, which bridges the Compact code to the ZK backend.
+- `compiler/`: Holds intermediate files used by the compiler during the build process.
+
+</Step>
+</StepsProvider>

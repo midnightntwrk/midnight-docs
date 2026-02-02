@@ -13,12 +13,30 @@
 
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
     id: 1,
-    version: '0.3.0',
+    version: '0.4.0',
     status: 'LATEST',
+    date: '21 January 2026',
+    summary: 'Summary of Release 0.4.0',
+    details: [
+      'Fixup subcommand interface has changed',
+      'New fixup `--check` mode',
+      'Correctly report fixup and format `--version`',
+      'Fixup and format now support `--language-version`'
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.4.0' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-4-0',
+  },
+  {
+    id: 2,
+    version: '0.3.0',
+    status: 'UNSUPPORTED',
     date: '5 December 2025',
     summary: 'Summary of Release 0.3.0',
     details: [
@@ -30,7 +48,7 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-3-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '0.2.0',
     status: 'UNSUPPORTED',
     date: '15 August 2025',
@@ -45,7 +63,7 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-2-0',
   },
   {
-    id: 3,
+    id: 4,
     version: '0.1.0',
     status: 'UNSUPPORTED',
     date: '31 July 2025',
@@ -73,11 +91,32 @@ const sortedStatuses = ['All', ...new Set(releases.map(release => release.status
 // Set latest version as default if releases exist
 const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
 
+// Helper to determine version prefix from pathname
+function getVersionPrefix(pathname) {
+  const versionMatch = pathname.match(/^\/(next|\d+\.\d+\.\d+)(\/|$)/);
+  if (versionMatch) {
+    return versionMatch[1];
+  }
+  return 'current';
+}
+
 const DynamicListWithDropdownFilters = () => {
+  const location = useLocation();
+  const docsVersion = getVersionPrefix(location.pathname);
+  
+  // Determine version prefix for links
+  const versionPrefix = docsVersion && docsVersion !== 'current' ? `/${docsVersion}` : '';
+  
+  // Add version prefix to all release links
+  const versionedReleases = releases.map(release => ({
+    ...release,
+    link: `${versionPrefix}${release.link}`
+  }));
+
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  const filteredReleases = releases.filter(
+  const filteredReleases = versionedReleases.filter(
     (release) =>
       (selectedVersion === 'All' || release.version === selectedVersion) &&
       (selectedStatus === 'All' || release.status === selectedStatus)

@@ -1,0 +1,134 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+id: ledgers
+---
+
+# Ledgers
+
+If you're coming from Ethereum or other EVM chains, you're about to encounter one of the most fundamental differences in blockchain architecture. The choice between Account and UTXO models isn't just an implementation detail—it's a foundational decision that affects everything from how tokens are tracked to what kinds of applications you can build.
+
+Midnight is a data-protecting blockchain that chose the UTXO model as its foundation for good reasons—it enables the privacy features, parallelism, and efficiency that make Midnight unique. But here's what makes Midnight special: while it's built on UTXO principles, it also supports account-style tokens through smart contracts. This unique approach gives you unprecedented flexibility, and it all starts with understanding these two fundamental models.
+
+## The fundamental difference
+
+In blockchain, you track who owns what. There are two primary approaches, and they represent fundamentally different philosophies about digital ownership:
+
+
+| Model         | Core Concept                            | State Management                          | Examples                     |
+|---------------|------------------------------------------|--------------------------------------------|------------------------------|
+| Account Model | Persistent accounts with balances        | Global state updated in-place              | Ethereum, Polygon, BSC       |
+| UTXO Model    | Individual coins (outputs) that are spent| State transitions via consumption/creation | Bitcoin, Cardano, Midnight   |
+
+The **Account Model** is what you know from Ethereum. Think of it like a giant spreadsheet where each row is an address and the balance column gets updated with every transaction. Each address has a persistent account with a balance that gets modified. When you send tokens, the system subtracts from one balance and adds to another. It's exactly like a bank account—straightforward and familiar.
+
+The **UTXO Model (Unspent Transaction Output)** is what Bitcoin pioneered and what Midnight uses as its foundation. Instead of tracking balances in a spreadsheet, the system tracks individual "coins" or "bills." Each UTXO is like a discrete bill in your wallet with a specific value and owner. When you spend tokens, you consume entire UTXOs and create new ones—just like using physical cash where you hand over bills and receive change. There's no "balance" stored anywhere; your balance is simply the sum of all UTXOs you own.
+
+## Why This Matters for Token Development
+
+Here's where Midnight becomes truly innovative. While other blockchains force you into one model or the other, Midnight recognizes that different applications have different needs. The platform supports both approaches to tokens, giving you unprecedented architectural flexibility:
+
+**Ledger Tokens (UTXO-based)** - These are native to Midnight's blockchain ledger itself. NIGHT tokens—Midnight's native utility token—are the prime example. NIGHT tokens exist as individual UTXOs directly on the ledger and serve a special purpose: they generate DUST, the renewable resource that powers all transactions on Midnight. Each NIGHT token UTXO has a specific value and owner, and spending them follows the UTXO pattern of consuming inputs and creating outputs. This UTXO structure is crucial because it enables Midnight's privacy features—individual UTXOs can be shielded or unshielded as needed.
+
+**Contract Tokens (Account-based)** - These live inside smart contracts written in Compact (Midnight's smart contract language) and work just like ERC-20 tokens you know from Ethereum. The contract maintains a mapping of addresses to balances, and transfers simply update these balance numbers. These tokens follow OpenZeppelin-style standards adapted for Compact, so if you're comfortable with Solidity token development, contract tokens will feel immediately familiar. Contract tokens can also support both shielded and unshielded operations, giving you privacy options even within the account model.
+
+This flexible approach gives you the best of both worlds. You're not forced to shoehorn your application into a model that doesn't fit—you can choose the right tool for each specific need.
+
+## Concrete Comparison
+
+Let's see how a simple token transfer differs between the two models. This example will help solidify your understanding.
+
+### Account Model (Ethereum-style)
+
+When you send 40 ETH from Alice to Bob:
+
+```solidity
+// Conceptually, the ledger does this:
+// Before: Alice = 100 ETH, Bob = 50 ETH
+accounts[Alice].balance -= 40;
+accounts[Bob].balance += 40;
+// After: Alice = 60 ETH, Bob = 90 ETH
+
+// The state is modified in-place
+// Both accounts must exist in the global state
+```
+
+The ledger maintains a global database of all account balances, updating them in place. Every account that has ever received tokens must be tracked forever.
+
+### UTXO Model (Midnight-style)
+
+When Alice sends 40 NIGHT tokens to Bob:
+
+```compact
+// Alice has a 100 NIGHT UTXO
+// Transaction consumes it entirely and creates new ones:
+transaction = {
+    inputs: [
+        { value: 100, owner: Alice, id: "utxo_123" }  // Consumed entirely
+    ],
+    outputs: [
+        { value: 40, owner: Bob },      // Payment to Bob (new UTXO)
+        { value: 60, owner: Alice }     // Change back to Alice (new UTXO)
+    ]
+}
+
+// Old UTXO is marked as spent, new UTXOs are created
+// No balances are updated - only coin ownership changes
+```
+
+No balances are updated. Instead, Alice's 100 NIGHT UTXO is marked as spent (destroyed) and two new UTXOs are created. This is exactly like paying with a $100 bill for a $40 item—you get $60 in change.
+
+## The Architectural Impact
+
+This fundamental difference in how value is tracked creates profound implications for scalability, privacy, and application design. Understanding these impacts will help you make better architectural decisions for your Midnight applications.
+
+## Parallelism and Performance
+
+The UTXO model's structure naturally enables parallel transaction processing. Since each UTXO is independent, transactions using different UTXOs can process simultaneously. In theory, if Alice has 10 different UTXOs, she can send them to 10 different people in parallel transactions. This is like having multiple cashiers instead of one—dramatically improving throughput.
+
+In contrast, account-based systems must process transactions touching the same account sequentially. Every transaction modifies the same balance, creating a natural bottleneck. For Midnight, the UTXO foundation means the network can handle much higher transaction volumes without the congestion issues that plague account-based chains during peak usage.
+
+## Privacy Through Architecture
+
+Midnight's approach to privacy is thoughtful and compliance-friendly. Unlike privacy coins that enforce anonymity, Midnight offers "rational privacy"—users can choose to use shielded tokens when needed while still maintaining the ability to comply with regulations when required, via viewing keys (special keys that a user can create, that allow read only access to shielded transactions)
+
+The UTXO model makes this possible because each coin is independent. You can used shielded UTXOs without affecting others. You can reveal certain transactions for compliance while keeping others private. This granular control isn't feasible in account models where all activity is tied to one persistent address.
+
+This privacy capability extends to both ledger tokens (UTXO-based) and contract tokens (account-based) [COMING SOON], though the implementation differs. Ledger tokens can be individually shielded at the UTXO level, while contract tokens achieve privacy through Midnight's unique approach to private smart contract state—but we'll explore that in later lessons.
+
+## State Management and Efficiency
+
+Account systems, must maintain an ever-growing global state. Every account that has ever existed must be tracked forever, even if it holds zero balance. This leads to state bloat that makes running nodes increasingly expensive over time—a problem Ethereum and similar chains constantly battle.
+
+
+## The Mental Model Shift
+
+For developers coming from Ethereum, the biggest adjustment is thinking about value differently. This shift is crucial for designing efficient applications on Midnight:
+
+| Your Current Thinking                          | The UTXO Thinking                            | Why It Matters                             |
+|------------------------------------------------|-----------------------------------------------|--------------------------------------------|
+| "Check my account balance"                     | "Count my unspent coins"                      | No single point of failure for privacy     |
+| "Update the sender and receiver balances"      | "Consume inputs, create outputs"              | Enables atomic operations                  |
+| "Transaction failed due to insufficient balance"| "Not enough UTXOs to cover the amount"        | Better error handling and fee management   |
+| "Gas fees are deducted from my account"        | "I need DUST (generated by NIGHT) for transaction fees" | More explicit resource management |
+| "One address = one identity"                   | "Many UTXOs = flexible identity"              | Enhanced privacy options                   |
+
+This shift becomes even more interesting when you realize that Midnight's smart contracts execute off-chain with proof generation. Instead of every node re-executing your contract code, Midnight uses zero-knowledge circuits to prove correct execution. This means you need to think about your application logic in terms of provable computations—but don't worry, we'll guide you through this in future lessons.
+
+## Choosing the Right Token Type
+
+Understanding these models isn't academic—it's practical preparation for building on Midnight. The choice between ledger tokens and contract tokens will be one of your first and most important decisions:
+
+| Use Case                   | Best Choice               | Why This Model Works                        | Example Applications                          |
+|----------------------------|---------------------------|----------------------------------------------|-----------------------------------------------|
+| High-volume payments       | Ledger Tokens (UTXO)      | Parallel processing of transactions          | Payment processors, remittance systems        |
+| Private transactions       | Ledger Tokens (UTXO)      | Individual UTXOs can be shielded             | Confidential transfers, private auctions      |
+| Cross-chain bridges        | Ledger Tokens (UTXO)      | Atomic operations, clear ownership           | Bridge protocols, wrapped assets              |
+| Complex DeFi logic         | Contract Tokens (Account) | Rich state management capabilities           | AMMs, lending protocols, yield farming        |
+| Gaming mechanics           | Contract Tokens (Account) | Complex rules and interactions               | In-game currencies, item crafting             |
+| Governance systems         | Contract Tokens (Account) | Voting weights and delegation                | DAOs, protocol governance                     |
+| Compliance-friendly assets | Both (Hybrid approach)    | Transparent base with private options        | Securities, regulated stablecoins             |
+
+Remember, you're not forced to choose one model forever. You can use UTXO-based ledger tokens when you need the performance and privacy benefits, and account-based contract tokens when you need familiar programming patterns. You can even use both in the same application!
+
+
