@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -10,8 +10,7 @@
 function dummyContractAddress(): string;
 ```
 
-A sample contract address, guaranteed to be the same for a given network ID
-for use in testing
+A sample contract address
 
 ## Returns
 

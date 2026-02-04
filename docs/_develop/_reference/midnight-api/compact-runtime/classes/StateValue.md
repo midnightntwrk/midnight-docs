@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -42,24 +42,24 @@ arrayPush(value): StateValue;
 ### asArray()
 
 ```ts
-asArray(): undefined | StateValue[];
+asArray(): StateValue[] | undefined;
 ```
 
 #### Returns
 
-`undefined` \| `StateValue`[]
+`StateValue`[] \| `undefined`
 
 ***
 
 ### asBoundedMerkleTree()
 
 ```ts
-asBoundedMerkleTree(): undefined | StateBoundedMerkleTree;
+asBoundedMerkleTree(): StateBoundedMerkleTree | undefined;
 ```
 
 #### Returns
 
-`undefined` \| [`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md) \| `undefined`
 
 ***
 
@@ -78,12 +78,12 @@ asCell(): AlignedValue;
 ### asMap()
 
 ```ts
-asMap(): undefined | StateMap;
+asMap(): StateMap | undefined;
 ```
 
 #### Returns
 
-`undefined` \| [`StateMap`](StateMap.md)
+[`StateMap`](StateMap.md) \| `undefined`
 
 ***
 
@@ -97,7 +97,7 @@ encode(): EncodedStateValue;
 
 #### Returns
 
-`EncodedStateValue`
+[`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
 
 ***
 
@@ -134,12 +134,12 @@ toString(compact?): string;
 ### type()
 
 ```ts
-type(): "map" | "null" | "cell" | "array" | "boundedMerkleTree";
+type(): "cell" | "map" | "array" | "null" | "boundedMerkleTree";
 ```
 
 #### Returns
 
-`"map"` \| `"null"` \| `"cell"` \| `"array"` \| `"boundedMerkleTree"`
+`"cell"` \| `"map"` \| `"array"` \| `"null"` \| `"boundedMerkleTree"`
 
 ***
 
@@ -155,7 +155,7 @@ static decode(value): StateValue;
 
 ##### value
 
-`EncodedStateValue`
+[`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
 
 #### Returns
 

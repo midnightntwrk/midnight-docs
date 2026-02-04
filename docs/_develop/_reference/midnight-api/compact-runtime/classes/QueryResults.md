@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -34,7 +34,7 @@ Any events/results that occurred during or from the query
 ### gasCost
 
 ```ts
-readonly gasCost: bigint;
+readonly gasCost: RunningCost;
 ```
 
 The measured cost of executing the query
