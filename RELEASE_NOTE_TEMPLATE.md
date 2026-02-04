@@ -15,7 +15,7 @@ Example: “This release updates the Compact compiler to 0.27, introduces ledger
 
 This release note is critical for developers who:
 
-- e.g., run a node on Preview
+- for example, run a node on Preview
 - use Compact compiler or SDK version X
 - maintain infrastructure for Testnet environments
 
