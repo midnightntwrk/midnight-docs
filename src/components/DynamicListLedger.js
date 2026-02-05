@@ -13,12 +13,33 @@
 
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
     id: 1,
-    version: '4.0.0',
+    version: '7.0.0',
     status: 'LATEST',
+    date: '27 January 2026',
+    summary: 'Summary of Release 7.0.0',
+    details: [
+      'Switched to Midnight SRS and midnight-zk 1.0.',
+      'Introduced `addCalls` endpoint for transcript partitioning with Zswap components.',
+      'Changed pricing structure to use overall cost with dimension weightings.',
+      'Completely disabled treasury access.',
+      'Fixed multiple critical bugs including token type computation, contract balancing.',
+      'Applied security audit fixes from Least Authority.',
+    ],    
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger-v7' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnight-ntwrk/onchain-runtime-v2' },
+    ],
+    link: '/relnotes/ledger/ledger-7-0-0',
+  },
+  {
+    id: 2,
+    version: '4.0.0',
+    status: 'DEPRECATED',
     date: '12 May 2025',
     summary: 'Summary of Release 4.0.0',
     details: [
@@ -37,7 +58,7 @@ const releases = [
     link: '/relnotes/ledger/ledger-4-0-0',
   },
   {
-    id: 2,
+    id: 3,
     version: '3.0.6',
     status: 'DEPRECATED',
     date: '22 January 2025',
@@ -83,11 +104,32 @@ const sortedStatuses = ['All', ...new Set(releases.map(release => release.status
 // Set latest version as default if releases exist
 const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
 
+// Helper to determine version prefix from pathname
+function getVersionPrefix(pathname) {
+  const versionMatch = pathname.match(/^\/(next|\d+\.\d+\.\d+)(\/|$)/);
+  if (versionMatch) {
+    return versionMatch[1];
+  }
+  return 'current';
+}
+
 const DynamicListWithDropdownFilters = () => {
+  const location = useLocation();
+  const docsVersion = getVersionPrefix(location.pathname);
+  
+  // Determine version prefix for links
+  const versionPrefix = docsVersion && docsVersion !== 'current' ? `/${docsVersion}` : '';
+  
+  // Add version prefix to all release links
+  const versionedReleases = releases.map(release => ({
+    ...release,
+    link: `${versionPrefix}${release.link}`
+  }));
+
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  const filteredReleases = releases.filter(
+  const filteredReleases = versionedReleases.filter(
     (release) =>
       (selectedVersion === 'All' || release.version === selectedVersion) &&
       (selectedStatus === 'All' || release.status === selectedStatus)
