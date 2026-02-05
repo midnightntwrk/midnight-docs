@@ -4,7 +4,7 @@
 
 * **Version**: version number  
 * **Date**: YYYY-MM-DD  
-* **Environment**: preview | testnet | mainnet-when-ready
+* **Environment**: Preview | PreProd | Mainnet (when ready)
 
 ## High-level summary 
 
@@ -15,9 +15,9 @@ Example: “This release updates the Compact compiler to 0.27, introduces ledger
 
 This release note is critical for developers who:
 
-- for example, run a node on Preview
-- use Compact compiler or SDK version X
-- maintain infrastructure for Testnet environments
+- For example, run a node on Preview
+- Use Compact compiler or SDK version X
+- Maintain infrastructure for Testnet environments
 
 ## What changed (Summary of updates)
 
@@ -71,11 +71,11 @@ List APIs, functions, flags, or semantics being phased out.
 
 For each item, include:
 
-- what is deprecated
-- when the deprecation begins
-- when it will be removed
-- what developers should use instead
-- migration notes
+- What is deprecated
+- When the deprecation begins
+- When it will be removed
+- What developers should use instead
+- Migration notes
 
 **Deprecated item**: <API/function/feature>
 
@@ -105,6 +105,8 @@ Below is a list of breaking changes and required actions for developers.
 
 ## Known issues
 
+The following issues are known at the time of release: 
+
 ### Issue name
 
 **Description**: <what's affected + conditions>  
@@ -112,11 +114,11 @@ Below is a list of breaking changes and required actions for developers.
 
 ## Links and references
 
-- PRs: <link>
-- Engineering docs: <link>
-- Migration guides: <link>
-- SDK docs: <link>
-- Known issues board: <link>
+- **PRs**: <link>
+- **Engineering docs**: <link>
+- **Migration guides**: <link>
+- **SDK docs**: <link>
+- **Known issues board**: <link>
 
 ## Fixed defect list
 
