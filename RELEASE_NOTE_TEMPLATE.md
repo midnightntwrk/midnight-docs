@@ -15,11 +15,11 @@ Example: “This release updates the Compact compiler to 0.27, introduces ledger
 
 This release note is critical for developers who:
 
-- For example, run a node on Preview
-- Use Compact compiler or SDK version X
-- Maintain infrastructure for Testnet environments
+- For example, run a node on Preview.
+- Use Compact compiler or SDK version X.
+- Maintain infrastructure for Testnet environments.
 
-## What changed (Summary of updates)
+## What changed
 
 high-level list of new features, improvements, fixes
 
@@ -58,7 +58,7 @@ Non-breaking enhancements.
 
 **Improvement**: <name>
 
-**Description**: <explain the enhancement, UX lift, performance gain, etc.>
+**Description**: <explain the enhancement, UX lift, performance gain, and so on.>
 
 Example:
 
