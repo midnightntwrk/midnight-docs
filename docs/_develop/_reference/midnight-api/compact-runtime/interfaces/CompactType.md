@@ -1,18 +1,18 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
 [@midnight-ntwrk/compact-runtime](../globals.md) / CompactType
 
-# Interface: CompactType\<a\>
+# Interface: CompactType\<A\>
 
 A runtime representation of a type in Compact
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Methods
 
@@ -33,7 +33,7 @@ The field-aligned binary alignment of this type.
 ### fromValue()
 
 ```ts
-fromValue(value): a;
+fromValue(value): A;
 ```
 
 Converts this type's field-aligned binary representation to its TypeScript
@@ -48,7 +48,7 @@ ignoring superflous data for chaining.
 
 #### Returns
 
-`a`
+`A`
 
 ***
 
@@ -65,7 +65,7 @@ representation
 
 ##### value
 
-`a`
+`A`
 
 #### Returns
 
