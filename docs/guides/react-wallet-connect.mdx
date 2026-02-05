@@ -4,41 +4,57 @@ description: Learn how to create a React application that connects to a wallet u
 sidebar_position: 3
 sidebar_label: Create a React wallet connector
 tags: [wallet, react, tutorial]
-slug: /how-to/react-wallet-connect
+# slug: /how-to/react-wallet-connect
+redirects:
+  - /how-to/react-wallet-connect
 toc_max_heading_level: 2
 ---
 
 import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
-# Build a React wallet connector
+In this guide, you'll create a React application that connects to the Midnight Lace wallet using the DApp Connector API. 
+You'll build a simple interface that displays connection status and wallet addresses, providing a foundation for more complex decentralized applications.
 
-Create a React application that connects to a wallet using the Midnight DApp Connector API.
-
-The following code examples intentionally omit CSS and visual styling to keep the examples focused and easy to read. The actual [example app code](https://github.com/bochaco/react-mn-wallet-connect) includes full styling (Tailwind classes and additional CSS) so the components are displayed with a polished, user-friendly appearance.
-
-Also, the code is framework-agnostic and can be used with any React framework. You can use these components and logic in projects created with Vite, Create React App, Next.js, Remix, Gatsby, or custom setups. You might only need to edit the entry file (for example `src/main.tsx vs src/index.tsx`), routing, or build configuration to match your chosen scaffold.
+The code examples focus on core functionality and intentionally omit CSS styling. You can add your preferred styling solution (Tailwind, styled-components, CSS modules, etc.) to match your application's design.
 
 ## Prerequisites
-The following is required:
 
-- Familiarity with TypeScript/JavaScript
-- Basic understanding of React
-- [Midnight Lace wallet extension](https://chromewebstore.google.com/detail/lace-beta/hgeekaiplokcnmakghbdfbgnlfheichg) installed in your browser.
+Before you begin, make sure you have:
 
-After using this tutorial, you should:
+- Basic knowledge of TypeScript and JavaScript
+- Familiarity with React fundamentals (components, state, hooks)
+- Node.js and npm installed on your system
+- [Midnight Lace wallet extension](./lace-wallet) installed in your browser
 
-- Understand basic Midnight wallet connection flow
-- Know how to use @midnight-ntwrk/dapp-connector-api
-- Have working starter code to build your own applications
+### Set up a React project
+
+If you don't have a React project yet, create one using Vite:
+
+```bash
+npm create vite@latest my-wallet-app -- --template react-ts
+cd my-wallet-app
+```
+
+Then install the DApp Connector API package:
+
+```bash
+npm install @midnight-ntwrk/dapp-connector-api
+```
+
+After completing this tutorial, you'll understand:
+
+- The Midnight wallet connection flow
+- How to use the DApp Connector API
+- Best practices for managing wallet state in React applications
 
 <StepsProvider>
 <Step>
 
 ## Define TypeScript interfaces
 
-Let's first define a interface for the props passed between the component we are going to create. Their main purpose is to provide type safety and clear contracts for components. WalletCard describes the connection state and callbacks used by the app to trigger connect/disconnect actions.
+Start by creating type definitions for your components. These interfaces provide type safety and clear contracts between components.
 
-The actual implementation of the interfaces shown below can be found in the example app at [src/types.ts](https://github.com/bochaco/react-mn-wallet-connect/blob/main/src/types.ts).
+Create a new file `types.ts` within the `src` directory and add the following code:
 
 ```typescript
 export interface WalletCardProps {
@@ -49,16 +65,17 @@ export interface WalletCardProps {
 }
 ```
 
+The `WalletCardProps` interface defines the shape of data your `WalletCard` component will receive. 
+It includes the connection state, the wallet address, and callback functions for connect and disconnect actions.
+
 </Step>
 <Step>
 
 ## Create the WalletCard component
 
-The `WalletCard` aggregates UI and actions related to the wallet connection: it shows status, displays the address when available, and exposes connect/disconnect actions via the Button component. 
+Now you'll build the `WalletCard` component, which displays the wallet connection status and provides connect/disconnect buttons.
 
-Its main role in the app is to be the single visible component that reflects the wallet connection state and triggers the logic handled by the `App` component we'll define afterwards.
-
-The `WalletCard` component as implemented in the example app can be found at [src/WalletCard.tsx](https://github.com/bochaco/react-mn-wallet-connect/blob/main/src/WalletCard.tsx).
+Create `WalletCard.tsx` within the `src` directory and add the following code:
 
 ```typescript
 import React from "react";
@@ -74,7 +91,7 @@ const WalletCard: React.FC<WalletCardProps> = ({
     <div>
       <div>
         <h2>Connection Status</h2>
-        <div className={isConnected ? "text-green-400" : "text-red-400"}>
+        <div>
           {isConnected ? "Connected" : "Disconnected"}
         </div>
       </div>
@@ -104,30 +121,60 @@ const WalletCard: React.FC<WalletCardProps> = ({
 export default WalletCard;
 ```
 
+This component handles the presentation layer of your wallet connection. It shows the current status, 
+displays the address when connected, and provides appropriate action buttons based on the connection state.
+
 </Step>
 <Step>
 
-## Create the main App component
+## Integrate the DApp Connector API
 
-We need one last component, the `App` component, which manages state and business logic: it holds connection state and the current wallet address, and provides callbacks to child components to change that state. 
+Next, we'll use the `App` component to manage the wallet connection logic using the DApp Connector API.
 
-To begin with, the connect handler is a stub producing a dummy wallet address; later on we will call the Midnight DApp Connector. `App` wires UI (WalletCard) to the connector logic and is the central coordinator for the application.
+Create or open `App.tsx` within the `src` directory and replace the existing code with the following:
 
-The `App` component shown below is implemented in the example app at [src/App.tsx](https://github.com/bochaco/react-mn-wallet-connect/blob/main/src/App.tsx).
-
-```typescript
+```typescript App.tsx
 import React, { useState } from 'react';
 import WalletCard from './WalletCard';
+import '@midnight-ntwrk/dapp-connector-api';
+import type { InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
 
 const App: React.FC = () => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
-  const handleConnect = () => {
-    // We will replace this to actually use the Midnight DApp connector API.
-    const fakeAddress = `0x${Array(40).fill(0).join("")}`;
-    setWalletAddress(fakeAddress);
-    setIsConnected(true);
+  const handleConnect = async () => {
+    console.log('Connect button clicked');
+    let isConnected = false;
+    let address = null;
+    
+    try {
+      // Access the Midnight Lace wallet through the window object
+      const wallet: InitialAPI = window.midnight!.mnLace;
+      
+      // Connect to the specified network (use 'undeployed' for local development)
+      const connectedApi = await wallet.connect('undeployed');
+      
+      // Retrieve the shielded addresses from the wallet
+      const addresses = await connectedApi.getShieldedAddresses();
+      address = addresses.shieldedAddress;
+
+      // Optional: Get the service URI configuration
+      const serviceUriConfig = await connectedApi.getConfiguration();
+      console.log('Service URI Config:', serviceUriConfig);
+  
+      // Check if the connection is established
+      const connectionStatus = await connectedApi.getConnectionStatus();
+      if (connectionStatus) {
+        isConnected = true;
+        console.log("Connected to the wallet:", address);
+      }
+    } catch (error) {
+      console.log("An error occurred:", error);
+    }
+  
+    setIsConnected(isConnected);
+    setWalletAddress(address);
   };
 
   const handleDisconnect = () => {
@@ -155,14 +202,25 @@ const App: React.FC = () => {
 export default App;
 ```
 
+Let's break down the wallet connection process:
+
+1. **Access the wallet**: The DApp Connector API exposes the wallet through `window.midnight.{walletProvider}`. 
+In our example, we used `window.midnight.mnLace` to access the Midnight Lace wallet.
+2. **Connect to network**: Call the `connect()` method and pass the network ID as an argument. 
+In our example, we used `'undeployed'` for local development. You can use `'preview'` for the Preview testnet or `'preprod'` for the PreProd network.
+3. **Retrieve addresses**: After connecting to the network, call the `getShieldedAddresses()` method to get the wallet's shielded address.
+4. **Check status**: Verify the connection with `getConnectionStatus()`.
+
+The `handleConnect` event handler manages all these steps and updates your component's state accordingly. 
+When users click the **Connect Wallet** button, they'll see a prompt from the Lace wallet to authorize the connection.
+
 </Step>
 <Step>
 
-## Create the entry point
+## Set up the entry point
 
-At this point we are ready to bootstrap the React application into the DOM. We can now mount the `App` component and ensure React runs in StrictMode during development.
-
-In the implemented example it also pulls in Tailwind-generated CSS so the UI renders with the intended styling, this can be found at [src/main.tsx](https://github.com/bochaco/react-mn-wallet-connect/blob/main/src/main.tsx).
+Create the entry point that bootstraps your React application. For this, create or open `main.tsx` within the `src` directory 
+and replace the existing code with the following:
 
 ```typescript
 import { StrictMode } from 'react';
@@ -176,14 +234,15 @@ createRoot(document.getElementById('root')!).render(
 );
 ```
 
-Lastly, we create the HTML file providing the hosting page for the single-page app and links the global stylesheet. The HTML used by the example app is available at [index.html](https://github.com/bochaco/react-mn-wallet-connect/blob/main/index.html).
+Finally, create or open `index.html` in the project root and replace the existing code with the following:
 
 ```html
 <!doctype html>
 <html lang="en">
   <head>
-    <link rel="stylesheet" href="/index.css">
-    <title>React Midnight Wallet Connector</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Midnight Wallet Connector</title>
   </head>
   <body>
     <div id="root"></div>
@@ -192,70 +251,62 @@ Lastly, we create the HTML file providing the hosting page for the single-page a
 </html>
 ```
 
-Your application should now be displaying a dummy address, so now we are ready to add the last piece to integrate it with the Midnight DApp Connector, to retrieve the actual wallet's address.
-
 </Step>
 <Step>
 
-## Integrate Midnight DApp Connector
+## Run your application
 
-Let's now replace `handleConnect` function body in the `App` component with a real implementation using the DApp Connector API.
-
-Start by installing the DApp Connector API package:
+After setting up the entry point, start your development server:
 
 ```bash
-npm install @midnight-ntwrk/dapp-connector-api
-```
-After that, import the DApp Connector API package in the `App` component:
-
-```typescript
-import "@midnight-ntwrk/dapp-connector-api";
+npm run dev
 ```
 
-Then, update the `handleConnect` function to use the DApp Connector API:
+Now, open your browser and navigate to the local development URL (typically `http://localhost:5173`). 
 
-```typescript
-const handleConnect = async () => {
-  let isConnected = false;
-  let address = null;
-  try {
-    // To authorize a DApp, call the enable() method and wait for 
-    // the user to respond to the request.
-    const connectorAPI = await window.midnight?.mnLace.enable();
+When you click **Connect Wallet**, the Midnight Lace wallet extension will prompt you to authorize the connection. 
 
-    // Let's now check if the DApp is authorized, using the isEnabled() method
-    const isEnabled = await window.midnight?.mnLace.isEnabled();
-    if (isEnabled) {
-      isConnected = true;
-      console.log("Connected to the wallet:", connectorAPI);
+![Connect Wallet](./img/connect-wallet.png)
 
-      // To get the wallet state, we call the state() API method, that will
-      // return the DAppConnectorWalletState object, which is where we can get 
-      // the wallet address from.
-      const state = await connectorAPI.state();
-      address = state.address;
-    }
-  } catch (error) {
-    console.log("An error occurred:", error);
-  }
+After approval, your application will display the connection status and your wallet's shielded address.
 
-  setIsConnected(isConnected);
-  setWalletAddress(address);
-};
-```
-The code above demonstrates how to call the Midnight DApp Connector API to enable the wallet, check whether it's enabled, and retrieve the current wallet state (including the address). With this code, the `WalletCard` displays the real address and connection status:
-
-The DApp Connector API uses the global variable `window.midnight.{walletName}` to connect the wallet, in this case, `window.midnight.mnLace`.
-
+![Connected Wallet](./img/connected-wallet.png)
 
 </Step>
 </StepsProvider>
 
-Your application should now be running with the Midnight DApp Connector integration. It will prompt the user to authorise the connection from the Lace Preview wallet. Once authorised, the application displays the connection status and the connected wallet address.
+## Troubleshooting
+
+The following are some common issues you might encounter and how to resolve them.
+
+### Wallet not detected
+
+If you see errors about `window.midnight` being undefined:
+
+- Verify the Midnight Lace wallet extension is installed and enabled in your browser.
+- Refresh the page after installing or enabling the extension.
+- Check the browser console for any extension-related errors.
+
+### Connection fails
+
+If the connection attempt fails:
+
+- Ensure the network ID specified in the `connect()` method matches the network ID configured in your wallet.
+- Check that the Lace wallet is unlocked and synced.
+- Review the browser console for specific error messages.
+- Verify the DApp Connector API package is correctly installed.
 
 ## Next steps
 
-You can consider implementing the following:
+Now that you have a working wallet connector, you can extend your application with additional functionality:
 
-- Allowing the user to transfer coins
-- Expose a text input for signing messages with the connected wallet
+- **Transfer coins**: Implement a form that allows users to send tokens to other addresses.
+- **Sign messages**: Add a text input where users can sign arbitrary messages with their wallet.
+- **Display balances**: Show the user's token balances for different assets.
+- **Transaction history**: Query and display the user's transaction history.
+- **Multi-network support**: Add a network selector to switch between different Midnight networks.
+
+## Reference
+
+- [DApp Connector API documentation](/api-reference/dapp-connector)
+- [Example application with full styling](https://github.com/bochaco/react-mn-wallet-connect)
