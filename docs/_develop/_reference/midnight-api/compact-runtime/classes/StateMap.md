@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -26,7 +26,7 @@ new StateMap(): StateMap;
 ### get()
 
 ```ts
-get(key): undefined | StateValue;
+get(key): StateValue | undefined;
 ```
 
 #### Parameters
@@ -37,7 +37,7 @@ get(key): undefined | StateValue;
 
 #### Returns
 
-`undefined` \| [`StateValue`](StateValue.md)
+[`StateValue`](StateValue.md) \| `undefined`
 
 ***
 

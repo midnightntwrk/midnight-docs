@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -28,10 +28,20 @@ Creates a blank contract state
 
 ## Properties
 
+### balance
+
+```ts
+balance: Map<TokenType, bigint>;
+```
+
+The public balances held by this contract
+
+***
+
 ### data
 
 ```ts
-data: StateValue;
+data: ChargedState;
 ```
 
 The current value of the primary state of the contract
@@ -51,7 +61,7 @@ The maintenance authority associated with this contract
 ### operation()
 
 ```ts
-operation(operation): undefined | ContractOperation;
+operation(operation): ContractOperation | undefined;
 ```
 
 Get the operation at a specific entry point name
@@ -64,7 +74,7 @@ Get the operation at a specific entry point name
 
 #### Returns
 
-`undefined` \| [`ContractOperation`](ContractOperation.md)
+[`ContractOperation`](ContractOperation.md) \| `undefined`
 
 ***
 
@@ -110,14 +120,8 @@ results
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array;
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-##### networkid
-
-[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -170,7 +174,7 @@ toString(compact?): string;
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractState;
+static deserialize(raw): ContractState;
 ```
 
 #### Parameters
@@ -178,10 +182,6 @@ static deserialize(raw, networkid): ContractState;
 ##### raw
 
 `Uint8Array`
-
-##### networkid
-
-[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
