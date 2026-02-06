@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -85,14 +85,8 @@ How many keys must sign rule changes
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array;
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-##### networkid
-
-[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -121,7 +115,7 @@ toString(compact?): string;
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractState;
+static deserialize(raw): ContractState;
 ```
 
 #### Parameters
@@ -129,10 +123,6 @@ static deserialize(raw, networkid): ContractState;
 ##### raw
 
 `Uint8Array`
-
-##### networkid
-
-[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
