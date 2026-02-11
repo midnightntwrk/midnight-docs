@@ -31,16 +31,12 @@ to which wallet connection should be established.
 
 | Name | Description |
 |------|-------------|
-| **name** | Wallet name, expected to be displayed to the user |
-| **icon** | Wallet icon, as an URL, either reference to a hosted resource, or a base64 encoded data URL |
-| **apiVersion** | Version of the API implemented by this instance of the API. E.g. wallet implementing version 3.1.5 provides apiVersion with value '3.1.5'. This value lets DApps to differentiate between different versions of the API and implement appropriate logic for each version or not use some versions at all |
-| **connect** | Connect to wallet, hinting desired network id. Upon successful connection returns a promise with [ConnectedAPI](type-aliases/ConnectedAPI.md) |
+| **name** | Wallet name, expected to be displayed to the user. |
+| **icon** | Wallet icon, as an URL, either reference to a hosted resource, or a base64 encoded data URL. |
+| **apiVersion** | Version of the API implemented by this instance of the API. For example, wallet implementing version 3.1.5 provides apiVersion with value '3.1.5'. This value lets DApps to differentiate between different versions of the API and implement appropriate logic for each version or not use some versions at all. |
+| **connect** | Connect to wallet, passing the desired network ID as a parameter. Upon successful connection returns a promise with [ConnectedAPI](type-aliases/ConnectedAPI.md). |
 
-## API usage
-
-The following sections demonstrate how to use the DApp Connector API to connect to wallets, query wallet state, and manage transactions.
-
-### Connecting to a wallet
+## Connect to a wallet
 
 A DApp needs to select the wallet it wants to connect to and call the `connect(networkId)` method, then wait for the returned promise. 
 The promise may resolve with a significant delay, as most wallets might want to display a dialog asking the user for authorization.
@@ -56,11 +52,11 @@ try {
 }
 ```
 
-### Getting information about the wallet before connection
+## Get information about the wallet before connection
 
 Before establishing a connection, you can access basic wallet information such as the wallet name, icon, and API version.
 
-#### Name and icon
+### Name and icon
 
 To get the name and icon of the wallet, use the `name` and `icon` properties in the implemented DApp connector API:
 
@@ -72,11 +68,9 @@ console.log('Wallet name', name);
 console.log('Wallet icon URL', iconURL);
 ```
 
-Both fields are meant to be displayed to the user to help with wallet selection. The DApp needs to ensure proper 
-escaping though to prevent XSS vulnerabilities, e.g. display icon only through an `img` tag and display the name 
-using `Text` node.
+Both fields are meant to be displayed to the user to help with wallet selection. To prevent XSS vulnerabilities, the DApp must ensure proper escaping. For example, display the icon only through an `img` tag and display the name using a `Text` node.
 
-#### API version
+### Get API version
 
 To get the API version, use the `apiVersion` property as follows:
 
@@ -86,21 +80,22 @@ const apiVersion = window.midnight.{walletName}.apiVersion;
 console.log('API version', apiVersion);
 ```
 
-The DApp needs to verify whether the version reported by the wallet (which needs to be a version of this package) matches 
-the DApp's expectations (for example, using a semver check).
+The DApp needs to verify whether the version reported by the wallet matches the DApp's expectations. Use a semver check to validate compatibility.
 
-### Once connected
+## Query wallet state and initiate transactions
 
-Once connected, the DApp can issue many different requests to the wallet as defined by the [ConnectedAPI](type-aliases/ConnectedAPI.md) type. The most important ones are:
+Once connected, the DApp can issue many different requests to the wallet as defined by the [ConnectedAPI](type-aliases/ConnectedAPI.md) type.
+
+The most important operations are:
 
 - Query the wallet for information, like balances or addresses.
 - Query the wallet for configuration, so that the DApp can connect to the same instance of Indexer, Midnight Node, or Proof Server.
 - Ask the wallet to make a transfer, balance a transaction, make an unbalanced intent (for example, for a swap), or sign data.
 - Ask the wallet to submit a transaction.
 
-#### Getting the configuration
+### Get the configuration
 
-Midnight wallet users can configure the node, indexer, and proving server URIs in the wallet settings. DApps are expected to follow these configurations, so that user preferences are respected, which is important from a privacy standpoint.
+Midnight wallet users can configure the node, indexer, and proving server URIs in the wallet settings. DApps are expected to follow these configurations to respect user preferences. This is important from a privacy standpoint.
 
 The returned object has the following properties:
 
@@ -125,9 +120,11 @@ try {
 }
 ```
 
-#### Reading wallet information 
+### Read wallet information 
 
-Several methods are available for querying wallet state. The most important ones are `getShieldedBalances`, `getUnshieldedBalances`, `getDustBalance`, `getShieldedAddresses`, `getUnshieldedAddress`, and `getDustAddress`. Keys and addresses are provided in Bech32m format, while shielded and unshielded balances return a record whose keys are token types.
+Several methods are available for querying wallet state. The most important ones are `getShieldedBalances`, `getUnshieldedBalances`, `getDustBalance`, `getShieldedAddresses`, `getUnshieldedAddress`, and `getDustAddress`.
+
+Keys and addresses are provided in Bech32m format. Shielded and unshielded balances return a record whose keys are token types.
 
 ```ts
 try {
@@ -147,9 +144,11 @@ try {
 }
 ```
 
-#### Initiating a payment
+### Initiate a payment
 
-If a DApp needs to initiate a payment, `makeTransfer` is the right method to use. It takes an array of outputs that need to be present in the final transaction. For more details, consult the [InitActions type documentation](type-aliases/InitActions.md).
+If a DApp needs to initiate a payment, `makeTransfer` is the right method to use. It takes an array of outputs that need to be present in the final transaction.
+
+For more details, see the [InitActions type documentation](type-aliases/InitActions.md).
 
 ```ts
 import {nativeToken} from '@midnight-ntwrk/ledger'
@@ -167,15 +166,15 @@ try {
 }
 ```
 
-#### Balancing a transaction, for paying fees or interacting with contracts
+### Balance a transaction
 
-To balance a transaction, begin by creating a transaction in your DApp. You can [follow the guide on how to create a transaction here](/sdks/official/wallet-developer-guide). 
-This method is particularly useful for DApps calling contracts, as this is the best way to use native tokens 
-in a DApp or make the user pay the fees for a contract call. Depending on the use case and state of the transaction 
-to be balanced, there are two methods available: `balanceSealedTransaction` and `balanceUnsealedTransaction`. 
-They indicate different methods the wallet will use to deserialize the transaction and try to balance it. 
-A transaction that is the result of a contract call will most likely need a call to `balanceUnsealedTransaction`, 
-whereas completing a swap (for example, initiated by a `makeIntent` call) will require a call to `balanceSealedTransaction`.
+To balance a transaction, begin by creating a transaction in your DApp. For transaction creation, see the [Wallet Developer Guide](/sdks/official/wallet-developer-guide).
+
+This method is particularly useful for DApps calling contracts. It's the best way to use native tokens in a DApp or make the user pay the fees for a contract call.
+
+Depending on the use case and state of the transaction to be balanced, there are two methods available: `balanceSealedTransaction` and `balanceUnsealedTransaction`. They indicate different methods the wallet will use to deserialize the transaction and try to balance it.
+
+A transaction that is the result of a contract call will most likely need a call to `balanceUnsealedTransaction`. Completing a swap (for example, initiated by a `makeIntent` call) will require a call to `balanceSealedTransaction`.
 
 ```ts
 try {
@@ -189,7 +188,7 @@ try {
 }
 ```
 
-#### Submitting a transaction
+### Submit a transaction
 
 With the balanced and proven transaction from above, you can now submit it.
 
@@ -207,6 +206,8 @@ The following examples demonstrate common usage patterns for the DApp connector 
 
 ### Connect
 
+This example shows how to connect to a compatible wallet on a specific network. It filters wallets by API version, prompts the user to select one, and establishes a connection.
+
 ```ts
 import { NetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
@@ -214,7 +215,7 @@ declare function semverMatch(version, expectedRange);
 declare function askUserToSelect(wallets: InitialAPI[]): Promise<InitialAPI>;
 
 async function connect(): Promise<ConnectedAPI> {
-  const networkId = NetworkId.MainNet;
+  const networkId = NetworkId('preprod');
 
   const compatibleWallets = Object.values(window.midnight ?? {})
     .filter((wallet) => semverMatch(wallet.apiVersion, '^1.0'));
@@ -227,10 +228,12 @@ async function connect(): Promise<ConnectedAPI> {
 }
 ```
 
-### Init a Night payment to an address
+### Initiate a Night payment to an address
+
+This example demonstrates how to initiate a transfer of 10 Night tokens to a specific unshielded address. The transaction is created using `makeTransfer` and then submitted to the network.
 
 ```ts
-import { nativeToken } from '@midnight-ntwrk/ledger';
+import { nativeToken } from '@midnight-ntwrk/ledger-v7';
 
 const connectedWallet = await connect();
 const tx = await connectedWallet.makeTransfer([{
@@ -243,11 +246,13 @@ await connectedWallet.submitTransaction(tx);
 
 ```
 
-### Init and complement a swap of night into a shielded token
+### Initiate and complement a swap of Night into a shielded token
+
+This example shows a two-party swap where Party #1 creates an unbalanced transaction offering 10 Night tokens, and Party #2 completes it by providing 50,000 Foo tokens. The transaction is balanced and submitted by Party #2.
 
 ```ts
 // Party #1
-import { nativeToken } from '@midnight-ntwrk/ledger';
+import { nativeToken } from '@midnight-ntwrk/ledger-v7';
 
 declare function getFooTokenType(): TokenType;
 
@@ -278,9 +283,11 @@ await connectedWallet.submitTransaction(balancedTx);
 
 ### Delegate proving
 
+This example demonstrates how to delegate Zero Knowledge (ZK) proof generation to the wallet's proving provider. It prepares an unproven transaction, generates the proof, balances the transaction, and submits it.
+
 ```ts
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
-import { Transaction } from '@midnight-ntwrk/ledger-v6';
+import { Transaction } from '@midnight-ntwrk/ledger-v7';
 
 const keyMaterialProvider = new FetchZkConfigProvider('https://example.com');
 
@@ -288,17 +295,17 @@ const connectedAPI = await connect();
 const provingProvider = connectedAPI.getProvingProvider(keyMaterialProvider);
 
 // Let's prepare the transaction and their inputs
-const costModel = await fetchCostModel(); // E.g. from Indexer, using `Block.ledgerParameters`: https://github.com/midnightntwrk/midnight-indexer/blob/main/indexer-api/graphql/schema-v3.graphql#L36
-const unprovedTx = prepareUnprovenTransaction(costModel); // E.g. make a contract call
+const costModel = await fetchCostModel(); // For example, from Indexer, using `Block.ledgerParameters`: https://github.com/midnightntwrk/midnight-indexer/blob/main/indexer-api/graphql/schema-v3.graphql#L36
+const unprovedTx = prepareUnprovenTransaction(costModel); // For example, make a contract call
 
 // Now the proving itself:
 const provenTx = await unprovenTx.prove(provingProvider, costModel);
 
-// Now the transaction can be e.g. balanced (to pay fees) and submitted:
+// Now the transaction can be, for instance, balanced (to pay fees) and submitted:
 const finalTx = await connectedAPI.balanceUnsealedTransaction(provenTx);
 await connectedAPI.submitTransaction(finalTx);
 ```
 
-## References
+## Reference
 
-- [DApp Connector API Specification](https://github.com/midnightntwrk/midnight-dapp-connector-api/blob/main/docs/api/_media/SPECIFICATION.md)
+For the complete technical specification of the DApp Connector API, see the [DApp Connector API Specification](https://github.com/midnightntwrk/midnight-dapp-connector-api/blob/main/docs/api/_media/SPECIFICATION.md) on GitHub.
