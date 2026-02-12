@@ -1,0 +1,157 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Ledger 7.0.0 release notes
+description: Ledger is a component of the blockchain infrastructure that interacts with the Midnight network to perform tasks such as syncing, validating transactions, and maintaining the chain state.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v7.0.0
+* **Date**: 27 January 2026
+* **Environment**: Preview, PreProd
+
+---
+
+## High-level summary
+
+Ledger 7.0.0 is a major release that switches to the Midnight Structured Reference String (SRS) with midnight-zk 1.0.
+It also adds the new `addCalls` endpoint for transcript partitioning with Zswap components. 
+
+This release includes breaking changes to ZK key material, and completely disables treasury access. It also includes multiple security audit fixes and critical bug fixes.
+
+---
+
+## Audience
+
+This release note is critical for developers who build applications using the Ledger WASM bindings.
+
+---
+
+## What changed (Summary of updates)
+
+- Switched to Midnight SRS and midnight-zk 1.0.
+- Introduced `addCalls` endpoint for transcript partitioning with Zswap components.
+- Changed pricing structure to use overall cost with dimension weightings.
+- Completely disabled treasury access.
+- Fixed multiple critical bugs including token type computation, contract balancing.
+- Applied security audit fixes from Least Authority.
+
+---
+
+## New features
+
+Below are the new features introduced in this release.
+
+### Endpoint for transcript partitioning (`addCalls`)
+
+New endpoint that enables transcript partitioning with Zswap components via `addCalls`. 
+This allows creating offers without knowing the target segment or re-stating values in deltas. 
+It automatically recomputes binding randomness for transactions on modifications in WASM, making transaction edits more robust.
+
+### Circuit k-value computation (WASM)
+
+Ability to compute the k-value of a circuit in WASM bindings of ZKIR, including tests against protocol circuits for ZKIR v2.
+
+### Fee safety margin functions
+
+Exposed functions for computing maximum price adjustment and safety margins for fees, covering upward adjustment for `n` blocks.
+
+---
+
+## New features requiring configuration updates
+
+Below are the new features requiring configuration updates.
+
+### Midnight SRS and midnight-zk 1.0
+
+All existing proofs and verifier keys generated with the previous SRS will be invalid. Applications must regenerate verifier keys after upgrading.
+
+**Required updates**:
+- Update to midnight-zk 1.0 dependency.
+- Regenerate proofs using the new Midnight SRS.
+
+### Expose DustLocalState parameters
+
+Exposed Dust parameters (`syncTime`, `utxos`) in `DustLocalState` for better state introspection.
+
+---
+
+## Deprecations
+
+None in this release.
+
+---
+
+## Breaking changes
+
+Below are the breaking changes and required actions for developers.
+
+### Switch to Midnight SRS and midnight-zk 1.0
+
+The ledger now uses the official Midnight Structured Reference String (SRS) and midnight-zk 1.0.
+
+**What breaks**: All proofs and verifier keys generated with the previous SRS are invalid.
+
+**Required actions**: Regenerate all ZK verifier keys after upgrading.
+
+### Pricing structure overhaul
+
+Pricing now uses an overall cost with dimension weightings instead of separate per-dimension costs.
+
+**What breaks**: Fee estimation code relying on the previous cost structure. 
+This change addresses a mismatch where the ledger considered a block mostly empty while the node considered it full, leading to downward price spirals.
+
+**Required actions**:
+- Update fee estimation logic to use the new pricing model.
+- Review transaction cost calculations.
+
+### Treasury access disabled
+
+Access to the treasury is completely disabled until there is a mandate to access it.
+
+**What breaks**: Any code attempting to access treasury funds will fail.
+
+**Required actions**:
+- Remove any treasury access code from applications.
+- This is intentional to preserve treasury funds.
+
+### Deltas must be non-zero
+
+Transaction deltas are now required to be non-zero.
+
+**What breaks**: Transactions that include zero-value deltas.
+
+**Required actions**: Remove zero-value deltas from transaction construction.
+
+---
+
+## Fixed defect list
+
+The following defects were fixed in Ledger 7.0.0:
+
+| **Defect number** | **Description** |
+| ----------------- | --------------- |
+| PM-19672 | Token type computation for contract-minted tokens was incorrect, causing downstream errors when using minted tokens. |
+| PM-19979 | Balancing bug in contracts with multiple intents. Contract calls were incorrectly counted for each intent. |
+| PM-20790 | Rehashing in cNgD caused sync stalls due to insufficient Merkle tree evidence. |
+| PM-20077 | `Option<Date>` serialization was incorrect. |
+| PM-20350 | Various fixes for ClaimRewardsTransaction. |
+| PM-21160 | Proof provider wrapper in WASM incorrectly handled `undefined` values. |
+| PR-49 | Fee computation catch-22 prevented large non-proof transactions due to time-to-dismiss limits. |
+| PR-37 | Trailing zeros were not correctly trimmed in manually constructed aligned values. |
+| PR-39 | Proof server incorrectly fetched dust keys. |
+| PR-99 | Potential undefined behavior in fixed-length byte deserialization. |
+| PR-125 | Check from point at infinity corrected to identity point. |
+| PR-81 | `cargo-vendor` failed when `midnight-ledger` was a dependency. |
+
+---
+
+## Security fixes
+
+Applied security fixes identified by Least Authority audit.
+
+---
+
+## Links and references
+- **GitHub repository**: [Midnight Ledger](https://github.com/midnightntwrk/midnight-ledger)
+- **API documentation**: [Midnight Ledger API](/api-reference/ledger/)
