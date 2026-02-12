@@ -18,8 +18,25 @@ import { useLocation } from '@docusaurus/router';
 const releases = [
   {
     id: 1,
-    version: '0.10.2',
+    version: '0.11.2',
     status: 'LATEST',
+    date: '28 January 2026',
+    summary: 'Summary of Release 0.11.2',
+    details: [
+      "Updated Faucet to support Ledger v7.",
+      "Added TypeScript client library for programmatic faucet access.",
+      "Added rate limiting for faucet requests.",
+    ],
+    artifacts: [
+      { name: 'Preprod faucet', url: 'https://faucet.preprod.midnight.network/' },
+      { name: 'Preview faucet', url: 'https://faucet.preview.midnight.network/' },
+    ],
+    link: '/relnotes/faucet/faucet-0-11-2',
+  },
+  {
+    id: 2,
+    version: '0.11.0',
+    status: 'UNSUPPORTED',
     date: '12 May 2025',
     summary: 'Summary of Release 0.10.2',
     details: [
@@ -32,7 +49,7 @@ const releases = [
     link: '/relnotes/faucet/faucet-0-10-2',
   },
   {
-    id: 2,
+    id: 3,
     version: '0.9.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -46,7 +63,7 @@ const releases = [
     link: '/relnotes/faucet/faucet-0-9-0',
   },
   {
-    id: 3,
+    id: 4,
     version: '0.8.5',
     status: 'DEPRECATED',
     date: '3 February 2025',
