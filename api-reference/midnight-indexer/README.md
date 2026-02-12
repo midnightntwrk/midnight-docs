@@ -1,14 +1,14 @@
-# Midnight Indexer API Documentation v3
+# Midnight Indexer API documentation v3
 
 The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data—blocks, transactions, contracts, DUST generation, and shielded/unshielded transaction events—indexed from the Midnight blockchain. These capabilities facilitate both historical lookups and real-time monitoring.
 
-**Version information**:
-- Current API version: v3.
+## Version information
+- **Current API version**: v3.
 - Previous version v1 redirects to v3 automatically.
 - Version v2 was skipped during migration.
 
 :::warning Disclaimer
-The examples provided here are illustrative and may need updating if the API changes. Always consider [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
+The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
 :::
 
 ## GraphQL schema
@@ -39,19 +39,29 @@ The GraphQL schema is defined in [`indexer-api/graphql/schema-v3.graphql`](https
 
 ## API endpoints
 
-**HTTP (Queries & Mutations)**:
+The Midnight Indexer API provides two types of endpoints for different use cases.
+
+### HTTP endpoint (queries and mutations)
+
+Use the HTTP endpoint for one-time queries and mutations. This endpoint supports standard GraphQL queries for fetching data and mutations for managing wallet sessions.
+
 ```shell
 POST https://<host>:<port>/api/v3/graphql
 Content-Type: application/json
 ```
 
-**WebSocket (Subscriptions)**:
+### WebSocket endpoint (subscriptions)
+
+Use the WebSocket endpoint for real-time data streaming. This endpoint enables subscriptions to blocks, transactions, and other events as they occur on the blockchain.
+
 ```shell
 wss://<host>:<port>/api/v3/graphql/ws
 Sec-WebSocket-Protocol: graphql-transport-ws
 ```
 
 ## Core scalars
+
+The API uses custom scalar types to represent blockchain-specific data formats. Understanding these types is important for creating queries and interpreting responses.
 
 - `HexEncoded`: Hex-encoded bytes (for hashes, addresses, session IDs).
 - `ViewingKey`: A viewing key in hex or Bech32 format for wallet sessions.
@@ -63,29 +73,35 @@ Sec-WebSocket-Protocol: graphql-transport-ws
 The following input types are used to specify query parameters for blocks, transactions, and contract actions.
 
 ### BlockOffset (oneOf)
+
 Used to specify a block by either hash or height:
+
 - `hash`: HexEncoded - The block hash
 - `height`: Int - The block height
 
 ### TransactionOffset (oneOf)
+
 Used to specify a transaction by either hash or identifier:
+
 - `hash`: HexEncoded - The transaction hash
 - `identifier`: HexEncoded - The transaction identifier
 
 ### ContractActionOffset (oneOf)
+
 Used to specify a contract action location:
+
 - `blockOffset`: BlockOffset - Query by block (hash or height)
 - `transactionOffset`: TransactionOffset - Query by transaction (hash or identifier)
 
 ## Example queries and mutations
 
 :::note
-These are examples only. Refer to the schema file to confirm exact field names and structures.
+These are examples only. Refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) to confirm exact field names and structures.
 :::
 
 ### block(offset: BlockOffset): Block
 
-Query a block by offset. If no offset is provided, the latest block is returned.
+Query a block by offset. If no offset is provided, then the latest block is returned.
 
 **Example**:
 
@@ -224,7 +240,7 @@ query {
 
 ### contractAction(address: HexEncoded!, offset: ContractActionOffset): ContractAction
 
-Retrieve the latest known contract action at a given offset (by block or transaction). If no offset is provided, returns the latest state.
+Retrieve the latest known contract action at a given offset (by block or transaction). If no offset is provided, then it returns the latest state.
 
 **Example (latest)**:
 
@@ -490,11 +506,9 @@ Use this `sessionId` for shielded transactions subscriptions.
 
 ### disconnect(sessionId: HexEncoded!): Unit!
 
-Ends an existing session.
+Ends an existing session. Call this method when you no longer need to monitor shielded transactions for a particular wallet.
 
 **Example**:
-
-When done:
 ```graphql
 mutation {
   disconnect(sessionId: "sessionIdHere")
@@ -677,25 +691,22 @@ The server may apply limitations to queries (e.g. `max-depth`, `max-fields`, `ti
 
 Shielded transactions subscription requires a `sessionId` from the `connect` mutation.
 
-## Regenerating the Schema
+## Regenerate the schema
 
-If you modify the code defining the GraphQL schema, regenerate it:
+If you're using the Indexer API and modify the code defining the GraphQL schema, you'll need to regenerate the schema file.
+
+Run the following command:
 
 ```bash
 just generate-indexer-api-schema
 ```
+
 This ensures the schema file stays aligned with code changes.
 
-## Migration from v1
+## Migrate from v1
 
-If migrating from API v1:
+If migrating from API v1, follow these steps:
+
 1. Update endpoint URLs from `/v1/graphql` to `/v3/graphql` (though v1 redirects automatically).
-2. Review field name changes (e.g., `chainState` → `zswapState` in contract actions).
-3. Test thoroughly as some response structures may have evolved.
-
-## Conclusion
-
-This document offers a few hand-picked examples and an overview of available operations. For the most accurate and comprehensive reference, consult the schema file. As the API evolves, remember to validate these examples against the schema and update them as needed.
-
-## Reference
-- [Indexer v3 schema](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql)
+2. Review field name changes (for example, `chainState` → `zswapState` in contract actions).
+3. Test thoroughly, because some response structures might have changed.
