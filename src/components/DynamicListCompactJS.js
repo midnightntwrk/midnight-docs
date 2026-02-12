@@ -18,67 +18,22 @@ import { useLocation } from '@docusaurus/router';
 const releases = [
   {
     id: 1,
-    version: '0.11.2',
+    version: '2.4.0',
     status: 'LATEST',
     date: '28 January 2026',
-    summary: 'Summary of Release 0.11.2',
+    summary: 'Summary of Release 2.4.0',
     details: [
-      "Updated Faucet to support Ledger v7.",
-      "Added TypeScript client library for programmatic faucet access.",
-      "Added rate limiting for faucet requests.",
+      'Provides a Typescript-based execution environment for smart contracts compiled with the Compact language.',
+      'Used internally by Midnight.js and the Node Toolkit.',
     ],
     artifacts: [
-      { name: 'Preprod faucet', url: 'https://faucet.preprod.midnight.network/' },
-      { name: 'Preview faucet', url: 'https://faucet.preview.midnight.network/' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/2.4.0' },
     ],
-    link: '/relnotes/faucet/faucet-0-11-2',
-  },
-  {
-    id: 2,
-    version: '0.11.0',
-    status: 'UNSUPPORTED',
-    date: '12 May 2025',
-    summary: 'Summary of Release 0.10.2',
-    details: [
-      "BLS support.",
-      "Captcha Support"
-    ],
-    artifacts: [
-      { name: 'Link', url: 'https://midnight.network/test-faucet' },
-    ],
-    link: '/relnotes/faucet/faucet-0-10-2',
-  },
-  {
-    id: 3,
-    version: '0.9.0',
-    status: 'DEPRECATED',
-    date: '2 April 2025',
-    summary: 'Summary of Release 0.9.0',
-    details: [
-      "Bug fixes and performance improvements."
-    ],
-    artifacts: [
-      { name: 'Link', url: 'https://midnight.network/test-faucet/' },
-    ],
-    link: '/relnotes/faucet/faucet-0-9-0',
-  },
-  {
-    id: 4,
-    version: '0.8.5',
-    status: 'DEPRECATED',
-    date: '3 February 2025',
-    summary: 'Summary of Release 0.8.5',
-    details: [
-      "Bug fixes and performance improvements."
-    ],
-    artifacts: [
-      { name: 'Link', url: 'https://midnight.network/test-faucet/' },
-    ],
-    link: '/relnotes/faucet/faucet-0-8-5',
+    link: '/relnotes/compact-js/compact-js-2-4-0',
   }
 ];
 
-// Sort versions (latest first)
+// Ensure versions are sorted with the latest at the top
 const sortedVersions = releases
   .map(release => release.version)
   .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
@@ -148,7 +103,6 @@ const DynamicListWithDropdownFilters = () => {
             ))}
           </select>
         </div>
-
         <div style={{ flex: 1 }}>
           <label htmlFor="status-select" style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
             Status
@@ -176,7 +130,16 @@ const DynamicListWithDropdownFilters = () => {
       {/* Filtered List */}
       {filteredReleases.map((release) => (
         <div key={release.id} style={{ marginBottom: '2rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontWeight: 'bold' }}>
+          {/* Header with flex alignment */}
+          <h3
+            style={{
+              marginBottom: '0.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '1rem',
+              fontWeight: 'bold',
+            }}
+          >
             <Link to={release.link} className="hyperlink">
               Release {release.version}
             </Link>
@@ -195,6 +158,7 @@ const DynamicListWithDropdownFilters = () => {
             </span>
           </h3>
 
+          {/* Release date */}
           <p style={{ fontSize: '0.9rem', marginTop: '1rem', marginBottom: '1rem' }}>{release.date}</p>
 
           {/* Artifacts Section */}
