@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -7,8 +7,8 @@
 # Function: transientCommit()
 
 ```ts
-function transientCommit<a>(
-   rt_type, 
+function transientCommit<A>(
+   rtType, 
    value, 
    opening): bigint;
 ```
@@ -23,19 +23,19 @@ consistency checks.
 
 ## Type Parameters
 
-### a
+### A
 
-`a`
+`A`
 
 ## Parameters
 
-### rt\_type
+### rtType
 
-[`CompactType`](../interfaces/CompactType.md)\<`a`\>
+[`CompactType`](../interfaces/CompactType.md)\<`A`\>
 
 ### value
 
-`a`
+`A`
 
 ### opening
 

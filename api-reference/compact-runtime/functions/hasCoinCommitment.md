@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -19,13 +19,13 @@ Checks whether a coin commitment has already been added to the current query con
 
 ### context
 
-[`CircuitContext`](../interfaces/CircuitContext.md)\<`unknown`\>
+[`CircuitContext`](../interfaces/CircuitContext.md)
 
 The current circuit context.
 
 ### coinInfo
 
-[`EncodedCoinInfo`](../interfaces/EncodedCoinInfo.md)
+[`EncodedShieldedCoinInfo`](../interfaces/EncodedShieldedCoinInfo.md)
 
 The coin information to check.
 

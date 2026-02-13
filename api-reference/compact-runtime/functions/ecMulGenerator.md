@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: ecMulGenerator()
 
 ```ts
-function ecMulGenerator(b): CurvePoint;
+function ecMulGenerator(b): NativePoint;
 ```
 
 The Compact builtin `ec_mul_generator` function
@@ -23,4 +23,4 @@ by a scalar (in multiplicative notation)
 
 ## Returns
 
-[`CurvePoint`](../interfaces/CurvePoint.md)
+[`NativePoint`](../interfaces/NativePoint.md)

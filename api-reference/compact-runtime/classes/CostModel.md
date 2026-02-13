@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -28,13 +28,13 @@ toString(compact?): string;
 
 ***
 
-### dummyCostModel()
+### initialCostModel()
 
 ```ts
-static dummyCostModel(): CostModel;
+static initialCostModel(): CostModel;
 ```
 
-A cost model for use in non-critical contexts
+The initial cost model of Midnight
 
 #### Returns
 

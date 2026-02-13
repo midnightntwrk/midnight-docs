@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -17,9 +17,9 @@ Constructs a new [EncodedZswapLocalState](../interfaces/EncodedZswapLocalState.m
 
 ### coinPublicKey
 
-`string`
-
 The Zswap coin public key of the user executing the circuit.
+
+`string` | [`EncodedCoinPublicKey`](../interfaces/EncodedCoinPublicKey.md)
 
 ## Returns
 
