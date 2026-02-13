@@ -344,28 +344,38 @@ query {
 }
 ```
 
-**DUST generation parameters**:
+The response includes several fields that provide information about DUST generation status and capacity.
+
+#### DUST generation parameters
+
 - Generation rate: 8,267 Specks per Star per second.
 - Maximum capacity: 5 DUST per NIGHT.
 - The `registered` field indicates if stake key is registered via NativeTokenObservation pallet.
 - Registration data comes from Cardano mainnet via bridge.
 
-**Important note on `currentCapacity`**:
+:::tip Important note on `currentCapacity`
 
 The `currentCapacity` field represents the maximum DUST generation capacity based on the Night UTXO balance and elapsed time. This value:
 - Is accurate until the first DUST fee payment.
 - May be higher than actual balance after fee payments.
 - Cannot track spent DUST (fee payments are shielded transactions).
+:::
 
 For accurate DUST balance after fee payments, query the connected wallet directly via wallet SDK or DApp Connector API. Use `currentCapacity` as an approximation when wallet connection is unavailable.
 
 ## Contract action types
+
+Contract actions represent operations performed on smart contracts within transactions. All ContractAction types implement a common interface and share several fields.
+
+### Common fields
 
 All ContractAction types (ContractDeploy, ContractCall, ContractUpdate) implement the ContractAction interface with these common fields:
 - `address`: The contract address (HexEncoded)
 - `state`: The contract state (HexEncoded)
 - `zswapState`: The contract-specific zswap state at this action (HexEncoded)
 - `transaction`: The transaction that contains this action
+
+### Action types
 
 Contract actions can be one of three types:
 - **ContractDeploy**: Initial contract deployment
@@ -374,13 +384,17 @@ Contract actions can be one of three types:
 
 Each type implements the ContractAction interface but may have additional fields. For example, ContractCall includes an `entryPoint` field and a reference to its associated `deploy`.
 
+### Unshielded balances
+
 All contract action types include an `unshieldedBalances` field that returns the token balances held by the contract:
 
 - **ContractDeploy**: Always returns empty balances (contracts are deployed with zero balance).
 - **ContractCall**: Returns balances after the call execution (may be modified by `unshielded_inputs`/`unshielded_outputs`).
 - **ContractUpdate**: Returns balances after the maintenance update.
 
-#### ContractBalance Type
+#### ContractBalance type
+
+The ContractBalance type represents token holdings for a contract:
 
 ```graphql
 type ContractBalance {
@@ -388,7 +402,6 @@ type ContractBalance {
   amount: String!         # Balance amount (supports u128 values)
 }
 ```
-
 
 ## Block type
 
@@ -460,7 +473,9 @@ DUST generation status for a Cardano stake key:
 
 ### DustLedgerEvent
 
-DUST ledger events include:
+DUST ledger events track changes to the DUST generation system. These events are emitted when DUST UTXOs are created, generation parameters are updated, or spends are processed.
+
+The following event types are available:
 - `DustInitialUtxo`: Initial DUST UTXO creation event
 - `DustGenerationDtimeUpdate`: DUST generation decay time update
 - `DustSpendProcessed`: DUST spend processing event
@@ -477,9 +492,11 @@ Mutations allow the client to connect a wallet (establishing a session) and disc
 
 ### connect(viewingKey: ViewingKey!): HexEncoded!
 
-Establishes a session for a given wallet viewing key in **either** bech32m or hex format. Returns the session ID.
+Establishes a session for a given wallet viewing key. Returns the session ID that can be used for shielded transaction subscriptions.
 
-**Viewing key format support**:
+#### Viewing key format support
+
+The viewing key can be provided in either of two formats:
 - **Bech32m** (preferred): A base-32 encoded format with a human-readable prefix, e.g., `mn_shield-esk_dev1...`.
 - **Hex** (fallback): A hex-encoded string representing the key bytes.
 
@@ -543,7 +560,7 @@ When a new block is indexed, the client receives a `next` message.
 
 `contractActions(address: HexEncoded!, offset: BlockOffset): ContractAction!`
 
-Subscribes to contract actions for a particular address. New contract actions (calls, updates) are pushed as they occur.
+Monitor smart contract activity by subscribing to contract actions for a specific address. New contract actions (calls, updates) are pushed as they occur.
 
 **Example**:
 
@@ -577,25 +594,29 @@ Adjust `index` and `offset` arguments as needed.
 }
 ```
 
-**Event types**:
+The subscription returns events as they occur, with different event types providing transaction data and progress updates.
 
-**ShieldedTransactionsEvent** (union type):
-- `ViewingUpdate`: Contains relevant transactions and/or collapsed Merkle tree updates
-  - `index`: Next start index into the zswap state (Int!)
-  - `update`: Array of ZswapChainStateUpdate items ([ZswapChainStateUpdate!]!)
-    - `MerkleTreeCollapsedUpdate`: Merkle tree update
-      - `start`: Start index (Int!)
-      - `end`: End index (Int!)
-      - `update`: Hex-encoded merkle-tree collapsed update (HexEncoded)
-      - `protocolVersion`: Protocol version (Int!)
-    - `RelevantTransaction`: Transaction relevant to the wallet
-      - `start`: Start index (Int!)
-      - `end`: End index (Int!)
-      - `transaction`: The relevant transaction (Transaction!)
-- `ShieldedTransactionsProgress`: Synchronization progress information
-  - `highestIndex`: The highest end index of all currently known transactions (Int!)
-  - `highestRelevantIndex`: The highest end index of all currently known relevant transactions (Int!)
-  - `highestRelevantWalletIndex`: The highest end index for this particular wallet (Int!)
+#### Event types
+
+The `ShieldedTransactionsEvent` union type can be one of the following:
+
+**ViewingUpdate**: Contains relevant transactions and/or collapsed Merkle tree updates.
+- `index`: Next start index into the zswap state (Int!)
+- `update`: Array of ZswapChainStateUpdate items ([ZswapChainStateUpdate!]!)
+  - `MerkleTreeCollapsedUpdate`: Merkle tree update
+    - `start`: Start index (Int!)
+    - `end`: End index (Int!)
+    - `update`: Hex-encoded merkle-tree collapsed update (HexEncoded)
+    - `protocolVersion`: Protocol version (Int!)
+  - `RelevantTransaction`: Transaction relevant to the wallet
+    - `start`: Start index (Int!)
+    - `end`: End index (Int!)
+    - `transaction`: The relevant transaction (Transaction!)
+
+**ShieldedTransactionsProgress**: Synchronization progress information.
+- `highestIndex`: The highest end index of all currently known transactions (Int!)
+- `highestRelevantIndex`: The highest end index of all currently known relevant transactions (Int!)
+- `highestRelevantWalletIndex`: The highest end index for this particular wallet (Int!)
 
 ### Unshielded transactions subscription
 
@@ -603,7 +624,8 @@ Adjust `index` and `offset` arguments as needed.
 
 Subscribes to unshielded transaction events for a specific address. Emits events whenever transactions involve unshielded UTXOs for the given address.
 
-**Parameters**:
+#### Parameters
+
 - `address`: The unshielded address to monitor (must be in Bech32m format).
 - `transactionId`: Optional. The transaction ID to start from (defaults to 0).
 
@@ -619,12 +641,12 @@ Subscribes to unshielded transaction events for a specific address. Emits events
 }
 ```
 
-**Event types**:
+#### Event types
 
 - **UnshieldedTransaction**: When UTXOs are created or spent, includes transaction details and affected UTXOs
 - **UnshieldedTransactionsProgress**: Periodic synchronization progress updates
 
-**UnshieldedTransactionsEvent**
+#### UnshieldedTransactionsEvent
 
 Event payload for the unshielded transaction subscription:
 - `UnshieldedTransaction`: Contains transaction details and UTXOs created/spent
@@ -672,9 +694,9 @@ Subscribe to Zswap ledger events. The `id` parameter allows resuming from a spec
 
 ## Query limits configuration
 
-The server may apply limitations to queries (e.g. `max-depth`, `max-fields`, `timeout`, and complexity cost). Requests that violate these limits return errors indicating the reason (too many fields, too deep, too costly, or timed out).
+The server may apply limitations to queries (for example, `max-depth`, `max-fields`, `timeout`, and complexity cost). Requests that violate these limits return errors indicating the reason (too many fields, too deep, too costly, or timed out).
 
-**Example error**:
+### Example error
 
 ```json
 {
@@ -693,7 +715,7 @@ Shielded transactions subscription requires a `sessionId` from the `connect` mut
 
 ## Regenerate the schema
 
-If you're using the Indexer API and modify the code defining the GraphQL schema, you'll need to regenerate the schema file.
+If you're using the Indexer API and modify the code defining the GraphQL schema, then you'll need to regenerate the schema file.
 
 Run the following command:
 
