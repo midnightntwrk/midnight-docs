@@ -375,7 +375,8 @@ circuit tokenType(domainSep: Bytes<32>, contract: ContractAddress): Bytes<32>;
 Creates a new shielded coin, minted by this contract, and sends it to the given
 recipient. Returns the corresponding [`ShieldedCoinInfo`](#shieldedcoininfo). This requires
 inputting a unique nonce to function securely, it is left to the user how to
-produce this.
+produce this. To mint a shielded token to the current contract, pass
+`right<ZswapCoinPublicKey, ContractAddress>(kernel.self())` as the `recipient`.
 
 ```compact
 circuit mintShieldedToken(
@@ -423,7 +424,8 @@ is returned and should be managed by the contract.
 
 Note that this does not currently create coin ciphertexts, so sending to a user
 public key except for the current user will not lead to this user being
-informed of the coin they've been sent.
+informed of the coin they've been sent. To send a shielded token to the current contract, pass
+`right<ZswapCoinPublicKey, ContractAddress>(kernel.self())` as the `recipient`.
 
 ```compact
 circuit sendShielded(input: QualifiedShieldedCoinInfo, recipient: Either<ZswapCoinPublicKey, ContractAddress>, value: Uint<128>): ShieldedSendResult;
@@ -490,7 +492,8 @@ circuit createZswapOutput(coin: ShieldedCoinInfo, recipient: Either<ZswapCoinPub
 ### `mintUnshieldedToken`
 
 Creates a new unshielded coin, minted by this contract, and sends it to the given
-recipient. Returns the corresponding coin color.
+recipient. Returns the corresponding coin color. To mint an unshielded token to the current contract, pass
+`left<ContractAddress, UserAddress>(kernel.self())` as the `recipient`.
 
 ```compact
 export circuit mintUnshieldedToken(
@@ -503,7 +506,8 @@ export circuit mintUnshieldedToken(
 ### `sendUnshielded`
 
 Sends the given amount of the given unshielded token (identified by the color) to the given recipient. No change is 
-returned from this function.
+returned from this function. To send an unshielded token to the current contract, pass
+`left<ContractAddress, UserAddress>(kernel.self())` as the `recipient`.
 
 ```compact
 export circuit sendUnshielded(color: Bytes<32>, amount: Uint<128>, recipient: Either<ContractAddress, UserAddress>): [];
