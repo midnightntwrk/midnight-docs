@@ -1,10 +1,7 @@
-# Release notes template
-
-## Version/Release name
-
-* **Version**: version number  
+# <component><version> (Example: Midnight.js v3.1.0)
+ 
 * **Date**: YYYY-MM-DD  
-* **Environment**: Preview | PreProd | Mainnet (when ready)
+* **Environment**: All public networks at time of release. For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/next/relnotes/overview).
 
 ## High-level summary 
 
