@@ -10,10 +10,8 @@ toc_max_heading_level: 2
 
 # Build the counter CLI
 
-This tutorial shows you how to build a command-line interface that interacts with the counter smart contract created in the [build the counter contract](./smart-contract) tutorial. 
+This tutorial explains how to build a command-line interface that interacts with the counter smart contract created in the [build the counter contract](./smart-contract) tutorial. 
 This CLI demonstrates wallet management, contract deployment, and transaction submission on the Midnight Preprod network.
-
-## Overview
 
 By the end of this tutorial, you will:
 
@@ -31,20 +29,18 @@ The CLI uses the `WalletFacade` from the Midnight wallet SDK, which manages thre
 - Unshielded for transparent operations
 - Dust for transaction fees
 
-<details>
-<summary><strong>Prerequisites</strong></summary>
+## Prerequisites
 
-Before you begin, ensure you have:
+Before you begin, ensure that you have:
 
 - Completed the [build the counter contract](./smart-contract) tutorial with the contract compiled in `contract/src/managed/counter/`
 - Docker Desktop installed to run the proof server
 - Node.js version 22 or higher
 - Basic TypeScript knowledge including async/await and Promises
-</details>
 
 ## Project structure
 
-The complete example-counter project uses a monorepo structure with NPM workspaces:
+The complete example-counter project uses a monorepo structure with npm workspaces:
 
 ```
 example-counter/
@@ -71,7 +67,7 @@ The monorepo structure enables code sharing between packages through workspace r
 
 ## Set up the root package
 
-This section walks you through the process of setting up the root package.
+This section explains the process of setting up the root package.
 
 ### Create the root configuration
 
@@ -124,7 +120,7 @@ From the `example-counter` root directory, create or update `package.json`:
 }
 ```
 
-The workspaces configuration tells NPM to manage both the contract and counter-cli as linked packages. Dependencies defined at the root level are shared across all workspaces, reducing duplication and ensuring version consistency.
+The workspaces configuration tells npm to manage both the contract and counter-cli as linked packages. Dependencies defined at the root level are shared across all workspaces, reducing duplication and ensuring version consistency.
 
 ### Install root dependencies
 
@@ -138,7 +134,7 @@ This command installs dependencies for the root package and all workspace packag
 
 ## Set up the CLI package
 
-This section walks you through the process of setting up the CLI DApp.
+This section explains the process of setting up the CLI DApp.
 
 ### Create the CLI directory
 
@@ -390,13 +386,13 @@ export interface WalletContext {
 
 This code sets up the necessary imports and configuration for the Counter DApp:
 
-**Imports**: The file imports functionality from multiple Midnight packages, including wallet management (`@midnight-ntwrk/wallet-sdk-*`), 
+- **Imports**: The file imports functionality from multiple Midnight packages, including wallet management (`@midnight-ntwrk/wallet-sdk-*`), 
 network providers (`@midnight-ntwrk/midnight-js-*`), and the compiled Counter contract.
 
-**WebSocket configuration**: The `globalThis.WebSocket = WebSocket;` assignment makes the WebSocket constructor available globally. 
+- **WebSocket configuration**: The `globalThis.WebSocket = WebSocket;` assignment makes the WebSocket constructor available globally. 
 This is required for GraphQL subscriptions to work in Node.js, as the Apollo client (used by the wallet for synchronization) expects to find `WebSocket` in the global scope.
 
-**Contract pre-compilation**: The `counterCompiledContract` constant pre-compiles the contract definition with its Zero Knowledge (ZK) circuit assets. 
+- **Contract pre-compilation**: The `counterCompiledContract` constant pre-compiles the contract definition with its Zero Knowledge (ZK) circuit assets. 
 This optimization improves performance by loading the circuit files once at startup instead of recompiling them on every contract interaction.
 
 ### Derive wallet key pairs
@@ -743,13 +739,9 @@ export const buildFreshWallet = async (config: Config): Promise<WalletContext> =
 The wallet building process follows these key steps:
 
 1. **Display unshielded address**: The function immediately prints the unshielded address so users can request faucet tokens while the wallet syncs in the background.
-
 2. **Sync with network**: The `waitForSync` function monitors the wallet's synchronization progress until it catches up with the blockchain. This ensures the wallet has accurate balance information.
-
 3. **Display wallet summary**: After syncing, `printWalletSummary` shows all three address types (shielded, unshielded, and dust) along with their current balances.
-
 4. **Check and wait for funds**: The function checks if the unshielded balance is non-zero. If the balance is zero, it calls `waitForFunds` to monitor the wallet state until tokens arrive from the faucet.
-
 5. **Register for dust generation**: This step registers the wallet's NIGHT UTXOs with the dust generation service, which is required for transaction fees on Preprod and Preview networks.
 
 The function waits for both synchronization and funding before proceeding, ensuring the wallet is ready for transactions.
@@ -810,11 +802,12 @@ This function addresses a wallet SDK limitation in the `signRecipe` method, whic
 
 **The problem**: When signing a transaction that has already been proven (an `UnboundTransaction`), the intents contain `'proof'` data, but `signRecipe` attempts to deserialize them with `'pre-proof'`, causing deserialization failures.
 
-**The workaround**: This function manually signs each intent by:
-1. Deserializing the intent with the correct proof marker (`'proof'` for proven transactions, `'pre-proof'` for unproven transactions)
-2. Generating signatures for the intent's signature data
-3. Adding signatures to both fallible and guaranteed unshielded offers within the intent
-4. Updating the transaction's intent map with the correctly signed intent
+**The workaround**: The function performs the following steps:
+
+1. Deserializes the intent with the correct proof marker. Using `'proof'` for proven transactions and `'pre-proof'` for unproven transactions.
+2. Generates signatures for the intent's signature data.
+3. Adds signatures to both fallible and guaranteed unshielded offers within the intent.
+4. Updates the transaction's intent map with the correctly signed intent.
 
 This ensures that signatures are valid regardless of whether the transaction is in a pre-proof or post-proof state.
 
@@ -871,7 +864,9 @@ This function creates a unified provider that bridges the Wallet SDK to the Midn
 1. WalletProvider interface:
 - `getCoinPublicKey()`: Returns the wallet's shielded coin public key as a hex string, used for receiving shielded funds.
 - `getEncryptionPublicKey()`: Returns the wallet's encryption public key as a hex string, used for decrypting transaction data.
-- `balanceTx()`: Balances an unbound transaction by adding inputs and outputs to cover transaction fees and create change. The TTL (time-to-live) parameter defaults to 30 minutes, after which unsubmitted transactions expire. This method also applies the transaction signing workaround for proven transactions.
+- `balanceTx()`: Balances an unbound transaction by adding inputs and outputs to cover transaction fees and create change. 
+The TTL (time-to-live) parameter defaults to 30 minutes, after which unsubmitted transactions expire. 
+This method also applies the transaction signing workaround for proven transactions.
 
 2. MidnightProvider interface `submitTx()`: Submits a finalized transaction to the Midnight network and returns a promise that resolves when the transaction is confirmed.
 
@@ -905,13 +900,9 @@ export const configureProviders = async (ctx: WalletContext, config: Config) => 
 This function assembles all the providers needed for contract deployment and interaction. Each provider serves a specific purpose:
 
 - **privateStateProvider**: Uses LevelDB to store private contract state persistently on the local filesystem. This allows the DApp to maintain off-chain data across sessions without exposing it to the blockchain.
-
 - **publicDataProvider**: Connects to the Midnight Indexer to query on-chain data. This provider retrieves contract state, transaction history, and other blockchain information through GraphQL queries.
-
 - **zkConfigProvider**: Loads Zero Knowledge (ZK) circuit parameters from the compiled contract directory. These parameters include circuit configurations, proving keys, and verifying keys needed for ZK proof generation.
-
 - **proofProvider**: Connects to the proof server (local or remote) to generate Zero Knowledge proofs for circuit executions. This provider sends circuit inputs to the proof server and receives cryptographic proofs in return.
-
 - **walletProvider** and **midnightProvider**: Both reference the same unified provider created by `createWalletAndMidnightProvider`, which handles transaction balancing, signing, and submission.
 
 ### Contract interaction functions
@@ -994,15 +985,10 @@ export const displayCounterValue = async (
 These functions provide high-level operations for contract interaction:
 
 - **counterContractInstance**: Creates a contract instance using the generated `Counter.Contract` class and the witness implementation. This instance serves as the template for all deployed counter contracts.
-
 - **getCounterLedgerState**: Queries the current state of a deployed contract from the blockchain. It uses the `publicDataProvider` to retrieve the contract state, then applies the generated `Counter.ledger()` function to deserialize the state data and extract the `round` value (the counter's current value). Returns `null` if the contract doesn't exist.
-
 - **joinContract**: Connects to an existing deployed contract using its contract address. This function calls `findDeployedContract()` from Midnight.js, which verifies the contract exists, initializes local private state, and returns a `DeployedCounterContract` object that can be used to interact with the contract.
-
 - **deploy**: Deploys a new instance of the counter contract to the blockchain. It calls `deployContract()` from Midnight.js with the compiled contract, private state configuration, and initial private state. Returns a `DeployedCounterContract` object with the deployment transaction data, including the new contract's address.
-
 - **increment**: Submits a transaction that calls the `increment` circuit on a deployed contract. Uses the `callTx.increment()` method on the deployed contract instance, which generates a Zero Knowledge proof, submits the transaction, and waits for finalization. Returns the finalized transaction data including the transaction ID and block height.
-
 - **displayCounterValue**: Retrieves and displays the current counter value for a deployed contract. Internally calls `getCounterLedgerState()` to fetch the value and logs it to the console. Returns both the counter value and contract address for further processing.
 
 ### DUST monitoring
@@ -1084,7 +1070,7 @@ export function setLogger(_logger: Logger) {
 
 The DUST monitoring function provides real-time feedback on fee token availability. 
 It displays available balance, number of coins, pending transactions, and registration status. 
-The monitor updates every 5 seconds and runs until the user presses Enter, providing visibility into DUST generation progress.
+The monitor updates every five seconds and runs until the user presses the return key, providing visibility into DUST generation progress.
 
 ## Implement the CLI interface
 
@@ -1153,9 +1139,9 @@ ${'─'.repeat(62)}
 The menu constants define the visual structure for user interaction. 
 The DUST balance is displayed dynamically in menu headers, providing constant feedback on fee token availability.
 
-### Wallet setup flow
+### Set up the wallet
 
-Below the menu constants, create the wallet setup flow:
+Below the menu constants, create the function for setting up the wallet:
 
 ```typescript title="counter-cli/src/cli.ts"
 const buildWalletFromSeed = async (config: Config, rli: Interface): Promise<WalletContext> => {
@@ -1181,16 +1167,14 @@ const buildWallet = async (config: Config, rli: Interface): Promise<WalletContex
 };
 ```
 
-The wallet setup flow provides two main functions:
-
-**`buildWallet`**: Displays an interactive menu with three options:
-- Create a new wallet with a randomly generated seed using the `api.buildFreshWallet` method
-- Restore an existing wallet from a seed phrase using the `buildWalletFromSeed` function
-- Exit the application by returning `null`
+The function displays an interactive menu with three options:
+- Create a new wallet with a randomly generated seed using the `api.buildFreshWallet` method.
+- Restore an existing wallet from a seed phrase using the `buildWalletFromSeed` function.
+- Exit the application by returning `null`.
 
 ### Contract interaction helpers
 
-Below the wallet setup flow, create the helper functions for displaying the DUST balance, joining a contract, and starting the DUST monitoring:
+Below the function for setting up the wallet, create the helper functions for displaying the DUST balance, joining a contract, and starting the DUST monitoring:
 
 ```typescript title="counter-cli/src/cli.ts"
 const getDustLabel = async (wallet: api.WalletContext['wallet']): Promise<string> => {
@@ -1378,11 +1362,9 @@ export const run = async (config: Config, _logger: Logger): Promise<void> => {
 
 The `run` function handles the complete CLI workflow with proper resource cleanup:
 
-1. **Outer try-finally block**: Ensures the readline interface closes and listeners are removed, even if errors occur. This prevents memory leaks and ensures clean process termination.
-
-2. **Inner try-finally block**: Guarantees the wallet stops properly, closing all network connections and persisting state. The wallet cleanup happens before readline cleanup to ensure all transactions complete.
-
-3. **Error handling**: Catches and logs errors during provider configuration or main loop execution, allowing graceful shutdown instead of abrupt crashes.
+- **Outer try-finally block**: Ensures the readline interface closes and listeners are removed, even if errors occur. This prevents memory leaks and ensures clean process termination.
+- **Inner try-finally block**: Guarantees the wallet stops properly, closing all network connections and persisting state. The wallet cleanup happens before readline cleanup to ensure all transactions complete.
+- **Error handling**: Catches and logs errors during provider configuration or main loop execution, allowing graceful shutdown instead of abrupt crashes.
 
 ## Create entry point and exports
 
@@ -1409,7 +1391,7 @@ The entry point initializes the logger and configuration, then launches the CLI.
 
 ## Run the complete application
 
-This section walks you through the process of running the complete Counter DApp.
+This section explains the process of running the complete Counter DApp.
 
 ### Start the proof server
 
@@ -1430,17 +1412,7 @@ cd counter-cli
 npm run preprod
 ```
 
-The CLI displays the welcome banner and wallet setup menu.
-
-### Complete workflow
-
-Start the CLI application:
-
-```bash
-npm run preprod
-```
-
-The application displays a banner and presents the wallet setup menu:
+The CLI displays a banner and presents the wallet setup menu:
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
