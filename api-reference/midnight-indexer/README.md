@@ -63,10 +63,10 @@ Sec-WebSocket-Protocol: graphql-transport-ws
 
 The API uses custom scalar types to represent blockchain-specific data formats. Understanding these types is important for creating queries and interpreting responses.
 
-- `HexEncoded`: Hex-encoded bytes (for hashes, addresses, session IDs).
+- `HexEncoded`: Hex-encoded bytes used for hashes, addresses, and session IDs.
 - `ViewingKey`: A viewing key in hex or Bech32 format for wallet sessions.
 - `Unit`: An empty return type for mutations that do not return data.
-- `UnshieldedAddress`: An unshielded address in Bech32m format (e.g., `mn_addr_test1...`). Used for unshielded token operations.
+- `UnshieldedAddress`: An unshielded address in Bech32m format, such as `mn_addr_test1...`. Used for unshielded token operations.
 
 ## Input types
 
@@ -96,16 +96,14 @@ Used to specify a contract action location:
 ## Example queries and mutations
 
 :::note
-These are examples only. Refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) to confirm exact field names and structures.
+These are examples only. To confirm the exact field names and structure, refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql).
 :::
 
 ### block(offset: BlockOffset): Block
 
 Query a block by offset. If no offset is provided, then the latest block is returned.
 
-**Example**:
-
-Query by height:
+#### Query by height
 
 ```graphql
 query {
@@ -141,7 +139,9 @@ Fetch transactions by hash or by identifier. Returns an array of transactions ma
 The `fees` field is now available on transactions, providing both `paidFees` and `estimatedFees` information.
 :::
 
-**Example (by hash)**:
+#### Example: Query transactions by hash
+
+This example demonstrates how to retrieve transactions starting from a specific transaction hash using the `hash` offset parameter.
 
 ```graphql
 query {
@@ -216,7 +216,9 @@ query {
 }
 ```
 
-**Example (by identifier)**:
+#### Example: Query transactions by identifier
+
+This example shows how to filter transactions using a specific identifier, retrieving both the created and spent unshielded outputs.
 
 ```graphql
 query {
@@ -242,7 +244,9 @@ query {
 
 Retrieve the latest known contract action at a given offset (by block or transaction). If no offset is provided, then it returns the latest state.
 
-**Example (latest)**:
+#### Example: Query latest contract action
+
+This example retrieves the most recent contract action for a given address without specifying an offset, which returns the latest state.
 
 ```graphql
 query {
@@ -280,7 +284,9 @@ query {
 }
 ```
 
-**Example (by block height)**:
+#### Example: Query contract action by block height
+
+This example demonstrates how to retrieve a contract action at a specific block height using the `blockOffset` parameter.
 
 ```graphql
 query {
@@ -325,7 +331,9 @@ query {
 
 Query DUST generation status for one or more Cardano stake keys.
 
-**Example**:
+#### Example: Query DUST generation status
+
+This example demonstrates how to check the DUST generation status for Cardano stake keys, including registration status, Night balance, generation rate, and current capacity.
 
 ```graphql
 query {
@@ -356,9 +364,9 @@ The response includes several fields that provide information about DUST generat
 :::tip Important note on `currentCapacity`
 
 The `currentCapacity` field represents the maximum DUST generation capacity based on the Night UTXO balance and elapsed time. This value:
-- Is accurate until the first DUST fee payment.
-- May be higher than actual balance after fee payments.
-- Cannot track spent DUST (fee payments are shielded transactions).
+- Is accurate until the first DUST fee payment
+- Might be higher than actual balance after fee payments
+- Cannot track spent DUST because fee payments are shielded transactions
 :::
 
 For accurate DUST balance after fee payments, query the connected wallet directly via wallet SDK or DApp Connector API. Use `currentCapacity` as an approximation when wallet connection is unavailable.
@@ -388,9 +396,9 @@ Each type implements the ContractAction interface but may have additional fields
 
 All contract action types include an `unshieldedBalances` field that returns the token balances held by the contract:
 
-- **ContractDeploy**: Always returns empty balances (contracts are deployed with zero balance).
-- **ContractCall**: Returns balances after the call execution (may be modified by `unshielded_inputs`/`unshielded_outputs`).
-- **ContractUpdate**: Returns balances after the maintenance update.
+- **ContractDeploy**: Always returns empty balances because contracts are deployed with a zero balance.
+- **ContractCall**: Returns balances after the call execution. These balances might be modified by `unshielded_inputs` or `unshielded_outputs` during the call.
+- **ContractUpdate**: Returns balances after the maintenance update has been applied.
 
 #### ContractBalance type
 
@@ -464,7 +472,7 @@ The following types provide information about DUST generation status, capacity, 
 ### DustGenerationStatus
 
 DUST generation status for a Cardano stake key:
-- `cardanoRewardAddress`: The Bech32-encoded Cardano stake address (e.g., stake_test1... or stake1...)
+- `cardanoRewardAddress`: The Bech32-encoded Cardano stake address, such as `stake_test1...` or `stake1...`
 - `dustAddress`: Associated DUST address if registered (HexEncoded, optional)
 - `registered`: Whether this stake key is registered (Boolean!)
 - `nightBalance`: NIGHT balance backing generation (String)
@@ -497,10 +505,12 @@ Establishes a session for a given wallet viewing key. Returns the session ID tha
 #### Viewing key format support
 
 The viewing key can be provided in either of two formats:
-- **Bech32m** (preferred): A base-32 encoded format with a human-readable prefix, e.g., `mn_shield-esk_dev1...`.
+- **Bech32m** (preferred): A base-32 encoded format with a human-readable prefix, for example, `mn_shield-esk_dev1...`.
 - **Hex** (fallback): A hex-encoded string representing the key bytes.
 
-**Example**:
+#### Example: Connect with viewing key
+
+This example shows how to establish a session by connecting with a viewing key in Bech32m format. The server returns a session ID that you'll use for subsequent queries.
 
 ```graphql
 mutation {
@@ -525,7 +535,10 @@ Use this `sessionId` for shielded transactions subscriptions.
 
 Ends an existing session. Call this method when you no longer need to monitor shielded transactions for a particular wallet.
 
-**Example**:
+#### Example: Disconnect session
+
+This example demonstrates how to terminate an active session using the session ID returned from the connect mutation.
+
 ```graphql
 mutation {
   disconnect(sessionId: "sessionIdHere")
@@ -542,7 +555,9 @@ Subscriptions use a WebSocket connection following the [GraphQL over WebSocket](
 
 Subscribe to new blocks. The `offset` parameter lets you start receiving from a given block (by height or hash). If omitted, starts from the latest block.
 
-**Example**:
+#### Example: Subscribe to blocks
+
+This example shows how to subscribe to new blocks starting from block height 10, receiving real-time updates as new blocks are indexed.
 
 ```json
 {
@@ -562,7 +577,9 @@ When a new block is indexed, the client receives a `next` message.
 
 Monitor smart contract activity by subscribing to contract actions for a specific address. New contract actions (calls, updates) are pushed as they occur.
 
-**Example**:
+#### Example: Subscribe to contract actions
+
+This example demonstrates how to subscribe to contract actions for a specific address, receiving real-time notifications for deployments, calls, and updates.
 
 ```json
 {
@@ -582,7 +599,9 @@ Subscribes to shielded transaction updates. This includes relevant transactions 
 
 Adjust `index` and `offset` arguments as needed.
 
-**Example**:
+#### Example: Subscribe to shielded transactions
+
+This example shows how to subscribe to shielded transactions for a specific session, starting from index 100 and receiving both transaction updates and progress notifications.
 
 ```json
 {
@@ -629,7 +648,9 @@ Subscribes to unshielded transaction events for a specific address. Emits events
 - `address`: The unshielded address to monitor (must be in Bech32m format).
 - `transactionId`: Optional. The transaction ID to start from (defaults to 0).
 
-**Example**:
+#### Example: Subscribe to unshielded transactions
+
+This example demonstrates how to subscribe to unshielded transactions for a specific address, receiving notifications about created and spent UTXOs along with progress updates.
 
 ```json
 {
@@ -662,7 +683,9 @@ Event payload for the unshielded transaction subscription:
 
 Subscribe to DUST ledger events. The `id` parameter allows resuming from a specific event.
 
-**Example**:
+#### Example: Subscribe to DUST ledger events
+
+This example shows how to subscribe to DUST ledger events, receiving real-time updates about DUST-related operations on the blockchain.
 
 ```json
 {
@@ -680,7 +703,9 @@ Subscribe to DUST ledger events. The `id` parameter allows resuming from a speci
 
 Subscribe to Zswap ledger events. The `id` parameter allows resuming from a specific event.
 
-**Example**:
+#### Example: Subscribe to Zswap ledger events
+
+This example demonstrates how to subscribe to Zswap ledger events, receiving updates about shielded pool operations and state changes.
 
 ```json
 {
