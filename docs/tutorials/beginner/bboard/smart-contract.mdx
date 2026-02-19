@@ -1,0 +1,715 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Build the bulletin board contract"
+title: "Build the bulletin board contract"
+description: "Learn how to build a privacy-preserving bulletin board contract on Midnight Network."
+sidebar_position: 10
+toc_max_heading_level: 2
+---
+
+# Build the bulletin board contract
+
+This tutorial shows you how to build a privacy-preserving bulletin board smart contract on the Midnight blockchain. 
+
+By the end of this tutorial, you will:
+
+- Create a Compact smart contract with public ledger state.
+- Implement witness functions for accessing private data.
+- Use cryptographic commitments to protect user identity.
+- Define circuits that enforce access control rules.
+- Compile the contract into Zero Knowledge (ZK) circuits.
+- Understand the generated TypeScript API.
+
+The bulletin board contract allows users to post and remove messages while maintaining privacy. Only the original poster can remove their message, and this is enforced through Zero Knowledge (ZK) proofs without revealing the poster's identity on-chain.
+
+## Prerequisites
+
+Before you begin, ensure that you have:
+
+- **Compact toolchain installed**: For instructions, refer to the [install the toolchain](../../../getting-started/installation) guide
+- **Proof server running**: For instructions, refer to the [run the proof server](../../../guides/run-proof-server) guide
+- **Node.js version 22 or higher**: Verify with `node --version`
+- **TypeScript knowledge**: Familiarity with types, interfaces, and async programming
+- **Command-line proficiency**: Comfortable with terminal operations
+
+## Set up the project
+
+Create the project root and contract directories:
+
+```bash
+mkdir -p example-bboard/contract/src
+cd example-bboard/contract
+```
+
+Your directory structure should now look like this:
+
+```
+example-bboard/
+└── contract/
+    └── src/
+```
+
+## Write the smart contract
+
+This section explains the process of writing the smart contract and understanding the key concepts.
+
+### Create the contract file
+
+Create `contract/src/bboard.compact`:
+
+```bash
+touch src/bboard.compact
+```
+
+Open this file in your code editor.
+
+### Add the language version
+
+The `pragma language_version` directive specifies which version of Compact your contract uses:
+
+```compact
+pragma language_version 0.20;
+```
+
+This directive:
+
+- Locks your contract to a specific Compact version
+- Prevents breaking changes in future compiler versions
+- Ensures consistent compilation across development environments
+
+### Import the standard library
+
+Import Compact's standard library for built-in types and functions:
+
+```compact
+pragma language_version 0.20;
+
+import CompactStandardLibrary;
+```
+
+The `CompactStandardLibrary` provides access to built-in types and functions in Compact, such as `Maybe` for optional values, `Counter` for tracking sequences, `persistentHash` for cryptographic commitments, `some` and `none` constructors for Maybe values, and `pad` for creating fixed-length byte arrays.
+
+:::note
+To learn more about available types, see the [Compact standard library](../../../compact/standard-library/) reference.
+:::
+
+### Define the board state enum
+
+The bulletin board has two possible states. Define an enumeration type to represent them:
+
+```compact
+pragma language_version 0.20;
+
+import CompactStandardLibrary;
+
+export enum State {
+  VACANT,
+  OCCUPIED
+}
+```
+
+This enumeration:
+
+- `export` makes the enum accessible from TypeScript
+- `State` is the enum type name
+- `VACANT` represents an empty board (value 0)
+- `OCCUPIED` represents a board with a message (value 1)
+
+### Define the ledger state
+
+The ledger represents the public, on-chain state of your contract. For the bulletin board, you need four pieces of public information:
+
+```compact
+pragma language_version 0.20;
+
+import CompactStandardLibrary;
+
+export enum State {
+  VACANT,
+  OCCUPIED
+}
+
+export ledger state: State;
+
+export ledger message: Maybe<Opaque<"string">>;
+
+export ledger sequence: Counter;
+
+export ledger owner: Bytes<32>;
+```
+
+Each ledger field serves a specific purpose:
+
+- `state`: Tracks whether the board is vacant or occupied
+- `message`: Stores the current message as an optional opaque string
+- `sequence`: A counter that increments each time a message is taken down, creating unique commitments for each posting cycle and preventing replay attacks
+- `owner`: Stores a cryptographic commitment to the poster's identity as a 32-byte hash
+
+The `Maybe` type indicates optional values. A message is `none` when the board is vacant and `some(value)` when occupied. The `Opaque<"string">` type represents string data whose internal structure is irrelevant to the contract.
+
+### Create the constructor
+
+The constructor initializes the ledger state when the contract is deployed:
+
+```compact
+// ... previous code ...
+
+constructor() {
+  state = State.VACANT;
+  message = none<Opaque<"string">>();
+  sequence.increment(1);
+}
+```
+
+This constructor:
+
+- Sets the initial `state` to `VACANT` since no messages have been posted
+- Initializes `message` to `none` using explicit type annotation
+- Increments `sequence` to 1 to prepare for the first post
+- Leaves `owner` uninitialized, as it defaults to zero bytes
+
+The sequence counter starts at 1 rather than 0. This makes the first post use sequence number 1, which is more intuitive for users.
+
+:::note Constructor initialization
+Fields not explicitly initialized in the constructor receive default values for their type. The `owner` field defaults to 32 zero bytes, and the `sequence` counter defaults to zero before being incremented to 1.
+:::
+
+### Declare the witness function
+
+Before defining the circuits, declare a witness function to access private data:
+
+```compact
+// ... previous code ...
+
+witness localSecretKey(): Bytes<32>;
+```
+
+This declaration:
+
+- `witness` marks this as a function that accesses private state
+- `localSecretKey` returns the user's secret key as a 32-byte value
+- The return value never appears on-chain or in public ledger state
+
+Witnesses are crucial for privacy. They allow circuits to use private data for computation and proof generation without revealing that data to validators or other network participants.
+
+### Create the post circuit
+
+The `post` circuit allows users to post messages to the vacant board:
+
+```compact
+// ... previous code ...
+
+export circuit post(newMessage: Opaque<"string">): [] {
+  assert(state == State.VACANT, "Attempted to post to an occupied board");
+  owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
+  message = disclose(some<Opaque<"string">>(newMessage));
+  state = State.OCCUPIED;
+}
+```
+
+This circuit performs several operations:
+
+- **Validate board state**: `assert(state == State.VACANT, ...)` ensures posting only happens when the board is vacant
+- **Generate commitment**: Calls `publicKey()` helper circuit to create a cryptographic commitment from the secret key and current sequence number
+- **Disclose commitment**: Wraps the commitment in `disclose()` to tell the compiler this value is safe to reveal on-chain
+- **Store message**: Sets `message` to `some(newMessage)` and wraps it in `disclose()` to explicitly reveal it
+- **Update state**: Changes `state = State.OCCUPIED` to mark the board as occupied
+
+The `disclose` keyword is critical for security. 
+By default, Compact prevents computed values from being assigned to public ledger fields. 
+You _must_ explicitly wrap values in `disclose()` to mark them as safe to reveal on-chain, 
+ensuring you don't accidentally leak private data.
+
+The sequence counter is cast twice (`sequence as Field as Bytes<32>`) because you cannot directly cast from `Counter` to `Bytes<32>`. The intermediate `Field` cast provides a compatible type path.
+
+### Create the takeDown circuit
+
+The `takeDown` circuit allows users to remove their own messages:
+
+```compact
+// ... previous code ...
+
+export circuit takeDown(): Opaque<"string"> {
+  assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
+  assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Attempted to take down post, but not the current owner");
+  const formerMsg = message.value;
+  state = State.VACANT;
+  sequence.increment(1);
+  message = none<Opaque<"string">>();
+  return formerMsg;
+}
+```
+
+This circuit performs several operations:
+
+- **Validate board state**: Ensures the board is occupied before attempting removal
+- **Regenerate commitment**: Calls `publicKey()` with the current user's secret key and sequence number
+- **Verify ownership**: Compares the regenerated commitment to the stored `owner` value
+- **Extract message**: Uses `message.value` to access the inner value from the `Maybe` type
+- **Update state**: Changes `state` to `State.VACANT`
+- **Increment sequence**: Advances the counter so the next post uses sequence number 2, 3, and so on
+- **Clear message**: Resets `message` to `none`
+- **Return message**: Returns the taken-down message to the caller
+
+The second `assert` is where privacy meets access control. The user proves they can regenerate the stored commitment without revealing their secret key. The Zero Knowledge (ZK) proof validates this assertion without exposing the private data.
+
+Note that `message` is cleared after extracting its value. This ensures the board is ready for the next post.
+
+### Create the publicKey helper circuit
+
+The `publicKey` circuit generates a cryptographic commitment to the poster's identity:
+
+```compact
+// ... previous code ...
+
+export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bboard:pk:"), sequence, sk]);
+}
+```
+
+This helper circuit:
+
+- Takes a secret key (`sk`) and sequence number as inputs
+- Returns a 32-byte cryptographic hash
+- Uses `persistentHash` from the standard library for secure hashing
+- Creates a vector of three 32-byte values to hash together
+- Uses `pad(32, "bboard:pk:")` to create a domain separator
+
+The commitment has critical properties:
+
+- **Domain separation**: The `"bboard:pk:"` prefix prevents hash collisions with other uses of the secret key
+- **One-way**: You cannot reverse the hash to discover the secret key
+- **Deterministic**: The same inputs always produce the same output
+- **Unique per post**: The sequence number ensures each post has a different commitment
+
+The domain separator is a security best practice. It ensures that hashes generated for the bulletin board cannot be confused with hashes generated for other purposes, even if they use the same secret key.
+
+Your complete bulletin board contract should now look like this:
+
+```compact
+pragma language_version 0.20;
+
+import CompactStandardLibrary;
+
+export enum State {
+  VACANT,
+  OCCUPIED
+}
+
+export ledger state: State;
+
+export ledger message: Maybe<Opaque<"string">>;
+
+export ledger sequence: Counter;
+
+export ledger owner: Bytes<32>;
+
+constructor() {
+  state = State.VACANT;
+  message = none<Opaque<"string">>();
+  sequence.increment(1);
+}
+
+witness localSecretKey(): Bytes<32>;
+
+export circuit post(newMessage: Opaque<"string">): [] {
+  assert(state == State.VACANT, "Attempted to post to an occupied board");
+  owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
+  message = disclose(some<Opaque<"string">>(newMessage));
+  state = State.OCCUPIED;
+}
+
+export circuit takeDown(): Opaque<"string"> {
+  assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
+  assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Attempted to take down post, but not the current owner");
+  const formerMsg = message.value;
+  state = State.VACANT;
+  sequence.increment(1);
+  message = none<Opaque<"string">>();
+  return formerMsg;
+}
+
+export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bboard:pk:"), sequence, sk]);
+}
+```
+
+## Compile the contract
+
+Compilation transforms your Compact code into Zero Knowledge (ZK) circuits and generates TypeScript APIs for interacting with the contract.
+
+### Run the compiler
+
+From the `contract` directory, compile the contract:
+
+```bash
+compact compile src/bboard.compact src/managed/bboard
+```
+
+This command has three parts:
+
+- `compact compile` invokes the Compact compiler
+- `src/bboard.compact` specifies the source file to compile
+- `src/managed/bboard` specifies the output directory for generated files
+
+You should see output similar to:
+
+```
+Compiling 2 circuits:
+  circuit "post" (k=13, rows=4569)  
+  circuit "takeDown" (k=13, rows=4580)  
+Overall progress [====================] 2/2
+```
+
+### Examine the generated files
+
+After compilation, the `src/managed/bboard` directory contains:
+
+```
+src/managed/bboard/
+├── contract/                 
+│   ├── index.d.ts            # Type definitions
+│   ├── index.js              # JavaScript implementation
+│   └── index.js.map          
+├── keys/                     # Cryptographic keys
+│   ├── post.prover          
+│   ├── post.verifier         
+│   ├── takeDown.prover      
+│   ├── takeDown.verifier     
+├── zkir/                     # Zero Knowledge (ZK) Intermediate Representation
+│   ├── post.zkir            
+│   ├── post.bzkir           
+│   ├── takeDown.zkir        
+│   ├── takeDown.bzkir       
+└── compiler/                 # Compiler metadata
+    └── contract-info.json    
+```
+
+Each directory serves the following purpose:
+
+- `contract/`: Contains the generated TypeScript API and JavaScript implementation that your DApp uses to interact with the contract
+- `keys/`: Cryptographic keys used for generating and verifying Zero Knowledge (ZK) proofs for each circuit
+- `zkir/`: Intermediate circuit representations used by the proof server
+- `compiler/`: Metadata about circuits, types, and structure in JSON format
+
+## Understand the generated API
+
+The Compact compiler generates TypeScript definitions that correspond to your contract code. Open `managed/bboard/contract/index.d.ts` to examine the generated types.
+
+### State type
+
+The `State` enum from your Compact code becomes a TypeScript enum:
+
+```typescript
+export enum State {
+  VACANT = 0,
+  OCCUPIED = 1
+}
+```
+
+This allows TypeScript code to reference board states type-safely using `State.VACANT` and `State.OCCUPIED`.
+
+### Circuit types
+
+The `Circuits` type defines the callable functions:
+
+```typescript
+export type Circuits<PS> = {
+  post(
+    context: __compactRuntime.CircuitContext<PS>,
+    newMessage: string
+  ): __compactRuntime.CircuitResults<PS, []>;
+  
+  takeDown(
+    context: __compactRuntime.CircuitContext<PS>
+  ): __compactRuntime.CircuitResults<PS, string>;
+  
+  publicKey(
+    context: __compactRuntime.CircuitContext<PS>,
+    sk: Uint8Array,
+    sequence: Uint8Array
+  ): __compactRuntime.CircuitResults<PS, Uint8Array>;
+}
+```
+
+Each circuit method:
+
+- Corresponds to an exported circuit in your Compact code
+- Takes a `CircuitContext` that provides access to ledger state and witness functions
+- Accepts parameters matching the Compact circuit parameters
+- Returns `CircuitResults` containing the Zero Knowledge (ZK) proof and circuit outputs
+- Uses appropriate JavaScript types (`string`, `Uint8Array`) for Compact types
+
+### Ledger types
+
+The `Ledger` type defines the public state structure:
+
+```typescript
+export type Ledger = {
+  readonly state: State;
+  readonly message: { is_some: boolean, value: string };
+  readonly sequence: bigint;
+  readonly owner: Uint8Array;
+}
+```
+
+Each field:
+
+- Corresponds to a ledger declaration in your Compact code.
+- Uses JavaScript types: `State` enum, `string`, `bigint`, `Uint8Array`.
+- Represents `Maybe` types as objects with `is_some: boolean` and `value` properties.
+- Is marked as `readonly`, meaning state modifications can only happen through circuit calls.
+
+### Witness types
+
+The `Witnesses` type defines the required witness implementations:
+
+```typescript
+export type Witnesses<PS> = {
+  localSecretKey(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
+}
+```
+
+This type:
+
+- Corresponds to the `witness localSecretKey()` declaration in your Compact code
+- Takes a `WitnessContext` providing access to ledger state, private state, and contract address
+- Returns a tuple `[PS, Uint8Array]` containing the updated private state and the 32-byte secret key
+- Must be implemented by your DApp to provide private data during circuit execution
+
+### Contract type
+
+The `Contract` class ties everything together:
+
+```typescript
+export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>> {
+  witnesses: W;
+  circuits: Circuits<PS>;
+  impureCircuits: ImpureCircuits<PS>;
+  constructor(witnesses: W);
+  initialState(context: __compactRuntime.ConstructorContext<PS>): __compactRuntime.ConstructorResult<PS>;
+}
+```
+
+The `Contract` class provides the main interface for interacting with your compiled contract:
+
+- Uses type parameters `PS` for private state and `W` for witnesses
+- Provides `circuits` for pure circuit functions
+- Provides `impureCircuits` for circuits that interact with witnesses
+- Accepts witness implementations in the constructor
+- Initializes contract state through `initialState`, which calls your constructor
+
+## Implement witness functions
+
+The bulletin board contract requires a witness implementation to provide access to the user's secret key during circuit execution.
+
+### Create the witnesses file
+
+Create `contract/src/witnesses.ts`:
+
+```typescript
+import { Ledger } from "./managed/bboard/contract/index.js";
+import { WitnessContext } from "@midnight-ntwrk/compact-runtime";
+
+/* **********************************************************************
+ * The only hidden state needed by the bulletin board contract is
+ * the user's secret key.  Some of the library code and
+ * compiler-generated code is parameterized by the type of our
+ * private state, so we define a type for it and a function to
+ * make an object of that type.
+ */
+
+export type BBoardPrivateState = {
+  readonly secretKey: Uint8Array;
+};
+
+export const createBBoardPrivateState = (secretKey: Uint8Array) => ({
+  secretKey,
+});
+
+/* **********************************************************************
+ * The witnesses object for the bulletin board contract is an object
+ * with a field for each witness function, mapping the name of the function
+ * to its implementation.
+ *
+ * The implementation of each function always takes as its first argument
+ * a value of type WitnessContext<L, PS>, where L is the ledger object type
+ * that corresponds to the ledger declaration in the Compact code, and PS
+ *  is the private state type, like BBoardPrivateState defined above.
+ *
+ * A WitnessContext has three
+ * fields:
+ *  - ledger: T
+ *  - privateState: PS
+ *  - contractAddress: string
+ *
+ * The other arguments (after the first) to each witness function
+ * correspond to the ones declared in Compact for the witness function.
+ * The function's return value is a tuple of the new private state and
+ * the declared return value.  In this case, that's a BBoardPrivateState
+ * and a Uint8Array (because the contract declared a return value of Bytes<32>,
+ * and that's a Uint8Array in TypeScript).
+ *
+ * The localSecretKey witness does not need the ledger or contractAddress
+ * from the WitnessContext, so it uses the parameter notation that puts
+ * only the binding for the privateState in scope.
+ */
+export const witnesses = {
+  localSecretKey: ({
+    privateState,
+  }: WitnessContext<Ledger, BBoardPrivateState>): [
+    BBoardPrivateState,
+    Uint8Array,
+  ] => [privateState, privateState.secretKey],
+};
+```
+
+This code defines:
+
+- `BBoardPrivateState`: The private state type with a `secretKey` field of type `Uint8Array`.
+- `createBBoardPrivateState()`: Helper function to initialize private state with a secret key.
+- `witnesses.localSecretKey`: Implementation that receives a `WitnessContext<Ledger, BBoardPrivateState>` and returns a tuple of `[BBoardPrivateState, Uint8Array]`. The function extracts the `privateState` from the context and returns both the unchanged private state and the secret key.
+
+The witness function receives a `WitnessContext` parameter that provides access to the ledger state, private state, and contract address. The Compact runtime passes this context automatically during circuit execution.
+
+:::info Compact Runtime API
+The `WitnessContext` type is part of the Compact Runtime API. For detailed information about witness contexts and other runtime types, refer to the [Compact runtime API documentation](/api-reference/compact-runtime).
+:::
+
+### Create the index file
+
+Create `contract/src/index.ts` to re-export the contract API:
+
+```typescript
+export * from "./managed/bboard/contract/index.js";
+export * from "./witnesses";
+
+import * as CompiledBBoardContract from "./managed/bboard/contract/index.js";
+import * as Witnesses from "./witnesses";
+```
+
+This file serves as the main entry point for the bulletin board contract. 
+It re-exports all types and functions from the generated contract code and witness implementations, 
+providing a single import point for consuming applications.
+
+### Initialize the npm package
+
+The contract needs a `package.json` file to manage dependencies, define build scripts, and package the contract for use in DApps. This makes it easy to compile, build, and distribute the contract as a reusable module.
+
+Create a `package.json` file in the `contract` directory:
+
+```bash
+npm init -y
+```
+
+This generates a basic `package.json` file with default values, which you'll customize in a later step to add compilation scripts and package metadata.
+
+### Configure TypeScript
+
+Create a `tsconfig.json` file in the `contract` directory:
+
+```json
+{
+  "include": ["src/**/*.ts"],
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "lib": ["ESNext"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+The key configuration options are:
+
+- `target` and `module`: Set to ES2022 for modern JavaScript features
+- `declaration`: Generates `.d.ts` type definition files for TypeScript consumers
+- `outDir`: Compiled JavaScript files go to `./dist`
+- `rootDir`: Source TypeScript files are in `./src`
+- `strict`: Enables strict type checking for better code quality
+
+### Add build scripts
+
+Update your `contract/package.json` to include build scripts:
+
+```json
+{
+  "name": "@midnight-ntwrk/bboard-contract",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist managed",
+    "compile:compact": "compact compile src/bboard.compact src/managed/bboard",
+    "compile:typescript": "tsc",
+    "build": "npm run clean && npm run compile:compact && npm run compile:typescript && cp -Rf ./src/managed ./dist/managed && cp ./src/bboard.compact ./dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  }
+}
+```
+
+Each script serves the following purpose:
+
+- `clean`: Removes compiled output for a fresh build
+- `compile:compact`: Runs the Compact compiler to generate circuits and TypeScript API
+- `compile:typescript`: Compiles TypeScript to JavaScript
+- `build`: Executes all compilation steps in order and copies necessary files
+
+### Build the contract
+
+Run the complete build process:
+
+```bash
+npm install
+npm run build
+```
+
+This command:
+
+1. Installs dependencies (TypeScript compiler and Node.js types)
+2. Cleans previous build artifacts
+3. Compiles the Compact contract to circuits and TypeScript
+4. Compiles TypeScript to JavaScript
+5. Generates type definition files
+6. Copies managed code and source contract to the `dist` directory
+
+You should see output from both the Compact compiler and TypeScript compiler. If successful, you'll have:
+
+- `dist/managed/bboard/`: Generated contract code
+- `dist/`: Compiled JavaScript and type definitions
+- `dist/bboard.compact`: The source contract file
+
+## Next steps
+
+Now that you've built and compiled the bulletin board contract:
+
+- **Build the CLI**: Continue to [build the bulletin board CLI](./bboard-cli) to create an interactive command-line interface
+- **Test the contract**: Add unit tests in `src/test/` to verify circuit behavior and commitment generation
