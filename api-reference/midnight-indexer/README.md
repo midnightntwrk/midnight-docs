@@ -8,12 +8,12 @@ The Midnight Indexer API exposes a GraphQL API that enables clients to query and
 - Version v2 was skipped during migration.
 
 :::warning Disclaimer
-The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
+The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v3.graphql`](https://FIXME/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
 :::
 
 ## GraphQL schema
 
-The GraphQL schema is defined in [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
+The GraphQL schema is defined in [`indexer-api/graphql/schema-v3.graphql`](https://FIXME/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
 
 ## Overview of operations
 
@@ -96,7 +96,7 @@ Used to specify a contract action location:
 ## Example queries and mutations
 
 :::note
-These are examples only. To confirm the exact field names and structure, refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql).
+These are examples only. To confirm the exact field names and structure, refer to the [schema file](https://FIXME/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql).
 :::
 
 ### block(offset: BlockOffset): Block

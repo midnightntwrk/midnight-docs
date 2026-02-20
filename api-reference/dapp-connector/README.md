@@ -295,7 +295,7 @@ const connectedAPI = await connect();
 const provingProvider = connectedAPI.getProvingProvider(keyMaterialProvider);
 
 // Let's prepare the transaction and their inputs
-const costModel = await fetchCostModel(); // For example, from Indexer, using `Block.ledgerParameters`: https://github.com/midnightntwrk/midnight-indexer/blob/main/indexer-api/graphql/schema-v3.graphql#L36
+const costModel = await fetchCostModel(); // For example, from Indexer, using `Block.ledgerParameters`: https://FIXME/midnight-indexer/blob/main/indexer-api/graphql/schema-v3.graphql#L36
 const unprovedTx = prepareUnprovenTransaction(costModel); // For example, make a contract call
 
 // Now the proving itself:
@@ -308,4 +308,4 @@ await connectedAPI.submitTransaction(finalTx);
 
 ## Reference
 
-For the complete technical specification of the DApp Connector API, see the [DApp Connector API Specification](https://github.com/midnightntwrk/midnight-dapp-connector-api/blob/main/docs/api/_media/SPECIFICATION.md) on GitHub.
+For the complete technical specification of the DApp Connector API, see the [DApp Connector API Specification](https://FIXME/midnight-dapp-connector-api/blob/main/docs/api/_media/SPECIFICATION.md) on GitHub.

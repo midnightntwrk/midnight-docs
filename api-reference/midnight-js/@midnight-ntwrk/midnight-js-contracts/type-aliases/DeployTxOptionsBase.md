@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 
 Base type for deploy transaction configuration.
 
-## Type declaration
+## Type Declaration
 
 ### signingKey
 
@@ -22,4 +22,4 @@ The signing key to add as the to-be-deployed contract's maintenance authority.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

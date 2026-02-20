@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -12,11 +12,11 @@ Configuration for creating deploy transactions for contracts with private state.
 configuration is used when a deployment transaction is created and an initial private
 state needs to be stored, as is the case in [submitDeployTx](../functions/submitDeployTx.md).
 
-## Type declaration
+## Type Declaration
 
 ### privateStateId
 
-> `readonly` **privateStateId**: [`PrivateStateId`](../../midnight-js-types/type-aliases/PrivateStateId.md)
+> `readonly` **privateStateId**: `PrivateStateId`
 
 The identifier for the private state of the contract.
 
@@ -24,4 +24,4 @@ The identifier for the private state of the contract.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

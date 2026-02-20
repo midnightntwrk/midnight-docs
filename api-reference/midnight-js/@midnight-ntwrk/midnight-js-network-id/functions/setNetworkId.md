@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -14,9 +14,9 @@ Sets the global network identifier.
 
 ### id
 
-[`NetworkId`](../enumerations/NetworkId.md)
+`string`
 
-A valid [NetworkId](../enumerations/NetworkId.md) value.
+A valid [NetworkId](../type-aliases/NetworkId.md) value.
 
 ## Returns
 
