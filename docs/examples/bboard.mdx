@@ -1,0 +1,501 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Bulletin board DApp"
+sidebar_position: 11
+title: Bulletin board DApp
+description: Learn how the bulletin board DApp demonstrates privacy-preserving message posting with Zero Knowledge proofs on Midnight Network.
+toc_max_heading_level: 2
+---
+
+# Bulletin board DApp
+
+The bulletin board contract demonstrates privacy-preserving smart contracts on Midnight using the Compact language. This example shows how to create a contract that allows users to post and remove messages while protecting poster identity through Zero Knowledge (ZK) proofs.
+
+The bulletin board example is a privacy-focused DApp that introduces key Midnight concepts:
+
+- Writing smart contracts with private state in Compact
+- Using Zero Knowledge (ZK) proofs to verify identity without revealing it
+- Implementing access control through cryptographic commitments
+
+By the end of this guide, you will understand how the bulletin board contract enforces privacy rules and how to deploy and interact with the contract through the CLI.
+
+## The bulletin board scenario
+
+Imagine a traditional cork bulletin board on an office wall with room for just one piece of paper. The office rules are simple:
+
+1. Anyone can post a message when the board is vacant.
+2. Once someone posts a message, only that person can remove it.
+
+The challenge is implementing these rules online while protecting user identity. Traditional systems require users to transmit identity credentials to a server for verification. Midnight offers a better approach: users prove their identity locally through Zero Knowledge (ZK) proofs without transmitting private data across the network.
+
+## DApp architecture
+
+The bulletin board example uses a modular structure with three main components:
+
+```
+example-bboard/
+├── contract/                  # Smart contract in Compact language
+│   ├── src/bboard.compact     # The actual smart contract
+│   └── src/test/              # Contract unit tests
+├── api/                       # Application logic shared by interfaces
+│   └── src/                   # Core DApp functionality
+├── bboard-cli/                # Command-line interface
+│   └── src/                   # CLI implementation
+└── bboard-ui/                 # Web browser interface
+    └── src/                   # React-based UI
+```
+
+### The bulletin board contract
+
+The bulletin board contract is written in Compact. It demonstrates how to build a privacy-preserving application where users can prove ownership of posted content without revealing their identity.
+
+The contract consists of three main components:
+
+#### Ledger state
+
+Four public fields track the bulletin board state on-chain:
+
+- `state`: A `State` enum indicating whether the board is `VACANT` or `OCCUPIED`.
+- `message`: A `Maybe<Opaque<"string">>` type that contains the current posted message, or `none` if the board is vacant.
+- `sequence`: A `Counter` that increments each time a post is taken down, preventing replay attacks.
+- `owner`: A 32-byte cryptographic commitment that represents the current poster's identity without revealing who they are.
+
+#### Circuits
+
+Three exported circuits define the contract's operations:
+
+- `post(newMessage)`: Posts a new message to the board. Checks that the board is vacant, then stores the message and creates an ownership commitment.
+- `takeDown()`: Removes the current message and returns it. Verifies that the caller is the original poster by checking their secret key against the ownership commitment.
+- `publicKey(sk, sequence)`: A helper circuit that generates the ownership commitment from a secret key and sequence number using a persistent hash.
+
+#### Witness
+
+The contract defines one witness function, `localSecretKey()`, which returns the user's secret key during circuit execution without exposing it on-chain or in the generated proof.
+
+Here is the complete contract:
+
+```compact
+pragma language_version 0.20;
+
+import CompactStandardLibrary;
+
+export enum State {
+  VACANT,
+  OCCUPIED
+}
+
+export ledger state: State;
+
+export ledger message: Maybe<Opaque<"string">>;
+
+export ledger sequence: Counter;
+
+export ledger owner: Bytes<32>;
+
+constructor() {
+  state = State.VACANT;
+  message = none<Opaque<"string">>();
+  sequence.increment(1);
+}
+
+witness localSecretKey(): Bytes<32>;
+
+export circuit post(newMessage: Opaque<"string">): [] {
+  assert(state == State.VACANT, "Attempted to post to an occupied board");
+  owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
+  message = disclose(some<Opaque<"string">>(newMessage));
+  state = State.OCCUPIED;
+}
+
+export circuit takeDown(): Opaque<"string"> {
+  assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
+  assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Attempted to take down post, but not the current owner");
+  const formerMsg = message.value;
+  state = State.VACANT;
+  sequence.increment(1);
+  message = none<Opaque<"string">>();
+  return formerMsg;
+}
+
+export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bboard:pk:"), sequence, sk]);
+}
+```
+
+## Prerequisites
+
+Before working with the bulletin board example, ensure that you have:
+
+- Node.js version 22 or higher
+- Docker Desktop installed and running
+- Compact toolchain installed
+- Command-line familiarity
+
+For more information, refer to [install the toolchain](../getting-started/installation).
+
+## Set up the example
+
+This section explains the process of setting up and running the bulletin board DApp locally.
+
+### Clone the repository
+
+Get the bulletin board example from GitHub:
+
+```bash
+git clone https://github.com/midnightntwrk/example-bboard.git
+cd example-bboard
+```
+
+### Install dependencies
+
+Install all required Node.js packages:
+
+```bash
+npm install
+```
+
+This command installs packages for the contract, API, CLI, and UI components.
+
+## Start the proof server
+
+The proof server generates Zero Knowledge (ZK) proofs for transactions locally to protect private data. It must be running before you can deploy or interact with contracts.
+
+Start the proof server:
+
+```bash
+docker run -p 6300:6300 midnightntwrk/proof-server:7.0.0 -- midnight-proof-server -v
+```
+
+:::tip
+The proof server _must_ stay active while using the DApp.
+:::
+
+## Compile the contract
+
+Open a new terminal window, navigate to the `contract` directory, and install the contract-specific dependencies:
+
+```bash
+cd contract
+npm install
+```
+
+Compile the contract by running the `compact` script:
+
+```bash
+npm run compact
+```
+
+The `npm run compact` script runs the following command:
+
+```bash
+compact compile src/bboard.compact src/managed/bboard
+```
+
+This command compiles the contract and builds the TypeScript API and JavaScript implementation.
+
+You should see the following output:
+
+```
+> compact compile src/bboard.compact src/managed/bboard
+
+Compiling 2 circuits:
+  circuit "post" (k=13, rows=4569)  
+  circuit "takeDown" (k=13, rows=4580)
+```
+
+The compiled artifacts are placed in the `src/managed/bboard` directory.
+
+```
+src/
+├── bboard.compact
+├── managed
+│   └── bboard
+│       ├── compiler
+│       ├── contract
+│       ├── keys
+│       └── zkir
+```
+
+## CLI interface
+
+The command-line interface provides a text-based way to interact with the bulletin board contract.
+
+### Launch the bulletin board CLI
+
+Navigate to the `bboard-cli` directory and install the CLI-specific dependencies:
+
+```bash
+cd bboard-cli
+npm install
+```
+
+The `package.json` file for the `bboard-cli` folder has a script called `preprod-remote` that launches the CLI on the Preprod network.
+
+Launch the CLI by running the `preprod-remote` script:
+
+```bash
+npm run preprod-remote
+```
+
+The script launches the CLI and connects to the Preprod network. You should see the following output:
+
+```
+ Starting test environment... 
+ Performing env health check
+ Connected to indexer https://indexer.preprod.midnight.network/ready: ""
+ Connected to proof server http://127.0.0.1:6300/health: {"status":"ok"}
+ Environment started with configuration
+
+You can do one of the following:
+  1. Build a fresh wallet
+  2. Build wallet from a seed
+  3. Exit
+Which would you like to do?
+```
+
+### Set up your wallet
+
+The bulletin board CLI uses a headless wallet implementation that runs locally, separate from browser wallets like Lace Midnight Preview.
+
+#### Create a new wallet
+
+Select option `1` to build a fresh wallet from the menu.
+
+The CLI generates a new wallet and displays the wallet information:
+
+```
+Initializing wallet builder for preprod
+Your wallet seed is: <64-character wallet seed> and your address is: <walletaddress>
+Using unshielded address: <unshielded address> waiting for funds...
+Your wallet initial balance is: 0 (not yet initialized)
+Waiting to receive tokens...
+Syncing wallet...
+```
+
+:::warning Save your seed phrase
+Store the wallet seed in a secure location. You need it to recover your wallet if needed.
+:::
+
+#### Restore an existing wallet
+
+If you already have a wallet seed, select option `2` to build wallet from a seed.
+
+Enter your wallet seed when prompted:
+
+```
+Which would you like to do? 2
+Enter your wallet seed: <wallet seed>
+Initializing wallet builder for preprod
+Building wallet without starting with configuration
+```
+
+The CLI restores your wallet and displays your addresses and balances.
+
+### Get faucet tokens
+
+Before deploying contracts, you need tNight tokens from the faucet.
+
+1. Copy your unshielded address from the CLI output.
+2. Visit the [Preprod faucet](https://faucet.preprod.midnight.network/).
+3. Paste your unshielded address.
+4. Select **Request tokens**.
+5. Wait for the transaction to confirm. It usually takes 1-2 minutes.
+
+After syncing, the CLI displays your updated balances:
+
+```
+Sync complete
+Wallet balances after sync - Shielded: {}, Unshielded: {"0000000000000000000000000000000000000000000000000000000000000000":2000000000}, Dust: 8793832211999999997
+Your NIGHT wallet balance is: 2000000000
+No unregistered UTXOs found for dust generation.
+
+You can do one of the following:
+  1. Deploy a new bulletin board contract
+  2. Join an existing bulletin board contract
+  3. Exit
+Which would you like to do?
+```
+
+The wallet automatically generates tDUST network resources from your tNight holdings, which are required for contract operations.
+
+### Deploy the contract
+
+With your wallet funded, deploy the bulletin board contract to Preprod.
+
+From the Contract Actions menu, select option `1` to deploy a new bulletin board contract:
+
+```
+Which would you like to do? 1
+ deployContract
+ Deployed contract at address: <contract address>
+```
+
+The CLI deploys your contract and displays the contract address.
+
+:::note Transaction time
+Contract deployment typically takes 20-30 seconds on Preprod as the network processes your transaction and Zero Knowledge (ZK) proofs.
+:::
+
+### Join an existing contract
+
+If you want to interact with a contract that someone else deployed, select option `2` to join an existing bulletin board contract.
+
+Enter the contract address when prompted:
+
+```
+Which would you like to do? 2
+What is the contract address (in hex)? <contract address>
+ joinContract: {
+   "contractAddress": "<contract address>"
+ }
+ Joined contract at address: <contract address>
+```
+
+You can now interact with the bulletin board just as if you had deployed it yourself.
+
+### Interact with the bulletin board
+
+Once deployed or joined, you can interact with your bulletin board contract.
+
+The Bulletin Board Actions menu appears:
+
+```
+You can do one of the following:
+  1. Post a message
+  2. Take down your message
+  3. Display the current ledger state (known by everyone)
+  4. Display the current private state (known only to this DApp instance)
+  5. Display the current derived state (known only to this DApp instance)
+  6. Exit
+Which would you like to do?
+```
+
+#### Check the current state
+
+Select option `3` to display the current ledger state and see what everyone can see:
+
+```
+Which would you like to do? 3
+Current state is: 'vacant'
+Current message is: 'none'
+Current sequence is: 1
+Current owner is: '0000000000000000000000000000000000000000000000000000000000000000'
+```
+
+The board initializes to vacant when the contract is deployed. The owner field shows zeros because no one has posted yet.
+
+#### View private state
+
+Select option `4` to display the current private state that only you can see:
+
+```
+Which would you like to do? 4
+Current secret key is: <private secret key>
+```
+
+This displays your secret key that is used to generate cryptographic commitments. This key never leaves your local machine.
+
+#### Post a message
+
+Select option `1` to post a message from the menu.
+
+Enter your message when prompted:
+
+```
+Which would you like to do? 1
+What message do you want to post? Welcome to Midnight
+ postingMessage: Welcome to Midnight
+```
+
+The CLI:
+1. Generates a cryptographic commitment to your identity using your secret key
+2. Creates a Zero Knowledge (ZK) proof proving you followed the contract rules
+3. Submits the proof to Preprod
+4. Waits for transaction confirmation
+
+:::info Privacy protection
+Your identity is never revealed on-chain. The cryptographic commitment in the `owner` field cannot be reverse-engineered to discover your identity, but you can regenerate it to prove ownership.
+:::
+
+#### View the posted message
+
+Select option `3` to display the current ledger state again:
+
+```
+Which would you like to do? 3
+Current state is: 'occupied'
+Current message is: 'Welcome to Midnight'
+Current sequence is: 1
+Current owner is: '<cryptographic commitment>'
+```
+
+The message is now visible to anyone who queries the contract. The state changed to `occupied`, and the owner field now contains your cryptographic commitment.
+
+#### Attempt to post when occupied
+
+Try posting another message when the board is occupied:
+
+```
+Which would you like to do? 1
+What message do you want to post? Testing Preprod BBoard
+ postingMessage: Testing Preprod BBoard
+ Found error 'Unexpected error executing scoped transaction '<unnamed>': Error: failed assert: Attempted to post to an occupied board'
+```
+
+The contract enforces rule 1: no one can post when the board is occupied. The transaction fails locally before ever reaching the network, saving network resources.
+
+#### Take down your message
+
+Select option `2` to take down your message:
+
+```
+Which would you like to do? 2
+ Taking down message...
+ Message taken down successfully
+```
+
+The CLI:
+1. Regenerates your cryptographic commitment using your secret key and the current sequence number
+2. Proves it matches the stored `owner` value
+3. Submits a Zero Knowledge (ZK) proof of this verification
+4. Removes the message and resets the board to vacant
+
+:::caution Only poster can remove
+If you try to take down someone else's message, the transaction fails. The contract enforces this through Zero Knowledge (ZK) proof verification that happens before submission.
+:::
+
+#### Verify removal
+
+Check the board state again:
+
+```
+Which would you like to do? 3
+Current state is: 'vacant'
+Current message is: 'none'
+Current sequence is: 2
+Current owner is: '0000000000000000000000000000000000000000000000000000000000000000'
+```
+
+The board is vacant again, and the sequence counter has incremented to 2. This means the next post will use sequence number 2 in its cryptographic commitment.
+
+#### Exit the CLI
+
+Select option `6` to exit when you're done:
+
+```
+Which would you like to do? 6
+ Exiting...
+ Stopping wallet...
+ Stopping test environment...
+ Shutting down test environment...
+```
+
+The CLI safely shuts down the wallet and stops the test environment.
+
+## Next steps
+
+Now that you understand the bulletin board example:
+
+- **Explore the GitHub repository**: [Bulletin board repository](https://github.com/midnightntwrk/example-bboard)
+- **Build the contract yourself**: Learn how to [build the bulletin board smart contract](../tutorials/beginner/bboard/smart-contract).
