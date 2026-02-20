@@ -1,0 +1,1510 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Build the counter CLI"
+title: "Build the counter CLI"
+description: "Learn how to build a counter CLI DApp on Midnight Network."
+sidebar_position: 20
+toc_max_heading_level: 2
+---
+
+# Build the counter CLI
+
+This tutorial explains how to build a command-line interface that interacts with the counter smart contract created in the [build the counter contract](./smart-contract) tutorial. 
+This CLI demonstrates wallet management, contract deployment, and transaction submission on the Midnight Preprod network.
+
+By the end of this tutorial, you will:
+
+- Set up a CLI project with Midnight.js dependencies.
+- Implement wallet creation using Hierarchical Deterministic (HD) key derivation.
+- Configure providers for contract interaction.
+- Deploy the counter contract to Preprod.
+- Submit increment transactions with Zero Knowledge (ZK) proofs.
+- Query contract state from the blockchain.
+- Handle DUST token generation for transaction fees.
+
+The CLI uses the `WalletFacade` from the Midnight wallet SDK, which manages three wallet types: 
+
+- Shielded (ZSwap) for privacy-preserving transactions
+- Unshielded for transparent operations
+- Dust for transaction fees
+
+## Prerequisites
+
+Before you begin, ensure that you have:
+
+- Completed the [build the counter contract](./smart-contract) tutorial with the contract compiled in `contract/src/managed/counter/`
+- Docker Desktop installed to run the proof server
+- Node.js version 22 or higher
+- Basic TypeScript knowledge including async/await and Promises
+
+## Project structure
+
+The complete example-counter project uses a monorepo structure with npm workspaces:
+
+```
+example-counter/
+├── package.json                 # Root package with workspaces
+├── contract/                    # Compact contract
+│   ├── src/
+│   │   ├── counter.compact
+│   │   ├── managed/
+│   │   └── index.ts
+│   └── package.json
+└── counter-cli/                 # Counter CLI
+    ├── src/
+    │   ├── config.ts           # Network configuration
+    │   ├── common-types.ts     # Type definitions
+    │   ├── api.ts              # Contract interaction
+    │   ├── cli.ts              # User interface
+    │   ├── logger-utils.ts     # Logging setup
+    │   ├── preprod.ts          # Entry point
+    │   └── index.ts            # Re-exports
+    └── package.json
+```
+
+The monorepo structure enables code sharing between packages through workspace references. The counter-cli depends on the contract package without requiring separate publication to npm.
+
+## Set up the root package
+
+This section explains the process of setting up the root package.
+
+### Create the root configuration
+
+From the `example-counter` root directory, create or update `package.json`:
+
+```json 
+{
+  "name": "example-counter",
+  "version": "2.0.2",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "counter-cli",
+    "contract"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^25.2.0",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.52.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "testcontainers": "^11.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.14.0",
+    "@midnight-ntwrk/ledger": "^4.0.0",
+    "@midnight-ntwrk/midnight-js-contracts": "3.0.0",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-network-id": "3.0.0",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-types": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "1.0.0",
+    "@midnight-ntwrk/wallet-sdk-hd": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-shielded": "1.0.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "1.0.0",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "1.0.0",
+    "pino": "^10.3.0",
+    "pino-pretty": "^13.1.3",
+    "ws": "^8.19.0"
+  }
+}
+```
+
+The workspaces configuration tells npm to manage both the contract and counter-cli as linked packages. Dependencies defined at the root level are shared across all workspaces, reducing duplication and ensuring version consistency.
+
+### Install root dependencies
+
+Install all dependencies from the root:
+
+```bash
+npm install
+```
+
+This command installs dependencies for the root package and all workspace packages, creating symlinks between them for local development.
+
+## Set up the CLI package
+
+This section explains the process of setting up the CLI DApp.
+
+### Create the CLI directory
+
+From the root, create the counter-cli structure:
+
+```bash
+mkdir -p counter-cli/src
+cd counter-cli
+```
+
+### Configure the CLI package
+
+Create `counter-cli/package.json`:
+
+```json package.json
+{
+  "name": "@midnight-ntwrk/counter-cli",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "preprod": "node --experimental-specifier-resolution=node --loader ts-node/esm src/preprod.ts",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/counter-contract": "*"
+  }
+}
+```
+
+The package depends on `@midnight-ntwrk/counter-contract` using the wildcard version `*`, which resolves to the local workspace package. This enables importing the compiled contract code without publishing to npm.
+
+### Configure TypeScript
+
+Create `counter-cli/tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules"]
+}
+```
+
+The TypeScript configuration enables ES modules and strict type checking. The `ts-node` section allows direct execution of TypeScript files during development without a separate build step.
+
+## Implement configuration
+
+The configuration file defines network endpoints and contract settings. 
+
+Create `counter-cli/src/config.ts`:
+
+```typescript title="counter-cli/src/config.ts"
+import path from 'node:path';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+
+export const contractConfig = {
+  privateStateStoreName: 'counter-private-state',
+  zkConfigPath: path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'counter'),
+};
+
+export interface Config {
+  readonly logDir: string;
+  readonly indexer: string;
+  readonly indexerWS: string;
+  readonly node: string;
+  readonly proofServer: string;
+}
+
+export class PreprodConfig implements Config {
+  logDir = path.resolve(currentDir, '..', 'logs', 'preprod', `${new Date().toISOString()}.log`);
+  indexer = 'https://indexer.preprod.midnight.network/api/v3/graphql';
+  indexerWS = 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws';
+  node = 'https://rpc.preprod.midnight.network';
+  proofServer = 'http://127.0.0.1:6300';
+  
+  constructor() {
+    setNetworkId('preprod');
+  }
+}
+```
+
+The configuration separates network-specific settings from application logic. 
+The `PreprodConfig` class provides endpoints for Midnight-hosted infrastructure. 
+The `contractConfig` object specifies where the compiled contract artifacts are located and where to store private state locally.
+
+The `setNetworkId` call in the constructor establishes a global network context that Midnight.js libraries use automatically. 
+This ensures all SDK components operate on the correct network without requiring the network ID in every API call.
+
+## Define common types
+
+Type definitions provide type safety and improve code readability. 
+
+Create `counter-cli/src/common-types.ts`:
+
+```typescript title="counter-cli/src/common-types.ts"
+import { Counter, type CounterPrivateState } from '@midnight-ntwrk/counter-contract';
+import type { MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import type { DeployedContract, FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
+import type { ImpureCircuitId } from '@midnight-ntwrk/compact-js';
+
+export type CounterCircuits = ImpureCircuitId<Counter.Contract<CounterPrivateState>>;
+
+export const CounterPrivateStateId = 'counterPrivateState';
+
+export type CounterProviders = MidnightProviders<CounterCircuits, typeof CounterPrivateStateId, CounterPrivateState>;
+
+export type CounterContract = Counter.Contract<CounterPrivateState>;
+
+export type DeployedCounterContract = DeployedContract<CounterContract> | FoundContract<CounterContract>;
+```
+
+These type definitions create aliases for complex generic types. The `CounterCircuits` type extracts the circuit identifiers from the contract. The `CounterProviders` type specifies the provider interface with appropriate type parameters. The `DeployedCounterContract` type union handles both newly deployed contracts and contracts found through joining.
+
+## Implement logging utilities
+
+Logging utilities provide structured logging to both console and file. 
+
+Create `counter-cli/src/logger-utils.ts`:
+
+```typescript title="counter-cli/src/logger-utils.ts"
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import pinoPretty from 'pino-pretty';
+import pino from 'pino';
+import { createWriteStream } from 'node:fs';
+
+export const createLogger = async (logPath: string): Promise<pino.Logger> => {
+  await fs.mkdir(path.dirname(logPath), { recursive: true });
+  
+  const pretty: pinoPretty.PrettyStream = pinoPretty({
+    colorize: true,
+    sync: true,
+  });
+  
+  const level =
+    process.env.DEBUG_LEVEL !== undefined && process.env.DEBUG_LEVEL !== null && process.env.DEBUG_LEVEL !== ''
+      ? process.env.DEBUG_LEVEL
+      : 'info';
+  
+  return pino(
+    {
+      level,
+      depthLimit: 20,
+    },
+    pino.multistream([
+      { stream: pretty, level },
+      { stream: createWriteStream(logPath), level },
+    ]),
+  );
+};
+```
+
+The logger configuration creates two output streams: a pretty-printed console stream for development and a file stream for persistent logs. 
+The log level can be controlled through the `DEBUG_LEVEL` environment variable, defaulting to 'info'. 
+The multistream approach ensures logs are both visible during execution and preserved for debugging.
+
+## Implement the API layer
+
+The API layer handles all interactions with the Midnight network. This file includes wallet creation, 
+provider configuration, contract deployment, and transaction submission functionality. 
+
+### Create the API file
+
+From the `counter-cli` directory, create the `src/api.ts` file and add the following code:
+
+```typescript title="counter-cli/src/api.ts"
+import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
+import { Counter, type CounterPrivateState, witnesses } from '@midnight-ntwrk/counter-contract';
+import * as ledger from '@midnight-ntwrk/ledger-v7';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v7';
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { type FinalizedTxData, type MidnightProvider, type WalletProvider } from '@midnight-ntwrk/midnight-js-types';
+import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import { HDWallet, Roles, generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import {
+  createKeystore,
+  InMemoryTransactionHistoryStorage,
+  PublicKey,
+  UnshieldedWallet,
+  type UnshieldedKeystore,
+} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { type Logger } from 'pino';
+import * as Rx from 'rxjs';
+import { WebSocket } from 'ws';
+import {
+  type CounterCircuits,
+  type CounterContract,
+  type CounterPrivateStateId,
+  type CounterProviders,
+  type DeployedCounterContract,
+} from './common-types';
+import { type Config, contractConfig } from './config';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { assertIsContractAddress, toHex } from '@midnight-ntwrk/midnight-js-utils';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { CompiledContract } from '@midnight-ntwrk/compact-js';
+import { Buffer } from 'buffer';
+import {
+  MidnightBech32m,
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
+} from '@midnight-ntwrk/wallet-sdk-address-format';
+
+let logger: Logger;
+
+// Required for GraphQL subscriptions (wallet sync) to work in Node.js
+globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+
+// Pre-compile the counter contract with ZK circuit assets
+const counterCompiledContract = CompiledContract.make('counter', Counter.Contract).pipe(
+  CompiledContract.withVacantWitnesses,
+  CompiledContract.withCompiledFileAssets(contractConfig.zkConfigPath),
+);
+
+export interface WalletContext {
+  wallet: WalletFacade;
+  shieldedSecretKeys: ledger.ZswapSecretKeys;
+  dustSecretKey: ledger.DustSecretKey;
+  unshieldedKeystore: UnshieldedKeystore;
+}
+```
+
+This code sets up the necessary imports and configuration for the Counter DApp:
+
+- **Imports**: The file imports functionality from multiple Midnight packages, including wallet management (`@midnight-ntwrk/wallet-sdk-*`), 
+network providers (`@midnight-ntwrk/midnight-js-*`), and the compiled Counter contract.
+- **WebSocket configuration**: The `globalThis.WebSocket = WebSocket;` assignment makes the WebSocket constructor available globally. 
+This is required for GraphQL subscriptions to work in Node.js, as the Apollo client (used by the wallet for synchronization) expects to find `WebSocket` in the global scope.
+- **Contract pre-compilation**: The `counterCompiledContract` constant pre-compiles the contract definition with its Zero Knowledge (ZK) circuit assets. 
+This optimization improves performance by loading the circuit files once at startup instead of recompiling them on every contract interaction.
+
+### Derive wallet key pairs
+
+Below the `counterCompiledContract` constant, create the `deriveKeysFromSeed` function to derive the wallet key pairs:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Derive HD wallet keys for all three roles (Zswap, NightExternal, Dust)
+ * from a hex-encoded seed using BIP-44 style derivation at account 0, index 0.
+ */
+const deriveKeysFromSeed = (seed: string) => {
+  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+  if (hdWallet.type !== 'seedOk') {
+    throw new Error('Failed to initialize HDWallet from seed');
+  }
+
+  const derivationResult = hdWallet.hdWallet
+    .selectAccount(0)
+    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+    .deriveKeysAt(0);
+
+  if (derivationResult.type !== 'keysDerived') {
+    throw new Error('Failed to derive keys');
+  }
+
+  hdWallet.hdWallet.clear();
+  return derivationResult.keys;
+};
+```
+
+The hierarchical deterministic wallet derives multiple key pairs from a single seed using BIP-44 style derivation paths. 
+The three roles correspond to different wallet functionalities: Zswap for shielded transactions, NightExternal for unshielded transactions, and Dust for fee management. 
+The `clear` method securely erases sensitive key material from memory after derivation.
+
+### Utility functions for formatting and status display
+
+Below the `deriveKeysFromSeed` function, create the `formatBalance` function to format the token balance for display:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Formats a token balance for display (for example, 1000000000 -> "1,000,000,000").
+ */
+const formatBalance = (balance: bigint): string => balance.toLocaleString();
+
+/**
+ * Runs an async operation with an animated spinner on the console.
+ * Shows ⠋⠙⠹... while running, then ✓ on success or ✗ on failure.
+ */
+export const withStatus = async <T>(message: string, fn: () => Promise<T>): Promise<T> => {
+  const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  let i = 0;
+  const interval = setInterval(() => {
+    process.stdout.write(`\r  ${frames[i++ % frames.length]} ${message}`);
+  }, 80);
+  
+  try {
+    const result = await fn();
+    clearInterval(interval);
+    process.stdout.write(`\r  ✓ ${message}\n`);
+    return result;
+  } catch (e) {
+    clearInterval(interval);
+    process.stdout.write(`\r  ✗ ${message}\n`);
+    throw e;
+  }
+};
+```
+
+The `withStatus` function provides visual feedback for long-running operations. 
+The spinner animation uses Unicode braille patterns that create a smooth rotation effect. 
+The function clears the interval and displays a checkmark on success or an X on failure, maintaining a clean console output.
+
+### Wallet configuration builders
+
+Add wallet configuration builders:
+
+```typescript title="counter-cli/src/api.ts"
+const buildShieldedConfig = ({ indexer, indexerWS, node, proofServer }: Config) => ({
+  networkId: getNetworkId(),
+  indexerClientConnection: {
+    indexerHttpUrl: indexer,
+    indexerWsUrl: indexerWS,
+  },
+  provingServerUrl: new URL(proofServer),
+  relayURL: new URL(node.replace(/^http/, 'ws')),
+});
+
+const buildUnshieldedConfig = ({ indexer, indexerWS }: Config) => ({
+  networkId: getNetworkId(),
+  indexerClientConnection: {
+    indexerHttpUrl: indexer,
+    indexerWsUrl: indexerWS,
+  },
+  txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+});
+
+const buildDustConfig = ({ indexer, indexerWS, node, proofServer }: Config) => ({
+  networkId: getNetworkId(),
+  costParameters: {
+    additionalFeeOverhead: 300_000_000_000_000n,
+    feeBlocksMargin: 5,
+  },
+  indexerClientConnection: {
+    indexerHttpUrl: indexer,
+    indexerWsUrl: indexerWS,
+  },
+  provingServerUrl: new URL(proofServer),
+  relayURL: new URL(node.replace(/^http/, 'ws')),
+});
+```
+
+Each wallet type requires its own configuration object. 
+The shielded wallet needs proof server access for generating ZK proofs. 
+The unshielded wallet uses in-memory transaction history storage since it doesn't require proofs. 
+The dust wallet includes cost parameters that configure fee estimation with an additional overhead buffer and block margin for safety.
+
+### Wallet synchronization and funding functions
+
+Add wallet synchronization and funding functions:
+
+```typescript title="counter-cli/src/api.ts"
+/** Wait until the wallet has fully synced with the network. Returns the synced state. */
+export const waitForSync = (wallet: WalletFacade) =>
+  Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.throttleTime(5_000),
+      Rx.filter((state) => state.isSynced),
+    ),
+  );
+
+/** Wait until the wallet has a non-zero unshielded balance. Returns the balance. */
+export const waitForFunds = (wallet: WalletFacade): Promise<bigint> =>
+  Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.throttleTime(10_000),
+      Rx.filter((state) => state.isSynced),
+      Rx.map((s) => s.unshielded.balances[unshieldedToken().raw] ?? 0n),
+      Rx.filter((balance) => balance > 0n),
+    ),
+  );
+```
+
+These functions use RxJS operators to observe wallet state changes reactively. 
+The `throttleTime` operator prevents excessive processing by limiting updates to once per interval. 
+The `filter` operator selects only states meeting specific conditions. The `firstValueFrom` function converts the observable to a promise that resolves with the first matching value.
+
+### DUST generation registration
+
+Below the `waitForFunds` function, create the `registerForDustGeneration` function to register the unshielded NIGHT UTXOs for DUST generation:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Register unshielded NIGHT UTXOs for dust generation.
+ *
+ * On Preprod/Preview, NIGHT tokens generate DUST over time, but only after
+ * the UTXOs have been explicitly designated for dust generation via an on-chain
+ * transaction. DUST is the non-transferable network resource used by the Midnight network to process transactions.
+ */
+const registerForDustGeneration = async (
+  wallet: WalletFacade,
+  unshieldedKeystore: UnshieldedKeystore,
+): Promise<void> => {
+  const state = await Rx.firstValueFrom(wallet.state().pipe(Rx.filter((s) => s.isSynced)));
+
+  // Check if dust is already available (for example, from a previous designation)
+  if (state.dust.availableCoins.length > 0) {
+    const dustBal = state.dust.walletBalance(new Date());
+    console.log(`  ✓ Dust tokens already available (${formatBalance(dustBal)} DUST)`);
+    return;
+  }
+
+  // Only register coins that haven't been designated yet
+  const nightUtxos = state.unshielded.availableCoins.filter(
+    (coin: any) => coin.meta?.registeredForDustGeneration !== true,
+  );
+  
+  if (nightUtxos.length === 0) {
+    // All coins already registered — just wait for dust to generate
+    await withStatus('Waiting for dust tokens to generate', () =>
+      Rx.firstValueFrom(
+        wallet.state().pipe(
+          Rx.throttleTime(5_000),
+          Rx.filter((s) => s.isSynced),
+          Rx.filter((s) => s.dust.walletBalance(new Date()) > 0n),
+        ),
+      ),
+    );
+    return;
+  }
+
+  await withStatus(`Registering ${nightUtxos.length} NIGHT UTXO(s) for dust generation`, async () => {
+    const recipe = await wallet.registerNightUtxosForDustGeneration(
+      nightUtxos,
+      unshieldedKeystore.getPublicKey(),
+      (payload) => unshieldedKeystore.signData(payload),
+    );
+    const finalized = await wallet.finalizeRecipe(recipe);
+    await wallet.submitTransaction(finalized);
+  });
+
+  // Wait for dust to actually generate (balance > 0), not just for coins to appear
+  await withStatus('Waiting for dust tokens to generate', () =>
+    Rx.firstValueFrom(
+      wallet.state().pipe(
+        Rx.throttleTime(5_000),
+        Rx.filter((s) => s.isSynced),
+        Rx.filter((s) => s.dust.walletBalance(new Date()) > 0n),
+      ),
+    ),
+  );
+};
+```
+
+DUST generation designates tNIGHT tokens to automatically generate DUST tokens over time after registration. 
+The registration process creates an on-chain transaction that designates specific UTXOs for DUST generation. 
+
+This two-step process (registration + generation) ensures users have DUST for transaction fees without requiring a separate faucet for DUST.
+
+### Wallet summary display
+
+Below the `registerForDustGeneration` function, create the `printWalletSummary` function to display the wallet summary:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Prints a formatted wallet summary to the console, showing all three
+ * wallet types (Shielded, Unshielded, Dust) with their addresses and balances.
+ */
+const printWalletSummary = (seed: string, state: any, unshieldedKeystore: UnshieldedKeystore) => {
+  const networkId = getNetworkId();
+  const unshieldedBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
+
+  // Build the bech32m shielded address from coin + encryption public keys
+  const coinPubKey = ShieldedCoinPublicKey.fromHexString(state.shielded.coinPublicKey.toHexString());
+  const encPubKey = ShieldedEncryptionPublicKey.fromHexString(state.shielded.encryptionPublicKey.toHexString());
+  const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
+
+  const DIV = '──────────────────────────────────────────────────────────────';
+
+  console.log(`
+${DIV}
+  Wallet Overview                            Network: ${networkId}
+${DIV}
+  Seed: ${seed}
+${DIV}
+
+  Shielded (ZSwap)
+  └─ Address: ${shieldedAddress}
+
+  Unshielded
+  ├─ Address: ${unshieldedKeystore.getBech32Address()}
+  └─ Balance: ${formatBalance(unshieldedBalance)} tNight
+
+  Dust
+  └─ Address: ${state.dust.dustAddress}
+
+${DIV}`);
+};
+```
+
+The wallet summary displays all three address types with their current balances:
+
+- **Shielded address**: Constructed from two public keys (coin and encryption) and encoded in Bech32m format. This address enables private transactions on the Midnight network.
+- **Unshielded address**: Derived from the keystore and represents a transparent Midnight address. This address is used for public transactions and receiving funds from faucets.
+- **Dust address**: Automatically generated and used for fee management. This address holds DUST tokens required for transaction fees.
+
+### Main wallet building function
+
+Add the main wallet building function:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Build (or restore) a wallet from a hex seed, then wait for the wallet
+ * to sync and receive funds before returning.
+ */
+export const buildWalletAndWaitForFunds = async (config: Config, seed: string): Promise<WalletContext> => {
+  console.log('');
+
+  // Derive HD keys and initialize the three sub-wallets
+  const { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore } = await withStatus(
+    'Building wallet',
+    async () => {
+      const keys = deriveKeysFromSeed(seed);
+      const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+      const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+      const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+
+      const shieldedWallet = ShieldedWallet(buildShieldedConfig(config)).startWithSecretKeys(shieldedSecretKeys);
+      const unshieldedWallet = UnshieldedWallet(buildUnshieldedConfig(config)).startWithPublicKey(
+        PublicKey.fromKeyStore(unshieldedKeystore),
+      );
+      const dustWallet = DustWallet(buildDustConfig(config)).startWithSecretKey(
+        dustSecretKey,
+        ledger.LedgerParameters.initialParameters().dust,
+      );
+
+      const wallet = new WalletFacade(shieldedWallet, unshieldedWallet, dustWallet);
+      await wallet.start(shieldedSecretKeys, dustSecretKey);
+
+      return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
+    },
+  );
+
+  // Show seed and unshielded address immediately so user can fund via faucet while syncing
+  const networkId = getNetworkId();
+  const DIV = '──────────────────────────────────────────────────────────────';
+  console.log(`
+${DIV}
+  Wallet Overview                            Network: ${networkId}
+${DIV}
+  Seed: ${seed}
+
+  Unshielded Address (send tNight here):
+  ${unshieldedKeystore.getBech32Address()}
+
+  Fund your wallet with tNight from the Preprod faucet:
+  https://faucet.preprod.midnight.network/
+${DIV}
+`);
+
+  // Wait for the wallet to sync with the network
+  const syncedState = await withStatus('Syncing with network', () => waitForSync(wallet));
+
+  // Display the full wallet summary with all addresses and balances
+  printWalletSummary(seed, syncedState, unshieldedKeystore);
+
+  // Check if wallet has funds; if not, wait for incoming tokens
+  const balance = syncedState.unshielded.balances[unshieldedToken().raw] ?? 0n;
+  if (balance === 0n) {
+    const fundedBalance = await withStatus('Waiting for incoming tokens', () => waitForFunds(wallet));
+    console.log(`    Balance: ${formatBalance(fundedBalance)} tNight\n`);
+  }
+
+  // Register NIGHT UTXOs for dust generation (required for tx fees on Preprod/Preview)
+  await registerForDustGeneration(wallet, unshieldedKeystore);
+
+  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
+};
+
+export const buildFreshWallet = async (config: Config): Promise<WalletContext> =>
+  await buildWalletAndWaitForFunds(config, toHex(Buffer.from(generateRandomSeed())));
+```
+
+The wallet building process follows these key steps:
+
+1. **Display unshielded address**: The function immediately prints the unshielded address so users can request faucet tokens while the wallet syncs in the background.
+2. **Sync with network**: The `waitForSync` function monitors the wallet's synchronization progress until it catches up with the blockchain. This ensures the wallet has accurate balance information.
+3. **Display wallet summary**: After syncing, `printWalletSummary` shows all three address types (shielded, unshielded, and dust) along with their current balances.
+4. **Check and wait for funds**: The function checks if the unshielded balance is non-zero. If the balance is zero, it calls `waitForFunds` to monitor the wallet state until tokens arrive from the faucet.
+5. **Register for dust generation**: This step registers the wallet's NIGHT UTXOs with the dust generation service, which is required for transaction fees on Preprod and Preview networks.
+
+The function waits for both synchronization and funding before proceeding, ensuring the wallet is ready for transactions.
+
+### Transaction signing helper
+
+Below the `buildWalletAndWaitForFunds` function, create the `signTransactionIntents` function to sign the transaction intents:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Sign all unshielded offers in a transaction's intents, using the correct
+ * proof marker for Intent.deserialize. This works around a bug in the wallet
+ * SDK where signRecipe hardcodes 'pre-proof', which fails for proven
+ * (UnboundTransaction) intents that contain 'proof' data.
+ */
+const signTransactionIntents = (
+  tx: { intents?: Map<number, any> },
+  signFn: (payload: Uint8Array) => ledger.Signature,
+  proofMarker: 'proof' | 'pre-proof',
+): void => {
+  if (!tx.intents || tx.intents.size === 0) return;
+
+  for (const segment of tx.intents.keys()) {
+    const intent = tx.intents.get(segment);
+    if (!intent) continue;
+
+    // Clone the intent with the correct proof marker
+    const cloned = ledger.Intent.deserialize<ledger.SignatureEnabled, ledger.Proofish, ledger.PreBinding>(
+      'signature',
+      proofMarker,
+      'pre-binding',
+      intent.serialize(),
+    );
+
+    const sigData = cloned.signatureData(segment);
+    const signature = signFn(sigData);
+
+    if (cloned.fallibleUnshieldedOffer) {
+      const sigs = cloned.fallibleUnshieldedOffer.inputs.map(
+        (_: ledger.UtxoSpend, i: number) => cloned.fallibleUnshieldedOffer!.signatures.at(i) ?? signature,
+      );
+      cloned.fallibleUnshieldedOffer = cloned.fallibleUnshieldedOffer.addSignatures(sigs);
+    }
+
+    if (cloned.guaranteedUnshieldedOffer) {
+      const sigs = cloned.guaranteedUnshieldedOffer.inputs.map(
+        (_: ledger.UtxoSpend, i: number) => cloned.guaranteedUnshieldedOffer!.signatures.at(i) ?? signature,
+      );
+      cloned.guaranteedUnshieldedOffer = cloned.guaranteedUnshieldedOffer.addSignatures(sigs);
+    }
+
+    tx.intents.set(segment, cloned);
+  }
+};
+```
+
+This function addresses a wallet SDK limitation in the `signRecipe` method, which hardcodes the proof marker to `'pre-proof'`. 
+
+**The problem**: When signing a transaction that has already been proven (an `UnboundTransaction`), the intents contain `'proof'` data, but `signRecipe` attempts to deserialize them with `'pre-proof'`, causing deserialization failures.
+
+**The workaround**: The function performs the following steps:
+
+1. Deserializes the intent with the correct proof marker. Using `'proof'` for proven transactions and `'pre-proof'` for unproven transactions.
+2. Generates signatures for the intent's signature data.
+3. Adds signatures to both fallible and guaranteed unshielded offers within the intent.
+4. Updates the transaction's intent map with the correctly signed intent.
+
+This ensures that signatures are valid regardless of whether the transaction is in a pre-proof or post-proof state.
+
+### Provider creation
+
+Add provider creation:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Create the unified WalletProvider & MidnightProvider for midnight-js.
+ * This bridges the wallet-sdk-facade to the midnight-js contract API by
+ * implementing balance, sign, finalize, and submit operations.
+ */
+export const createWalletAndMidnightProvider = async (
+  ctx: WalletContext,
+): Promise<WalletProvider & MidnightProvider> => {
+  const state = await Rx.firstValueFrom(ctx.wallet.state().pipe(Rx.filter((s) => s.isSynced)));
+  
+  return {
+    getCoinPublicKey() {
+      return state.shielded.coinPublicKey.toHexString();
+    },
+    getEncryptionPublicKey() {
+      return state.shielded.encryptionPublicKey.toHexString();
+    },
+    async balanceTx(tx, ttl?) {
+      const recipe = await ctx.wallet.balanceUnboundTransaction(
+        tx,
+        { shieldedSecretKeys: ctx.shieldedSecretKeys, dustSecretKey: ctx.dustSecretKey },
+        { ttl: ttl ?? new Date(Date.now() + 30 * 60 * 1000) },
+      );
+
+      // Work around wallet SDK bug: signRecipe uses hardcoded 'pre-proof'
+      // marker when cloning intents, but proven (UnboundTransaction) intents
+      // have 'proof' data, causing "Failed to clone intent". We sign manually
+      // with the correct proof markers.
+      const signFn = (payload: Uint8Array) => ctx.unshieldedKeystore.signData(payload);
+      signTransactionIntents(recipe.baseTransaction, signFn, 'proof');
+      if (recipe.balancingTransaction) {
+        signTransactionIntents(recipe.balancingTransaction, signFn, 'pre-proof');
+      }
+
+      return ctx.wallet.finalizeRecipe(recipe);
+    },
+    submitTx(tx) {
+      return ctx.wallet.submitTransaction(tx) as any;
+    },
+  };
+};
+```
+
+This function creates a unified provider that bridges the Wallet SDK to the Midnight.js contracts API. It implements two key interfaces:
+
+#### WalletProvider interface
+- `getCoinPublicKey()`: Returns the wallet's shielded coin public key as a hex string, used for receiving shielded funds.
+- `getEncryptionPublicKey()`: Returns the wallet's encryption public key as a hex string, used for decrypting transaction data.
+- `balanceTx()`: Balances an unbound transaction by adding inputs and outputs to cover transaction fees and create change. 
+The TTL (time-to-live) parameter defaults to 30 minutes, after which unsubmitted transactions expire. 
+This method also applies the transaction signing workaround for proven transactions.
+
+#### MidnightProvider interface `submitTx()`
+- Submits a finalized transaction to the Midnight network and waits for confirmation. 
+- Returns a promise that resolves when validators have verified the proof and updated the ledger state.
+
+### Provider configuration
+
+Below the provider creation function, create a `configureProviders` function to configure the providers:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Configure all midnight-js providers needed for contract deployment and interaction.
+ * This wires together the wallet, proof server, indexer, and private state storage.
+ */
+export const configureProviders = async (ctx: WalletContext, config: Config) => {
+  const walletAndMidnightProvider = await createWalletAndMidnightProvider(ctx);
+  const zkConfigProvider = new NodeZkConfigProvider<CounterCircuits>(contractConfig.zkConfigPath);
+  
+  return {
+    privateStateProvider: levelPrivateStateProvider<typeof CounterPrivateStateId>({
+      privateStateStoreName: contractConfig.privateStateStoreName,
+      walletProvider: walletAndMidnightProvider,
+    }),
+    publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
+    zkConfigProvider,
+    proofProvider: httpClientProofProvider(config.proofServer, zkConfigProvider),
+    walletProvider: walletAndMidnightProvider,
+    midnightProvider: walletAndMidnightProvider,
+  };
+};
+```
+
+This function assembles all the providers needed for contract deployment and interaction. Each provider serves a specific purpose:
+
+- **privateStateProvider**: Uses LevelDB to store private contract state persistently on the local filesystem. This allows the DApp to maintain off-chain data across sessions without exposing it to the blockchain.
+- **publicDataProvider**: Connects to the Midnight Indexer to query on-chain data. This provider retrieves contract state, transaction history, and other blockchain information through GraphQL queries.
+- **zkConfigProvider**: Loads Zero Knowledge (ZK) circuit parameters from the compiled contract directory. These parameters include circuit configurations, proving keys, and verifying keys needed for ZK proof generation.
+- **proofProvider**: Connects to the proof server (local or remote) to generate Zero Knowledge proofs for circuit executions. This provider sends circuit inputs to the proof server and receives cryptographic proofs in return.
+- **walletProvider** and **midnightProvider**: Both reference the same unified provider created by `createWalletAndMidnightProvider`, which handles transaction balancing, signing, and submission.
+
+### Contract interaction functions
+
+Below the provider configuration function, create the contract interaction functions:
+
+```typescript title="counter-cli/src/api.ts"
+export const counterContractInstance: CounterContract = new Counter.Contract(witnesses);
+
+export const getCounterLedgerState = async (
+  providers: CounterProviders,
+  contractAddress: ContractAddress,
+): Promise<bigint | null> => {
+  assertIsContractAddress(contractAddress);
+  logger.info('Checking contract ledger state...');
+  
+  const state = await providers.publicDataProvider
+    .queryContractState(contractAddress)
+    .then((contractState) => (contractState != null ? Counter.ledger(contractState.data).round : null));
+  
+  logger.info(`Ledger state: ${state}`);
+  return state;
+};
+
+export const joinContract = async (
+  providers: CounterProviders,
+  contractAddress: string,
+): Promise<DeployedCounterContract> => {
+  const counterContract = await findDeployedContract(providers, {
+    contractAddress,
+    compiledContract: counterCompiledContract,
+    privateStateId: 'counterPrivateState',
+    initialPrivateState: { privateCounter: 0 },
+  });
+  
+  logger.info(`Joined contract at address: ${counterContract.deployTxData.public.contractAddress}`);
+  return counterContract;
+};
+
+export const deploy = async (
+  providers: CounterProviders,
+  privateState: CounterPrivateState,
+): Promise<DeployedCounterContract> => {
+  logger.info('Deploying counter contract...');
+  
+  const counterContract = await deployContract(providers, {
+    compiledContract: counterCompiledContract,
+    privateStateId: 'counterPrivateState',
+    initialPrivateState: privateState,
+  });
+  
+  logger.info(`Deployed contract at address: ${counterContract.deployTxData.public.contractAddress}`);
+  return counterContract;
+};
+
+export const increment = async (counterContract: DeployedCounterContract): Promise<FinalizedTxData> => {
+  logger.info('Incrementing...');
+  const finalizedTxData = await counterContract.callTx.increment();
+  logger.info(`Transaction ${finalizedTxData.public.txId} added in block ${finalizedTxData.public.blockHeight}`);
+  return finalizedTxData.public;
+};
+
+export const displayCounterValue = async (
+  providers: CounterProviders,
+  counterContract: DeployedCounterContract,
+): Promise<{ counterValue: bigint | null; contractAddress: string }> => {
+  const contractAddress = counterContract.deployTxData.public.contractAddress;
+  const counterValue = await getCounterLedgerState(providers, contractAddress);
+  
+  if (counterValue === null) {
+    logger.info(`There is no counter contract deployed at ${contractAddress}.`);
+  } else {
+    logger.info(`Current counter value: ${Number(counterValue)}`);
+  }
+  
+  return { contractAddress, counterValue };
+};
+```
+
+These functions provide high-level operations for contract interaction:
+
+- **counterContractInstance**: Creates a contract instance using the generated `Counter.Contract` class and the witness implementation. This instance serves as the template for all deployed counter contracts.
+- **getCounterLedgerState**: Queries the current state of a deployed contract from the blockchain. It uses the `publicDataProvider` to retrieve the contract state, then applies the generated `Counter.ledger()` function to deserialize the state data and extract the `round` value (the counter's current value). Returns `null` if the contract doesn't exist.
+- **joinContract**: Connects to an existing deployed contract using its contract address. This function calls `findDeployedContract()` from Midnight.js, which verifies the contract exists, initializes local private state, and returns a `DeployedCounterContract` object that can be used to interact with the contract.
+- **deploy**: Deploys a new instance of the counter contract to the blockchain. It calls `deployContract()` from Midnight.js with the compiled contract, private state configuration, and initial private state. Returns a `DeployedCounterContract` object with the deployment transaction data, including the new contract's address.
+- **increment**: Submits a transaction that calls the `increment` circuit on a deployed contract. Uses the `callTx.increment()` method on the deployed contract instance, which generates a Zero Knowledge proof, submits the transaction, and waits for finalization. Returns the finalized transaction data including the transaction ID and block height.
+- **displayCounterValue**: Retrieves and displays the current counter value for a deployed contract. Internally calls `getCounterLedgerState()` to fetch the value and logs it to the console. Returns both the counter value and contract address for further processing.
+
+### DUST monitoring
+
+Below the contract interaction functions, create the DUST monitoring functions:
+
+```typescript title="counter-cli/src/api.ts"
+/**
+ * Get the current DUST balance from the wallet state.
+ */
+export const getDustBalance = async (
+  wallet: WalletFacade,
+): Promise<{ available: bigint; pending: bigint; availableCoins: number; pendingCoins: number }> => {
+  const state = await Rx.firstValueFrom(wallet.state().pipe(Rx.filter((s) => s.isSynced)));
+  const available = state.dust.walletBalance(new Date());
+  const availableCoins = state.dust.availableCoins.length;
+  const pendingCoins = state.dust.pendingCoins.length;
+  const pending = state.dust.pendingCoins.reduce((sum, c) => sum + c.initialValue, 0n);
+  return { available, pending, availableCoins, pendingCoins };
+};
+
+/**
+ * Monitor DUST balance with a live-updating display.
+ * Prints a status line every 5 seconds showing balance, coins, and status.
+ * Resolves when the user presses Enter (via the provided signal).
+ */
+export const monitorDustBalance = async (wallet: WalletFacade, stopSignal: Promise<void>): Promise<void> => {
+  let stopped = false;
+  void stopSignal.then(() => {
+    stopped = true;
+  });
+
+  const sub = wallet
+    .state()
+    .pipe(
+      Rx.throttleTime(5_000),
+      Rx.filter((s) => s.isSynced),
+    )
+    .subscribe((state) => {
+      if (stopped) return;
+
+      const now = new Date();
+      const available = state.dust.walletBalance(now);
+      const availableCoins = state.dust.availableCoins.length;
+      const pendingCoins = state.dust.pendingCoins.length;
+
+      const registeredNight = state.unshielded.availableCoins.filter(
+        (coin: any) => coin.meta?.registeredForDustGeneration === true,
+      ).length;
+      const totalNight = state.unshielded.availableCoins.length;
+
+      let status = '';
+      if (pendingCoins > 0 && availableCoins === 0) {
+        status = '⚠ locked by pending tx';
+      } else if (available > 0n) {
+        status = '✓ ready to deploy';
+      } else if (availableCoins > 0) {
+        status = 'accruing...';
+      } else if (registeredNight > 0) {
+        status = 'waiting for generation...';
+      } else {
+        status = 'no NIGHT registered';
+      }
+
+      const time = now.toLocaleTimeString();
+      console.log(
+        `  [${time}] DUST: ${formatBalance(available)} (${availableCoins} coins, ${pendingCoins} pending) | NIGHT: ${totalNight} UTXOs, ${registeredNight} registered | ${status}`,
+      );
+    });
+
+  await stopSignal;
+  sub.unsubscribe();
+};
+
+export function setLogger(_logger: Logger) {
+  logger = _logger;
+}
+```
+
+The DUST monitoring function provides real-time feedback on fee token availability. 
+It displays available balance, number of coins, pending transactions, and registration status. 
+The monitor updates every five seconds and runs until the user presses the return key, providing visibility into DUST generation progress.
+
+## Implement the CLI interface
+
+The CLI provides an interactive menu system for users to interact with the counter contract. 
+
+Create `counter-cli/src/cli.ts` and add the following code:
+
+```typescript title="counter-cli/src/cli.ts"
+import { type WalletContext } from './api';
+import { stdin as input, stdout as output } from 'node:process';
+import { createInterface, type Interface } from 'node:readline/promises';
+import { type Logger } from 'pino';
+import { type Config } from './config'
+import { type StartedDockerComposeEnvironment, type DockerComposeEnvironment } from 'testcontainers';
+import { type CounterProviders, type DeployedCounterContract } from './common-types';
+import * as api from './api';
+
+let logger: Logger;
+
+const GENESIS_MINT_WALLET_SEED = '0000000000000000000000000000000000000000000000000000000000000001';
+
+const BANNER = `
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║              Midnight Counter Example                        ║
+║              ─────────────────────                           ║
+║              A privacy-preserving smart contract demo        ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+`;
+
+const DIVIDER = '──────────────────────────────────────────────────────────────';
+
+const WALLET_MENU = `
+${DIVIDER}
+  Wallet Setup
+${DIVIDER}
+  [1] Create a new wallet
+  [2] Restore wallet from seed
+  [3] Exit
+${'─'.repeat(62)}
+> `;
+
+const contractMenu = (dustBalance: string) => `
+${DIVIDER}
+  Contract Actions${dustBalance ? `                    DUST: ${dustBalance}` : ''}
+${DIVIDER}
+  [1] Deploy a new counter contract
+  [2] Join an existing counter contract
+  [3] Monitor DUST balance
+  [4] Exit
+${'─'.repeat(62)}
+> `;
+
+const counterMenu = (dustBalance: string) => `
+${DIVIDER}
+  Counter Actions${dustBalance ? `                     DUST: ${dustBalance}` : ''}
+${DIVIDER}
+  [1] Increment counter
+  [2] Display current counter value
+  [3] Exit
+${'─'.repeat(62)}
+> `;
+```
+
+The menu constants define the visual structure for user interaction. 
+The DUST balance is displayed dynamically in menu headers, providing constant feedback on fee token availability.
+
+### Set up the wallet
+
+Below the menu constants, create the function for setting up the wallet:
+
+```typescript title="counter-cli/src/cli.ts"
+const buildWalletFromSeed = async (config: Config, rli: Interface): Promise<WalletContext> => {
+  const seed = await rli.question('Enter your wallet seed: ');
+  return await api.buildWalletAndWaitForFunds(config, seed);
+};
+
+const buildWallet = async (config: Config, rli: Interface): Promise<WalletContext | null> => {
+
+  while (true) {
+    const choice = await rli.question(WALLET_MENU);
+    switch (choice.trim()) {
+      case '1':
+        return await api.buildFreshWallet(config);
+      case '2':
+        return await buildWalletFromSeed(config, rli);
+      case '3':
+        return null;
+      default:
+        logger.error(`Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+The function displays an interactive menu with three options:
+- Create a new wallet with a randomly generated seed using the `api.buildFreshWallet` method.
+- Restore an existing wallet from a seed phrase using the `buildWalletFromSeed` function.
+- Exit the application by returning `null`.
+
+### Contract interaction helpers
+
+Below the function for setting up the wallet, create the helper functions for displaying the DUST balance, joining a contract, and starting the DUST monitoring:
+
+```typescript title="counter-cli/src/cli.ts"
+const getDustLabel = async (wallet: api.WalletContext['wallet']): Promise<string> => {
+  try {
+    const dust = await api.getDustBalance(wallet);
+    return dust.available.toLocaleString();
+  } catch {
+    return '';
+  }
+};
+
+const joinContract = async (providers: CounterProviders, rli: Interface): Promise<DeployedCounterContract> => {
+  const contractAddress = await rli.question('Enter the contract address (hex): ');
+  return await api.joinContract(providers, contractAddress);
+};
+
+const startDustMonitor = async (wallet: api.WalletContext['wallet'], rli: Interface): Promise<void> => {
+  console.log('');
+  const stopPromise = rli.question('  Press Enter to return to menu...\n').then(() => {});
+  await api.monitorDustBalance(wallet, stopPromise);
+  console.log('');
+};
+```
+
+These helper functions simplify contract interaction:
+
+- `getDustLabel()` retrieves and formats the DUST balance for display in menu headers.
+- `joinContract()` prompts the user to enter a contract address and connects to the existing contract.
+- `startDustMonitor()` launches the DUST balance monitor, which displays live updates until the user presses Enter to return to the menu.
+
+### Contract deployment flow
+
+Below the contract interaction helpers, create the function for deploying or joining a contract:
+
+```typescript title="counter-cli/src/cli.ts"
+const deployOrJoin = async (
+  providers: CounterProviders,
+  walletCtx: api.WalletContext,
+  rli: Interface,
+): Promise<DeployedCounterContract | null> => {
+  while (true) {
+    const dustLabel = await getDustLabel(walletCtx.wallet);
+    const choice = await rli.question(contractMenu(dustLabel));
+    
+    switch (choice.trim()) {
+      case '1':
+        try {
+          const contract = await api.withStatus('Deploying counter contract', () =>
+            api.deploy(providers, { privateCounter: 0 }),
+          );
+          console.log(`  Contract deployed at: ${contract.deployTxData.public.contractAddress}\n`);
+          return contract;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.log(`\n  ✗ Deploy failed: ${msg}`);
+          
+          if (e instanceof Error && e.cause) {
+            let cause: unknown = e.cause;
+            let depth = 0;
+            while (cause && depth < 5) {
+              const causeMsg =
+                cause instanceof Error
+                  ? `${cause.message}\n      ${cause.stack?.split('\n').slice(1, 3).join('\n      ') ?? ''}`
+                  : String(cause);
+              console.log(`    cause: ${causeMsg}`);
+              cause = cause instanceof Error ? cause.cause : undefined;
+              depth++;
+            }
+          }
+          
+          if (msg.toLowerCase().includes('dust') || msg.toLowerCase().includes('no dust')) {
+            console.log('    Insufficient DUST for transaction fees. Use option [3] to monitor your balance.');
+          }
+          console.log('');
+        }
+        break;
+      case '2':
+        try {
+          return await joinContract(providers, rli);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.log(`  ✗ Failed to join contract: ${msg}\n`);
+        }
+        break;
+      case '3':
+        await startDustMonitor(walletCtx.wallet, rli);
+        break;
+      case '4':
+        return null;
+      default:
+        console.log(`  Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+The deployment flow handles errors gracefully by displaying messages and cause chains. 
+DUST-related errors receive special treatment with a helpful message directing users to the monitoring option.
+
+### Main interaction loop
+
+Below the deployment flow, create the main interaction loop:
+
+```typescript title="counter-cli/src/cli.ts"
+const mainLoop = async (providers: CounterProviders, walletCtx: api.WalletContext, rli: Interface): Promise<void> => {
+  const counterContract = await deployOrJoin(providers, walletCtx, rli);
+  if (counterContract === null) {
+    return;
+  }
+
+  while (true) {
+    const dustLabel = await getDustLabel(walletCtx.wallet);
+    const choice = await rli.question(counterMenu(dustLabel));
+    
+    switch (choice.trim()) {
+      case '1':
+        try {
+          await api.withStatus('Incrementing counter', () => api.increment(counterContract));
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          console.log(`  ✗ Increment failed: ${msg}\n`);
+        }
+        break;
+      case '2':
+        await api.displayCounterValue(providers, counterContract);
+        break;
+      case '3':
+        return;
+      default:
+        console.log(`  Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+The main loop handles counter operations after successful contract setup. 
+Errors during increment operations are caught and displayed without terminating the loop, allowing users to retry or check their DUST balance.
+
+### Main entry point
+
+Below the contract deployment flow, create the `run` function as the main entry point:
+
+```typescript title="counter-cli/src/cli.ts"
+export const run = async (config: Config, _logger: Logger): Promise<void> => {
+  logger = _logger;
+  api.setLogger(_logger);
+
+  console.log(BANNER);
+
+  const rli = createInterface({ input, output, terminal: true });
+
+  try {
+    const walletCtx = await buildWallet(config, rli);
+    if (walletCtx === null) {
+      return;
+    }
+
+    try {
+      const providers = await api.withStatus('Configuring providers', () => api.configureProviders(walletCtx, config));
+      console.log('');
+
+      await mainLoop(providers, walletCtx, rli);
+    } catch (e) {
+      if (e instanceof Error) {
+        logger.error(`Error: ${e.message}`);
+        logger.debug(`${e.stack}`);
+      } else {
+        throw e;
+      }
+    } finally {
+      try {
+        await walletCtx.wallet.stop();
+      } catch (e) {
+        logger.error(`Error stopping wallet: ${e}`);
+      }
+    }
+  } finally {
+    rli.close();
+    rli.removeAllListeners();
+
+    logger.info('Goodbye.');
+  }
+};
+```
+
+The `run` function handles the complete CLI workflow with proper resource cleanup:
+
+- **Outer try-finally block**: Ensures the readline interface closes and listeners are removed, even if errors occur. This prevents memory leaks and ensures clean process termination.
+- **Inner try-finally block**: Guarantees the wallet stops properly, closing all network connections and persisting state. The wallet cleanup happens before readline cleanup to ensure all transactions complete.
+- **Error handling**: Catches and logs errors during provider configuration or main loop execution, allowing graceful shutdown instead of abrupt crashes.
+
+## Create entry point and exports
+
+Create `counter-cli/src/preprod.ts`:
+
+```typescript title="counter-cli/src/preprod.ts"
+import { createLogger } from './logger-utils.js';
+import { run } from './cli.js';
+import { PreprodConfig } from './config.js';
+
+const config = new PreprodConfig();
+const logger = await createLogger(config.logDir);
+await run(config, logger);
+```
+
+Create `counter-cli/src/index.ts`:
+
+```typescript title="counter-cli/src/index.ts"
+export * from './api';
+export * from './cli';
+```
+
+The entry point initializes the logger and configuration, then launches the CLI. The index file provides a clean export interface for the package.
+
+## Run the complete application
+
+This section explains the process of running the complete Counter DApp.
+
+### Start the proof server
+
+Open a terminal and start the proof server if it is not already running:
+
+```bash
+docker run -p 6300:6300 midnightntwrk/proof-server:7.0.0 -- midnight-proof-server -v
+```
+
+Keep this terminal open throughout your session.
+
+### Launch the CLI
+
+Open a new terminal, navigate to the `counter-cli` directory, and start the application:
+
+```bash
+cd counter-cli
+npm run preprod
+```
+
+The CLI displays a banner and presents the wallet setup menu:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║              Midnight Counter Example                        ║
+║              ─────────────────────────────────────────────────║
+║              A privacy-preserving smart contract demo        ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+──────────────────────────────────────────────────────────────
+  Wallet Setup
+──────────────────────────────────────────────────────────────
+  [1] Create a new wallet
+  [2] Restore wallet from seed
+  [3] Exit
+──────────────────────────────────────────────────────────────
+>
+```
+
+**Create or restore a wallet**: Select option 1 to create a new wallet or option 2 to restore from an existing seed. After entering your seed, the wallet builds and synchronizes with the network:
+
+```
+  ✓ Building wallet
+  ✓ Syncing with network
+
+──────────────────────────────────────────────────────────────
+  Wallet Overview                            Network: preprod
+──────────────────────────────────────────────────────────────
+  Shielded (ZSwap)
+  └─ Address: mn_shield-addr_preprod1m...
+
+  Unshielded
+  ├─ Address: mn_addr_preprod12gseaq...
+  └─ Balance: 2,000,000,000 tNight
+
+  Dust
+  └─ Address: mn_dust_preprod1w0dar...
+──────────────────────────────────────────────────────────────
+```
+
+**Deploy a contract**: After wallet setup, the contract actions menu appears. Select option 1 to deploy a new counter contract:
+
+```
+──────────────────────────────────────────────────────────────
+  Contract Actions                    DUST: 4,693,721,522,000,000,000
+──────────────────────────────────────────────────────────────
+  [1] Deploy a new counter contract
+  [2] Join an existing counter contract
+  [3] Monitor DUST balance
+  [4] Exit
+──────────────────────────────────────────────────────────────
+> 1
+
+  ✓ Deploying counter contract
+  Contract deployed at: ea87c25015951b098a..........
+```
+
+**Query the counter value**: After deployment, select option 2 to display the current counter value (starts at 0):
+
+```
+──────────────────────────────────────────────────────────────
+  Counter Actions                     DUST: 4,698,778,537,999,999,999
+──────────────────────────────────────────────────────────────
+  [1] Increment counter
+  [2] Display current counter value
+  [3] Exit
+──────────────────────────────────────────────────────────────
+> 2
+
+Current counter value: 0
+```
+
+**Increment the counter**: Select option 1 to increment the counter. The operation generates a Zero Knowledge proof and submits the transaction:
+
+```
+> 1
+
+  ✓ Incrementing counter
+Transaction 00fe2faaa99f71216162d2c850123ea067d74e08e77fef1d7d4c534a256e55de8f added in block 262860
+```
+
+**Verify the increment**: Select option 2 again to confirm the counter incremented:
+
+```
+> 2
+
+Current counter value: 1
+```
+
+Select option 3 to exit the application when finished. The CLI displays status messages and spinners throughout, providing visual feedback for each operation.
+
+## Next steps
+
+Now that you have built a complete Counter CLI. Explore the [bulletin board example](../../../examples/bboard) for a more complex contract with multi-user interactions and private state.
