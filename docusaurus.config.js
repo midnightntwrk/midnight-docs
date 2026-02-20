@@ -37,12 +37,13 @@ const config = {
         id: "main",
         path: "docs",
         routeBasePath: "/",
+        lastVersion: "current",
         versions: {
           current: {
-            label: "Canary 🚧",
+            label: "v1",
           },
           "0.0.0": {
-            label: "v0.0.0",
+            label: "v0 (Legacy)",
           },
         },
         sidebarPath: require.resolve("./sidebars.main.js"),
@@ -80,32 +81,32 @@ const config = {
     ],
 
     // COMPACT DOCS
-    [
-      "@docusaurus/plugin-content-docs",
-      {
-        id: "compact",
-        path: "compact",
-        routeBasePath: "compact",
-        sidebarPath: require.resolve("./sidebars.compact.js"),
-        editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
-        showLastUpdateTime: true,
-        showLastUpdateAuthor: false,
-      },
-    ],
+    // [
+    //   "@docusaurus/plugin-content-docs",
+    //   {
+    //     id: "compact",
+    //     path: "compact",
+    //     routeBasePath: "compact",
+    //     sidebarPath: require.resolve("./sidebars.compact.js"),
+    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+    //     showLastUpdateTime: true,
+    //     showLastUpdateAuthor: false,
+    //   },
+    // ],
 
     // ACADEMY DOCS
-    [
-      "@docusaurus/plugin-content-docs",
-      {
-        id: "academy",
-        path: "academy",
-        routeBasePath: "academy",
-        sidebarPath: require.resolve("./sidebars.academy.js"),
-        editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
-        showLastUpdateTime: true,
-        showLastUpdateAuthor: false,
-      },
-    ],    
+    // [
+    //   "@docusaurus/plugin-content-docs",
+    //   {
+    //     id: "academy",
+    //     path: "academy",
+    //     routeBasePath: "academy",
+    //     sidebarPath: require.resolve("./sidebars.academy.js"),
+    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+    //     showLastUpdateTime: true,
+    //     showLastUpdateAuthor: false,
+    //   },
+    // ],    
 
     // API REFERENCE DOCS
     [
@@ -206,6 +207,7 @@ const config = {
   { src: "/add-theme-class.js", async: true },
   { src: "/theme-sync.js", async: true },
   { src: "/force-theme.js", async: true },
+  { src: "/common-room-signal.js", async: false },
   {
     src: "https://cmp.osano.com/AzZXI3TYiFWNB5yus/1489a4c7-fc85-49c4-99a3-1367c5a5ba96/osano.js",
     async: false,
@@ -272,12 +274,11 @@ const config = {
       items: [
         { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
         { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
-        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
-        {
-          type: 'docsVersionDropdown',
-          position: "right",
-          docsPluginId: 'main',
-        },
+        // {
+        //   type: 'docsVersionDropdown',
+        //   position: "right",
+        //   docsPluginId: 'main',
+        // },
         {
           type: "html",
           position: "right",
