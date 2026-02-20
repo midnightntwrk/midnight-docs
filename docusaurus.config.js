@@ -180,302 +180,302 @@ const config = {
           },
           
           // Getting Started - moved to guides
-          {
-            from: '/getting-started/create-mn-app',
-            to: '/getting-started/hello-world',
-          },
-          {
-            from: '/getting-started/deploy-mn-app',
-            to: '/guides/deploy-mn-app',
-          },
-          {
-            from: '/getting-started/interact-with-mn-app',
-            to: '/guides/interact-with-mn-app',
-          },
+          // {
+          //   from: '/getting-started/create-mn-app',
+          //   to: '/getting-started/hello-world',
+          // },
+          // {
+          //   from: '/getting-started/deploy-mn-app',
+          //   to: '/guides/deploy-mn-app',
+          // },
+          // {
+          //   from: '/getting-started/interact-with-mn-app',
+          //   to: '/guides/interact-with-mn-app',
+          // },
           
-          // Learn/What is Midnight - moved to overview
-          {
-            from: '/learn/what-is-midnight/why-midnight',
-            to: '/overview/what-is-midnight',
-          },
-          {
-            from: '/learn/what-is-midnight/midnight-combined-model',
-            to: '/concepts/how-midnight-works/midnight-combined-model',
-          },
-          {
-            from: '/learn/what-is-midnight/advantages',
-            to: '/overview/what-is-midnight',
-          },
+          // // Learn/What is Midnight - moved to overview
+          // {
+          //   from: '/learn/what-is-midnight/why-midnight',
+          //   to: '/overview/what-is-midnight',
+          // },
+          // {
+          //   from: '/learn/what-is-midnight/midnight-combined-model',
+          //   to: '/concepts/how-midnight-works/midnight-combined-model',
+          // },
+          // {
+          //   from: '/learn/what-is-midnight/advantages',
+          //   to: '/overview/what-is-midnight',
+          // },
           
-          // Learn/Understanding Midnight's Technology - moved to concepts
-          {
-            from: '/learn/understanding-midnights-technology/account',
-            to: '/concepts/account',
-          },
-          {
-            from: '/learn/understanding-midnights-technology/ledgers',
-            to: '/concepts/ledgers',
-          },
-          {
-            from: '/learn/understanding-midnights-technology/utxo',
-            to: '/concepts/utxo',
-          },
-          {
-            from: '/learn/understanding-midnights-technology/web3',
-            to: '/concepts/web3',
-          },
-          {
-            from: '/learn/understanding-midnights-technology/zero-knowledge-proofs',
-            to: '/concepts/zero-knowledge-proofs',
-          },
-          {
-            from: '/learn/understanding-midnights-technology/kachina',
-            to: '/concepts/kachina',
-          },
-          {
-            from: '/learn/understanding-midnights-technology/zswap',
-            to: '/concepts/zswap',
-          },
+          // // Learn/Understanding Midnight's Technology - moved to concepts
+          // {
+          //   from: '/learn/understanding-midnights-technology/account',
+          //   to: '/concepts/account',
+          // },
+          // {
+          //   from: '/learn/understanding-midnights-technology/ledgers',
+          //   to: '/concepts/ledgers',
+          // },
+          // {
+          //   from: '/learn/understanding-midnights-technology/utxo',
+          //   to: '/concepts/utxo',
+          // },
+          // {
+          //   from: '/learn/understanding-midnights-technology/web3',
+          //   to: '/concepts/web3',
+          // },
+          // {
+          //   from: '/learn/understanding-midnights-technology/zero-knowledge-proofs',
+          //   to: '/concepts/zero-knowledge-proofs',
+          // },
+          // {
+          //   from: '/learn/understanding-midnights-technology/kachina',
+          //   to: '/concepts/kachina',
+          // },
+          // {
+          //   from: '/learn/understanding-midnights-technology/zswap',
+          //   to: '/concepts/zswap',
+          // },
           
-          // Develop/How Midnight Works - moved to concepts
-          {
-            from: '/develop/how-midnight-works/building-blocks',
-            to: '/concepts/how-midnight-works/building-blocks',
-          },
-          {
-            from: '/develop/how-midnight-works/smart-contracts',
-            to: '/concepts/how-midnight-works/smart-contracts',
-          },
-          {
-            from: '/develop/how-midnight-works/keeping-data-private',
-            to: '/concepts/how-midnight-works/keeping-data-private',
-          },
-          {
-            from: '/develop/how-midnight-works/semantics',
-            to: '/concepts/how-midnight-works/semantics',
-          },
-          {
-            from: '/develop/how-midnight-works/zswap',
-            to: '/concepts/how-midnight-works/zswap',
-          },
-          {
-            from: '/develop/how-midnight-works/impact',
-            to: '/concepts/how-midnight-works/impact',
-          },
+          // // Develop/How Midnight Works - moved to concepts
+          // {
+          //   from: '/develop/how-midnight-works/building-blocks',
+          //   to: '/concepts/how-midnight-works/building-blocks',
+          // },
+          // {
+          //   from: '/develop/how-midnight-works/smart-contracts',
+          //   to: '/concepts/how-midnight-works/smart-contracts',
+          // },
+          // {
+          //   from: '/develop/how-midnight-works/keeping-data-private',
+          //   to: '/concepts/how-midnight-works/keeping-data-private',
+          // },
+          // {
+          //   from: '/develop/how-midnight-works/semantics',
+          //   to: '/concepts/how-midnight-works/semantics',
+          // },
+          // {
+          //   from: '/develop/how-midnight-works/zswap',
+          //   to: '/concepts/how-midnight-works/zswap',
+          // },
+          // {
+          //   from: '/develop/how-midnight-works/impact',
+          //   to: '/concepts/how-midnight-works/impact',
+          // },
           
-          // Develop/Tutorials - moved to tutorials or examples
-          {
-            from: '/develop/tutorial/building/index',
-            to: '/tutorials/beginner/index',
-          },
-          {
-            from: '/develop/tutorial/building/counter-build',
-            to: '/examples/counter',
-          },
-          {
-            from: '/develop/tutorial/building/counter-run',
-            to: '/examples/counter',
-          },
-          {
-            from: '/develop/tutorial/building/contract-details',
-            to: '/examples/counter',
-          },
-          {
-            from: '/develop/tutorial/building/dapp-details',
-            to: '/tutorials/beginner/counter',
-          },
-          {
-            from: '/develop/tutorial/creating/index',
-            to: '/tutorials/beginner/counter',
-          },
-          {
-            from: '/develop/tutorial/creating/bboard-contract',
-            to: '/tutorials/beginner/bboard/smart-contract',
-          },
-          {
-            from: '/develop/tutorial/creating/bboard-dapp',
-            to: '/examples/bboard',
-          },
-          {
-            from: '/develop/tutorial/creating/updatability',
-            to: '/guides/updatability',
-          },
+          // // Develop/Tutorials - moved to tutorials or examples
+          // {
+          //   from: '/develop/tutorial/building/index',
+          //   to: '/tutorials/beginner/index',
+          // },
+          // {
+          //   from: '/develop/tutorial/building/counter-build',
+          //   to: '/examples/counter',
+          // },
+          // {
+          //   from: '/develop/tutorial/building/counter-run',
+          //   to: '/examples/counter',
+          // },
+          // {
+          //   from: '/develop/tutorial/building/contract-details',
+          //   to: '/examples/counter',
+          // },
+          // {
+          //   from: '/develop/tutorial/building/dapp-details',
+          //   to: '/tutorials/beginner/counter',
+          // },
+          // {
+          //   from: '/develop/tutorial/creating/index',
+          //   to: '/tutorials/beginner/counter',
+          // },
+          // {
+          //   from: '/develop/tutorial/creating/bboard-contract',
+          //   to: '/tutorials/beginner/bboard/smart-contract',
+          // },
+          // {
+          //   from: '/develop/tutorial/creating/bboard-dapp',
+          //   to: '/examples/bboard',
+          // },
+          // {
+          //   from: '/develop/tutorial/creating/updatability',
+          //   to: '/guides/updatability',
+          // },
           
-          // Develop/Tools - moved to sdks
-          {
-            from: '/develop/tools/build-using-meshsdk/index',
-            to: '/sdks/community/build-using-meshsdk/index',
-          },
-          {
-            from: '/develop/tools/build-using-meshsdk/getting-started',
-            to: '/sdks/community/build-using-meshsdk/getting-started',
-          },
-          {
-            from: '/develop/tools/build-using-meshsdk/core-api-methods',
-            to: '/sdks/community/build-using-meshsdk/core-api-methods',
-          },
-          {
-            from: '/develop/tools/build-using-meshsdk/lace-wallet',
-            to: '/sdks/community/build-using-meshsdk/lace-wallet',
-          },
-          {
-            from: '/develop/tools/build-using-meshsdk/example-integration',
-            to: '/sdks/community/build-using-meshsdk/example-integration',
-          },
+          // // Develop/Tools - moved to sdks
+          // {
+          //   from: '/develop/tools/build-using-meshsdk/index',
+          //   to: '/sdks/community/build-using-meshsdk/index',
+          // },
+          // {
+          //   from: '/develop/tools/build-using-meshsdk/getting-started',
+          //   to: '/sdks/community/build-using-meshsdk/getting-started',
+          // },
+          // {
+          //   from: '/develop/tools/build-using-meshsdk/core-api-methods',
+          //   to: '/sdks/community/build-using-meshsdk/core-api-methods',
+          // },
+          // {
+          //   from: '/develop/tools/build-using-meshsdk/lace-wallet',
+          //   to: '/sdks/community/build-using-meshsdk/lace-wallet',
+          // },
+          // {
+          //   from: '/develop/tools/build-using-meshsdk/example-integration',
+          //   to: '/sdks/community/build-using-meshsdk/example-integration',
+          // },
           
-          // Develop/How-to and Guides - moved to guides or troubleshoot
-          {
-            from: '/develop/how-to/migrate-from-testnet-02-to-preview',
-            to: '/guides/migrate-from-testnet-02-to-preview',
-          },
-          {
-            from: '/develop/guides/wallet-dev-guide',
-            to: '/sdks/official/wallet-developer-guide',
-          },
-          {
-            from: '/develop/how-to/react-wallet-connect',
-            to: '/guides/react-wallet-connect',
-          },
-          {
-            from: '/develop/how-to/nextjs-wallet-connect',
-            to: '/guides/nextjs-wallet-connect',
-          },
-          {
-            from: '/develop/how-to/fix-version-mismatch-errors',
-            to: '/troubleshoot/fix-version-mismatch-errors',
-          },
-          {
-            from: '/develop/how-to/fix-package-repository-access-failures',
-            to: '/troubleshoot/fix-package-repository-access-failures',
-          },
-          {
-            from: '/develop/guides/compact-javascript-runtime',
-            to: '/guides/compact-javascript-runtime',
-          },
-          {
-            from: '/develop/how-to/acquire-tokens',
-            to: '/guides/acquire-tokens',
-          },
-          {
-            from: '/develop/how-to/lace-wallet',
-            to: '/guides/lace-wallet',
-          },
-          {
-            from: '/develop/how-to/run-proof-server',
-            to: '/guides/run-proof-server',
-          },
-          {
-            from: '/develop/how-to/install-bun-runtime-midnight',
-            to: '/guides/install-bun-runtime-midnight',
-          },
+          // // Develop/How-to and Guides - moved to guides or troubleshoot
+          // {
+          //   from: '/develop/how-to/migrate-from-testnet-02-to-preview',
+          //   to: '/guides/migrate-from-testnet-02-to-preview',
+          // },
+          // {
+          //   from: '/develop/guides/wallet-dev-guide',
+          //   to: '/sdks/official/wallet-developer-guide',
+          // },
+          // {
+          //   from: '/develop/how-to/react-wallet-connect',
+          //   to: '/guides/react-wallet-connect',
+          // },
+          // {
+          //   from: '/develop/how-to/nextjs-wallet-connect',
+          //   to: '/guides/nextjs-wallet-connect',
+          // },
+          // {
+          //   from: '/develop/how-to/fix-version-mismatch-errors',
+          //   to: '/troubleshoot/fix-version-mismatch-errors',
+          // },
+          // {
+          //   from: '/develop/how-to/fix-package-repository-access-failures',
+          //   to: '/troubleshoot/fix-package-repository-access-failures',
+          // },
+          // {
+          //   from: '/develop/guides/compact-javascript-runtime',
+          //   to: '/guides/compact-javascript-runtime',
+          // },
+          // {
+          //   from: '/develop/how-to/acquire-tokens',
+          //   to: '/guides/acquire-tokens',
+          // },
+          // {
+          //   from: '/develop/how-to/lace-wallet',
+          //   to: '/guides/lace-wallet',
+          // },
+          // {
+          //   from: '/develop/how-to/run-proof-server',
+          //   to: '/guides/run-proof-server',
+          // },
+          // {
+          //   from: '/develop/how-to/install-bun-runtime-midnight',
+          //   to: '/guides/install-bun-runtime-midnight',
+          // },
           
-          // Develop/FAQ and Getting Help - moved to troubleshoot
-          {
-            from: '/develop/faq',
-            to: '/troubleshoot/faq',
-          },
-          {
-            from: '/develop/getting-help',
-            to: '/troubleshoot/getting-help',
-          },
+          // // Develop/FAQ and Getting Help - moved to troubleshoot
+          // {
+          //   from: '/develop/faq',
+          //   to: '/troubleshoot/faq',
+          // },
+          // {
+          //   from: '/develop/getting-help',
+          //   to: '/troubleshoot/getting-help',
+          // },
           
-          // Operate - moved to nodes and concepts
-          {
-            from: '/operate/node-intro',
-            to: '/nodes',
-          },
-          {
-            from: '/operate/node-endpoints',
-            to: '/nodes/node-endpoints',
-          },
-          {
-            from: '/operate/network-architecture/p2p-networking',
-            to: '/concepts/network-architecture/p2p-networking',
-          },
-          {
-            from: '/operate/network-architecture/rpc-networking',
-            to: '/concepts/network-architecture/rpc-networking',
-          },
-          {
-            from: '/operate/network-architecture/transactions',
-            to: '/concepts/network-architecture/transactions',
-          },
-          {
-            from: '/operate/network-architecture/consensus',
-            to: '/concepts/network-architecture/consensus',
-          },
-          {
-            from: '/operate/network-architecture/cryptography',
-            to: '/concepts/network-architecture/cryptography',
-          },
-          {
-            from: '/operate/network-architecture/onchain-logic',
-            to: '/concepts/network-architecture/onchain-logic',
-          },
-          {
-            from: '/operate/network-architecture/storage',
-            to: '/concepts/network-architecture/storage',
-          },
-          {
-            from: '/operate/node-operations/full-node',
-            to: '/nodes/full-node',
-          },
-          {
-            from: '/operate/node-operations/boot-node',
-            to: '/nodes/boot-node',
-          },
-          {
-            from: '/operate/node-operations/rpc-node',
-            to: '/nodes/rpc-node',
-          },
-          {
-            from: '/operate/node-operations/cardano-db-sync',
-            to: '/nodes/cardano-db-sync',
-          },
+          // // Operate - moved to nodes and concepts
+          // {
+          //   from: '/operate/node-intro',
+          //   to: '/nodes',
+          // },
+          // {
+          //   from: '/operate/node-endpoints',
+          //   to: '/nodes/node-endpoints',
+          // },
+          // {
+          //   from: '/operate/network-architecture/p2p-networking',
+          //   to: '/concepts/network-architecture/p2p-networking',
+          // },
+          // {
+          //   from: '/operate/network-architecture/rpc-networking',
+          //   to: '/concepts/network-architecture/rpc-networking',
+          // },
+          // {
+          //   from: '/operate/network-architecture/transactions',
+          //   to: '/concepts/network-architecture/transactions',
+          // },
+          // {
+          //   from: '/operate/network-architecture/consensus',
+          //   to: '/concepts/network-architecture/consensus',
+          // },
+          // {
+          //   from: '/operate/network-architecture/cryptography',
+          //   to: '/concepts/network-architecture/cryptography',
+          // },
+          // {
+          //   from: '/operate/network-architecture/onchain-logic',
+          //   to: '/concepts/network-architecture/onchain-logic',
+          // },
+          // {
+          //   from: '/operate/network-architecture/storage',
+          //   to: '/concepts/network-architecture/storage',
+          // },
+          // {
+          //   from: '/operate/node-operations/full-node',
+          //   to: '/nodes/full-node',
+          // },
+          // {
+          //   from: '/operate/node-operations/boot-node',
+          //   to: '/nodes/boot-node',
+          // },
+          // {
+          //   from: '/operate/node-operations/rpc-node',
+          //   to: '/nodes/rpc-node',
+          // },
+          // {
+          //   from: '/operate/node-operations/cardano-db-sync',
+          //   to: '/nodes/cardano-db-sync',
+          // },
           
-          // API Reference - moved from develop/reference/midnight-api
-          {
-            from: '/develop/reference/midnight-api/index',
-            to: '/api-reference/overview/index',
-          },
-          {
-            from: '/develop/reference/midnight-api/compact-runtime',
-            to: '/api-reference/compact-runtime',
-          },
-          {
-            from: '/develop/reference/midnight-api/dapp-connector',
-            to: '/api-reference/dapp-connector',
-          },
-          {
-            from: '/develop/reference/midnight-api/ledger',
-            to: '/api-reference/ledger',
-          },
-          {
-            from: '/develop/reference/midnight-api/midnight-js',
-            to: '/api-reference/midnight-js',
-          },
-          {
-            from: '/develop/reference/midnight-api/onchain-runtime',
-            to: '/api-reference/onchain-runtime',
-          },
-          {
-            from: '/develop/reference/midnight-api/midnight-indexer',
-            to: '/api-reference/midnight-indexer',
-          },
-          {
-            from: '/develop/reference/midnight-api/wallet-api',
-            to: '/api-reference/wallet-api',
-          },
-          {
-            from: '/develop/reference/midnight-api/zswap',
-            to: '/api-reference/zswap',
-          },
+          // // API Reference - moved from develop/reference/midnight-api
+          // {
+          //   from: '/develop/reference/midnight-api/index',
+          //   to: '/api-reference/overview/index',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/compact-runtime',
+          //   to: '/api-reference/compact-runtime',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/dapp-connector',
+          //   to: '/api-reference/dapp-connector',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/ledger',
+          //   to: '/api-reference/ledger',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/midnight-js',
+          //   to: '/api-reference/midnight-js',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/onchain-runtime',
+          //   to: '/api-reference/onchain-runtime',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/midnight-indexer',
+          //   to: '/api-reference/midnight-indexer',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/wallet-api',
+          //   to: '/api-reference/wallet-api',
+          // },
+          // {
+          //   from: '/develop/reference/midnight-api/zswap',
+          //   to: '/api-reference/zswap',
+          // },
           
-          // Glossary
-          {
-            from: '/learn/glossary',
-            to: '/glossary/glossary',
-          },
+          // // Glossary
+          // {
+          //   from: '/learn/glossary',
+          //   to: '/glossary/glossary',
+          // },
         ],
       },
     ],
