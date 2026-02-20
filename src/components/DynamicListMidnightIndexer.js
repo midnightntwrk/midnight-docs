@@ -13,12 +13,29 @@
 
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
     id: 1,
-    version: '2.1.4',
+    version: '3.0.0',
     status: 'LATEST',
+    date: '28 January 2026',
+    summary: 'Summary of Release 3.0.0',
+    details: [
+      'Updated Indexer API to v3 only',
+      'Support for Ledger v7 and Node v0.20 only',
+      'Support unshielded tokens',
+    ],
+    artifacts: [
+      { name: 'Docker images', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-3-0-0',
+  },
+  {
+    id: 2,
+    version: '2.1.4',
+    status: 'UNSUPPORTED',
     date: '30 June 2025',
     summary: 'Summary of Release 2.1.4',
     details: [
@@ -32,9 +49,9 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-3',
   },
   {
-    id: 2,
+    id: 3,
     version: '2.1.3',
-    status: 'LATEST',
+    status: 'UNSUPPORTED',
     date: '11 June 2025',
     summary: 'Summary of Release 2.1.3',
     details: [
@@ -47,7 +64,7 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-3',
   },
   {
-    id: 3,
+    id: 4,
     version: '2.1.2',
     status: 'DEPRECATED',
     date: '27 May 2025',
@@ -61,7 +78,7 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-2',
   },
   {
-    id: 4,
+    id: 5,
     version: '2.1.1',
     status: 'DEPRECATED',
     date: '19 May 2025',
@@ -75,7 +92,7 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-1',
   },
   {
-    id: 5,
+    id: 6,
     version: '2.1.0',
     status: 'DEPRECATED',
     date: '9 May 2025',
@@ -92,7 +109,7 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-0',
   },
   {
-    id: 6,
+    id: 7,
     version: '2.0.0',
     status: 'DEPRECATED',
     date: '9 May 2025',
@@ -127,7 +144,7 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-0-0',
   },  
   {
-    id: 7,
+    id: 8,
     version: '1.0.1',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -142,7 +159,7 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-1-0-1',
   },
   {
-    id: 8,
+    id: 9,
     version: '1.0.0',
     status: 'DEPRECATED',
     date: '24 March 2025',
@@ -171,11 +188,32 @@ const sortedStatuses = ['All', ...new Set(releases.map(release => release.status
 // Set latest version as default if releases exist
 const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
 
+// Helper to determine version prefix from pathname
+function getVersionPrefix(pathname) {
+  const versionMatch = pathname.match(/^\/(next|\d+\.\d+\.\d+)(\/|$)/);
+  if (versionMatch) {
+    return versionMatch[1];
+  }
+  return 'current';
+}
+
 const DynamicListWithDropdownFilters = () => {
+  const location = useLocation();
+  const docsVersion = getVersionPrefix(location.pathname);
+  
+  // Determine version prefix for links
+  const versionPrefix = docsVersion && docsVersion !== 'current' ? `/${docsVersion}` : '';
+  
+  // Add version prefix to all release links
+  const versionedReleases = releases.map(release => ({
+    ...release,
+    link: `${versionPrefix}${release.link}`
+  }));
+
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  const filteredReleases = releases.filter(
+  const filteredReleases = versionedReleases.filter(
     (release) =>
       (selectedVersion === 'All' || release.version === selectedVersion) &&
       (selectedStatus === 'All' || release.status === selectedStatus)

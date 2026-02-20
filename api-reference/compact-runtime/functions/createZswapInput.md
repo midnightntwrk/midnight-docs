@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.9.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: createZswapInput()
 
 ```ts
-function createZswapInput(circuitContext, qualifiedCoinInfo): void;
+function createZswapInput(circuitContext, qualifiedShieldedCoinInfo): [];
 ```
 
 Adds a coin to the list of inputs consumed by the circuit.
@@ -16,16 +16,16 @@ Adds a coin to the list of inputs consumed by the circuit.
 
 ### circuitContext
 
-[`CircuitContext`](../interfaces/CircuitContext.md)\<`unknown`\>
+[`CircuitContext`](../interfaces/CircuitContext.md)
 
 The current circuit context.
 
-### qualifiedCoinInfo
+### qualifiedShieldedCoinInfo
 
-[`EncodedQualifiedCoinInfo`](../interfaces/EncodedQualifiedCoinInfo.md)
+[`EncodedQualifiedShieldedCoinInfo`](../interfaces/EncodedQualifiedShieldedCoinInfo.md)
 
 The input to consume.
 
 ## Returns
 
-`void`
+\[\]
