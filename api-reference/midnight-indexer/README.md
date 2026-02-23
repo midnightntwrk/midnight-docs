@@ -1,21 +1,29 @@
-# Midnight Indexer API Documentation v1
+# Midnight Indexer API documentation v3
 
-The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data—blocks, transactions, contracts, and wallet-related events—indexed from the Midnight blockchain. These capabilities facilitate both historical lookups and real-time monitoring.
+The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data—blocks, transactions, contracts, DUST generation, and shielded/unshielded transaction events—indexed from the Midnight blockchain. These capabilities facilitate both historical lookups and real-time monitoring.
 
-**Disclaimer:**  
-The examples provided here are illustrative and may need updating if the API changes. Always consider [midnight-indexer-api-schema](https://github.com/midnightntwrk/midnight-indexer/blob/main/indexer-api/graphql/schema-v1.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
+## Version information
+- **Current API version**: v3.
+- Previous version v1 redirects to v3 automatically.
+- Version v2 was skipped during migration.
 
-## GraphQL Schema
+:::warning Disclaimer
+The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
+:::
 
-The GraphQL schema is defined in [midnight-indexer-api-schema](https://github.com/midnightntwrk/midnight-indexer/blob/main/indexer-api/graphql/schema-v1.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
+## GraphQL schema
 
-## Overview of Operations
+The GraphQL schema is defined in [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
 
-- **Queries**: Fetch blocks, transactions, and contract actions.  
+## Overview of operations
+
+- **Queries**: Fetch blocks, transactions, contract actions, and DUST generation status.
   Examples:
     - Retrieve the latest block or a specific block by hash or height.
     - Look up transactions by their hash or identifier.
     - Inspect the current state of a contract action at a given block or transaction offset.
+    - Query unshielded token balances held by contracts.
+    - Query DUST generation status for Cardano stake keys.
 
 - **Mutations**: Manage wallet sessions.
     - `connect(viewingKey: ViewingKey!)`: Creates a session associated with a viewing key.
@@ -24,44 +32,78 @@ The GraphQL schema is defined in [midnight-indexer-api-schema](https://github.co
 - **Subscriptions**: Receive real-time updates.
     - `blocks`: Stream newly indexed blocks.
     - `contractActions(address, offset)`: Stream contract actions.
-    - `wallet(sessionId, ...)`: Stream wallet updates, including relevant transactions and optional progress updates.
+    - `shieldedTransactions(sessionId, ...)`: Stream shielded transaction updates, including relevant transactions and optional progress updates.
+    - `unshieldedTransactions(address)`: Stream unshielded transaction events for a specific address.
+    - `dustLedgerEvents(id)`: Stream DUST ledger events.
+    - `zswapLedgerEvents(id)`: Stream Zswap ledger events.
 
-## API Endpoints
+## API endpoints
 
-**HTTP (Queries & Mutations):**
-```
-POST https://<host>:<port>/api/v1/graphql
+The Midnight Indexer API provides two types of endpoints for different use cases.
+
+### HTTP endpoint (queries and mutations)
+
+Use the HTTP endpoint for one-time queries and mutations. This endpoint supports standard GraphQL queries for fetching data and mutations for managing wallet sessions.
+
+```shell
+POST https://<host>:<port>/api/v3/graphql
 Content-Type: application/json
 ```
 
-**WebSocket (Subscriptions):**
-```
-wss://<host>:<port>/api/v1/graphql/ws
+### WebSocket endpoint (subscriptions)
+
+Use the WebSocket endpoint for real-time data streaming. This endpoint enables subscriptions to blocks, transactions, and other events as they occur on the blockchain.
+
+```shell
+wss://<host>:<port>/api/v3/graphql/ws
 Sec-WebSocket-Protocol: graphql-transport-ws
 ```
 
-## Core Scalars
+## Core scalars
 
-- `HexEncoded`: Hex-encoded bytes (for hashes, addresses, session IDs).
+The API uses custom scalar types to represent blockchain-specific data formats. Understanding these types is important for creating queries and interpreting responses.
+
+- `HexEncoded`: Hex-encoded bytes used for hashes, addresses, and session IDs.
 - `ViewingKey`: A viewing key in hex or Bech32 format for wallet sessions.
-- `ApplyStage`: Enumerated stages of transaction application. This scalar represents the outcome of transaction processing on the chain ("Success", "PartialSuccess" or "Failure").
 - `Unit`: An empty return type for mutations that do not return data.
+- `UnshieldedAddress`: An unshielded address in Bech32m format, such as `mn_addr_test1...`. Used for unshielded token operations.
 
-## Example Queries and Mutations
+## Input types
 
-**Note:** These are examples only. Refer to the schema file to confirm exact field names and structures.
+The following input types are used to specify query parameters for blocks, transactions, and contract actions.
+
+### BlockOffset (oneOf)
+
+Used to specify a block by either hash or height:
+
+- `hash`: HexEncoded - The block hash
+- `height`: Int - The block height
+
+### TransactionOffset (oneOf)
+
+Used to specify a transaction by either hash or identifier:
+
+- `hash`: HexEncoded - The transaction hash
+- `identifier`: HexEncoded - The transaction identifier
+
+### ContractActionOffset (oneOf)
+
+Used to specify a contract action location:
+
+- `blockOffset`: BlockOffset - Query by block (hash or height)
+- `transactionOffset`: TransactionOffset - Query by transaction (hash or identifier)
+
+## Example queries and mutations
+
+:::note
+These are examples only. To confirm the exact field names and structure, refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql).
+:::
 
 ### block(offset: BlockOffset): Block
 
-**Parameters** (BlockOffset is a oneOf):
-- `hash: HexEncoded` – The block hash.
-- `height: Int` – The block height (number).
+Query a block by offset. If no offset is provided, then the latest block is returned.
 
-If no offset is provided, the latest block is returned.
-
-**Example:**
-
-Query by height:
+#### Query by height
 
 ```graphql
 query {
@@ -70,12 +112,20 @@ query {
     height
     protocolVersion
     timestamp
+    author
     parent {
       hash
     }
     transactions {
+      id
       hash
-      applyStage
+      transactionResult {
+        status
+        segments {
+          id
+          success
+        }
+      }
     }
   }
 }
@@ -83,13 +133,20 @@ query {
 
 ### transactions(offset: TransactionOffset!): [Transaction!]!
 
-Fetch transactions by hash or by identifier using a TransactionOffset object. The offset must include either a hash or an identifier, but not both. Returns an array since a hash may map to multiple related actions.
+Fetch transactions by hash or by identifier. Returns an array of transactions matching the criteria.
 
-**Example:**
+:::note
+The `fees` field is now available on transactions, providing both `paidFees` and `estimatedFees` information.
+:::
+
+#### Example: Query transactions by hash
+
+This example demonstrates how to retrieve transactions starting from a specific transaction hash using the `hash` offset parameter.
 
 ```graphql
 query {
   transactions(offset: { hash: "3031323..." }) {
+    id
     hash
     protocolVersion
     merkleTreeRoot
@@ -104,64 +161,229 @@ query {
       ... on ContractDeploy {
         address
         state
-        chainState
+        zswapState
+        unshieldedBalances {
+          tokenType
+          amount
+        }
       }
       ... on ContractCall {
         address
         state
         entryPoint
-        chainState
+        zswapState
+        unshieldedBalances {
+          tokenType
+          amount
+        }
       }
       ... on ContractUpdate {
         address
         state
-        chainState
+        zswapState
+        unshieldedBalances {
+          tokenType
+          amount
+        }
+      }
+    }
+    fees {
+      paidFees
+      estimatedFees
+    }
+    transactionResult {
+      status
+      segments {
+        id
+        success
+      }
+    }
+    unshieldedCreatedOutputs {
+      owner
+      value
+      tokenType
+      intentHash
+      outputIndex
+    }
+    unshieldedSpentOutputs {
+      owner
+      value
+      tokenType
+      intentHash
+      outputIndex
+    }
+  }
+}
+```
+
+#### Example: Query transactions by identifier
+
+This example shows how to filter transactions using a specific identifier, retrieving both the created and spent unshielded outputs.
+
+```graphql
+query {
+  transactions(offset: { identifier: "abc123..." }) {
+    id
+    hash
+    unshieldedCreatedOutputs {
+      owner
+      value
+      tokenType
+    }
+    unshieldedSpentOutputs {
+      owner
+      value
+      tokenType
+    }
+  }
+}
+```
+
+
+### contractAction(address: HexEncoded!, offset: ContractActionOffset): ContractAction
+
+Retrieve the latest known contract action at a given offset (by block or transaction). If no offset is provided, then it returns the latest state.
+
+#### Example: Query latest contract action
+
+This example retrieves the most recent contract action for a given address without specifying an offset, which returns the latest state.
+
+```graphql
+query {
+  contractAction(address: "3031323...") {
+    __typename
+    ... on ContractDeploy {
+      address
+      state
+      zswapState
+      unshieldedBalances {
+        tokenType
+        amount
+      }
+    }
+    ... on ContractCall {
+      address
+      state
+      zswapState
+      entryPoint
+      unshieldedBalances {
+        tokenType
+        amount
+      }
+    }
+    ... on ContractUpdate {
+      address
+      state
+      zswapState
+      unshieldedBalances {
+        tokenType
+        amount
       }
     }
   }
 }
 ```
 
-### contractAction(address: HexEncoded!, offset: ContractActionOffset): ContractAction
+#### Example: Query contract action by block height
 
-Retrieve the latest known contract action at a given offset (by block or transaction). If no offset is provided, returns the latest state.
-
-**Example (latest):**
-
-```graphql
-query {
-  contractAction(address: "3031323...") {
-    __typename
-    address
-    state
-    chainState
-  }
-}
-```
-
-**Example (by block height):**
+This example demonstrates how to retrieve a contract action at a specific block height using the `blockOffset` parameter.
 
 ```graphql
 query {
   contractAction(
-    address: "3031323...", 
+    address: "3031323...",
     offset: { blockOffset: { height: 10 } }
   ) {
     __typename
-    address
-    state
-    chainState
+    ... on ContractDeploy {
+      address
+      state
+      zswapState
+      unshieldedBalances {
+        tokenType
+        amount
+      }
+    }
+    ... on ContractCall {
+      address
+      state
+      zswapState
+      entryPoint
+      unshieldedBalances {
+        tokenType
+        amount
+      }
+    }
+    ... on ContractUpdate {
+      address
+      state
+      zswapState
+      unshieldedBalances {
+        tokenType
+        amount
+      }
+    }
   }
 }
 ```
 
-## Contract Action Types
+### dustGenerationStatus(cardanoRewardAddresses: [CardanoRewardAddress!]!): [DustGenerationStatus!]!
+
+Query DUST generation status for one or more Cardano stake keys.
+
+#### Example: Query DUST generation status
+
+This example demonstrates how to check the DUST generation status for Cardano stake keys, including registration status, Night balance, generation rate, and current capacity.
+
+```graphql
+query {
+  dustGenerationStatus(
+    cardanoRewardAddresses: [
+      "stake_test1uqtgpdz0chm6jnxx7erfd7rhqfud7t4ajazx8es8xk8x3ts06psdv"
+    ]
+  ) {
+    cardanoRewardAddress
+    dustAddress
+    registered
+    nightBalance
+    generationRate
+    currentCapacity
+  }
+}
+```
+
+The response includes several fields that provide information about DUST generation status and capacity.
+
+#### DUST generation parameters
+
+- Generation rate: 8,267 Specks per Star per second.
+- Maximum capacity: 5 DUST per NIGHT.
+- The `registered` field indicates if stake key is registered via NativeTokenObservation pallet.
+- Registration data comes from Cardano mainnet via bridge.
+
+:::tip Important note on `currentCapacity`
+
+The `currentCapacity` field represents the maximum DUST generation capacity based on the Night UTXO balance and elapsed time. This value:
+- Is accurate until the first DUST fee payment
+- Might be higher than actual balance after fee payments
+- Cannot track spent DUST because fee payments are shielded transactions
+:::
+
+For accurate DUST balance after fee payments, query the connected wallet directly via wallet SDK or DApp Connector API. Use `currentCapacity` as an approximation when wallet connection is unavailable.
+
+## Contract action types
+
+Contract actions represent operations performed on smart contracts within transactions. All ContractAction types implement a common interface and share several fields.
+
+### Common fields
 
 All ContractAction types (ContractDeploy, ContractCall, ContractUpdate) implement the ContractAction interface with these common fields:
 - `address`: The contract address (HexEncoded)
 - `state`: The contract state (HexEncoded)
-- `chainState`: The chain state at this action (HexEncoded)
+- `zswapState`: The contract-specific zswap state at this action (HexEncoded)
 - `transaction`: The transaction that contains this action
+
+### Action types
 
 Contract actions can be one of three types:
 - **ContractDeploy**: Initial contract deployment
@@ -170,28 +392,135 @@ Contract actions can be one of three types:
 
 Each type implements the ContractAction interface but may have additional fields. For example, ContractCall includes an `entryPoint` field and a reference to its associated `deploy`.
 
+### Unshielded balances
+
+All contract action types include an `unshieldedBalances` field that returns the token balances held by the contract:
+
+- **ContractDeploy**: Always returns empty balances because contracts are deployed with a zero balance.
+- **ContractCall**: Returns balances after the call execution. These balances might be modified by `unshielded_inputs` or `unshielded_outputs` during the call.
+- **ContractUpdate**: Returns balances after the maintenance update has been applied.
+
+#### ContractBalance type
+
+The ContractBalance type represents token holdings for a contract:
+
+```graphql
+type ContractBalance {
+  tokenType: HexEncoded!  # Token type identifier
+  amount: String!         # Balance amount (supports u128 values)
+}
+```
+
+## Block type
+
+The Block type represents a blockchain block:
+- `hash`: The block hash (HexEncoded)
+- `height`: The block height (Int!)
+- `protocolVersion`: The protocol version (Int!)
+- `timestamp`: The UNIX timestamp (Int!)
+- `author`: The block author (HexEncoded, optional)
+- `parent`: Reference to the parent block (Block, optional)
+- `transactions`: Array of transactions within this block ([Transaction!]!)
+
+## Transaction type
+
+The Transaction type represents a blockchain transaction with its associated data:
+- `id`: The transaction ID (Int!)
+- `hash`: The transaction hash (HexEncoded)
+- `protocolVersion`: The protocol version (Int!)
+- `transactionResult`: The result of applying the transaction to the ledger state
+- `fees`: Fee information including both paid and estimated fees
+- `identifiers`: Transaction identifiers array ([HexEncoded!]!)
+- `raw`: The raw transaction content (HexEncoded)
+- `merkleTreeRoot`: The merkle-tree root (HexEncoded)
+- `block`: Reference to the block containing this transaction
+- `contractActions`: Array of contract actions within this transaction
+- `unshieldedCreatedOutputs`: UTXOs created by this transaction
+- `unshieldedSpentOutputs`: UTXOs spent by this transaction
+
+### TransactionResult type
+
+The result of applying a transaction to the ledger state:
+- `status`: TransactionResultStatus (SUCCESS, PARTIAL_SUCCESS, or FAILURE)
+- `segments`: Optional array of segment results for partial success cases
+
+### TransactionFees type
+
+Fee information for a transaction:
+- `paidFees`: The actual fees paid for this transaction in DUST (String)
+- `estimatedFees`: The estimated fees that were calculated for this transaction in DUST (String)
+
+## Unshielded token types
+
+Unshielded tokens are publicly visible on-chain assets that can be tracked and queried. The following types represent unshielded UTXOs and their associated data.
+
+### UnshieldedUtxo
+
+Represents an unshielded UTXO (Unspent Transaction Output):
+- `owner`: The owner's address in Bech32m format
+- `intentHash`: The hash of the intent that created this output (HexEncoded)
+- `value`: The UTXO value as a string (to support u128)
+- `tokenType`: The token type identifier (HexEncoded)
+- `outputIndex`: The index of this output within its creating transaction
+- `createdAtTransaction`: Reference to the transaction that created this UTXO
+- `spentAtTransaction`: Reference to the transaction that spent this UTXO (null if unspent)
+
+## DUST generation types
+
+The following types provide information about DUST generation status, capacity, and related ledger events.
+
+### DustGenerationStatus
+
+DUST generation status for a Cardano stake key:
+- `cardanoRewardAddress`: The Bech32-encoded Cardano stake address, such as `stake_test1...` or `stake1...`
+- `dustAddress`: Associated DUST address if registered (HexEncoded, optional)
+- `registered`: Whether this stake key is registered (Boolean!)
+- `nightBalance`: NIGHT balance backing generation (String)
+- `generationRate`: Generation rate in Specks per second (String)
+- `currentCapacity`: Current DUST generation capacity in Specks - represents maximum possible balance, may be higher than actual balance after fee payments (String)
+
+### DustLedgerEvent
+
+DUST ledger events track changes to the DUST generation system. These events are emitted when DUST UTXOs are created, generation parameters are updated, or spends are processed.
+
+The following event types are available:
+- `DustInitialUtxo`: Initial DUST UTXO creation event
+- `DustGenerationDtimeUpdate`: DUST generation decay time update
+- `DustSpendProcessed`: DUST spend processing event
+- `ParamChange`: DUST parameter change event
+
+All DUST ledger event types share common fields:
+- `id`: Event ID (Int!)
+- `raw`: Raw event data (HexEncoded)
+- `maxId`: Maximum ID of all DUST events (Int!)
+
 ## Mutations
 
 Mutations allow the client to connect a wallet (establishing a session) and disconnect it.
 
 ### connect(viewingKey: ViewingKey!): HexEncoded!
 
-Establishes a session for a given wallet viewing key in **either** bech32m or hex format. Returns the session ID.
+Establishes a session for a given wallet viewing key. Returns the session ID that can be used for shielded transaction subscriptions.
 
-**Viewing Key Format Support**
-- **Bech32m** (preferred): A base-32 encoded format with a human-readable prefix, e.g., `mn_shield-esk_dev1...`
+#### Viewing key format support
+
+The viewing key can be provided in either of two formats:
+- **Bech32m** (preferred): A base-32 encoded format with a human-readable prefix, for example, `mn_shield-esk_dev1...`.
 - **Hex** (fallback): A hex-encoded string representing the key bytes.
 
-**Example:**
+#### Example: Connect with viewing key
+
+This example shows how to establish a session by connecting with a viewing key in Bech32m format. The server returns a session ID that you'll use for subsequent queries.
 
 ```graphql
 mutation {
   # Provide the bech32m format:
-  connect(viewingKey: "mn_shield-esk1abcdef...") 
+  connect(viewingKey: "mn_shield-esk1abcdef...")
 }
 ```
 
-**Response:**
+**Response**:
+
 ```json
 {
   "data": {
@@ -200,15 +529,16 @@ mutation {
 }
 ```
 
+Use this `sessionId` for shielded transactions subscriptions.
+
 ### disconnect(sessionId: HexEncoded!): Unit!
 
-Ends an existing session.
+Ends an existing session. Call this method when you no longer need to monitor shielded transactions for a particular wallet.
 
-**Example:**
+#### Example: Disconnect session
 
-Use this `sessionId` for wallet subscriptions.
+This example demonstrates how to terminate an active session using the session ID returned from the connect mutation.
 
-When done:
 ```graphql
 mutation {
   disconnect(sessionId: "sessionIdHere")
@@ -219,73 +549,179 @@ mutation {
 
 Subscriptions use a WebSocket connection following the [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol. After connecting and sending a `connection_init` message, the client can start subscription operations.
 
-### Blocks Subscription
+### Blocks subscription
 
 `blocks(offset: BlockOffset): Block!`
 
 Subscribe to new blocks. The `offset` parameter lets you start receiving from a given block (by height or hash). If omitted, starts from the latest block.
 
-**Example:**
+#### Example: Subscribe to blocks
+
+This example shows how to subscribe to new blocks starting from block height 10, receiving real-time updates as new blocks are indexed.
 
 ```json
 {
   "id": "1",
   "type": "start",
   "payload": {
-    "query": "subscription { blocks(offset: { height: 10 }) { hash height timestamp transactions { hash } } }"
+    "query": "subscription { blocks(offset: { height: 10 }) { hash height protocolVersion timestamp author parent { hash } transactions { id hash } } }"
   }
 }
 ```
 
 When a new block is indexed, the client receives a `next` message.
 
-### Contracts Subscription
+### Contract actions subscription
 
 `contractActions(address: HexEncoded!, offset: BlockOffset): ContractAction!`
 
-Subscribes to contract actions for a particular address. New contract actions (calls, updates) are pushed as they occur.
+Monitor smart contract activity by subscribing to contract actions for a specific address. New contract actions (calls, updates) are pushed as they occur.
 
-**Example:**
+#### Example: Subscribe to contract actions
+
+This example demonstrates how to subscribe to contract actions for a specific address, receiving real-time notifications for deployments, calls, and updates.
 
 ```json
 {
   "id": "2",
   "type": "start",
   "payload": {
-    "query": "subscription { contractActions(address:\"3031323...\", offset: { height: 1 }) { __typename address state } }"
+    "query": "subscription { contractActions(address:\"3031323...\", offset: { height: 1 }) { __typename ... on ContractDeploy { address state zswapState unshieldedBalances { tokenType amount } } ... on ContractCall { address state zswapState entryPoint unshieldedBalances { tokenType amount } } ... on ContractUpdate { address state zswapState unshieldedBalances { tokenType amount } } } }"
   }
 }
 ```
 
-### Wallet Subscription
+### Shielded transactions subscription
 
-`wallet(sessionId: HexEncoded!, index: Int, sendProgressUpdates: Boolean): WalletSyncEvent!`
+`shieldedTransactions(sessionId: HexEncoded!, index: Int, sendProgressUpdates: Boolean): ShieldedTransactionsEvent!`
 
-Subscribes to wallet updates. This includes relevant transactions and possibly Merkle tree updates, as well as `ProgressUpdate` events if `sendProgressUpdates` is set to `true`, which is also the default. The `index` parameter can be used to resume from a certain point.
+Subscribes to shielded transaction updates. This includes relevant transactions and possibly Merkle tree updates, as well as `ShieldedTransactionsProgress` events if `sendProgressUpdates` is set to `true`, which is also the default. The `index` parameter can be used to resume from a certain point.
 
 Adjust `index` and `offset` arguments as needed.
 
-**Example:**
+#### Example: Subscribe to shielded transactions
+
+This example shows how to subscribe to shielded transactions for a specific session, starting from index 100 and receiving both transaction updates and progress notifications.
 
 ```json
 {
   "id": "3",
   "type": "start",
   "payload": {
-    "query": "subscription { wallet(sessionId: \"1CYq6ZsLmn\", index: 100) { __typename ... on ViewingUpdate { index update { __typename ... on RelevantTransaction { transaction { hash } } } } ... on ProgressUpdate { highestIndex highestRelevantIndex highestRelevantWalletIndex } } }"
+    "query": "subscription { shieldedTransactions(sessionId: \"1CYq6ZsLmn\", index: 100) { __typename ... on ViewingUpdate { index update { __typename ... on MerkleTreeCollapsedUpdate { start end update protocolVersion } ... on RelevantTransaction { start end transaction { id hash } } } } ... on ShieldedTransactionsProgress { highestIndex highestRelevantIndex highestRelevantWalletIndex } } }"
   }
 }
 ```
 
-**Responses** may vary depending on what is happening in the chain:
-- A `ViewingUpdate` with new relevant transactions or a collapsed Merkle tree update.
-- A `ProgressUpdate` providing synchronization progress with fields like `highestIndex`, `highestRelevantIndex`, and `highestRelevantWalletIndex`.
+The subscription returns events as they occur, with different event types providing transaction data and progress updates.
 
-## Query Limits Configuration
+#### Event types
 
-The server may apply limitations to queries (e.g. `max-depth`, `max-fields`, `timeout`, and complexity cost). Requests that violate these limits return errors indicating the reason (too many fields, too deep, too costly, or timed out).
+The `ShieldedTransactionsEvent` union type can be one of the following:
 
-**Example error:**
+**ViewingUpdate**: Contains relevant transactions and/or collapsed Merkle tree updates.
+- `index`: Next start index into the zswap state (Int!)
+- `update`: Array of ZswapChainStateUpdate items ([ZswapChainStateUpdate!]!)
+  - `MerkleTreeCollapsedUpdate`: Merkle tree update
+    - `start`: Start index (Int!)
+    - `end`: End index (Int!)
+    - `update`: Hex-encoded merkle-tree collapsed update (HexEncoded)
+    - `protocolVersion`: Protocol version (Int!)
+  - `RelevantTransaction`: Transaction relevant to the wallet
+    - `start`: Start index (Int!)
+    - `end`: End index (Int!)
+    - `transaction`: The relevant transaction (Transaction!)
+
+**ShieldedTransactionsProgress**: Synchronization progress information.
+- `highestIndex`: The highest end index of all currently known transactions (Int!)
+- `highestRelevantIndex`: The highest end index of all currently known relevant transactions (Int!)
+- `highestRelevantWalletIndex`: The highest end index for this particular wallet (Int!)
+
+### Unshielded transactions subscription
+
+`unshieldedTransactions(address: UnshieldedAddress!, transactionId: Int): UnshieldedTransactionsEvent!`
+
+Subscribes to unshielded transaction events for a specific address. Emits events whenever transactions involve unshielded UTXOs for the given address.
+
+#### Parameters
+
+- `address`: The unshielded address to monitor (must be in Bech32m format).
+- `transactionId`: Optional. The transaction ID to start from (defaults to 0).
+
+#### Example: Subscribe to unshielded transactions
+
+This example demonstrates how to subscribe to unshielded transactions for a specific address, receiving notifications about created and spent UTXOs along with progress updates.
+
+```json
+{
+  "id": "4",
+  "type": "start",
+  "payload": {
+    "query": "subscription { unshieldedTransactions(address: \"mn_addr_test1...\") { __typename ... on UnshieldedTransaction { transaction { hash block { height } } createdUtxos { owner value tokenType intentHash outputIndex } spentUtxos { owner value tokenType intentHash outputIndex } } ... on UnshieldedTransactionsProgress { highestTransactionId } } }"
+  }
+}
+```
+
+#### Event types
+
+- **UnshieldedTransaction**: When UTXOs are created or spent, includes transaction details and affected UTXOs
+- **UnshieldedTransactionsProgress**: Periodic synchronization progress updates
+
+#### UnshieldedTransactionsEvent
+
+Event payload for the unshielded transaction subscription:
+- `UnshieldedTransaction`: Contains transaction details and UTXOs created/spent
+  - `transaction`: The transaction that created and/or spent UTXOs
+  - `createdUtxos`: UTXOs created in this transaction for the subscribed address
+  - `spentUtxos`: UTXOs spent in this transaction for the subscribed address
+- `UnshieldedTransactionsProgress`: Progress information
+  - `highestTransactionId`: The highest transaction ID of all currently known transactions for the subscribed address
+
+### DUST ledger events subscription
+
+`dustLedgerEvents(id: Int): DustLedgerEvent!`
+
+Subscribe to DUST ledger events. The `id` parameter allows resuming from a specific event.
+
+#### Example: Subscribe to DUST ledger events
+
+This example shows how to subscribe to DUST ledger events, receiving real-time updates about DUST-related operations on the blockchain.
+
+```json
+{
+  "id": "5",
+  "type": "start",
+  "payload": {
+    "query": "subscription { dustLedgerEvents { id __typename ... on DustInitialUtxo { output { nonce } } raw maxId } }"
+  }
+}
+```
+
+### Zswap ledger events subscription
+
+`zswapLedgerEvents(id: Int): ZswapLedgerEvent!`
+
+Subscribe to Zswap ledger events. The `id` parameter allows resuming from a specific event.
+
+#### Example: Subscribe to Zswap ledger events
+
+This example demonstrates how to subscribe to Zswap ledger events, receiving updates about shielded pool operations and state changes.
+
+```json
+{
+  "id": "6",
+  "type": "start",
+  "payload": {
+    "query": "subscription { zswapLedgerEvents { id raw maxId } }"
+  }
+}
+```
+
+## Query limits configuration
+
+The server may apply limitations to queries (for example, `max-depth`, `max-fields`, `timeout`, and complexity cost). Requests that violate these limits return errors indicating the reason (too many fields, too deep, too costly, or timed out).
+
+### Example error
 
 ```json
 {
@@ -300,16 +736,24 @@ The server may apply limitations to queries (e.g. `max-depth`, `max-fields`, `ti
 
 ## Authentication
 
-- Wallet subscription requires a `sessionId` from the `connect` mutation.
+Shielded transactions subscription requires a `sessionId` from the `connect` mutation.
 
-### Regenerating the Schema
+## Regenerate the schema
 
-If you modify the code defining the GraphQL schema, regenerate it:
+If you're using the Indexer API and modify the code defining the GraphQL schema, then you'll need to regenerate the schema file.
+
+Run the following command:
+
 ```bash
 just generate-indexer-api-schema
 ```
+
 This ensures the schema file stays aligned with code changes.
 
-## Conclusion
+## Migrate from v1
 
-This document offers a few hand-picked examples and an overview of available operations. For the most accurate and comprehensive reference, consult the schema file. As the API evolves, remember to validate these examples against the schema and update them as needed.
+If migrating from API v1, follow these steps:
+
+1. Update endpoint URLs from `/v1/graphql` to `/v3/graphql` (though v1 redirects automatically).
+2. Review field name changes (for example, `chainState` → `zswapState` in contract actions).
+3. Test thoroughly, because some response structures might have changed.

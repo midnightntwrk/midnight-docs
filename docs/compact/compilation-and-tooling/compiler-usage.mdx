@@ -31,11 +31,11 @@ The target directory is created if it does not already exist.
 where _sourceroot_ is the name of the file identified by _sourcepath_ without any
 extension.
 
-- a Typescript type-definition file _targetdir_**/contract/index.d.cts**
+- a Typescript type-definition file _targetdir_**/contract/index.d.ts**
 
-- a Javascript source file _targetdir_**/contract/index.cjs**
+- a Javascript source file _targetdir_**/contract/index.js**
 
-- a Javascript source-map file _targetdir_**/contract/index.cjs.map**
+- a Javascript source-map file _targetdir_**/contract/index.js.map**
 
 - one Zk/ir circuit file for each exported circuit _circuitname_
   in _targetdir_**/zkir/**_circuitname_**.zkir**,
@@ -106,7 +106,7 @@ omits the contract communications commitment that enables data integrity for con
 **--sourceRoot _sourceRoot-value_**
 
 overrides the compiler's setting of the
-sourceRoot field in the generated source-map (.cjs.map) file.  By default,
+sourceRoot field in the generated source-map (.js.map) file.  By default,
 the compiler tries to determine a useful value based on the source and
 target-directory pathnames, but this value might not be appropriate for
 the deployed structure of the application.
@@ -129,9 +129,9 @@ compactc src/test.compact obj/test
 produces:
 
 ```
-obj/test/contract/index.d.cts
-obj/test/contract/index.cjs
-obj/test/contract/index.cjs.map
+obj/test/contract/index.d.ts
+obj/test/contract/index.js
+obj/test/contract/index.js.map
 
 obj/test/zkir/foo.zkir
 obj/test/zkir/bar.zkir
