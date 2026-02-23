@@ -10,12 +10,13 @@ toc_max_heading_level: 2
 
 # Bulletin board DApp
 
-The bulletin board contract demonstrates privacy-preserving smart contracts on Midnight using the Compact language. This example shows how to create a contract that allows users to post and remove messages while protecting poster identity through Zero Knowledge (ZK) proofs.
+The bulletin board contract demonstrates privacy-preserving smart contracts on Midnight using the Compact language. 
+This example shows how to create a contract that allows users to post and remove messages while protecting poster identity through Zero Knowledge (ZK) proofs.
 
 The bulletin board example is a privacy-focused DApp that introduces key Midnight concepts:
 
 - Writing smart contracts with private state in Compact
-- Using Zero Knowledge (ZK) proofs to verify identity without revealing it
+- Using ZK proofs to verify identity without revealing it
 - Implementing access control through cryptographic commitments
 
 By the end of this guide, you will understand how the bulletin board contract enforces privacy rules and how to deploy and interact with the contract through the CLI.
@@ -24,10 +25,10 @@ By the end of this guide, you will understand how the bulletin board contract en
 
 Imagine a traditional cork bulletin board on an office wall with room for just one piece of paper. The office rules are simple:
 
-1. Anyone can post a message when the board is vacant.
-2. Once someone posts a message, only that person can remove it.
+- Anyone can post a message when the board is vacant.
+- Once someone posts a message, only that person can remove it.
 
-The challenge is implementing these rules online while protecting user identity. Traditional systems require users to transmit identity credentials to a server for verification. Midnight offers a better approach: users prove their identity locally through Zero Knowledge (ZK) proofs without transmitting private data across the network.
+The challenge is implementing these rules online while protecting user identity. Traditional systems require users to transmit identity credentials to a server for verification. Midnight offers a better approach: users prove their identity locally through ZK proofs without transmitting private data across the network.
 
 ## DApp architecture
 
@@ -46,32 +47,10 @@ example-bboard/
     └── src/                   # React-based UI
 ```
 
-### The bulletin board contract
+## The bulletin board contract
 
-The bulletin board contract is written in Compact. It demonstrates how to build a privacy-preserving application where users can prove ownership of posted content without revealing their identity.
-
-The contract consists of three main components:
-
-#### Ledger state
-
-Four public fields track the bulletin board state on-chain:
-
-- `state`: A `State` enum indicating whether the board is `VACANT` or `OCCUPIED`.
-- `message`: A `Maybe<Opaque<"string">>` type that contains the current posted message, or `none` if the board is vacant.
-- `sequence`: A `Counter` that increments each time a post is taken down, preventing replay attacks.
-- `owner`: A 32-byte cryptographic commitment that represents the current poster's identity without revealing who they are.
-
-#### Circuits
-
-Three exported circuits define the contract's operations:
-
-- `post(newMessage)`: Posts a new message to the board. Checks that the board is vacant, then stores the message and creates an ownership commitment.
-- `takeDown()`: Removes the current message and returns it. Verifies that the caller is the original poster by checking their secret key against the ownership commitment.
-- `publicKey(sk, sequence)`: A helper circuit that generates the ownership commitment from a secret key and sequence number using a persistent hash.
-
-#### Witness
-
-The contract defines one witness function, `localSecretKey()`, which returns the user's secret key during circuit execution without exposing it on-chain or in the generated proof.
+The bulletin board contract is written in Compact. It demonstrates how to build a privacy-preserving 
+application where users can prove ownership of posted content without revealing their identity.
 
 Here is the complete contract:
 
@@ -87,7 +66,7 @@ export enum State {
 
 export ledger state: State;
 
-export ledger message: Maybe<Opaque<"string">>;
+export ledger message: Maybe<Opaque<'string'>>;
 
 export ledger sequence: Counter;
 
@@ -95,26 +74,26 @@ export ledger owner: Bytes<32>;
 
 constructor() {
   state = State.VACANT;
-  message = none<Opaque<"string">>();
+  message = none<Opaque<'string'>>();
   sequence.increment(1);
 }
 
 witness localSecretKey(): Bytes<32>;
 
-export circuit post(newMessage: Opaque<"string">): [] {
+export circuit post(newMessage: Opaque<'string'>): [] {
   assert(state == State.VACANT, "Attempted to post to an occupied board");
   owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
-  message = disclose(some<Opaque<"string">>(newMessage));
+  message = disclose(some<Opaque<'string'>>(newMessage));
   state = State.OCCUPIED;
 }
 
-export circuit takeDown(): Opaque<"string"> {
+export circuit takeDown(): Opaque<'string'> {
   assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
   assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Attempted to take down post, but not the current owner");
   const formerMsg = message.value;
   state = State.VACANT;
   sequence.increment(1);
-  message = none<Opaque<"string">>();
+  message = none<Opaque<'string'>>();
   return formerMsg;
 }
 
@@ -122,6 +101,29 @@ export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
   return persistentHash<Vector<3, Bytes<32>>>([pad(32, "bboard:pk:"), sequence, sk]);
 }
 ```
+
+The contract consists of three main components:
+
+### Ledger state
+
+Four public fields track the bulletin board state on-chain:
+
+- `state`: A `State` enum indicating whether the board is `VACANT` or `OCCUPIED`.
+- `message`: A `Maybe<Opaque<'string'>>` type that contains the current posted message, or `none` if the board is vacant.
+- `sequence`: A `Counter` that increments each time a post is taken down, preventing replay attacks.
+- `owner`: A 32-byte cryptographic commitment that represents the current poster's identity without revealing who they are.
+
+### Circuits
+
+Three exported circuits define the contract's operations:
+
+- `post(newMessage)`: Posts a new message to the board. Checks that the board is vacant, then stores the message and creates an ownership commitment.
+- `takeDown()`: Removes the current message and returns it. Verifies that the caller is the original poster by checking their secret key against the ownership commitment.
+- `publicKey(sk, sequence)`: A helper circuit that generates the ownership commitment from a secret key and sequence number using a persistent hash.
+
+### Witness
+
+The contract defines one witness function, `localSecretKey()`, which returns the user's secret key during circuit execution without exposing it on-chain or in the generated proof.
 
 ## Prerequisites
 
@@ -159,7 +161,7 @@ This command installs packages for the contract, API, CLI, and UI components.
 
 ## Start the proof server
 
-The proof server generates Zero Knowledge (ZK) proofs for transactions locally to protect private data. It must be running before you can deploy or interact with contracts.
+The proof server generates ZK proofs for transactions locally to protect private data. It must be running before you can deploy or interact with contracts.
 
 Start the proof server:
 
@@ -279,7 +281,7 @@ Store the wallet seed in a secure location. You need it to recover your wallet i
 
 #### Restore an existing wallet
 
-If you already have a wallet seed, select option `2` to build wallet from a seed.
+If you already have a wallet seed, then select option `2` to build wallet from a seed.
 
 Enter your wallet seed when prompted:
 
@@ -334,12 +336,12 @@ Which would you like to do? 1
 The CLI deploys your contract and displays the contract address.
 
 :::note Transaction time
-Contract deployment typically takes 20-30 seconds on Preprod as the network processes your transaction and Zero Knowledge (ZK) proofs.
+Contract deployment typically takes 20-30 seconds on Preprod as the network processes your transaction and ZK proofs.
 :::
 
 ### Join an existing contract
 
-If you want to interact with a contract that someone else deployed, select option `2` to join an existing bulletin board contract.
+If you want to interact with a contract that someone else deployed, then select option `2` to join an existing bulletin board contract.
 
 Enter the contract address when prompted:
 
@@ -352,13 +354,11 @@ What is the contract address (in hex)? <contract address>
  Joined contract at address: <contract address>
 ```
 
-You can now interact with the bulletin board just as if you had deployed it yourself.
-
 ### Interact with the bulletin board
 
 Once deployed or joined, you can interact with your bulletin board contract.
 
-The Bulletin Board Actions menu appears:
+The bulletin board actions menu appears:
 
 ```
 You can do one of the following:
@@ -410,7 +410,7 @@ What message do you want to post? Welcome to Midnight
 
 The CLI:
 1. Generates a cryptographic commitment to your identity using your secret key
-2. Creates a Zero Knowledge (ZK) proof proving you followed the contract rules
+2. Creates a ZK proof proving you followed the contract rules
 3. Submits the proof to Preprod
 4. Waits for transaction confirmation
 
@@ -458,11 +458,11 @@ Which would you like to do? 2
 The CLI:
 1. Regenerates your cryptographic commitment using your secret key and the current sequence number
 2. Proves it matches the stored `owner` value
-3. Submits a Zero Knowledge (ZK) proof of this verification
+3. Submits a ZK proof of this verification
 4. Removes the message and resets the board to vacant
 
 :::caution Only poster can remove
-If you try to take down someone else's message, the transaction fails. The contract enforces this through Zero Knowledge (ZK) proof verification that happens before submission.
+If you try to take down someone else's message, the transaction fails. The contract enforces this through ZK proof verification that happens before submission.
 :::
 
 #### Verify removal

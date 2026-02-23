@@ -21,7 +21,8 @@ By the end of this tutorial, you will:
 - Compile the contract into Zero Knowledge (ZK) circuits.
 - Understand the generated TypeScript API.
 
-The bulletin board contract allows users to post and remove messages while maintaining privacy. Only the original poster can remove their message, and this is enforced through Zero Knowledge (ZK) proofs without revealing the poster's identity on-chain.
+The bulletin board contract allows users to post and remove messages while maintaining privacy. 
+Only the original poster can remove their message, and this is enforced through ZK proofs without revealing the poster's identity on-chain.
 
 ## Prerequisites
 
@@ -88,10 +89,10 @@ pragma language_version 0.20;
 import CompactStandardLibrary;
 ```
 
-The `CompactStandardLibrary` provides access to built-in types and functions in Compact, such as `Maybe` for optional values, `Counter` for tracking sequences, `persistentHash` for cryptographic commitments, `some` and `none` constructors for Maybe values, and `pad` for creating fixed-length byte arrays.
+The `CompactStandardLibrary` provides access to built-in types and functions in Compact, such as `Maybe` for optional values, `Counter` for tracking sequences, `persistentHash` for cryptographic commitments, `some` and `none` constructors for Maybe values.
 
 :::note
-To learn more about available types, see the [Compact standard library](../../../compact/standard-library/) reference.
+To learn more about what's available in the standard library, see the [Compact standard library](../../../compact/standard-library/) reference.
 :::
 
 ### Define the board state enum
@@ -132,7 +133,7 @@ export enum State {
 
 export ledger state: State;
 
-export ledger message: Maybe<Opaque<"string">>;
+export ledger message: Maybe<Opaque<'string'>>;
 
 export ledger sequence: Counter;
 
@@ -146,7 +147,7 @@ Each ledger field serves a specific purpose:
 - `sequence`: A counter that increments each time a message is taken down, creating unique commitments for each posting cycle and preventing replay attacks
 - `owner`: Stores a cryptographic commitment to the poster's identity as a 32-byte hash
 
-The `Maybe` type indicates optional values. A message is `none` when the board is vacant and `some(value)` when occupied. The `Opaque<"string">` type represents string data whose internal structure is irrelevant to the contract.
+The `Maybe` type indicates optional values. A message is `none` when the board is vacant and `some(value)` when occupied. The `Opaque<'string'>` type represents string data whose internal structure is irrelevant to the contract.
 
 ### Create the constructor
 
@@ -157,27 +158,27 @@ The constructor initializes the ledger state when the contract is deployed:
 
 constructor() {
   state = State.VACANT;
-  message = none<Opaque<"string">>();
+  message = none<Opaque<'string'>>();
   sequence.increment(1);
 }
 ```
 
-This constructor:
+This constructor makes deliberate choices about what to explicitly initialize versus what to leave as default:
 
-- Sets the initial `state` to `VACANT` since no messages have been posted
-- Initializes `message` to `none` using explicit type annotation
-- Increments `sequence` to 1 to prepare for the first post
-- Leaves `owner` uninitialized, as it defaults to zero bytes
+- **`state = State.VACANT`**: Explicitly set to make the contract independent of enum ordering
+- **`message = none<Opaque<'string'>>()`**: Explicitly set to decouple from the standard library's `Maybe` default implementation
+- **`sequence.increment(1)`**: Increments from 0 to 1, so posts start at sequence number 1
+- **`owner`**: Uninitialized, using the language-guaranteed default of 32 zero bytes
 
-The sequence counter starts at 1 rather than 0. This makes the first post use sequence number 1, which is more intuitive for users.
+The pattern: explicitly initialize values that depend on library or enum definitions, but rely on language-defined defaults when they're guaranteed by the specification.
 
 :::note Constructor initialization
-Fields not explicitly initialized in the constructor receive default values for their type. The `owner` field defaults to 32 zero bytes, and the `sequence` counter defaults to zero before being incremented to 1.
+Fields not explicitly initialized in the constructor receive default values for their type as defined by the Compact language specification.
 :::
 
 ### Declare the witness function
 
-Before defining the circuits, declare a witness function to access private data:
+Before defining the circuits, declare a witness function:
 
 ```compact
 // ... previous code ...
@@ -187,11 +188,11 @@ witness localSecretKey(): Bytes<32>;
 
 This declaration:
 
-- `witness` marks this as a function that accesses private state
-- `localSecretKey` returns the user's secret key as a 32-byte value
-- The return value never appears on-chain or in public ledger state
+- `witness` marks this as a function implemented in TypeScript or JavaScript that performs arbitrary computation.
+- `localSecretKey` returns a 32-byte value of the user's secret key.
+- The return value is private by default and doesn't appear on-chain or in public ledger state.
 
-Witnesses are crucial for privacy. They allow circuits to use private data for computation and proof generation without revealing that data to validators or other network participants.
+Witnesses enable privacy-preserving computation. They can perform any computation, such as accessing private state or generating values, and return results that circuits use for proof generation.
 
 ### Create the post circuit
 
@@ -200,21 +201,21 @@ The `post` circuit allows users to post messages to the vacant board:
 ```compact
 // ... previous code ...
 
-export circuit post(newMessage: Opaque<"string">): [] {
+export circuit post(newMessage: Opaque<'string'>): [] {
   assert(state == State.VACANT, "Attempted to post to an occupied board");
   owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
-  message = disclose(some<Opaque<"string">>(newMessage));
+  message = disclose(some<Opaque<'string'>>(newMessage));
   state = State.OCCUPIED;
 }
 ```
 
 This circuit performs several operations:
 
-- **Validate board state**: `assert(state == State.VACANT, ...)` ensures posting only happens when the board is vacant
-- **Generate commitment**: Calls `publicKey()` helper circuit to create a cryptographic commitment from the secret key and current sequence number
-- **Disclose commitment**: Wraps the commitment in `disclose()` to tell the compiler this value is safe to reveal on-chain
-- **Store message**: Sets `message` to `some(newMessage)` and wraps it in `disclose()` to explicitly reveal it
-- **Update state**: Changes `state = State.OCCUPIED` to mark the board as occupied
+- **Validate board state**: `assert(state == State.VACANT, ...)` ensures posting only happens when the board is vacant.
+- **Generate commitment**: Calls `publicKey()` helper circuit to create a cryptographic commitment from the secret key and current sequence number. This is what allows only the original poster to take down their message.
+- **Disclose**: Wraps the commitment in `disclose()` to tell the compiler this value is safe to reveal on-chain.
+- **Store message**: Sets `message` to `some(newMessage)` and wraps it in `disclose()` to explicitly reveal it.
+- **Update state**: Changes `state = State.OCCUPIED` to mark the board as occupied.
 
 The `disclose` keyword is critical for security. 
 By default, Compact prevents computed values from being assigned to public ledger fields. 
@@ -230,13 +231,13 @@ The `takeDown` circuit allows users to remove their own messages:
 ```compact
 // ... previous code ...
 
-export circuit takeDown(): Opaque<"string"> {
+export circuit takeDown(): Opaque<'string'> {
   assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
   assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Attempted to take down post, but not the current owner");
   const formerMsg = message.value;
   state = State.VACANT;
   sequence.increment(1);
-  message = none<Opaque<"string">>();
+  message = none<Opaque<'string'>>();
   return formerMsg;
 }
 ```
@@ -252,7 +253,7 @@ This circuit performs several operations:
 - **Clear message**: Resets `message` to `none`
 - **Return message**: Returns the taken-down message to the caller
 
-The second `assert` is where privacy meets access control. The user proves they can regenerate the stored commitment without revealing their secret key. The Zero Knowledge (ZK) proof validates this assertion without exposing the private data.
+The second `assert` is where privacy meets access control. The user proves they can regenerate the stored commitment without revealing their secret key. The ZK proof validates this assertion without exposing the private data.
 
 Note that `message` is cleared after extracting its value. This ensures the board is ready for the next post.
 
@@ -270,16 +271,16 @@ export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
 
 This helper circuit:
 
-- Takes a secret key (`sk`) and sequence number as inputs
-- Returns a 32-byte cryptographic hash
-- Uses `persistentHash` from the standard library for secure hashing
-- Creates a vector of three 32-byte values to hash together
 - Uses `pad(32, "bboard:pk:")` to create a domain separator
+- Creates a vector of three 32-byte values to hash together
+- Uses `persistentHash` from the standard library, which implements SHA-256 hashing
+- Takes an input value (`sk`) and sequence number as parameters
+- Returns a 32-byte cryptographic hash
 
 The commitment has critical properties:
 
 - **Domain separation**: The `"bboard:pk:"` prefix prevents hash collisions with other uses of the secret key
-- **One-way**: You cannot reverse the hash to discover the secret key
+- **One-way**: SHA-256 is cryptographically non-reversible, meaning you cannot discover the input from the hash output
 - **Deterministic**: The same inputs always produce the same output
 - **Unique per post**: The sequence number ensures each post has a different commitment
 
@@ -299,7 +300,7 @@ export enum State {
 
 export ledger state: State;
 
-export ledger message: Maybe<Opaque<"string">>;
+export ledger message: Maybe<Opaque<'string'>>;
 
 export ledger sequence: Counter;
 
@@ -307,26 +308,26 @@ export ledger owner: Bytes<32>;
 
 constructor() {
   state = State.VACANT;
-  message = none<Opaque<"string">>();
+  message = none<Opaque<'string'>>();
   sequence.increment(1);
 }
 
 witness localSecretKey(): Bytes<32>;
 
-export circuit post(newMessage: Opaque<"string">): [] {
+export circuit post(newMessage: Opaque<'string'>): [] {
   assert(state == State.VACANT, "Attempted to post to an occupied board");
   owner = disclose(publicKey(localSecretKey(), sequence as Field as Bytes<32>));
-  message = disclose(some<Opaque<"string">>(newMessage));
+  message = disclose(some<Opaque<'string'>>(newMessage));
   state = State.OCCUPIED;
 }
 
-export circuit takeDown(): Opaque<"string"> {
+export circuit takeDown(): Opaque<'string'> {
   assert(state == State.OCCUPIED, "Attempted to take down post from an empty board");
   assert(owner == publicKey(localSecretKey(), sequence as Field as Bytes<32>), "Attempted to take down post, but not the current owner");
   const formerMsg = message.value;
   state = State.VACANT;
   sequence.increment(1);
-  message = none<Opaque<"string">>();
+  message = none<Opaque<'string'>>();
   return formerMsg;
 }
 
@@ -337,7 +338,7 @@ export circuit publicKey(sk: Bytes<32>, sequence: Bytes<32>): Bytes<32> {
 
 ## Compile the contract
 
-Compilation transforms your Compact code into Zero Knowledge (ZK) circuits and generates TypeScript APIs for interacting with the contract.
+Compilation transforms your Compact code into ZK circuits and generates TypeScript APIs for interacting with the contract.
 
 ### Run the compiler
 
@@ -349,9 +350,9 @@ compact compile src/bboard.compact src/managed/bboard
 
 This command has three parts:
 
-- `compact compile` invokes the Compact compiler
-- `src/bboard.compact` specifies the source file to compile
-- `src/managed/bboard` specifies the output directory for generated files
+- `compact compile` invokes the Compact compiler.
+- `src/bboard.compact` specifies the source file to compile.
+- `src/managed/bboard` specifies the output directory for generated files.
 
 You should see output similar to:
 
@@ -377,7 +378,7 @@ src/managed/bboard/
 │   ├── post.verifier         
 │   ├── takeDown.prover      
 │   ├── takeDown.verifier     
-├── zkir/                     # Zero Knowledge (ZK) Intermediate Representation
+├── zkir/                     # ZK Intermediate Representation
 │   ├── post.zkir            
 │   ├── post.bzkir           
 │   ├── takeDown.zkir        
@@ -389,7 +390,7 @@ src/managed/bboard/
 Each directory serves the following purpose:
 
 - `contract/`: Contains the generated TypeScript API and JavaScript implementation that your DApp uses to interact with the contract
-- `keys/`: Cryptographic keys used for generating and verifying Zero Knowledge (ZK) proofs for each circuit
+- `keys/`: Cryptographic keys used for generating and verifying ZK proofs for each circuit
 - `zkir/`: Intermediate circuit representations used by the proof server
 - `compiler/`: Metadata about circuits, types, and structure in JSON format
 
@@ -438,7 +439,7 @@ Each circuit method:
 - Corresponds to an exported circuit in your Compact code
 - Takes a `CircuitContext` that provides access to ledger state and witness functions
 - Accepts parameters matching the Compact circuit parameters
-- Returns `CircuitResults` containing the Zero Knowledge (ZK) proof and circuit outputs
+- Returns `CircuitResults` containing the `ProofData`, which is sent to the proof server to generate the ZK proof
 - Uses appropriate JavaScript types (`string`, `Uint8Array`) for Compact types
 
 ### Ledger types
@@ -456,10 +457,19 @@ export type Ledger = {
 
 Each field:
 
-- Corresponds to a ledger declaration in your Compact code.
-- Uses JavaScript types: `State` enum, `string`, `bigint`, `Uint8Array`.
-- Represents `Maybe` types as objects with `is_some: boolean` and `value` properties.
-- Is marked as `readonly`, meaning state modifications can only happen through circuit calls.
+- Corresponds to a ledger declaration in your Compact code
+- Uses JavaScript types: `State` enum, `string`, `bigint`, `Uint8Array`
+- Represents `Maybe` types as objects with `is_some: boolean` and `value` properties
+- Is marked as `readonly`, meaning state modifications can only happen through circuit calls
+
+:::tip
+To use the `Maybe` type annotation in your TypeScript code for the `message` ledger field, export it from your Compact contract:
+
+```compact
+export { Maybe };
+```
+
+:::
 
 ### Witness types
 
