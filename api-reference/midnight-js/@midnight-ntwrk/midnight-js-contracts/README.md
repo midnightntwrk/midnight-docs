@@ -1,8 +1,6 @@
----
-title: midnight-js-contract
----
+# midnight-js-contracts
 
-[**Midnight.js API Reference v2.0.2**](../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../README.md)
 
 ***
 
@@ -21,6 +19,11 @@ title: midnight-js-contract
 - [RemoveVerifierKeyTxFailedError](classes/RemoveVerifierKeyTxFailedError.md)
 - [ReplaceMaintenanceAuthorityTxFailedError](classes/ReplaceMaintenanceAuthorityTxFailedError.md)
 - [TxFailedError](classes/TxFailedError.md)
+
+## Interfaces
+
+- [ContractMaintenanceTxInterface](interfaces/ContractMaintenanceTxInterface.md)
+- [TransactionContext](interfaces/TransactionContext.md)
 
 ## Type Aliases
 
@@ -46,7 +49,6 @@ title: midnight-js-contract
 - [ContractConstructorOptionsWithPrivateState](type-aliases/ContractConstructorOptionsWithPrivateState.md)
 - [ContractConstructorOptionsWithProviderDataDependencies](type-aliases/ContractConstructorOptionsWithProviderDataDependencies.md)
 - [ContractConstructorResult](type-aliases/ContractConstructorResult.md)
-- [ContractMaintenanceTxInterface](type-aliases/ContractMaintenanceTxInterface.md)
 - [ContractProviders](type-aliases/ContractProviders.md)
 - [ContractStates](type-aliases/ContractStates.md)
 - [DeployContractOptions](type-aliases/DeployContractOptions.md)
@@ -65,8 +67,9 @@ title: midnight-js-contract
 - [FindDeployedContractOptionsExistingPrivateState](type-aliases/FindDeployedContractOptionsExistingPrivateState.md)
 - [FindDeployedContractOptionsStorePrivateState](type-aliases/FindDeployedContractOptionsStorePrivateState.md)
 - [FoundContract](type-aliases/FoundContract.md)
-- [PartitionedTranscript](type-aliases/PartitionedTranscript.md)
 - [PublicContractStates](type-aliases/PublicContractStates.md)
+- [ScopedTransactionOptions](type-aliases/ScopedTransactionOptions.md)
+- [SubmittedCallTx](type-aliases/SubmittedCallTx.md)
 - [SubmitTxOptions](type-aliases/SubmitTxOptions.md)
 - [SubmitTxProviders](type-aliases/SubmitTxProviders.md)
 - [UnprovenCallTxProvidersBase](type-aliases/UnprovenCallTxProvidersBase.md)
@@ -80,10 +83,12 @@ title: midnight-js-contract
 - [UnsubmittedDeployTxPublicData](type-aliases/UnsubmittedDeployTxPublicData.md)
 - [UnsubmittedTxData](type-aliases/UnsubmittedTxData.md)
 
+## Variables
+
+- [withContractScopedTransaction](variables/withContractScopedTransaction.md)
+
 ## Functions
 
-- [call](functions/call.md)
-- [callContractConstructor](functions/callContractConstructor.md)
 - [createCallTxOptions](functions/createCallTxOptions.md)
 - [createCircuitCallTxInterface](functions/createCircuitCallTxInterface.md)
 - [createCircuitMaintenanceTxInterface](functions/createCircuitMaintenanceTxInterface.md)
@@ -97,11 +102,14 @@ title: midnight-js-contract
 - [findDeployedContract](functions/findDeployedContract.md)
 - [getPublicStates](functions/getPublicStates.md)
 - [getStates](functions/getStates.md)
+- [getUnshieldedBalances](functions/getUnshieldedBalances.md)
 - [submitCallTx](functions/submitCallTx.md)
+- [submitCallTxAsync](functions/submitCallTxAsync.md)
 - [submitDeployTx](functions/submitDeployTx.md)
 - [submitInsertVerifierKeyTx](functions/submitInsertVerifierKeyTx.md)
 - [submitRemoveVerifierKeyTx](functions/submitRemoveVerifierKeyTx.md)
 - [submitReplaceAuthorityTx](functions/submitReplaceAuthorityTx.md)
 - [submitTx](functions/submitTx.md)
+- [submitTxAsync](functions/submitTxAsync.md)
 - [verifierKeysEqual](functions/verifierKeysEqual.md)
 - [verifyContractState](functions/verifyContractState.md)

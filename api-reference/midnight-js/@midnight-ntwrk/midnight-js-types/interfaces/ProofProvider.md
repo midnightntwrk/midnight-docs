@@ -1,18 +1,14 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-types](../README.md) / ProofProvider
 
-# Interface: ProofProvider\<K\>
+# Interface: ProofProvider
 
 Interface for a proof server running in a trusted environment.
 
-## Type Parameters
-
-### K
-
-`K` *extends* `string`
+## Type Param
 
 The type of the circuit ID used by the provider.
 
@@ -20,27 +16,25 @@ The type of the circuit ID used by the provider.
 
 ### proveTx()
 
-> **proveTx**(`tx`, `proveTxConfig`?): `Promise`\<[`UnbalancedTransaction`](../type-aliases/UnbalancedTransaction.md)\>
+> **proveTx**(`unprovenTx`, `proveTxConfig?`): `Promise`\<[`UnboundTransaction`](../type-aliases/UnboundTransaction.md)\>
 
 Creates call proofs for an unproven transaction. The resulting transaction is unbalanced and
 must be balanced using the [WalletProvider](WalletProvider.md) interface.
+          contain a single contract call.
 
 #### Parameters
 
-##### tx
+##### unprovenTx
 
 `UnprovenTransaction`
 
-The transaction to be proved. Prior to version 1.0.0, unproven transactions always only
-          contain a single contract call.
-
 ##### proveTxConfig?
 
-[`ProveTxConfig`](ProveTxConfig.md)\<`K`\>
+[`ProveTxConfig`](ProveTxConfig.md)
 
 The configuration for the proof request to the proof provider. Empty in case
                      a deploy transaction is being proved with no user-defined timeout.
 
 #### Returns
 
-`Promise`\<[`UnbalancedTransaction`](../type-aliases/UnbalancedTransaction.md)\>
+`Promise`\<[`UnboundTransaction`](../type-aliases/UnboundTransaction.md)\>

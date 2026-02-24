@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,12 +6,12 @@
 
 # Function: getNetworkId()
 
-> **getNetworkId**(): [`NetworkId`](../enumerations/NetworkId.md)
+> **getNetworkId**(): `string`
 
 Retrieves the currently set global network identifier.
 
 ## Returns
 
-[`NetworkId`](../enumerations/NetworkId.md)
+`string`
 
-The currently set [NetworkId](../enumerations/NetworkId.md).
+The currently set [NetworkId](../type-aliases/NetworkId.md).
