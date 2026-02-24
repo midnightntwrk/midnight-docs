@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractMaintenanceAuthority
+[@midnight/ledger](../globals.md) / ContractMaintenanceAuthority
 
 # Class: ContractMaintenanceAuthority
 
@@ -15,28 +15,40 @@ impossible for them to sign anything.
 
 ## Constructors
 
-### new ContractMaintenanceAuthority(committee, threshold, counter)
+### Constructor
 
 ```ts
 new ContractMaintenanceAuthority(
    committee, 
    threshold, 
-   counter?): ContractMaintenanceAuthority
+   counter?): ContractMaintenanceAuthority;
 ```
 
 Constructs a new authority from its components
 
+If not supplied, `counter` will default to `0n`. Values should be
+non-negative, and at most 2^32 - 1.
+
+At deployment, `counter` must be `0n`, and any subsequent update should
+set counter to exactly one greater than the current value.
+
 #### Parameters
 
-• **committee**: `string`[]
+##### committee
 
-• **threshold**: `number`
+`string`[]
 
-• **counter?**: `bigint`
+##### threshold
+
+`number`
+
+##### counter?
+
+`bigint`
 
 #### Returns
 
-[`ContractMaintenanceAuthority`](ContractMaintenanceAuthority.md)
+`ContractMaintenanceAuthority`
 
 ## Properties
 
@@ -73,12 +85,8 @@ How many keys must sign rule changes
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -89,12 +97,14 @@ serialize(networkid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -105,14 +115,14 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractState
+static deserialize(raw): ContractState;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 

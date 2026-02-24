@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / Value
+[@midnight/ledger](../globals.md) / Value
 
-# Type alias: Value
+# Type Alias: Value
 
 ```ts
-type Value: Uint8Array[];
+type Value = Uint8Array[];
 ```
 
 An onchain data value, in field-aligned binary format.

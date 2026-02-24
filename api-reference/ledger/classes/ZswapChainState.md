@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ZswapChainState
+[@midnight/ledger](../globals.md) / ZswapChainState
 
 # Class: ZswapChainState
 
@@ -12,15 +12,15 @@ of valid past Merkle tree roots
 
 ## Constructors
 
-### new ZswapChainState()
+### Constructor
 
 ```ts
-new ZswapChainState(): ZswapChainState
+new ZswapChainState(): ZswapChainState;
 ```
 
 #### Returns
 
-[`ZswapChainState`](ZswapChainState.md)
+`ZswapChainState`
 
 ## Properties
 
@@ -34,15 +34,56 @@ The first free index in the coin commitment tree
 
 ## Methods
 
-### serialize()
+### filter()
 
 ```ts
-serialize(netid): Uint8Array
+filter(contractAddress): ZswapChainState;
 ```
+
+Filters the state to only include coins that are relevant to a given
+contract address.
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### contractAddress
+
+`string`
+
+#### Returns
+
+`ZswapChainState`
+
+***
+
+### postBlockUpdate()
+
+```ts
+postBlockUpdate(tblock): ZswapChainState;
+```
+
+Carries out a post-block update, which does amortized bookkeeping that
+only needs to be done once per state change.
+
+Typically, `postBlockUpdate` should be run after any (sequence of)
+(system)-transaction application(s).
+
+#### Parameters
+
+##### tblock
+
+`Date`
+
+#### Returns
+
+`ZswapChainState`
+
+***
+
+### serialize()
+
+```ts
+serialize(): Uint8Array;
+```
 
 #### Returns
 
@@ -53,12 +94,14 @@ serialize(netid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -69,17 +112,27 @@ toString(compact?): string
 ### tryApply()
 
 ```ts
-tryApply(offer, whitelist?): [ZswapChainState, Map<string, bigint>]
+tryApply<P>(offer, whitelist?): [ZswapChainState, Map<string, bigint>];
 ```
 
-Try to apply an [Offer](Offer.md) to the state, returning the updated state
+Try to apply an [ZswapOffer](ZswapOffer.md) to the state, returning the updated state
 and a map on newly inserted coin commitments to their inserted indices.
+
+#### Type Parameters
+
+##### P
+
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
 
 #### Parameters
 
-• **offer**: [`Offer`](Offer.md)
+##### offer
 
-• **whitelist?**: `Set`\<`string`\>
+[`ZswapOffer`](ZswapOffer.md)\<`P`\>
+
+##### whitelist?
+
+`Set`\<`string`\>
 
 A set of contract addresses that are of interest. If
 set, *only* these addresses are tracked, and all other information is
@@ -87,62 +140,42 @@ discarded.
 
 #### Returns
 
-[[`ZswapChainState`](ZswapChainState.md), `Map`\<`string`, `bigint`\>]
-
-***
-
-### tryApplyProofErased()
-
-```ts
-tryApplyProofErased(offer, whitelist?): [ZswapChainState, Map<string, bigint>]
-```
-
-[tryApply](ZswapChainState.md#tryapply) for [ProofErasedOffer](ProofErasedOffer.md)s
-
-#### Parameters
-
-• **offer**: [`ProofErasedOffer`](ProofErasedOffer.md)
-
-• **whitelist?**: `Set`\<`string`\>
-
-#### Returns
-
-[[`ZswapChainState`](ZswapChainState.md), `Map`\<`string`, `bigint`\>]
+\[`ZswapChainState`, `Map`\<`string`, `bigint`\>\]
 
 ***
 
 ### deserialize()
 
 ```ts
-static deserialize(raw, netid): ZswapChainState
+static deserialize(raw): ZswapChainState;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`ZswapChainState`](ZswapChainState.md)
+`ZswapChainState`
 
 ***
 
 ### deserializeFromLedgerState()
 
 ```ts
-static deserializeFromLedgerState(raw, netid): ZswapChainState
+static deserializeFromLedgerState(raw): ZswapChainState;
 ```
 
 Given a whole ledger serialized state, deserialize only the Zswap portion
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`ZswapChainState`](ZswapChainState.md)
+`ZswapChainState`

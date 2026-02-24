@@ -1,13 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / nativeToken
+[@midnight/zswap](../globals.md) / nativeToken
 
 # Function: nativeToken()
 
 ```ts
-nativeToken(): TokenType
+function nativeToken(): TokenType
 ```
 
 The base/system token type

@@ -1,24 +1,18 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractCall
+[@midnight/ledger](../globals.md) / ContractCall
 
-# Class: ContractCall
+# Class: ContractCall\<P\>
 
 A single contract call segment
 
-## Constructors
+## Type Parameters
 
-### new ContractCall()
+### P
 
-```ts
-private new ContractCall(): ContractCall
-```
-
-#### Returns
-
-[`ContractCall`](ContractCall.md)
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
 
 ## Properties
 
@@ -45,7 +39,7 @@ The communication commitment of this call
 ### entryPoint
 
 ```ts
-readonly entryPoint: string | Uint8Array;
+readonly entryPoint: string | Uint8Array<ArrayBufferLike>;
 ```
 
 The entry point being called
@@ -55,7 +49,9 @@ The entry point being called
 ### fallibleTranscript
 
 ```ts
-readonly fallibleTranscript: undefined | Transcript<AlignedValue>;
+readonly fallibleTranscript: 
+  | undefined
+| Transcript<AlignedValue>;
 ```
 
 The fallible execution stage transcript
@@ -65,22 +61,36 @@ The fallible execution stage transcript
 ### guaranteedTranscript
 
 ```ts
-readonly guaranteedTranscript: undefined | Transcript<AlignedValue>;
+readonly guaranteedTranscript: 
+  | undefined
+| Transcript<AlignedValue>;
 ```
 
 The guaranteed execution stage transcript
+
+***
+
+### proof
+
+```ts
+readonly proof: P;
+```
+
+The proof attached to this call
 
 ## Methods
 
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

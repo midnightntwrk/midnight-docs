@@ -1,17 +1,17 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / nativeToken
+[@midnight/ledger](../globals.md) / nativeToken
 
 # Function: nativeToken()
 
 ```ts
-nativeToken(): TokenType
+function nativeToken(): UnshieldedTokenType;
 ```
 
 The base/system token type
 
 ## Returns
 
-[`TokenType`](../type-aliases/TokenType.md)
+[`UnshieldedTokenType`](../type-aliases/UnshieldedTokenType.md)

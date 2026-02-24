@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / SigningKey
+[@midnight/ledger](../globals.md) / SigningKey
 
-# Type alias: SigningKey
+# Type Alias: SigningKey
 
 ```ts
-type SigningKey: string;
+type SigningKey = string;
 ```
 
 A hex-encoded signature BIP-340 signing key, with a 3-byte version prefix

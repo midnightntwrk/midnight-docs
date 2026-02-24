@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractCallPrototype
+[@midnight/ledger](../globals.md) / ContractCallPrototype
 
 # Class: ContractCallPrototype
 
@@ -10,7 +10,7 @@ A [ContractCall](ContractCall.md) still being assembled
 
 ## Constructors
 
-### new ContractCallPrototype(address, entry_point, op, guaranteed_public_transcript, fallible_public_transcript, private_transcript_outputs, input, output, communication_commitment_rand, key_location)
+### Constructor
 
 ```ts
 new ContractCallPrototype(
@@ -23,71 +23,111 @@ new ContractCallPrototype(
    input, 
    output, 
    communication_commitment_rand, 
-   key_location): ContractCallPrototype
+   key_location): ContractCallPrototype;
 ```
 
 #### Parameters
 
-• **address**: `string`
+##### address
+
+`string`
 
 The address being called
 
-• **entry\_point**: `string` \| `Uint8Array`
+##### entry\_point
 
 The entry point being called
 
-• **op**: [`ContractOperation`](ContractOperation.md)
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
+
+##### op
+
+[`ContractOperation`](ContractOperation.md)
 
 The operation expected at this entry point
 
-• **guaranteed\_public\_transcript**: `undefined` \| [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+##### guaranteed\_public\_transcript
 
 The guaranteed transcript computed
 for this call
 
-• **fallible\_public\_transcript**: `undefined` \| [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+`undefined` | [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+
+##### fallible\_public\_transcript
 
 The fallible transcript computed for
 this call
 
-• **private\_transcript\_outputs**: [`AlignedValue`](../type-aliases/AlignedValue.md)[]
+`undefined` | [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+
+##### private\_transcript\_outputs
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)[]
 
 The private transcript recorded for
 this call
 
-• **input**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### input
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 The input(s) provided to this call
 
-• **output**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### output
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 The output(s) computed from this call
 
-• **communication\_commitment\_rand**: `string`
+##### communication\_commitment\_rand
+
+`string`
 
 The communication randomness used
 for this call
 
-• **key\_location**: `string`
+##### key\_location
+
+`string`
 
 An identifier for how the key for this call may be
 looked up
 
 #### Returns
 
-[`ContractCallPrototype`](ContractCallPrototype.md)
+`ContractCallPrototype`
 
 ## Methods
 
-### toString()
+### intoCall()
 
 ```ts
-toString(compact?): string
+intoCall(parentBinding): ContractCall<PreProof>;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### parentBinding
+
+[`PreBinding`](PreBinding.md)
+
+#### Returns
+
+[`ContractCall`](ContractCall.md)\<[`PreProof`](PreProof.md)\>
+
+***
+
+### toString()
+
+```ts
+toString(compact?): string;
+```
+
+#### Parameters
+
+##### compact?
+
+`boolean`
 
 #### Returns
 

@@ -1,13 +1,22 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractAction
+[@midnight/ledger](../globals.md) / ContractAction
 
-# Type alias: ContractAction
+# Type Alias: ContractAction\<P\>
 
 ```ts
-type ContractAction: ContractCall | ContractDeploy | MaintenanceUpdate;
+type ContractAction<P> = 
+  | ContractCall<P>
+  | ContractDeploy
+  | MaintenanceUpdate;
 ```
 
 An interactions with a contract
+
+## Type Parameters
+
+### P
+
+`P` *extends* [`Proofish`](Proofish.md)

@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / PreTranscript
+[@midnight/ledger](../globals.md) / PreTranscript
 
 # Class: PreTranscript
 
@@ -11,38 +11,46 @@ will make up the transcript, and optionally a communication commitment to bind c
 
 ## Constructors
 
-### new PreTranscript(context, program, comm_comm)
+### Constructor
 
 ```ts
 new PreTranscript(
    context, 
    program, 
-   comm_comm?): PreTranscript
+   comm_comm?): PreTranscript;
 ```
 
 #### Parameters
 
-• **context**: [`QueryContext`](QueryContext.md)
+##### context
 
-• **program**: [`Op`](../type-aliases/Op.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>[]
+[`QueryContext`](QueryContext.md)
 
-• **comm\_comm?**: `string`
+##### program
+
+[`Op`](../type-aliases/Op.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>[]
+
+##### comm\_comm?
+
+`string`
 
 #### Returns
 
-[`PreTranscript`](PreTranscript.md)
+`PreTranscript`
 
 ## Methods
 
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
