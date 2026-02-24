@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / ContractOperation
+[@midnight-ntwrk/onchain-runtime](../globals.md) / ContractOperation
 
 # Class: ContractOperation
 
@@ -39,12 +39,8 @@ verifierKey: Uint8Array;
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array
+serialize(): Uint8Array
 ```
-
-#### Parameters
-
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -60,7 +56,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -71,14 +69,14 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractOperation
+static deserialize(raw): ContractOperation
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 

@@ -1,23 +1,25 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / valueToBigInt
+[@midnight-ntwrk/onchain-runtime](../globals.md) / valueToBigInt
 
 # Function: valueToBigInt()
 
-`Internal`
-
 ```ts
-valueToBigInt(x): bigint
+function valueToBigInt(x): bigint
 ```
+
+**`Internal`**
 
 Internal conversion between field-aligned binary values and bigints within
 the scalar field
 
 ## Parameters
 
-• **x**: [`Value`](../type-aliases/Value.md)
+### x
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 

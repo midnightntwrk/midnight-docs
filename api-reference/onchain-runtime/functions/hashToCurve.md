@@ -1,24 +1,28 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / hashToCurve
+[@midnight-ntwrk/onchain-runtime](../globals.md) / hashToCurve
 
 # Function: hashToCurve()
 
-`Internal`
-
 ```ts
-hashToCurve(align, val): Value
+function hashToCurve(align, val): Value
 ```
+
+**`Internal`**
 
 Internal implementation of the hash to curve primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
+
+### val
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -26,4 +30,4 @@ Internal implementation of the hash to curve primitive
 
 ## Throws
 
-If val does not have alignment align
+If [val](hashToCurve.md#val) does not have alignment [align](hashToCurve.md#align)

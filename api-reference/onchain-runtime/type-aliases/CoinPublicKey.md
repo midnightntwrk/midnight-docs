@@ -1,10 +1,10 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / CoinPublicKey
+[@midnight-ntwrk/onchain-runtime](../globals.md) / CoinPublicKey
 
-# Type alias: CoinPublicKey
+# Type Alias: CoinPublicKey
 
 ```ts
 type CoinPublicKey: string;

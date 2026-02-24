@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / VmStack
+[@midnight-ntwrk/onchain-runtime](../globals.md) / VmStack
 
 # Class: VmStack
 
@@ -33,7 +33,9 @@ get(idx): undefined | StateValue
 
 #### Parameters
 
-• **idx**: `number`
+##### idx
+
+`number`
 
 #### Returns
 
@@ -49,7 +51,9 @@ isStrong(idx): undefined | boolean
 
 #### Parameters
 
-• **idx**: `number`
+##### idx
+
+`number`
 
 #### Returns
 
@@ -77,9 +81,13 @@ push(value, is_strong): void
 
 #### Parameters
 
-• **value**: [`StateValue`](StateValue.md)
+##### value
 
-• **is\_strong**: `boolean`
+[`StateValue`](StateValue.md)
+
+##### is\_strong
+
+`boolean`
 
 #### Returns
 
@@ -107,7 +115,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

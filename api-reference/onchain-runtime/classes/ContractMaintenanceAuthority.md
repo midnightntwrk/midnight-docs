@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / ContractMaintenanceAuthority
+[@midnight-ntwrk/onchain-runtime](../globals.md) / ContractMaintenanceAuthority
 
 # Class: ContractMaintenanceAuthority
 
@@ -15,7 +15,7 @@ impossible for them to sign anything.
 
 ## Constructors
 
-### new ContractMaintenanceAuthority(committee, threshold, counter)
+### new ContractMaintenanceAuthority()
 
 ```ts
 new ContractMaintenanceAuthority(
@@ -34,11 +34,17 @@ set counter to exactly one greater than the current value.
 
 #### Parameters
 
-• **committee**: `string`[]
+##### committee
 
-• **threshold**: `number`
+`string`[]
 
-• **counter?**: `bigint`
+##### threshold
+
+`number`
+
+##### counter?
+
+`bigint`
 
 #### Returns
 
@@ -79,12 +85,8 @@ How many keys must sign rule changes
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array
+serialize(): Uint8Array
 ```
-
-#### Parameters
-
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -100,7 +102,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -111,14 +115,14 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractState
+static deserialize(raw): ContractState
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 

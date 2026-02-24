@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / StateMap
+[@midnight-ntwrk/onchain-runtime](../globals.md) / StateMap
 
 # Class: StateMap
 
@@ -31,7 +31,9 @@ get(key): undefined | StateValue
 
 #### Parameters
 
-• **key**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### key
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
@@ -47,9 +49,13 @@ insert(key, value): StateMap
 
 #### Parameters
 
-• **key**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### key
 
-• **value**: [`StateValue`](StateValue.md)
+[`AlignedValue`](../type-aliases/AlignedValue.md)
+
+##### value
+
+[`StateValue`](StateValue.md)
 
 #### Returns
 
@@ -77,7 +83,9 @@ remove(key): StateMap
 
 #### Parameters
 
-• **key**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### key
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
@@ -93,7 +101,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

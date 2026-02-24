@@ -1,15 +1,15 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / CoinInfo
+[@midnight-ntwrk/onchain-runtime](../globals.md) / ShieldedCoinInfo
 
-# Type alias: CoinInfo
+# Type Alias: ShieldedCoinInfo
 
 ```ts
-type CoinInfo: {
+type ShieldedCoinInfo: {
   nonce: Nonce;
-  type: TokenType;
+  type: RawTokenType;
   value: bigint;
 };
 ```
@@ -30,7 +30,7 @@ The coin's randomness, preventing it from colliding with other coins
 ### type
 
 ```ts
-type: TokenType;
+type: RawTokenType;
 ```
 
 The coin's type, identifying the currency it represents

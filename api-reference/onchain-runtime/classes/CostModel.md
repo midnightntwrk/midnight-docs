@@ -1,24 +1,12 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / CostModel
+[@midnight-ntwrk/onchain-runtime](../globals.md) / CostModel
 
 # Class: CostModel
 
 A cost model for calculating transaction fees
-
-## Constructors
-
-### new CostModel()
-
-```ts
-private new CostModel(): CostModel
-```
-
-#### Returns
-
-[`CostModel`](CostModel.md)
 
 ## Methods
 
@@ -30,7 +18,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -38,13 +28,13 @@ toString(compact?): string
 
 ***
 
-### dummyCostModel()
+### initialCostModel()
 
 ```ts
-static dummyCostModel(): CostModel
+static initialCostModel(): CostModel
 ```
 
-A cost model for use in non-critical contexts
+The initial cost model of Midnight
 
 #### Returns
 

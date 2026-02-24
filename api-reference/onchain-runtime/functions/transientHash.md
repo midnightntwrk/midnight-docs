@@ -1,24 +1,28 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / transientHash
+[@midnight-ntwrk/onchain-runtime](../globals.md) / transientHash
 
 # Function: transientHash()
 
-`Internal`
-
 ```ts
-transientHash(align, val): Value
+function transientHash(align, val): Value
 ```
+
+**`Internal`**
 
 Internal implementation of the transient hash primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
+
+### val
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -26,4 +30,4 @@ Internal implementation of the transient hash primitive
 
 ## Throws
 
-If val does not have alignment align
+If [val](transientHash.md#val) does not have alignment [align](transientHash.md#align)

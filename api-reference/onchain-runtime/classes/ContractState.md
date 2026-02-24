@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / ContractState
+[@midnight-ntwrk/onchain-runtime](../globals.md) / ContractState
 
 # Class: ContractState
 
@@ -28,10 +28,20 @@ Creates a blank contract state
 
 ## Properties
 
+### balance
+
+```ts
+balance: Map<TokenType, bigint>;
+```
+
+The public balances held by this contract
+
+***
+
 ### data
 
 ```ts
-data: StateValue;
+data: ChargedState;
 ```
 
 The current value of the primary state of the contract
@@ -58,7 +68,9 @@ Get the operation at a specific entry point name
 
 #### Parameters
 
-• **operation**: `string` \| `Uint8Array`
+##### operation
+
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
 
 #### Returns
 
@@ -69,14 +81,14 @@ Get the operation at a specific entry point name
 ### operations()
 
 ```ts
-operations(): (string | Uint8Array)[]
+operations(): (string | Uint8Array<ArrayBufferLike>)[]
 ```
 
 Return a list of the entry points currently registered on this contract
 
 #### Returns
 
-(`string` \| `Uint8Array`)[]
+(`string` \| `Uint8Array`\<`ArrayBufferLike`\>)[]
 
 ***
 
@@ -91,9 +103,13 @@ results
 
 #### Parameters
 
-• **query**: [`Op`](../type-aliases/Op.md)\<`null`\>[]
+##### query
 
-• **cost\_model**: [`CostModel`](CostModel.md)
+[`Op`](../type-aliases/Op.md)\<`null`\>[]
+
+##### cost\_model
+
+[`CostModel`](CostModel.md)
 
 #### Returns
 
@@ -104,12 +120,8 @@ results
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array
+serialize(): Uint8Array
 ```
-
-#### Parameters
-
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -127,9 +139,13 @@ Set a specific entry point name to contain a given operation
 
 #### Parameters
 
-• **operation**: `string` \| `Uint8Array`
+##### operation
 
-• **value**: [`ContractOperation`](ContractOperation.md)
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
+
+##### value
+
+[`ContractOperation`](ContractOperation.md)
 
 #### Returns
 
@@ -145,7 +161,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -156,14 +174,14 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractState
+static deserialize(raw): ContractState
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 

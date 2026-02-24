@@ -1,10 +1,10 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / Value
+[@midnight-ntwrk/onchain-runtime](../globals.md) / Value
 
-# Type alias: Value
+# Type Alias: Value
 
 ```ts
 type Value: Uint8Array[];

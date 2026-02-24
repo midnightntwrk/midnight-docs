@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / QueryContext
+[@midnight-ntwrk/onchain-runtime](../globals.md) / QueryContext
 
 # Class: QueryContext
 
@@ -12,7 +12,7 @@ the time of execution.
 
 ## Constructors
 
-### new QueryContext(state, address)
+### new QueryContext()
 
 ```ts
 new QueryContext(state, address): QueryContext
@@ -23,9 +23,13 @@ value
 
 #### Parameters
 
-• **state**: [`StateValue`](StateValue.md)
+##### state
 
-• **address**: `string`
+[`ChargedState`](ChargedState.md)
+
+##### address
+
+`string`
 
 #### Returns
 
@@ -46,17 +50,17 @@ The address of the contract
 ### block
 
 ```ts
-block: BlockContext;
+block: CallContext;
 ```
 
 The block-level information accessible to the contract
 
 ***
 
-### comIndicies
+### comIndices
 
 ```ts
-readonly comIndicies: Map<string, bigint>;
+readonly comIndices: Map<string, bigint>;
 ```
 
 The commitment indices map accessible to the contract, primarily via
@@ -78,7 +82,7 @@ match those declared in a [Transcript](../type-aliases/Transcript.md)
 ### state
 
 ```ts
-readonly state: StateValue;
+readonly state: ChargedState;
 ```
 
 The current contract state retained in the context
@@ -97,9 +101,13 @@ index to later spend them
 
 #### Parameters
 
-• **comm**: `string`
+##### comm
 
-• **index**: `bigint`
+`string`
+
+##### index
+
+`bigint`
 
 #### Returns
 
@@ -107,47 +115,23 @@ index to later spend them
 
 ***
 
-### ~~intoTranscript()~~
-
-```ts
-intoTranscript(program, cost_model): [undefined | Transcript<AlignedValue>, undefined | Transcript<AlignedValue>]
-```
-
-Finalizes a sequence of operations against their initial context,
-resulting in a guaranteed and fallible [Transcript](../type-aliases/Transcript.md), optimally
-allocated, and heuristically covered for gas fees.
-
-#### Parameters
-
-• **program**: [`Op`](../type-aliases/Op.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>[]
-
-• **cost\_model**: [`CostModel`](CostModel.md)
-
-#### Returns
-
-[`undefined` \| [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>, `undefined` \| [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>]
-
-#### Deprecated
-
-Please use the ledger's `partitionTranscripts` instead.
-
-***
-
 ### qualify()
-
-`Internal`
 
 ```ts
 qualify(coin): undefined | Value
 ```
 
+**`Internal`**
+
 Internal counterpart to [insertCommitment](QueryContext.md#insertcommitment); upgrades an encoded
-[CoinInfo](../type-aliases/CoinInfo.md) to an encoded [QualifiedCoinInfo](../type-aliases/QualifiedCoinInfo.md) using the
+[ShieldedCoinInfo](../type-aliases/ShieldedCoinInfo.md) to an encoded [QualifiedShieldedCoinInfo](../type-aliases/QualifiedShieldedCoinInfo.md) using the
 inserted commitments
 
 #### Parameters
 
-• **coin**: [`Value`](../type-aliases/Value.md)
+##### coin
+
+[`Value`](../type-aliases/Value.md)
 
 #### Returns
 
@@ -169,11 +153,17 @@ gather.
 
 #### Parameters
 
-• **ops**: [`Op`](../type-aliases/Op.md)\<`null`\>[]
+##### ops
 
-• **cost\_model**: [`CostModel`](CostModel.md)
+[`Op`](../type-aliases/Op.md)\<`null`\>[]
 
-• **gas\_limit?**: `bigint`
+##### cost\_model
+
+[`CostModel`](CostModel.md)
+
+##### gas\_limit?
+
+[`RunningCost`](../type-aliases/RunningCost.md)
 
 #### Returns
 
@@ -188,14 +178,18 @@ runTranscript(transcript, cost_model): QueryContext
 ```
 
 Runs a transcript in verifying mode against the current query context,
-outputting a new query context, with the [state](QueryContext.md#state) and [effects](QueryContext.md#effects)
+outputting a new query context, with the [state](QueryContext.md#state-1) and [effects](QueryContext.md#effects)
 from after the execution.
 
 #### Parameters
 
-• **transcript**: [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+##### transcript
 
-• **cost\_model**: [`CostModel`](CostModel.md)
+[`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+
+##### cost\_model
+
+[`CostModel`](CostModel.md)
 
 #### Returns
 
@@ -211,8 +205,24 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
 `string`
+
+***
+
+### toVmStack()
+
+```ts
+toVmStack(): VmStack
+```
+
+Converts the QueryContext to [VmStack](VmStack.md).
+
+#### Returns
+
+[`VmStack`](VmStack.md)

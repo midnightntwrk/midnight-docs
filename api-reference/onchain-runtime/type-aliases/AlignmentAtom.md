@@ -1,17 +1,17 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / AlignmentAtom
+[@midnight-ntwrk/onchain-runtime](../globals.md) / AlignmentAtom
 
-# Type alias: AlignmentAtom
+# Type Alias: AlignmentAtom
 
 ```ts
 type AlignmentAtom: {
   tag: "compress";
-  } | {
+ } | {
   tag: "field";
-  } | {
+ } | {
   length: number;
   tag: "bytes";
 };

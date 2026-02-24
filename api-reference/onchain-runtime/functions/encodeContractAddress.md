@@ -1,13 +1,13 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / encodeContractAddress
+[@midnight-ntwrk/onchain-runtime](../globals.md) / encodeContractAddress
 
 # Function: encodeContractAddress()
 
 ```ts
-encodeContractAddress(addr): Uint8Array
+function encodeContractAddress(addr): Uint8Array
 ```
 
 Encode a [ContractAddress](../type-aliases/ContractAddress.md) into a `Uint8Array` for use in Compact's
@@ -15,7 +15,9 @@ Encode a [ContractAddress](../type-aliases/ContractAddress.md) into a `Uint8Arra
 
 ## Parameters
 
-• **addr**: `string`
+### addr
+
+`string`
 
 ## Returns
 

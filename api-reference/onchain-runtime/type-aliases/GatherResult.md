@@ -1,16 +1,16 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.0-rc.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / GatherResult
+[@midnight-ntwrk/onchain-runtime](../globals.md) / GatherResult
 
-# Type alias: GatherResult
+# Type Alias: GatherResult
 
 ```ts
 type GatherResult: {
   content: AlignedValue;
   tag: "read";
-  } | {
+ } | {
   content: EncodedStateValue;
   tag: "log";
 };
