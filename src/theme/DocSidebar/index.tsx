@@ -6,8 +6,8 @@ export default function DocSidebarWrapper(props: any) {
 
   return (
     <div className={props.className}>
-      <div style={{ paddingTop: '4rem' }}>
-       
+      <div style={{ paddingTop: '3.5rem' }}>
+        {/* <EnvSelector /> */}
       </div>
       <DocSidebar {...props} />
     </div>

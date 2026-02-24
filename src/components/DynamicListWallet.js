@@ -13,8 +13,35 @@
 
 import React, { useState } from 'react';
 import Link from '@docusaurus/Link';
+import { useLocation } from '@docusaurus/router';
 
-const releases = [
+
+// CURRENT releases (shown on Canary/next and future versions)
+const currentReleases = [
+  {
+    id: 1,
+    version: '1.0.0',
+    status: 'LATEST',
+    date: '28 January 2026',
+    summary: 'Summary of v1.0.0',
+    details: [
+      "Full support for unshielded tokens (including NIGHT)",
+      "Full support for shielded tokens with zero-knowledge proofs",
+      "DUST management for transaction fee payments",
+      "HD wallet key derivation",
+      "Bech32m address encoding and decoding",
+      "Transaction balancing across all token types",
+      "Atomic swap support"
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk-facade/v/1.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-1-0-0',
+  },
+  // Future releases will go here (1.0.1, 1.1.0, etc.)
+];
+
+const legacyReleases = [
   {
     id: 1,
     version: '5.0.0',
@@ -50,7 +77,7 @@ const releases = [
     artifacts: [
       { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/4.0.0' },
     ],
-    link: '/relnotes/wallet/wallet-5-0-0',
+    link: '/relnotes/wallet/wallet-4-0-0',
   },
   {
     id: 3,
@@ -69,24 +96,47 @@ const releases = [
   },
 ];
 
-// Ensure versions are sorted with the latest at the top
-const sortedVersions = releases
-  .map(release => release.version)
-  .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
-
-const versions = ['All', ...sortedVersions];
-
-// Extract unique statuses and keep "All" at the top
-const sortedStatuses = ['All', ...new Set(releases.map(release => release.status))];
-
-// Set latest version as default if releases exist
-const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
+// Helper to determine which release set to use
+function getVersionPrefix(pathname) {
+  const versionMatch = pathname.match(/^\/(next|\d+\.\d+\.\d+)(\/|$)/);
+  if (versionMatch) {
+    return versionMatch[1];
+  }
+  return 'current'; // Default for unversioned docs
+}
 
 const DynamicListWithDropdownFilters = () => {
+  const location = useLocation();
+  const docsVersion = getVersionPrefix(location.pathname);
+  
+  // Determine version prefix for links
+  const versionPrefix = docsVersion && docsVersion !== 'current' ? `/${docsVersion}` : '';
+  
+  // Show currentReleases only on /next/, otherwise show legacyReleases
+  const releases = docsVersion === 'next' ? currentReleases : legacyReleases;
+  
+  // Add version prefix to all release links
+  const versionedReleases = releases.map(release => ({
+    ...release,
+    link: `${versionPrefix}${release.link}`
+  }));
+
+  // Ensure versions are sorted with the latest at the top
+  const sortedVersions = versionedReleases
+    .map(release => release.version)
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+
+  const versions = ['All', ...sortedVersions];
+
+  // Extract unique statuses and keep "All" at the top
+  const sortedStatuses = ['All', ...new Set(versionedReleases.map(release => release.status))];
+
+  // Set latest version as default if releases exist
+  const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
-  const filteredReleases = releases.filter(
+  const filteredReleases = versionedReleases.filter(
     (release) =>
       (selectedVersion === 'All' || release.version === selectedVersion) &&
       (selectedStatus === 'All' || release.status === selectedStatus)

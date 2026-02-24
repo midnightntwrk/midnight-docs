@@ -1,0 +1,342 @@
+---
+title: Compact toolchain 0.28.0 (Compact language 0.20.0)
+displayed_sidebar: sidebar
+---
+
+## Version
+
+- **Version:** Compact toolchain 0.28.0, Compact language 0.20.0
+- **Date:** 2026-01-28
+- **Environment:** Preview, Preprod
+
+## High-level summary
+
+The Compact toolchain version 0.28.0 is being released today.
+This version compiles Compact language version 0.20.0, which is an updated version of the language.
+
+:::important
+
+This is the first version of the toolchain which targets the new "Preproduction Testnet" ("Preprod" for short)
+and "Preview Testnet" ("Preview" for short) environments of the Midnight Network.
+Contracts compiled with compiler version 0.28.0 or later will not work with the previous environment (known as "testnet" or "testnet-02").
+Similarly, contracts compiled with versions earlier than 0.28.0 will not work with the Preprod or Preview environments.
+
+:::
+
+This release is part of an important milestone for the Midnight Network: the launch of the new Preprod and Preview environments.
+Please read these release notes carefully to note the breaking changes.
+
+## Audience
+
+These release notes are intended for Compact contract developers and for DApp developers who use the Compact runtime.
+
+## Summary of updates
+
+The Preprod and Preview environments are using Midnight ledger version 7 (compared to testnet's ledger version 4).
+This version of the ledger has new support for native unshielded tokens.
+
+- The Compact standard library has new APIs for unshielded tokens and some breaking renaming changes to existing APIs.
+- Compact now supports the definition of both structural ("transparent") and nominal ("opaque") type aliases.
+- Compact now supports selective module import and renaming.
+- The meaning of `Uint` ranges has changed.
+- The maximum representable unsigned integer is smaller.
+- There are new compiler-enforced bounds on various sizes.
+  This is a breaking change because programs that previously compiled will not compile now.
+  However, those contracts were unlikely to work anyway.
+- The standard library type `CurvePoint` is renamed to `NativePoint`.  It is a nominal type alias for an unexported internal type.
+- The standard library exports new circuits `NativePointX` and `NativePointY` as accessors for `NativePoint`.
+- The generated JavaScript code and the Compact runtime now use ECMAScript modules (ESM) instead Common JS (CJS) modules.
+  This is a breaking change for your DApps but it will likely simplify them for developers who are working purely with ESM.
+- Upward casts no longer prevent tuple references and slices from recognizing constant indexes.
+- Out-of-range bytes value indexes are detected earlier in the compiler, which means additional errors might be signaled for programs which previously compiled without error.
+- The reserved words from TypeScript and JavaScript are now included as reserved words in Compact.
+- `return` is now disallowed in the body of `for` loops.
+- The compiler no longer generates ZKIR code and prover and verifier keys for certain circuits that do not need them.
+- The formatting of circuit signatures, calls, and anonymous circuits is improved.
+- The formatting of `if`/`else if` statements is improved.
+- The formatter line length is configurable, set to 100 columns by default.
+- This release has several bug fixes and the usual performance improvements.
+
+## New features
+
+Below is a detailed breakdown of new features added in this release.
+
+### Unshielded tokens
+
+There are new standard library circuits and ledger kernel operations for working with unshielded tokens.
+
+There are new circuits for minting and transferring unshielded tokens:
+`mintUnshieldedToken`, `sendUnshielded`, and `receiveUnshielded`.
+There are also new circuits for working with unshielded token balances:
+`unshieldedBalance`, `unshieldedBalanceLt`, `unshieldedBalanceGt`, `unshieldedBalanceLte`, and `unshieldedBalanceGte`.
+
+The ledger kernel has new operations `mintUnshielded`, `claimUnshieldedCoinSpend`, `incUnshieldedOutputs`, and `incUnshieldedInputs`.
+
+This is not a breaking change, but it did require us to make a breaking change noted below.
+
+### Type aliases
+
+Compact now supports both structural ("transparent") and nominal ("opaque") type aliases.
+
+A structural type alias is the same as in TypeScript.
+The declaration `type Name = Type` defines `Name` to be an alias for `Type`.
+The types `Name` and `Type` are exactly the same type.
+
+For example `type U32 = Uint<32>` defines `U32` to be the equivalent of and interchangeable with `Uint<32>`.
+
+A nominal type alias introduces a new distinct type whose representation is given by an underlying type.
+This feature does not exist in TypeScript.
+The declaration `new type Name = Type` introduces `Name` and a distinct type whose values are the same as the values of type `Type`.
+`Name` is neither a subtype nor a supertype of `Type`.
+They are compatible in the sense that:
+
+- values of type `Name` can be used in primitive operations (such as arithmetic) that can use a value of type `Type`, and
+- values of type `Name` can be explicitly cast to and from type `Type`.
+
+For example, `type RGB = Vector<3, Uint<8>>` defines `RGB` to be a distinct type.
+Values of type `RGB` can be referenced or sliced just like a vector of type `Vector<3, Uint<8>>`,
+but the cannot, for example, be passed to a function that expects a value of type `Vector<3, Uint<8>>` without an explicit cast.
+
+When a value of an arithmetic operation receives a value of a nominaly type alias `T`,
+the other operand must also be of type `T` and the result is cast to type `T`,
+which might cause a type error if the result cannot be represented by `T`.
+
+Both types of aliases can have generic parameters.
+For example, `type V3<T> = Vector<3, T>` or `new type VField<#N> = Vector<N, Field>`.
+
+### Selective module importing and renaming
+
+You can now selectively import individual elements from Compact modules, and you can individually rename imported elements.
+
+This works like it does in TypeScript and JavaScript's ES modules.
+
+For example:
+
+```compact
+import { getMatch, putMatch as originalPutMatch } from Matching;
+```
+
+will import `getMatch` as `getMatch` and `putMatch` as `originalPutMatch`, and it will not import any other elements of `Matching`.
+This can be used to avoid name clashes (by renaming) including possible future ones if new elements are added to a module (by only importing what you use).
+
+Selective import and renaming works with Compact's existing module prefixes:
+
+```compact
+import { getMatch, putMatch as originalPutMatch } from Matching prefix M_;
+```
+
+will import `getMatch` as `M_getMatch` and `putMatch` as `M_originalPutMatch`
+
+Note that selective import and renaming works for the standard library too, because `CompactStandardLibrary` is a module.
+
+The original form of import is still supported, though technically this is a breaking change because `from` has been added to the set of reserved words.
+
+## Improvements
+
+Below is a detailed breakdown of existing features that have been improved in this release.
+
+### There are improvements to the formatter
+
+- We have changed the formatter's formatting of multiple-line circuit signatures, calls, and anonymous circuits.
+  Previously, the formatting had a tendency to "run away" to the right because we were overzealous about vertical alignment.
+  Now, there is much less horizontal whitespace in such code.
+- The formatter's handling of chained `if`/`else if` statements did not match standard practice from C-style languages (which includes TypeScript and JavaScript).
+  We have improved this.
+- The formatter's line length is now configurable.
+  You can pass `--line-length N` to `compact format`, where `N` is the number of columns.
+  It is set to 100 columns by default.
+
+### Upward casts do not prevent tuple constant indexing
+
+In the previous release we allowed tuples, vectors, and bytes values to be indexed by expressions that were not numeric literals,
+as long as those expressions could be determined by the compiler to have a specific constant value.
+
+The compiler analysis that recognized constant-valued expressions did not correctly recognize upcasts of tuple values (a type cast of a tuple to a supertype).  We have changed that.
+
+The result is that more programs that do in fact use constant indexing into tuples will typecheck and compile.
+
+### The compiler no longer generates ZKIR code and cryptographic keys for some circuits that do not need it
+
+The compiler generates ZKIR code along with prover and verifier keys for circuits that use the Midnight ledger.
+It does not need these for circuits that do not use the Midnight ledger.
+Previously, they were not generated for pure circuits.
+Pure circuits are ones that do not use the Midnight ledger and do not call witnesses.
+
+This meant that previously, we generated these for impure circuits that were only impure due to witness calls (i.e., they did not use the Midnight ledger, but they were not pure).
+
+We have changed the compiler to no longer generate these.
+They were unneeded, and key generation is the slowest part of the compiler, so this is strictly a user experience improvement.
+
+## Breaking changes
+
+Below is a detailed breakdown of breaking changes which might require you to take some action, such as updating your contracts.
+
+### Name changes to APIs for shielded tokens
+
+To avoid confusion, and to conform to the naming in the on-chain runtime,
+the standard library circuits and ledger kernel operations for working with shielded tokens have been renamed.
+The structs used in the shielded token APIs have also been renamed.
+
+**Motivation:** Those names now contain `Shielded` in them to distinguish them from unshielded counterparts and/or to avoid confusion.
+
+This is a breaking change.
+The `compact fixup` tool will fix them.
+You can use the Compact devtools to update your contracts.
+Make sure you are on devtools version 0.3.0 (or later), which enabled `compact fixup`.
+You can do a `compact self update` to update the devtools to the latest version.
+
+To use the fixup tool, first change any `language_version` pragma in your contracts to 0.19 or later and any `compiler_version` pragma to 0.27 or later.
+Otherwise, the tool will not change your contract, in order to avoid making incorrect changes.
+Then run `compact fixup <file>` on your `.compact` files.
+The fixup tool will print the updated contract to standard output.
+
+Note that the fixup tool will also reformat your contract, using the Compact formatter.
+It does this because some fixes (such as renaming) will disrupt the existing formatting.
+This will happen even if the fixup tool does not make any (other) changes.
+
+### The meaning of `Uint` ranges has changed
+
+`Uint` ranges for bounded unsigned integers, of the form `Uint<0..n>` (**not** sized unsigned integers of the form `Uint<n>`)
+are changed to be inclusive on the left (which must be 0) and exclusive on the right (the `n`).
+Previously they were inclusive on both the left and the right.
+
+For example, now the type `Uint<0..3>` is interpreted as the set of values {0, 1, 2} where previously it was the set {0, 1, 2, 3}.
+
+**Motivation:** These were changed because they were inconsistent with ranges elsewhere in the language, i.e., in `for` loops.
+Such inconsistencies can be a source of subtle bugs.
+
+This is a breaking change for bounded unsigned integers.
+The more commonly used sized unsigned integers (`Uint<n>`) are unchanged.
+
+The `compact fixup` tool will not update these by default, but you can pass a flag `--update-Uint-ranges` to it and it will attempt to fix them;
+
+- for `Uint<n>` where _n_ is a numeric literal, it will change them to `Uint<m>` where _m_ the numeric literal equal to _n_+1;
+- for `Uint<n>` where _n_ is a generic size parameter, it will issue a warning.
+
+To fix code using generic size parameters, you will have to find the _uses_ of the generic (where it's instantiated with a numeric literal) and update them.
+
+### The maximum representable unsigned integer value has changed to be smaller
+
+The on-chain representation of bounded Unsigned integers constrains them to fit within the number of whole bytes in a `Field`, which is currently 31.
+Attempts to use unsigned values outside of this range would sometimes have resulted in unexplained proof failures.
+
+The maximum values of `n` in `Uint<n>` and `m` in `Uint<0..m>` have therefore been reduced
+to 248 (8 * 31) for `n`
+and 452312848583266388373324160190187140051835877600158453279131187530910662656 (2^248) for `m`.
+
+**Motivation:** the proof server does not correctly handle unsigned integers larger than this.
+This is a breaking change for the `Uint` type.
+Note that the maximum `Field` value is unchanged.
+
+### There are compiler-enforced size bounds
+
+The compiler will now impose a maximum element size bound for tuple, vector (`Vector`), and bytes values (`Bytes`) types.
+This maximum element size bound is 2^24 (= 16,777,216).
+
+There is also a maximum depth bound for `MerkleTree` and `HistoricMerkleTree` ledger ADT types.
+This maximum bound is depth 32.
+
+**Motivation:** These limits were imposed because such programs did not practically work.
+For tuples, vectors, and byte values, cryptographic key generation would fail or else the compiler would fail to terminate altogether.
+The Merkle tree depth limit is due to a corresponding limit in the Midnight blockchain ledger.
+
+### The standard library type `CurvePoint` is renamed to `NativePoint`
+
+We have renamed the Compact standard library type `CurvePoint` to `NativePoint`.
+`NativePoint` is a nominal (opaque) type alias for an unexported internal type.
+
+`NativePoint` is in fact a `struct` type with a pair of `Field`-valued `struct` fields (the affine x and y coordinates).
+You can construct the with struct creation syntax: `NativePoint { 0, 1 }`.
+
+**However, you should not otherwise rely on the representation of `NativePoint` as a struct.**
+We will change the representation in a future release, possibly the next one.
+
+We have introduced a pair of `NativePoint` accessor circuits in the standard library, `NativePointX` and `NativePointY`.
+You can access the affine x and y coordinates with these accessor circuits.
+
+To fix your code, you must replace occurrences of `CurvePoint` with `NativePoint`.
+You should also replace expressions of the form `pt.x` where `pt` now has type `NativePoint` with
+`NativePointX(pt)`, and likewise for `pt.y`.
+
+**Motivation:** we have made this change in preparation for:
+
+- changing the representation of `NativePoint` to be more efficient in circuit,
+  so we want to hide the representation, and
+- introducing points from other (foreign) curves, so the name `CurvePoint` is too generic.
+
+Note also that the accessors `NativePointX` and `NativePointY` do not follow our TypeScript-like naming convention (they should start with lowercase letters).
+We will rename them in a future release, possibly the next one.
+
+### The reserved words from TypeScript and JavaScript are now included as Compact reserved words
+
+We have made the full list of reserved words from TypeScript and JavaScript to be reserved words in Compact as well.
+Some of these are considered future reserved words.
+They are not yet used for anything in Compact but we are reserving them for future use.
+
+**Motivation:** language design can get painted into a corner by not having keywords available for use without making a breaking change.
+Reserving a keyword that was not previously reserved is a breaking change, it requires developers to rename identifiers in their code.
+We are reserving these words now, before we release Compact language version 1.0, so we can make fewer breaking changes in the future.
+
+You can see the full list of Compact 0.20 reserved words in the [parser implementation](https://github.com/LFDT-Minokawa/compact/blob/v0.28.0/compiler/parser.ss#L56).
+If you encounter a compiler error from using one of these words, you will have to rename that identifier.
+
+### Out-of-range constant bytes value indexes are detected earlier in the compiler
+
+The compiler will signal an error (and does not compile the contract) when a tuple, vector, or bytes value index is out of range.
+However, for bytes values, this error detection has been moved earlier in the compiler than it was previously.
+
+This is a breaking change.
+Programs that previously compiled because an error was in code that the compiler discarded before detecting the error will now have a compiler error.
+
+**Motivation:** we did this as an internal implementation change to support the new type alias feature.
+
+To fix your code, you will have to fix the error.
+It is a genuine error that the compiler was previously not signaling.
+
+### Generated JavaScript code and the Compact runtime now uses ES modules (ESM)
+
+The compiler-generated JavaScript code and the Compact runtime now uses ESM exclusively.
+Previously it used Common JS (CJS) modules.
+
+**Motivation:** This was changed because ESM is the official standard JavaScript module system and is becoming more common than CJS as well.
+Moreover, mixing CJS modules into projects using ESM can be difficult for developers.
+
+This is a breaking change for your DApps.
+You will likely have to change the way that you import the contract code and the Compact runtime if you use it.
+
+## Fixed defect list
+
+There are numerous bug fixes, and the size of the circuit representation for making proofs has been reduced in some cases.
+
+Some of these changes are breaking changes:
+
+- Previously not all unreachable statements were reported as such by the compiler.
+  Now they are correctly reported, but this means that contracts that previously compile might not compile now.
+  The fix is to remove the unreachable code, or even just comment it out.
+
+- The compiler now type checks certain unimported modules that it was not type checking before.
+  This can cause programs to fail to compile due to type errors that were not previously caught.
+  The fix is to fix the type errors.
+
+- The compiler now rejects multiple-binding `const` binding statements
+  and destructuring `const` binding statements
+  that occur in single-statement contexts (like a branch of an `if` statement or the body of a `for` loop).
+  These could cause confusing downstream compiler errors.
+  These are highly unlikely to reflect the programmer's intent because the constants cannot be used anywhere.
+
+- The compiler does not allow casts back and forth from `Bytes<0>` to `Field` or `Uint` values.
+  This could sometimes work but could also cause confusing downstream compiler errors.
+
+- The compiler now specifically rejects `for` loops that have `return` statements in their body.
+  These never worked correctly and are not currently intended to work.
+  Previously, these programs would either fail later in the compiler with a cryptic error message not directly related to the root cause,
+  or else they would fail at runtime with strange incorrect behavior.
+
+## Links and references
+
+- The [Compact documentation portal](https://docs.midnight.network/compact),
+  including the [language reference](https://docs.midnight.network/compact/lang-ref) and
+  the [standard library documentation](https://docs.midnight.network/compact/compact-std-library)
+- The [Compact runtime TypeScript API](https://docs.midnight.network/api-reference/compact-runtime) for DApps
+- [Compact compiler usage](https://docs.midnight.network/compact/reference/tools/compiler-usage)
+- The [open-source project](https://github.com/LFDT-Minokawa/compact) on GitHub for bug reports and feature requests

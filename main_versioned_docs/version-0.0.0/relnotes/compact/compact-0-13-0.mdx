@@ -1,0 +1,254 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact compiler 0.20.0 (Compact language 0.13.0)
+displayed_sidebar: sidebar
+---
+
+# Compact compiler 0.20.0 (Compact language 0.13.0)
+
+Compact is Midnight's dedicated smart contract programming language, designed for building secure, efficient, and adaptable decentralized applications.
+
+Compact compiler translates Compact smart contract code into executable bytecode and proof-generating circuits.
+
+---
+
+<div 
+  style={{
+    marginTop: '0',
+    fontSize: '1rem',
+    fontWeight: 'normal',
+    marginBottom: '0.5rem'
+  }}
+>
+  27 November 2024
+</div>
+
+## Compact compiler 0.20.0 (Compact language 0.13.0) release notes
+
+Today we are releasing version 0.20.0 of the Compact compiler. This release updates the Compact language to version 0.13.0, which includes some breaking changes from the previous Compact version 0.11.x.
+
+This new release is available for you to download and try out. If you recompile your Compact code with the new version of the compiler, you may need to update the code for the breaking changes as described below. You are not required to upgrade to `compactc` 0.20.0 — you can continue to use `compactc` 0.19.x without updating your Compact code, and everything should still work. However, we do not plan to release any more bug fixes to `compactc` 0.19.x.
+
+## Summary of Changes
+
+### Language Changes
+
+- **[Breaking change]** Include search order has changed.
+- Modules can be imported from files.
+- The standard library is now a builtin module.
+- New structure creation syntax.
+- Spread syntax in structure creation.
+- **[Breaking change]** `new` is removed.
+- Arrow circuit syntax for `map` and `fold`.
+- **[Breaking change]** Anonymous circuit syntax is removed.
+- Sequence ("comma") expressions allowed outside parentheses.
+
+### Compiler Changes
+
+- Improvements to error reporting.
+- The order of exported circuits is the same in TypeScript as in Compact.
+- The `install.sh` script is removed.
+- Bug fixes.
+
+---
+
+## Language Changes
+
+### **[Breaking Change]** Include Search Order Has Changed
+
+In Compact, the `include` keyword is used to insert the full text of a Compact source file at a given point in a contract. Previously, the compiler searched the paths in the environment variable `COMPACT_PATH` (in order from left to right) to find the included file. Now, the compiler will:
+
+1. First search for the included file relative to the directory of the including source file.
+2. If not found, search for the file relative to the paths in `COMPACT_PATH`, still in order from left to right.
+
+This change may require updating your code if the file found using the new search order differs from the file found using the old search order.
+
+#### Why We Made This Change
+
+It is more convenient to include files relative to the including file’s directory (e.g., the same directory, a subdirectory, or a sibling directory) without reconfiguring `COMPACT_PATH`. It also avoids potential conflicts when files with the same name exist in different parts of a source tree.
+
+#### How to Fix Your Code
+
+If this change breaks your code (e.g., by finding a different "local" file instead of the intended "global" file):
+
+- Rename or move the undesired local file so that the new search order resolves to the intended file.
+
+---
+
+### Modules Can Be Imported from Files
+
+Previously, all modules used by a contract had to be present in the main contract source file or an `include` file. Compact 0.13.0 now allows importing modules directly from separate files, enabling:
+
+- Reusable utility modules.
+- Clear separation between main contract code and utility code.
+
+Modules can now be imported in two ways:
+
+#### Importing by Name
+
+```compact
+import M0; // Import module M0
+```
+
+The compiler will search for a module named `M0` in the following order:
+
+1. In scope (defined or imported at the top level).
+2. As a file named `M0.compact` relative to the including file’s directory.
+3. As a file named `M0.compact` in directories specified by `COMPACT_PATH`.
+
+#### Importing by Path
+
+```compact
+import 'lib/M2'; // Import from relative path
+import '/absolute/path/M3'; // Import from absolute path
+```
+
+When importing by path:
+
+- The compiler appends `.compact` to the provided path.
+- Relative paths are resolved relative to the importing file.
+- Absolute paths are used as-is.
+
+---
+
+### The Standard Library Is Now a Builtin Module
+
+Previously, the Compact standard library was provided as a file (`std.compact`) that developers needed to include manually. It is now a builtin module named `CompactStandardLibrary`. Developers can import it as follows:
+
+```compact
+import CompactStandardLibrary;
+```
+
+The `std.compact` file is still provided for backward compatibility, but its use is no longer required.
+
+---
+
+### New Structure Creation Syntax
+
+A new syntax for creating structs has been introduced, inspired by TypeScript/JavaScript object literals. This syntax supports both positional and named field values, enabling more readable and flexible struct initialization:
+
+```compact
+struct Point {
+  x: Uint<32>;
+  y: Uint<32>;
+}
+
+Point { 3, 4 }       // Positional fields
+Point { x: 3, y: 4 } // Named fields
+Point { y: 4, x: 3 } // Named fields in any order
+```
+
+#### Why We Made This Change
+
+The new syntax is more readable, especially for structs with many fields, and allows named fields to appear in any order.
+
+#### How to Fix Your Code
+
+Use the new struct creation syntax in place of the old `new` syntax (see the next section).
+
+---
+
+### Spread Syntax in Structure Creation
+
+Compact now supports a "spread" operator (`...`) to create new struct values from existing ones. This eliminates the need to explicitly copy all fields when modifying a few:
+
+```compact
+struct ColorPoint {
+  x: Uint<32>;
+  y: Uint<32>;
+  color: Color;
+}
+
+const cp0 = ColorPoint { 3, 4, Color.red };
+const cp1 = ColorPoint { ...cp0, color: Color.green }; // Copy with modified color
+```
+
+---
+
+### **[Breaking Change]** `new` Is Removed
+
+The `new` syntax for struct creation has been removed in favor of the new structure creation syntax.
+
+#### How to Fix Your Code
+
+Replace `new StructName(...)` with `StructName { ... }`.
+
+---
+
+### Arrow Circuit Syntax for Procedure Calls, Map, and Fold
+
+Compact now supports an arrow circuit syntax for use in `map` and `fold` expressions. This syntax is similar to TypeScript arrow functions:
+
+```compact
+map((x, y) => x + y, [1, 2, 3], [4, 5, 6]);
+fold((x, y): Uint<8> => x * y, 1, [1, 2, 3]);
+```
+
+---
+
+### **[Breaking Change]** Anonymous Circuit Syntax Is Removed
+
+The old anonymous circuit syntax (using the `circuit` keyword) has been removed. Replace it with arrow circuit syntax.
+
+#### How to Fix Your Code
+
+For example:
+
+```compact
+// Old syntax
+map(circuit (x, y) => x + y, [1, 2], [3, 4]);
+
+// Updated syntax
+map((x, y) => x + y, [1, 2], [3, 4]);
+```
+
+---
+
+### Sequence Expressions Allowed Outside Parentheses
+
+Sequence expressions (e.g., `expr1, expr2, expr3`) can now appear outside parentheses, aligning with TypeScript/JavaScript.
+
+---
+
+## Compiler Changes
+
+### Improvements to Error Reporting
+
+Error messages have been improved to provide clearer diagnostics and surface root causes of issues.
+
+---
+
+### Exported Circuits Order Matches Between TypeScript and Compact
+
+The order of exported circuits in the generated TypeScript interface file now matches their order in the Compact source file.
+
+---
+
+### The `install.sh` Script Is Removed
+
+The `install.sh` script, previously included with compiler releases, has been removed to reduce confusion.
+
+---
+
+### Bug Fixes
+
+Several bug fixes have been included in this release, addressing developer-reported issues. We encourage feedback via our Discord server.
+
+---
+
+## TL;DR
+
+🚀 Compact language 0.13.0 introduces breaking changes and enhancements:
+
+- **Modules**: Import directly from files.
+- **Standard Library**: Now a builtin module (`CompactStandardLibrary`).
+- **Structs**: New creation syntax and spread operator.
+- **Anonymous Circuits**: Replaced by arrow circuit syntax.
+- **`new`**: Removed in favor of new struct syntax.
+- **Improved Compiler**: Better error messages and bug fixes.
+
+## Artifacts
+
+- [Compiler Linux](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.20.0/compactc-linux.zip)
+- [Compiler macOS](https://d3fazakqrumx6p.cloudfront.net/artifacts/compiler/compactc_0.20.0/compactc-macos.zip)

@@ -37,35 +37,99 @@ const config = {
         id: "main",
         path: "docs",
         routeBasePath: "/",
+        lastVersion: "current",
+        versions: {
+          current: {
+            label: "v1",
+          },
+          "0.0.0": {
+            label: "v0 (Legacy)",
+          },
+        },
         sidebarPath: require.resolve("./sidebars.main.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
+        async sidebarItemsGenerator({defaultSidebarItemsGenerator, ...args}) {
+          const sidebarItems = await defaultSidebarItemsGenerator(args);
+          
+          // Filter function to process sidebar items recursively
+          const processItems = (items) => {
+            return items.map((item) => {
+              // If this is a category
+              if (item.type === 'category') {
+                // Check if this is the Release notes category
+                if (item.label === 'Release notes' && item.items) {
+                  // Filter out all subcategories, keep only doc items
+                  const docsOnly = item.items.filter(subItem => subItem.type === 'doc');
+                  return { ...item, items: docsOnly };
+                }
+                
+                // For other categories, recursively process their items
+                if (item.items) {
+                  return { ...item, items: processItems(item.items) };
+                }
+              }
+              
+              return item;
+            });
+          };
+          
+          return processItems(sidebarItems);
+        },
       },
     ],
 
     // COMPACT DOCS
+    // [
+    //   "@docusaurus/plugin-content-docs",
+    //   {
+    //     id: "compact",
+    //     path: "compact",
+    //     routeBasePath: "compact",
+    //     sidebarPath: require.resolve("./sidebars.compact.js"),
+    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+    //     showLastUpdateTime: true,
+    //     showLastUpdateAuthor: false,
+    //   },
+    // ],
+
+    // ACADEMY DOCS
+    // [
+    //   "@docusaurus/plugin-content-docs",
+    //   {
+    //     id: "academy",
+    //     path: "academy",
+    //     routeBasePath: "academy",
+    //     sidebarPath: require.resolve("./sidebars.academy.js"),
+    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
+    //     showLastUpdateTime: true,
+    //     showLastUpdateAuthor: false,
+    //   },
+    // ],    
+
+    // API REFERENCE DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
-        id: "compact",
-        path: "compact",
-        routeBasePath: "compact",
-        sidebarPath: require.resolve("./sidebars.compact.js"),
+        id: "apis",
+        path: "api-reference",
+        routeBasePath: "api-reference",
+        sidebarPath: require.resolve("./sidebars.apis.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
       },
     ],
 
-    // ACADEMY DOCS
+    // SDKs DOCS
     [
       "@docusaurus/plugin-content-docs",
       {
-        id: "academy",
-        path: "academy",
-        routeBasePath: "academy",
-        sidebarPath: require.resolve("./sidebars.academy.js"),
+        id: "sdks",
+        path: "sdks",
+        routeBasePath: "sdks",
+        sidebarPath: require.resolve("./sidebars.sdks.js"),
         editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
         showLastUpdateTime: true,
         showLastUpdateAuthor: false,
@@ -91,6 +155,31 @@ const config = {
         blogSidebarCount: "ALL",
         onInlineAuthors: "ignore",
         onUntruncatedBlogPosts: "ignore",
+      },
+    ],
+
+    // CLIENT REDIRECTS
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          // Academy redirects (external)
+          {
+            from: [
+              '/academy', 
+              '/academy/module-1', 
+              '/academy/module-2', 
+              '/academy/module-3', 
+              '/academy/module-4', 
+              '/academy/module-5', 
+              '/academy/module-6', 
+              '/academy/module-7',
+              '/academy/module-8',
+            ],
+            to: 'https://academy.midnight.network/',
+          },
+        
+        ],
       },
     ],
 
@@ -120,6 +209,7 @@ const config = {
   { src: "/add-theme-class.js", async: true },
   { src: "/theme-sync.js", async: true },
   { src: "/force-theme.js", async: true },
+  { src: "/common-room-signal.js", async: false },
   {
     src: "https://cmp.osano.com/AzZXI3TYiFWNB5yus/1489a4c7-fc85-49c4-99a3-1367c5a5ba96/osano.js",
     async: false,
@@ -181,19 +271,16 @@ const config = {
         alt: "Midnight Logo",
         src: "img/midnight-header-logo-light.svg",
         srcDark: "img/midnight-header-logo-dark.svg",
-        href: "https://midnight.network",
+        href: "/",
       },
       items: [
-        { to: "/",         label: "Docs",     position: "left",  activeBaseRegex: "^/$" },
-        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
-        { to: "/academy",  label: "Academy",  position: "left",  activeBaseRegex: "^/academy(/|$)" },
-        { to: "/blog",     label: "Blog",     position: "left",  activeBaseRegex: "^/blog(/|$)" },
-        {
-          type: "html",
-          position: "right",
-          value:
-            '<a href="/relnotes/overview" class="button button--primary">Release Notes</a>',
-        },
+        { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
+        { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
+        // {
+        //   type: 'docsVersionDropdown',
+        //   position: "right",
+        //   docsPluginId: 'main',
+        // },
         {
           type: "html",
           position: "right",
@@ -215,6 +302,7 @@ const config = {
           title: "Resources",
           items: [
             { label: "Midnight Foundation", href: "https://midnight.network/" },
+            { label: "Developer blog", href: "/blog" },
             { label: "Glacier Drop", href: "https://www.midnight.gd/" },
             { label: "Careers", href: "https://midnight.network/careers" },
           ],

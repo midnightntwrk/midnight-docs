@@ -1,123 +1,125 @@
-# Release notes template
+# <component><version> (Example: Midnight.js v3.1.0)
+ 
+* **Date**: YYYY-MM-DD  
+* **Environment**: All public networks at time of release. For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/next/relnotes/overview).
 
-### Version/Release name
+## High-level summary 
 
-**Version:** &lt;version number&gt;  
-**Date:** &lt;YYYY-MM-DD&gt;  
-**Environment:** &lt;preview | testnet | mainnet-when-ready&gt;
-
-### High-level summary 
-
-&lt;1–3 sentences summarizing the most important changes in this release&gt;  
+1–3 sentences summarizing the most important changes in this release  
 Example: “This release updates the Compact compiler to 0.27, introduces ledger v6 on Preview, and adds new ZK proof APIs. Breaking changes affect all Preview developers.”
 
-### Audience
+## Audience
 
 This release note is critical for developers who:
 
-- &lt;e.g., run a node on Preview&gt;
-- &lt;use Compact compiler or SDK version X&gt;
-- &lt;maintain infrastructure for Testnet environments&gt;
+- For example, run a node on Preview.
+- Use Compact compiler or SDK version X.
+- Maintain infrastructure for Testnet environments.
 
-### What changed (Summary of updates)
+## What changed
 
-&lt;high-level list of new features, improvements, fixes&gt;
+high-level list of new features, improvements, fixes
 
 Examples:
 
-- Updated Compact compiler to &lt;version&gt;.
-- Added ledger feature &lt;feature&gt;.
-- Improved SDK method &lt;method&gt;.
-- Fixed &lt;bug&gt; affecting &lt;scenario&gt;.
+- Updated Compact compiler to <version>.
+- Added ledger feature <feature>.
+- Improved SDK method <method>.
+- Fixed <bug> affecting <scenario>.
 
-### New features
+## New features
 
 List all newly introduced functionality.
 
-**Feature Name:** &lt;name&gt;
+### Feature name <name>
 
-**Description:** &lt;what it does + **why it matters** + where developers interact with it + motivation behind updates, all written in plain developer-focused language&gt;
+**Description**: what it does + **why it matters** + where developers interact with it + motivation behind updates, all written in plain developer-focused language
 
-### New features requiring configuration updates
+## New features requiring configuration updates
 
 (Not necessarily breaking, but requires setup changes.)
 
-**Feature Name:** &lt;name&gt;
+### Feature name <name>
 
-**Required Updates:**
+**Required updates**:
 
-- &lt;config flag or setting&gt;
-- &lt;env variable&gt;
-- &lt;SDK initialization step&gt;
+- <config flag or setting>
+- <env variable>
+- <SDK initialization step>
 
-**Impact:** &lt;why this configuration is needed + when it must be applied&gt;
+**Impact**: <why this configuration is needed + when it must be applied>
 
-### Improvements
+## Improvements
 
 Non-breaking enhancements.
 
-**Improvement:** &lt;name&gt;
+**Improvement**: <name>
 
-**Description:** &lt;explain the enhancement, UX lift, performance gain, etc.&gt;
+**Description**: <explain the enhancement, UX lift, performance gain, and so on.>
 
 Example:
 
 - “Enhanced proof generation performance for large circuits.”
 - “Redesigned CLI prompts for clarity.”
 
-### Deprecations
+## Deprecations
 
 List APIs, functions, flags, or semantics being phased out.
 
 For each item, include:
 
-- what is deprecated
-- when the deprecation begins
-- when it will be removed
-- what developers should use instead
-- migration notes
+- What is deprecated
+- When the deprecation begins
+- When it will be removed
+- What developers should use instead
+- Migration notes
 
-**Deprecated Item:** &lt;API/function/feature&gt;
+**Deprecated item**: <API/function/feature>
 
-**Starts:** &lt;date/version&gt;  
-**Full Removal:** &lt;planned removal date/version&gt;  
-**Replacement:** &lt;new API/method&gt;  
-**Migration Steps:** &lt;explicit actions developers must take&gt;
+**Starts**: <date/version>  
+**Full removal**: <planned removal date/version>  
+**Replacement**: <new API/method>  
+**Migration steps**: <explicit actions developers must take>
 
-### Breaking changes or required actions for developers
+## Breaking changes
 
-**Breaking Change:** &lt;name&gt;
+Below is a list of breaking changes and required actions for developers.
 
-**What changed:** &lt;clear description&gt;  
-**What breaks:** &lt;exact scenarios&gt;  
-**Required actions:**
+### Breaking change <name>
 
-- &lt;step 1&gt;
-- &lt;step 2&gt;
-- &lt;environment/version pinning&gt;
+**What changed**: <clear description>  
+**What breaks**: <exact scenarios>  
 
- **Code Example:**
+**Required actions**:
 
-&lt;insert migration example here&gt;
+- <step 1>
+- <step 2>
+- <environment/version pinning>
 
-### Known issues
+ **Code example**:
 
-### **Issue:** &lt;name&gt;
+<insert migration example here>
 
-**Description:** &lt;what’s affected + conditions&gt;  
-**Workaround (if any):** &lt;instructions&gt;
+## Known issues
 
-### Links and references
+The following issues are known at the time of release: 
 
-- PRs: &lt;link&gt;
-- Engineering docs: &lt;link&gt;
-- Migration guides: &lt;link&gt;
-- SDK docs: &lt;link&gt;
-- Known issues board: &lt;link&gt;
+### Issue name
 
-### Fixed defect list
+**Description**: <what's affected + conditions>  
+**Workaround (if any)**: <instructions>
 
-The following defects were fixed in &lt;release&gt;.
+## Links and references
+
+- **PRs**: <link>
+- **Engineering docs**: <link>
+- **Migration guides**: <link>
+- **SDK docs**: <link>
+- **Known issues board**: <link>
+
+## Fixed defect list
+
+The following defects were fixed in <release>.
 
 | **Defect number** | **Description**                          |
 | ----------------- | ---------------------------------------- |

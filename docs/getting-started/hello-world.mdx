@@ -1,0 +1,228 @@
+---
+title: Create your first Midnight contract
+description: Learn how to create and compile a Hello World smart contract on Midnight's Preprod network.
+sidebar_position: 20
+sidebar_label: Hello world
+tags: [compact, smart contract]
+toc_max_heading_level: 2
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+# Create your first Midnight contract
+
+In this tutorial, you'll create a simple "Hello World" smart contract using Compact, Midnight's smart contract language. 
+You'll learn how to write privacy-preserving logic, compile it into zero-knowledge circuits, and prepare it for deployment on the Preprod network.
+
+A Midnight smart contract uses zero-knowledge proofs (ZKPs) to maintain data confidentiality while proving computation correctness. 
+The core value proposition is selective disclosure, where users can prove specific information while keeping sensitive data private.
+
+## Overview
+
+By the end of this tutorial, you'll:
+
+- Create a Compact smart contract with state storage
+- Compile the contract into zero-knowledge circuits
+- Understand the generated artifacts and their purposes
+- Prepare your contract for deployment on Preprod
+
+## Prerequisites
+
+Before you begin, ensure you have the following:
+
+- **Compact toolchain**: Follow the [install the toolchain](./installation) guide to install the necessary tools.
+- **Command-line knowledge**: Basic familiarity with terminal operations.
+- **Code editor**: An IDE such as [Visual Studio Code](https://code.visualstudio.com).
+
+<StepsProvider>
+<Step>
+
+## Set up your project
+
+Create a project folder and navigate to it:
+
+```bash
+mkdir my-midnight-contract
+cd my-midnight-contract
+```
+
+Create the required directories:
+
+```bash
+mkdir contracts
+```
+
+Your project structure should now look like this:
+
+```
+my-midnight-contract/
+└── contracts/
+```
+
+The `contracts` folder contains your Compact smart contract source files.
+
+</Step>
+<Step>
+
+## Create the contract file
+
+Create a new file named `hello-world.compact` in the `contracts` directory:
+
+```bash
+touch contracts/hello-world.compact
+```
+
+Open this file in your code editor.
+
+</Step>
+<Step>
+
+## Add the language version directive
+
+The `pragma language_version` directive specifies which version of Compact your contract uses. This protects your contract from breaking changes in future language versions.
+
+Add this line at the top of `contracts/hello-world.compact`:
+
+```compact
+pragma language_version 0.20;
+```
+
+This directive tells the compiler that your contract requires Compact version 0.20.
+
+</Step>
+<Step>
+
+## Define the ledger state
+
+The on-chain state of your contract is declared with `ledger` declarations. On-chain state is public and persistent on the blockchain.
+
+Add the ledger declaration:
+
+```compact
+pragma language_version 0.20;
+
+export ledger message: Opaque<"string">;
+```
+
+This line creates a state variable named `message` that stores a string value. 
+The `export` keyword makes this variable accessible from the compiler's generated JavaScript implementation of the contract. 
+The `Opaque<"string">` type represents foreign data (JavaScript strings in this case) that Compact can store and pass around without needing to interpret its internal structure.
+
+</Step>
+<Step>
+
+## Create the storeMessage circuit
+
+Circuits are the functions of a Compact smart contract. They define the logic that modifies state or performs computations, 
+and they're compiled into zero-knowledge circuits.
+
+Add the circuit definition:
+
+```compact
+pragma language_version 0.20;
+
+export ledger message: Opaque<"string">;
+
+export circuit storeMessage(newMessage: Opaque<"string">): [] {
+  message = disclose(newMessage);
+}
+```
+
+Breaking it down:
+
+- `export circuit` does two things: it makes the circuit visible in the compiler-generated TypeScript/JavaScript code for your DApp to call, and it includes the circuit in the contract that gets deployed on-chain.
+- `storeMessage` is the circuit name.
+- `newMessage: Opaque<"string">` is the input parameter. Circuit parameters are always private by default. The `Opaque<"string">` type indicates it's a string value from JavaScript.
+- `: []` is an empty tuple type that indicates the circuit returns no value.
+- `message = disclose(newMessage)` stores the message on the public ledger. 
+The `disclose()` function marks the private value as safe to store publicly. Without it, trying to assign `newMessage` directly to the ledger returns a compiler error.
+
+Your complete contract should look like this:
+
+```compact
+pragma language_version 0.20;
+
+export ledger message: Opaque<"string">;
+
+export circuit storeMessage(newMessage: Opaque<"string">): [] {
+  message = disclose(newMessage);
+}
+```
+
+</Step>
+<Step>
+
+## Compile the contract
+
+Compiling transforms your Compact code into zero-knowledge circuits, generates cryptographic keys, 
+and creates TypeScript APIs and a JavaScript implementation for the contract to be used by DApps. 
+
+Run the compiler from your project root:
+
+```bash
+compact compile contracts/hello-world.compact contracts/managed/hello-world
+```
+
+You should see the following output:
+
+```
+Compiling 1 circuits:
+  circuit "storeMessage" (k=6, rows=26)
+```
+
+The compilation process will:
+1. Parse and validate your Compact code.
+2. Generate zero-knowledge circuits from your logic.
+3. Create proving and verifying keys for the circuits.
+4. Generate the TypeScript API and JavaScript implementation for the contract.
+
+When compilation completes, you'll see a new directory structure:
+
+```
+contracts/
+├── managed/
+|   └── hello-world/
+|        ├── compiler/
+|        ├── contract/
+|        ├── keys/
+|        └── zkir/
+└── hello-world.compact
+```
+
+Here's what each directory contains:
+
+- **contract/**: The compiled contract artifacts, which includes the JavaScript implementation and type definitions.
+- **keys/**: Cryptographic proving and verifying keys that enable zero-knowledge proofs.
+- **zkir/**: Zero-Knowledge Intermediate Representation—the bridge between Compact and the ZK backend.
+- **compiler/**: Compiler-generated JSON output that other tools can use to understand the contract structure.
+
+</Step>
+</StepsProvider>
+
+## Troubleshoot
+
+This section covers common issues that you might encounter during compilation and their solutions.
+
+### Compiler not found
+
+If the `compact compile` command isn't recognized, verify your installation:
+
+1. Check if the Compact devtools are installed: `which compact` or `compact --version`.
+2. If step 1 succeeds, verify the compiler toolchain is installed: `compact compile --version`.
+3. For details on installing the Compact toolchain, refer to the [install the toolchain](./installation) guide.
+
+### Compilation errors
+
+If you see syntax or type errors:
+
+- Verify your `pragma language_version` matches your compiler version.
+- Check that all required imports are present.
+- Ensure the `disclose` operator is used where required.
+- Review the error message for specific line numbers and issues.
+
+## Next steps
+
+Now that you've compiled your first Midnight contract, you're ready to deploy it to the Preprod network. 
+For more information, refer to the [deploy hello world contract](../guides/deploy-mn-app) guide.

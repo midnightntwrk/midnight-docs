@@ -1,0 +1,393 @@
+---
+title: Interact with hello world contract
+description: Build a command-line interface to interact with a deployed hello world contract on the Midnight Network.
+sidebar_position: 30
+sidebar_label: Interact with hello world contract
+tags: [smart contract, preprod, wallet]
+# slug: /getting-started/interact-with-contract
+toc_max_heading_level: 2
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
+
+In this tutorial, you'll build a command-line interface (CLI) to interact with your deployed hello world contract on Midnight's Preprod network. 
+You'll learn how to call contract circuits, read public state, and manage your wallet's DUST balance while interacting with the blockchain.
+
+## Prerequisites
+
+Before you begin, ensure that you have the following:
+
+- A deployed hello world contract with the contract address saved in `deployment.json`. You'll need to complete the [deploy the hello world contract](./deploy-mn-app) tutorial first.
+- Your 64-character wallet seed.
+- All project dependencies installed with `npm install`.
+- The proof server running. For setup instructions, see the [proof server](./run-proof-server) guide.
+- The `src/utils.ts` file created during deployment.
+
+Your project structure should look similar to the following if you followed the [deploy the hello world contract](./deploy-mn-app) tutorial:
+
+```
+my-midnight-contract/
+├── contracts/
+│   └── managed/
+│       └── hello-world/
+│           ├── compiler/
+│           ├── contract/
+│           ├── keys/
+│           └── zkir/
+│       └── hello-world.compact
+├── src/
+│   ├── deploy.ts
+│   └── utils.ts
+├── deployment.json
+├── package.json
+└── tsconfig.json
+```
+
+<StepsProvider>
+<Step>
+
+## Add the CLI script to package.json
+
+Add a new script that makes it easy to run your CLI application.
+
+Update the `scripts` section in `package.json` to include the CLI command:
+
+```json
+{
+  "scripts": {
+    "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
+    "build": "tsc",
+    "deploy": "tsx src/deploy.ts",
+    "cli": "tsx src/cli.ts"
+  }
+}
+```
+
+This adds a new `cli` script for running the CLI application.
+</Step>
+<Step>
+
+## Create the CLI application file
+
+Create the main CLI script that provides an interactive interface for contract operations.
+
+Create the `src/cli.ts` file and add the following code:
+
+```typescript
+import { createInterface } from 'node:readline/promises';
+import { stdin, stdout } from 'node:process';
+import * as fs from 'node:fs';
+import * as Rx from 'rxjs';
+
+// Midnight SDK imports
+import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+// Shared utilities from the utils.ts file
+import { 
+  createWallet, 
+  createProviders, 
+  compiledContract, 
+  HelloWorld 
+} from './utils.js';
+```
+
+These imports provide the following:
+- **readline**: Creates the interactive command-line interface.
+- **fs**: Reads the deployment configuration file.
+- **Rx (RxJS)**: Handles reactive state management for wallet synchronization.
+- **findDeployedContract**: Connects to an existing deployed contract.
+- **Shared utilities**: Reuses wallet and provider setup from deployment.
+
+</Step>
+<Step>
+
+## Implement contract connection logic
+
+Open the `cli.ts` file and add the main function that loads deployment information, creates a wallet, and connects to your deployed contract.
+
+```typescript
+// ─── Main CLI Script ───────────────────────────────────────────────────────────
+
+async function main() {
+  console.log('\n╔══════════════════════════════════════════════════════════╗');
+  console.log('║           Hello World Contract CLI (Preprod)            ║');
+  console.log('╚══════════════════════════════════════════════════════════╝\n');
+
+  // Check for deployment.json
+  if (!fs.existsSync('deployment.json')) {
+    console.error('No deployment.json found! Run `npm run deploy` first.\n');
+    process.exit(1);
+  }
+
+  const deployment = JSON.parse(fs.readFileSync('deployment.json', 'utf-8'));
+  console.log(`  Contract: ${deployment.contractAddress}\n`);
+
+  const rl = createInterface({ input: stdin, output: stdout });
+
+  try {
+    // Get wallet seed
+    const seed = await rl.question('  Enter your wallet seed: ');
+
+    console.log('\n  Connecting to Midnight Preprod...');
+    const walletCtx = await createWallet(seed.trim());
+
+    console.log('  Syncing wallet...');
+    await Rx.firstValueFrom(
+      walletCtx.wallet.state().pipe(
+        Rx.throttleTime(5000), 
+        Rx.filter((s) => s.isSynced)
+      )
+    );
+
+    console.log('  Setting up providers...');
+    const providers = await createProviders(walletCtx);
+
+    console.log('  Joining contract...');
+    const contract = await findDeployedContract(providers, {
+      contractAddress: deployment.contractAddress,
+      compiledContract,
+      privateStateId: 'helloWorldState',
+      initialPrivateState: {},
+    });
+
+    console.log('  Connected!\n');
+```
+
+This section explains how to:
+- Validate that `deployment.json` exists with contract information.
+- Prompt for your wallet seed to restore access to your wallet.
+- Create a wallet instance using the shared utilities from the `utils.ts` file.
+- Wait for the wallet to sync with the Preprod environment. This ensures you have the latest blockchain state.
+- Set up all required providers for contract interaction.
+- Connect to the deployed contract using `findDeployedContract`, which:
+  - Verifies that the contract exists at the specified address
+  - Loads the contract's current state
+  - Sets up the local private state storage
+  - Returns a contract instance ready for calling circuits
+
+</Step>
+<Step>
+
+## Build the interactive menu
+
+Create the main menu loop that presents options to the user and handles their choices.
+
+Continue adding to the main function in the `cli.ts` file:
+
+```typescript
+    // Main menu loop
+    let running = true;
+    while (running) {
+      const dust = (
+        await Rx.firstValueFrom(
+          walletCtx.wallet.state().pipe(Rx.filter((s) => s.isSynced))
+        )
+      ).dust.walletBalance(new Date());
+
+      console.log('─────────────────────────────────────────────────────────────────');
+      console.log(`  DUST: ${dust.toLocaleString()}`);
+      console.log('─────────────────────────────────────────────────────────────────');
+      const choice = await rl.question(
+        '  [1] Store a message\n  [2] Read current message\n  [3] Exit\n  > '
+      );
+
+      switch (choice.trim()) {
+        case '1':
+          try {
+            const message = await rl.question('\n  Enter message: ');
+            console.log('  Storing message (this may take 20-30 seconds)...\n');
+            const tx = await contract.callTx.storeMessage(message);
+            console.log(`  ✅ Message stored!`);
+            console.log(`  Transaction: ${tx.public.txId}`);
+            console.log(`  Block: ${tx.public.blockHeight}\n`);
+          } catch (e) {
+            console.error(
+              `  ❌ Error: ${e instanceof Error ? e.message : e}\n`
+            );
+          }
+          break;
+
+        case '2':
+          try {
+            console.log('\n  Reading message from blockchain...');
+            const state = await providers.publicDataProvider.queryContractState(
+              deployment.contractAddress
+            );
+            if (state) {
+              const ledgerState = HelloWorld.ledger(state.data);
+              console.log(
+                `  Current message: "${ledgerState.message || '(empty)'}"\n`
+              );
+            } else {
+              console.log('  No message found.\n');
+            }
+          } catch (e) {
+            console.error(
+              `  ❌ Error: ${e instanceof Error ? e.message : e}\n`
+            );
+          }
+          break;
+
+        case '3':
+          running = false;
+          break;
+      }
+    }
+
+    await walletCtx.wallet.stop();
+    console.log('\n  Goodbye!\n');
+  } finally {
+    rl.close();
+  }
+}
+
+main().catch(console.error);
+```
+
+Here's a breakdown of each menu option:
+
+### DUST balance display
+
+Before each menu, the CLI shows your current DUST balance. DUST is required for transaction fees, 
+so it helps you monitor whether you have enough to perform operations.
+
+### Option 1: Store a message
+
+This option stores a custom message in the contract:
+
+1. Prompt you to enter a custom message.
+2. Call the `storeMessage` circuit on your contract.
+3. Create a transaction with your message as input.
+4. Generate a Zero Knowledge (ZK) proof for the transaction.
+5. Submit the transaction to the Preprod environment.
+6. Wait for blockchain confirmation.
+7. Display the transaction ID and block height on success.
+
+This operation consumes DUST for gas fees.
+
+### Option 2: Read current message
+
+This option reads the current message from the contract:
+
+- Query the contract's public state from the indexer.
+- Use `HelloWorld.ledger()` to deserialize the raw state data.
+- Display the current message or "(empty)" if no message exists.
+
+This operation is instant and free. It does not require transaction fees or ZK proofs.
+
+### Option 3: Exit
+
+This option exits the application:
+
+- Cleanly shut down the wallet connection.
+- Release network resources.
+- Exit the application.
+
+</Step>
+<Step>
+
+## Run the CLI application
+
+You're ready to run your CLI to interact with the deployed contract.
+
+Start the CLI application by running the following command:
+
+```bash
+npm run cli
+```
+
+The CLI guides you through the interaction process:
+
+1. Enter your wallet seed from deployment.
+2. Wait for the wallet to synchronize with the Preprod environment. This usually takes a few seconds.
+3. Check your DUST balance displayed in the menu.
+4. Choose an operation from the menu options.
+
+### Example session storing a message
+
+```
+╔══════════════════════════════════════════════════════════╗
+║           Hello World Contract CLI (Preprod)            ║
+╚══════════════════════════════════════════════════════════╝
+
+  Contract: 0x1234567890abcdef...
+
+  Enter your wallet seed: ********************************
+
+  Connecting to Midnight Preprod...
+  Syncing wallet...
+  Setting up providers...
+  Joining contract...
+  Connected!
+
+─────────────────────────────────────────────────────────────────
+  DUST: 1,500,000
+─────────────────────────────────────────────────────────────────
+  [1] Store a message
+  [2] Read current message
+  [3] Exit
+  > 1
+
+  Enter message: Welcome to the Midnight Network!
+  Storing message (this may take 20-30 seconds)...
+
+  ✅ Message stored!
+  Transaction: 0xabcd1234...
+  Block: 123456
+```
+
+### Example session reading a message
+
+```
+─────────────────────────────────────────────────────────────────
+  DUST: 1,450,000
+─────────────────────────────────────────────────────────────────
+  [1] Store a message
+  [2] Read current message
+  [3] Exit
+  > 2
+
+  Reading message from blockchain...
+  Current message: "Welcome to the Midnight Network!"
+```
+
+</Step>
+</StepsProvider>
+
+## Troubleshoot
+
+These are some of the common issues that you might encounter and how to fix them.
+
+### Contract not found error
+
+If you see "No deployment.json found" in the CLI output:
+
+- Verify that you ran `npm run deploy` successfully.
+- Check that `deployment.json` exists in your project's root directory.
+- Ensure that you're running the CLI from the correct directory.
+
+### Insufficient DUST
+
+If storing a message fails due to insufficient DUST in your wallet:
+
+- Check your DUST balance in the menu.
+- Wait for DUST generation if you recently funded your wallet.
+- Ensure you have tNight tokens. DUST is generated from your tNight tokens.
+- Visit the [Preprod faucet](https://faucet.preprod.midnight.network/) to get more tNight tokens.
+
+### Invalid seed error
+
+If your wallet seed is rejected:
+
+- Verify that you're using the correct 64-character hexadecimal seed.
+- Check for typos or extra whitespace.
+- Ensure you're using the same seed used to deploy the contract.
+
+## Next steps
+
+Now that you can interact with your deployed contract through the CLI, you can build a web interface for your DApp.
+To create a graphical user interface for your contract, see the [React wallet connector guide](./react-wallet-connect). 
+
+For complete API documentation on available wallet methods and contract interactions, refer to the [DApp Connector API reference](/api-reference/dapp-connector/).
