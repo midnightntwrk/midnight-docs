@@ -1,8 +1,6 @@
----
-title: midnight-js-network-id
----
+# midnight-js-network-id
 
-[**Midnight.js API Reference v2.0.2**](../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../README.md)
 
 ***
 
@@ -10,20 +8,11 @@ title: midnight-js-network-id
 
 # @midnight-ntwrk/midnight-js-network-id
 
-## Enumerations
+## Type Aliases
 
-- [NetworkId](enumerations/NetworkId.md)
-
-## Classes
-
-- [NetworkIdTypeError](classes/NetworkIdTypeError.md)
+- [NetworkId](type-aliases/NetworkId.md)
 
 ## Functions
 
-- [getLedgerNetworkId](functions/getLedgerNetworkId.md)
 - [getNetworkId](functions/getNetworkId.md)
-- [getRuntimeNetworkId](functions/getRuntimeNetworkId.md)
-- [getZswapNetworkId](functions/getZswapNetworkId.md)
-- [networkIdToHex](functions/networkIdToHex.md)
 - [setNetworkId](functions/setNetworkId.md)
-- [stringToNetworkId](functions/stringToNetworkId.md)

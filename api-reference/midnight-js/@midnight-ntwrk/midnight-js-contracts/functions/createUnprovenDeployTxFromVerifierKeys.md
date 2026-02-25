@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -21,21 +21,23 @@ The Zswap coin public key of the current user.
 
 Configuration.
 
+## Param
+
 ## Call Signature
 
-> **createUnprovenDeployTxFromVerifierKeys**\<`C`\>(`verifierKeys`, `coinPublicKey`, `options`, `encryptionPublicKey`): [`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>
+> **createUnprovenDeployTxFromVerifierKeys**\<`C`\>(`zkConfigProvider`, `coinPublicKey`, `options`, `encryptionPublicKey`): `Promise`\<[`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>\>
 
 ### Type Parameters
 
 #### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`undefined`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`undefined`\>\>
+`C` *extends* `Contract`\<`undefined`, `Witnesses`\<`undefined`\>\>
 
 ### Parameters
 
-#### verifierKeys
+#### zkConfigProvider
 
-\[[`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>, [`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\][]
+`ZKConfigProvider`\<`string`\>
 
 #### coinPublicKey
 
@@ -51,23 +53,23 @@ Configuration.
 
 ### Returns
 
-[`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>
+`Promise`\<[`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>\>
 
 ## Call Signature
 
-> **createUnprovenDeployTxFromVerifierKeys**\<`C`\>(`verifierKeys`, `coinPublicKey`, `options`, `encryptionPublicKey`): [`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>
+> **createUnprovenDeployTxFromVerifierKeys**\<`C`\>(`zkConfigProvider`, `coinPublicKey`, `options`, `encryptionPublicKey`): `Promise`\<[`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>\>
 
 ### Type Parameters
 
 #### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`any`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`any`\>\>
+`C` *extends* `Any`
 
 ### Parameters
 
-#### verifierKeys
+#### zkConfigProvider
 
-\[[`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>, [`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\][]
+`ZKConfigProvider`\<`string`\>
 
 #### coinPublicKey
 
@@ -83,4 +85,4 @@ Configuration.
 
 ### Returns
 
-[`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>
+`Promise`\<[`UnsubmittedDeployTxData`](../type-aliases/UnsubmittedDeployTxData.md)\<`C`\>\>
