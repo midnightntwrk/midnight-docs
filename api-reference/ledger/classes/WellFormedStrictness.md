@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / WellFormedStrictness
+[@midnight/ledger](../globals.md) / WellFormedStrictness
 
 # Class: WellFormedStrictness
 
@@ -11,15 +11,15 @@ disabling parts of transaction validation for testing.
 
 ## Constructors
 
-### new WellFormedStrictness()
+### Constructor
 
 ```ts
-new WellFormedStrictness(): WellFormedStrictness
+new WellFormedStrictness(): WellFormedStrictness;
 ```
 
 #### Returns
 
-[`WellFormedStrictness`](WellFormedStrictness.md)
+`WellFormedStrictness`
 
 ## Properties
 
@@ -30,6 +30,16 @@ enforceBalancing: boolean;
 ```
 
 Whether to require the transaction to have a non-negative balance
+
+***
+
+### enforceLimits
+
+```ts
+enforceLimits: boolean;
+```
+
+Whether to enforce the transaction byte limit
 
 ***
 
@@ -50,3 +60,13 @@ verifyNativeProofs: boolean;
 ```
 
 Whether to validate Midnight-native (non-contract) proofs in the transaction
+
+***
+
+### verifySignatures
+
+```ts
+verifySignatures: boolean;
+```
+
+Whether to enforce the signature verification

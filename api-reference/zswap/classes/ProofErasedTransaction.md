@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / ProofErasedTransaction
+[@midnight/zswap](../globals.md) / ProofErasedTransaction
 
 # Class: ProofErasedTransaction
 
@@ -10,18 +10,6 @@
 
 Primarily for use in testing, or handling data known to be correct from
 external information
-
-## Constructors
-
-### new ProofErasedTransaction()
-
-```ts
-private new ProofErasedTransaction(): ProofErasedTransaction
-```
-
-#### Returns
-
-[`ProofErasedTransaction`](ProofErasedTransaction.md)
 
 ## Properties
 
@@ -65,7 +53,9 @@ The cost of this transaction, in the atomic unit of the base token
 
 #### Parameters
 
-• **params**: [`LedgerParameters`](LedgerParameters.md)
+##### params
+
+[`LedgerParameters`](LedgerParameters.md)
 
 #### Returns
 
@@ -99,9 +89,13 @@ surplus or deficit of this transaction in any token type is.
 
 #### Parameters
 
-• **guaranteed**: `boolean`
+##### guaranteed
 
-• **fees?**: `bigint`
+`boolean`
+
+##### fees?
+
+`bigint`
 
 #### Returns
 
@@ -119,7 +113,9 @@ Merges this transaction with another
 
 #### Parameters
 
-• **other**: [`ProofErasedTransaction`](ProofErasedTransaction.md)
+##### other
+
+[`ProofErasedTransaction`](ProofErasedTransaction.md)
 
 #### Returns
 
@@ -135,16 +131,18 @@ same coins
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -156,7 +154,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -172,9 +172,13 @@ static deserialize(raw, netid): ProofErasedTransaction
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

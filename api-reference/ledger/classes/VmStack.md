@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / VmStack
+[@midnight/ledger](../globals.md) / VmStack
 
 # Class: VmStack
 
@@ -13,27 +13,29 @@ on-chain or not.
 
 ## Constructors
 
-### new VmStack()
+### Constructor
 
 ```ts
-new VmStack(): VmStack
+new VmStack(): VmStack;
 ```
 
 #### Returns
 
-[`VmStack`](VmStack.md)
+`VmStack`
 
 ## Methods
 
 ### get()
 
 ```ts
-get(idx): undefined | StateValue
+get(idx): undefined | StateValue;
 ```
 
 #### Parameters
 
-• **idx**: `number`
+##### idx
+
+`number`
 
 #### Returns
 
@@ -44,12 +46,14 @@ get(idx): undefined | StateValue
 ### isStrong()
 
 ```ts
-isStrong(idx): undefined | boolean
+isStrong(idx): undefined | boolean;
 ```
 
 #### Parameters
 
-• **idx**: `number`
+##### idx
+
+`number`
 
 #### Returns
 
@@ -60,7 +64,7 @@ isStrong(idx): undefined | boolean
 ### length()
 
 ```ts
-length(): number
+length(): number;
 ```
 
 #### Returns
@@ -72,14 +76,18 @@ length(): number
 ### push()
 
 ```ts
-push(value, is_strong): void
+push(value, is_strong): void;
 ```
 
 #### Parameters
 
-• **value**: [`StateValue`](StateValue.md)
+##### value
 
-• **is\_strong**: `boolean`
+[`StateValue`](StateValue.md)
+
+##### is\_strong
+
+`boolean`
 
 #### Returns
 
@@ -90,7 +98,7 @@ push(value, is_strong): void
 ### removeLast()
 
 ```ts
-removeLast(): void
+removeLast(): void;
 ```
 
 #### Returns
@@ -102,12 +110,14 @@ removeLast(): void
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

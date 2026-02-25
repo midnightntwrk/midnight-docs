@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](README.md) \| API
+[**@midnight/zswap v4.0.0-rc**](README.md)
 
 ***
 
-# @midnight/zswap v3.0.2
+# @midnight/zswap v4.0.0-rc
 
 ## Enumerations
 
@@ -11,6 +11,7 @@
 ## Classes
 
 - [AuthorizedMint](classes/AuthorizedMint.md)
+- [CoinSecretKey](classes/CoinSecretKey.md)
 - [EncryptionSecretKey](classes/EncryptionSecretKey.md)
 - [Input](classes/Input.md)
 - [LedgerParameters](classes/LedgerParameters.md)
@@ -24,6 +25,7 @@
 - [ProofErasedOutput](classes/ProofErasedOutput.md)
 - [ProofErasedTransaction](classes/ProofErasedTransaction.md)
 - [ProofErasedTransient](classes/ProofErasedTransient.md)
+- [SecretKeys](classes/SecretKeys.md)
 - [SystemTransaction](classes/SystemTransaction.md)
 - [Transaction](classes/Transaction.md)
 - [TransactionCostModel](classes/TransactionCostModel.md)
@@ -52,8 +54,11 @@
 
 ## Functions
 
+- [coinCommitment](functions/coinCommitment.md)
+- [coinNullifier](functions/coinNullifier.md)
 - [createCoinInfo](functions/createCoinInfo.md)
 - [nativeToken](functions/nativeToken.md)
 - [sampleCoinPublicKey](functions/sampleCoinPublicKey.md)
 - [sampleContractAddress](functions/sampleContractAddress.md)
+- [sampleEncryptionPublicKey](functions/sampleEncryptionPublicKey.md)
 - [sampleTokenType](functions/sampleTokenType.md)

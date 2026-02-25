@@ -1,24 +1,28 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / Effects
+[@midnight/ledger](../globals.md) / Effects
 
-# Type alias: Effects
+# Type Alias: Effects
 
 ```ts
-type Effects: {
+type Effects = {
   claimedContractCalls: [bigint, ContractAddress, string, Fr][];
   claimedNullifiers: Nullifier[];
-  claimedReceives: CoinCommitment[];
-  claimedSpends: CoinCommitment[];
-  mints: Map<string, bigint>;
+  claimedShieldedReceives: CoinCommitment[];
+  claimedShieldedSpends: CoinCommitment[];
+  claimedUnshieldedSpends: Map<[TokenType, PublicAddress], bigint>;
+  shieldedMints: Map<string, bigint>;
+  unshieldedInputs: Map<TokenType, bigint>;
+  unshieldedMints: Map<string, bigint>;
+  unshieldedOutputs: Map<TokenType, bigint>;
 };
 ```
 
 The contract-external effects of a transcript.
 
-## Type declaration
+## Properties
 
 ### claimedContractCalls
 
@@ -33,6 +37,8 @@ The contracts called from this contract. The values are, in order:
 - The entry point being called
 - The communications commitment
 
+***
+
 ### claimedNullifiers
 
 ```ts
@@ -41,29 +47,76 @@ claimedNullifiers: Nullifier[];
 
 The nullifiers (spends) this contract call requires
 
-### claimedReceives
+***
+
+### claimedShieldedReceives
 
 ```ts
-claimedReceives: CoinCommitment[];
+claimedShieldedReceives: CoinCommitment[];
 ```
 
 The coin commitments (outputs) this contract call requires, as coins
 received
 
-### claimedSpends
+***
+
+### claimedShieldedSpends
 
 ```ts
-claimedSpends: CoinCommitment[];
+claimedShieldedSpends: CoinCommitment[];
 ```
 
 The coin commitments (outputs) this contract call requires, as coins
 sent
 
-### mints
+***
+
+### claimedUnshieldedSpends
 
 ```ts
-mints: Map<string, bigint>;
+claimedUnshieldedSpends: Map<[TokenType, PublicAddress], bigint>;
 ```
 
-The tokens minted in this call, as a map from hex-encoded 256-bit domain
-separators to non-negative 64-bit integers.
+The unshielded UTXO outputs this contract expects to be present.
+
+***
+
+### shieldedMints
+
+```ts
+shieldedMints: Map<string, bigint>;
+```
+
+The shielded tokens minted in this call, as a map from hex-encoded 256-bit domain
+separators to unsigned 64-bit integers.
+
+***
+
+### unshieldedInputs
+
+```ts
+unshieldedInputs: Map<TokenType, bigint>;
+```
+
+The unshielded inputs this contract expects.
+
+***
+
+### unshieldedMints
+
+```ts
+unshieldedMints: Map<string, bigint>;
+```
+
+The unshielded tokens minted in this call, as a map from hex-encoded 256-bit domain
+separators to unsigned 64-bit integers.
+
+***
+
+### unshieldedOutputs
+
+```ts
+unshieldedOutputs: Map<TokenType, bigint>;
+```
+
+The unshielded outputs this contract authorizes.

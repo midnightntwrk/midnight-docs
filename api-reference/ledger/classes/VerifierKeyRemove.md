@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / VerifierKeyRemove
+[@midnight/ledger](../globals.md) / VerifierKeyRemove
 
 # Class: VerifierKeyRemove
 
@@ -11,28 +11,32 @@ version.
 
 ## Constructors
 
-### new VerifierKeyRemove(operation, version)
+### Constructor
 
 ```ts
-new VerifierKeyRemove(operation, version): VerifierKeyRemove
+new VerifierKeyRemove(operation, version): VerifierKeyRemove;
 ```
 
 #### Parameters
 
-• **operation**: `string` \| `Uint8Array`
+##### operation
 
-• **version**: [`ContractOperationVersion`](ContractOperationVersion.md)
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
+
+##### version
+
+[`ContractOperationVersion`](ContractOperationVersion.md)
 
 #### Returns
 
-[`VerifierKeyRemove`](VerifierKeyRemove.md)
+`VerifierKeyRemove`
 
 ## Properties
 
 ### operation
 
 ```ts
-readonly operation: string | Uint8Array;
+readonly operation: string | Uint8Array<ArrayBufferLike>;
 ```
 
 ***
@@ -48,12 +52,14 @@ readonly version: ContractOperationVersion;
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
