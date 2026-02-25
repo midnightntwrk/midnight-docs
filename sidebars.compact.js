@@ -12,7 +12,7 @@ const sidebars = {
         "compact-grammar",       // docs/develop/reference/compact/compact-grammar.md(x)
         "ledger-adt",            // docs/develop/reference/compact/ledger-adt.md(x)
         "opaque_data",           // docs/develop/reference/compact/opaque_data.md(x)
-        "explicit_disclosure",   // docs/develop/reference/compact/explicit_disclosure.md(x)
+        "explicit-disclosure",   // docs/develop/reference/compact/explicit-disclosure.md(x)
         {
           type: "category",
           label: "Compact standard library",
