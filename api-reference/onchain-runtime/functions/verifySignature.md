@@ -1,13 +1,13 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / verifySignature
+[@midnight-ntwrk/onchain-runtime](../globals.md) / verifySignature
 
 # Function: verifySignature()
 
 ```ts
-verifySignature(
+function verifySignature(
    vk, 
    data, 
    signature): boolean
@@ -17,11 +17,17 @@ Verifies if a signature is correct
 
 ## Parameters
 
-• **vk**: `string`
+### vk
 
-• **data**: `Uint8Array`
+`string`
 
-• **signature**: `string`
+### data
+
+`Uint8Array`
+
+### signature
+
+`string`
 
 ## Returns
 

@@ -1,8 +1,8 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / StateValue
+[@midnight-ntwrk/onchain-runtime](../globals.md) / StateValue
 
 # Class: StateValue
 
@@ -19,18 +19,6 @@ There are different *classes* of state values:
 State values are *immutable*, any operations that mutate states will return
 a new state instead.
 
-## Constructors
-
-### new StateValue()
-
-```ts
-private new StateValue(): StateValue
-```
-
-#### Returns
-
-[`StateValue`](StateValue.md)
-
 ## Methods
 
 ### arrayPush()
@@ -41,7 +29,9 @@ arrayPush(value): StateValue
 
 #### Parameters
 
-• **value**: [`StateValue`](StateValue.md)
+##### value
+
+[`StateValue`](StateValue.md)
 
 #### Returns
 
@@ -99,11 +89,11 @@ asMap(): undefined | StateMap
 
 ### encode()
 
-`Internal`
-
 ```ts
 encode(): EncodedStateValue
 ```
+
+**`Internal`**
 
 #### Returns
 
@@ -131,7 +121,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -162,15 +154,17 @@ type():
 
 ### decode()
 
-`Internal`
-
 ```ts
 static decode(value): StateValue
 ```
 
+**`Internal`**
+
 #### Parameters
 
-• **value**: [`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
+##### value
+
+[`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
 
 #### Returns
 
@@ -198,7 +192,9 @@ static newBoundedMerkleTree(tree): StateValue
 
 #### Parameters
 
-• **tree**: [`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+##### tree
+
+[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
 
 #### Returns
 
@@ -214,7 +210,9 @@ static newCell(value): StateValue
 
 #### Parameters
 
-• **value**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### value
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
@@ -230,7 +228,9 @@ static newMap(map): StateValue
 
 #### Parameters
 
-• **map**: [`StateMap`](StateMap.md)
+##### map
+
+[`StateMap`](StateMap.md)
 
 #### Returns
 
