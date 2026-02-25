@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -14,7 +14,7 @@ Checks that the given `contractState` contains the given `verifierKeys`.
 
 ### verifierKeys
 
-\[`string`, [`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\][]
+\[`string`, `VerifierKey`\][]
 
 The verifier keys the client has for the deployed contract we're checking.
 

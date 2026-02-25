@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -21,9 +21,9 @@ Submit a transaction to the network to be consensed upon.
 
 ##### tx
 
-[`BalancedTransaction`](../type-aliases/BalancedTransaction.md)
+`FinalizedTransaction`
 
-A balanced and proven transaction.
+The finalized transaction to submit.
 
 #### Returns
 

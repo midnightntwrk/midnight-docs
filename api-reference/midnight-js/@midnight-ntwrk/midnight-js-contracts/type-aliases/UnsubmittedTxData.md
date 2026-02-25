@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -14,7 +14,7 @@ Data relevant to any unsubmitted transaction.
 
 ### newCoins
 
-> `readonly` **newCoins**: `CoinInfo`[]
+> `readonly` **newCoins**: `ShieldedCoinInfo`[]
 
 New coins created during the construction of the transaction.
 
