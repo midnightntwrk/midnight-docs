@@ -1,9 +1,6 @@
----
-id: index
-sidebar_label: Midnight.js API
-title: Midnight.js API
----
-**Midnight.js API Reference v2.0.2**
+# Midnight JS API
+
+**Midnight.js API Reference v3.1.0**
 
 ***
 
@@ -35,4 +32,4 @@ contains a number of utilities that are unique to it:
 - `fetch-zk-config-provider` - Contains a [fetch](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) based cross-environment utility for retrieving zero-knowledge artifacts.
 - `network-id` - Contains utilities for setting the network id used by `ledger`, `zswap`, and `compact-runtime` dependencies.
 - `http-client-proof-provider` - Contains a cross-environment implementation of a proof-server client.
-- `level-private-state-provider` - Contains a cross-environment implementation of a persistent private state store based on [Level](https://github.com/Level/level).
+- `level-private-state-provider` - Contains a cross-environment implementation of an encrypted persistent private state store based on [Level](https://github.com/Level/level).

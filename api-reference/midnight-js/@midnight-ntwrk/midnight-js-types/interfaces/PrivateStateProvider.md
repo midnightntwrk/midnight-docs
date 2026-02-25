@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -48,9 +48,63 @@ Remove all contract signing keys.
 
 ***
 
+### exportPrivateStates()
+
+> **exportPrivateStates**(`options?`): `Promise`\<[`PrivateStateExport`](PrivateStateExport.md)\>
+
+Export all private states as an encrypted JSON-serializable structure.
+
+NOTE: This does NOT export signing keys for security reasons.
+
+#### Parameters
+
+##### options?
+
+[`ExportPrivateStatesOptions`](ExportPrivateStatesOptions.md)
+
+Export options including optional custom password and state limit.
+
+#### Returns
+
+`Promise`\<[`PrivateStateExport`](PrivateStateExport.md)\>
+
+A JSON-serializable export structure that can be saved or transmitted.
+
+#### Throws
+
+If no states exist to export or limit exceeded.
+
+***
+
+### exportSigningKeys()
+
+> **exportSigningKeys**(`options?`): `Promise`\<[`SigningKeyExport`](SigningKeyExport.md)\>
+
+Export all signing keys as an encrypted JSON-serializable structure.
+
+#### Parameters
+
+##### options?
+
+[`ExportSigningKeysOptions`](ExportSigningKeysOptions.md)
+
+Export options including optional custom password and key limit.
+
+#### Returns
+
+`Promise`\<[`SigningKeyExport`](SigningKeyExport.md)\>
+
+A JSON-serializable export structure that can be saved or transmitted.
+
+#### Throws
+
+If no keys exist to export or limit exceeded.
+
+***
+
 ### get()
 
-> **get**(`privateStateId`): `Promise`\<`null` \| `PS`\>
+> **get**(`privateStateId`): `Promise`\<`PS` \| `null`\>
 
 Retrieve the private state at the given private state ID.
 
@@ -64,13 +118,13 @@ The private state identifier.
 
 #### Returns
 
-`Promise`\<`null` \| `PS`\>
+`Promise`\<`PS` \| `null`\>
 
 ***
 
 ### getSigningKey()
 
-> **getSigningKey**(`address`): `Promise`\<`null` \| `string`\>
+> **getSigningKey**(`address`): `Promise`\<`string` \| `null`\>
 
 Retrieve the signing key for a contract.
 
@@ -84,7 +138,87 @@ The address of the contract for which to get the signing key.
 
 #### Returns
 
-`Promise`\<`null` \| `string`\>
+`Promise`\<`string` \| `null`\>
+
+***
+
+### importPrivateStates()
+
+> **importPrivateStates**(`exportData`, `options?`): `Promise`\<[`ImportPrivateStatesResult`](ImportPrivateStatesResult.md)\>
+
+Import private states from a previously exported structure.
+
+#### Parameters
+
+##### exportData
+
+[`PrivateStateExport`](PrivateStateExport.md)
+
+The export data structure to import.
+
+##### options?
+
+[`ImportPrivateStatesOptions`](ImportPrivateStatesOptions.md)
+
+Import options including password, conflict strategy, and state limit.
+
+#### Returns
+
+`Promise`\<[`ImportPrivateStatesResult`](ImportPrivateStatesResult.md)\>
+
+Result indicating how many states were imported/skipped/overwritten.
+
+#### Throws
+
+If decryption fails (wrong password or corrupted data).
+
+#### Throws
+
+If the export format is invalid or unsupported.
+
+#### Throws
+
+If conflictStrategy is 'error' and conflicts exist.
+
+***
+
+### importSigningKeys()
+
+> **importSigningKeys**(`exportData`, `options?`): `Promise`\<[`ImportSigningKeysResult`](ImportSigningKeysResult.md)\>
+
+Import signing keys from a previously exported structure.
+
+#### Parameters
+
+##### exportData
+
+[`SigningKeyExport`](SigningKeyExport.md)
+
+The export data structure to import.
+
+##### options?
+
+[`ImportSigningKeysOptions`](ImportSigningKeysOptions.md)
+
+Import options including password, conflict strategy, and key limit.
+
+#### Returns
+
+`Promise`\<[`ImportSigningKeysResult`](ImportSigningKeysResult.md)\>
+
+Result indicating how many keys were imported/skipped/overwritten.
+
+#### Throws
+
+If decryption fails (wrong password or corrupted data).
+
+#### Throws
+
+If the export format is invalid or unsupported.
+
+#### Throws
+
+If conflictStrategy is 'error' and conflicts exist.
 
 ***
 
@@ -151,6 +285,28 @@ The private state to store.
 #### Returns
 
 `Promise`\<`void`\>
+
+***
+
+### setContractAddress()
+
+> **setContractAddress**(`address`): `void`
+
+Set the contract address for scoping private state operations.
+Must be called before any get/set/remove operations on private states.
+This provides namespace isolation between different contracts.
+
+#### Parameters
+
+##### address
+
+`string`
+
+The contract address to scope operations to.
+
+#### Returns
+
+`void`
 
 ***
 

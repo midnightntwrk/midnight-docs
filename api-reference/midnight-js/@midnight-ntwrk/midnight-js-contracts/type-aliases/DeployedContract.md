@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 
 Interface for a contract that has been deployed to the blockchain.
 
-## Type declaration
+## Type Declaration
 
 ### deployTxData
 
@@ -25,4 +25,4 @@ the deployer of a contract.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`
