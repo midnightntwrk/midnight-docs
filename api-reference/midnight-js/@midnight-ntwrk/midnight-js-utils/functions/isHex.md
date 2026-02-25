@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: isHex()
 
-> **isHex**(`source`, `byteLen`?): `boolean`
+> **isHex**(`source`, `byteLen?`): `boolean`
 
 Determines if a string represents a hex-encoded sequence of bytes.
 

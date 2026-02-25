@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: createCircuitMaintenanceTxInterface()
 
-> **createCircuitMaintenanceTxInterface**\<`C`, `ICK`\>(`providers`, `circuitId`, `contractAddress`): [`CircuitMaintenanceTxInterface`](../type-aliases/CircuitMaintenanceTxInterface.md)
+> **createCircuitMaintenanceTxInterface**\<`C`, `ICK`\>(`providers`, `circuitId`, `compiledContract`, `contractAddress`): [`CircuitMaintenanceTxInterface`](../type-aliases/CircuitMaintenanceTxInterface.md)
 
 Creates a [CircuitMaintenanceTxInterface](../type-aliases/CircuitMaintenanceTxInterface.md).
 
@@ -14,7 +14,7 @@ Creates a [CircuitMaintenanceTxInterface](../type-aliases/CircuitMaintenanceTxIn
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`any`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`any`\>\>
+`C` *extends* `Any`
 
 ### ICK
 
@@ -33,6 +33,10 @@ The providers to use to create and submit transactions.
 `ICK`
 
 The circuit ID the interface is for.
+
+### compiledContract
+
+`CompiledContract`\<`C`, `any`\>
 
 ### contractAddress
 

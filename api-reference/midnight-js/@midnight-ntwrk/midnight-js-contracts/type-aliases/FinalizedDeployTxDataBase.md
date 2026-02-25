@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,11 +10,11 @@
 
 Data for a finalized deploy transaction submitted in this process.
 
-## Type declaration
+## Type Declaration
 
 ### public
 
-> `readonly` **public**: [`FinalizedTxData`](../../midnight-js-types/interfaces/FinalizedTxData.md)
+> `readonly` **public**: `FinalizedTxData`
 
 The data of this transaction that is visible on the blockchain.
 
@@ -22,4 +22,4 @@ The data of this transaction that is visible on the blockchain.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

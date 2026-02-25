@@ -1,0 +1,220 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight.js v3.0.0 release notes
+description: Midnight.js is a client library designed to facilitate the development of decentralized applications on the Midnight blockchain.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v3.0.0  
+* **Date**: December 17, 2025  
+* **Environment**: Preview, Preprod   
+
+---
+
+## High-level summary
+
+This release delivers a major upgrade to Midnight.js with a new encrypted storage security model, 
+asynchronous transaction handling, and a significantly improved transaction workflow. 
+Developers upgrading from v2.x must review the breaking changes and migration steps carefully.
+
+## Audience
+
+This release note is critical for developers who:
+
+- Build applications or smart contracts using Midnight.js.
+- Manage private state storage via `LevelPrivateStateProvider`.
+- Rely on synchronous transaction submission or contract calls.
+- Integrate with indexers.
+
+## Summary of updates
+
+- Introduced encrypted private state storage with configurable password providers.
+- Converted transaction submission and contract calls to asynchronous APIs.
+- Added a new proving recipe system with explicit transaction states.
+- Simplified transaction workflows using high-level submission helpers.
+- Added support for unshielded NIGHT token queries.
+- Enabled transaction TTL (time-to-live) support.
+- Updated Compact compiler and runtime dependencies.
+- Improved ESM and CommonJS package compatibility.
+
+---
+
+## New features
+
+Below is a detailed breakdown of added features.
+
+### Storage encryption
+
+Private state storage now uses AES-256-GCM encryption with explicit authentication configuration.
+
+This change improves security and enables integration with secret managers.
+
+### Configurable password provider
+
+Midnight.js now supports a `PrivateStoragePasswordProvider` for encrypted storage. This improvement allows developers to:
+
+- Decouple storage encryption from wallet.
+- Enable custom password management.
+- Support secure secret managers.
+- Provide flexible fallback strategies.
+
+### Async transaction handling
+
+Transaction submission and contract calls are now support asynchronous execution.
+
+This allows:
+- Indefinite waiting for finalization.
+- Improved error handling.
+- Better alignment with modern async workflows.
+
+All calls to `submitTx` and `contract.call.*` must be awaited.
+
+### Enhanced proving recipe system
+
+The transaction proving pipeline has been redesigned around a new `BalancedProvingRecipe` union type with three explicit states:
+
+- `TransactionToProve`
+- `BalanceTransactionToProve`
+- `NothingToProve`
+
+This makes transaction state explicit and prevents incorrect assumptions during submission.
+
+### High-level transaction functions
+
+New helper functions simplify the transaction lifecycle by handling balancing, proving, and submission internally:
+
+- `submitDeployTx`
+- `submitCallTx`
+
+### Unshielded NIGHT token support
+
+Midnight.js now supports querying balances for unshielded NIGHT tokens via the public indexer.
+
+### Transaction TTL support
+
+Transactions can now be assigned a time-to-live (TTL) during balancing to prevent stale submissions and optimize network resources.
+
+### Compact compiler update
+
+Updated to Compact compiler v0.27.0, delivering:
+- Improved type inference
+- Better error messages
+- Enhanced circuit optimization
+
+### ESM and CommonJS dual support
+
+Package exports have been fixed to fully support both ESM and CommonJS environments, improving compatibility with modern bundlers and build systems.
+
+### Binary circuit results support
+
+Introduces binary (Uint8Array) circuit results to improve overall performance. The benefits includes:
+- Reduced memory allocation during circuit execution
+- Faster serialization and deserialization
+- Improved performance when working with large or complex circuits
+
+---
+
+## Breaking changes
+
+The following changes are critical and will break previous functionality.
+
+### LevelPrivateStateProvider authentication required
+
+**What changed**: Implicit storage authentication has been removed.
+
+**What breaks**: Any instantiation without `walletProvider` or `privateStoragePasswordProvider`.
+
+**Required actions**:
+- Update all provider instantiations.
+- Ensure password consistency across sessions.
+
+### WalletProvider.balanceTx return type
+
+**What changed**: `balanceTx` now returns a `BalancedProvingRecipe` union.
+
+**What breaks**: Code assuming a single transaction type.
+
+**Required actions**:
+- Add type discrimination logic.
+- Handle all three recipe variants explicitly.
+
+### MidnightProvider.submitTx is now async
+
+**What changed**: Return type changed from `TransactionId` to `Promise<TransactionId>`.
+
+**What breaks**: Synchronous submission logic.
+
+**Required actions**:
+- Add `await` to all `submitTx` calls.
+- Update calling functions to `async`.
+
+```typescript
+// Before
+const txId = midnightProvider.submitTx(tx);
+
+// After
+const txId = await midnightProvider.submitTx(tx);
+```
+
+### Contract calls are now async
+
+**What changed**: All `contract.call.*` methods now return `Promise<T>`.
+
+**What breaks**: Synchronous contract call usage.
+
+**Required actions**:
+- Await all contract calls.
+- Update dependent logic accordingly.
+
+### Zswap offer generation
+
+**What changed**: `zswapStateToOffer()` can now return `undefined`.
+
+**What breaks**: Code assuming an offer is always produced.
+
+**Required actions**: Add checks for empty Zswap state.
+
+```typescript
+const offer = zswapStateToOffer(state, encKey);
+if (!offer) {
+  // Handle empty state
+}
+```
+
+### networkId type change
+
+**What changed**: `networkId` changed from enum to plain string.
+
+**What breaks**: Enum imports and pattern matching.
+
+**Required actions**:
+- Remove `NetworkId` enum usage.
+- Replace with string literals (for example, `'preview'`).
+
+```typescript 
+// Before
+import { NetworkId } from '@midnight-ntwrk/types';
+config.networkId = NetworkId.Testnet;
+
+// After
+config.networkId = 'preview';
+```
+
+---
+
+## Known issues
+
+No critical known issues reported at release time. Developers encountering issues are encouraged to verify that:
+- Node.js version 22 or higher is installed on their machine.
+- `await` keyword is added to contract calls.
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight.js repository](https://github.com/midnightntwrk/midnight-js)  
+- **Migration guide**: [Midnight preview migration guide](../../how-to/migrate-from-testnet-02-to-preview)
+- **API reference**: [Midnight.js API documentation](/api-reference/midnight-js/packages)
+- **API changes**: [Midnight.js API changes reference](https://github.com/midnightntwrk/midnight-js/blob/main/docs/releases/v3.0.0/api-changes.md)
+- **Community support**: [Midnight forum](https://forum.midnight.network/)
