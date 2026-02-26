@@ -1,10 +1,10 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / TransactionId
+[@midnight/zswap](../globals.md) / TransactionId
 
-# Type alias: TransactionId
+# Type Alias: TransactionId
 
 ```ts
 type TransactionId: string;

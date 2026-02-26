@@ -1,37 +1,47 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractState
+[@midnight/ledger](../globals.md) / ContractState
 
 # Class: ContractState
 
-The state of a contract, consisting primarily of the [data](ContractState.md#data) accessible
+The state of a contract, consisting primarily of the [data](#data) accessible
 directly to the contract, and the map of [ContractOperation](ContractOperation.md)s that can
-be called on it, the keys of which can be accessed with [operations](ContractState.md#operations),
-and the individual operations can be read with [operation](ContractState.md#operation) and written
-to with [setOperation](ContractState.md#setoperation).
+be called on it, the keys of which can be accessed with [operations](#operations),
+and the individual operations can be read with [operation](#operation) and written
+to with [setOperation](#setoperation).
 
 ## Constructors
 
-### new ContractState()
+### Constructor
 
 ```ts
-new ContractState(): ContractState
+new ContractState(): ContractState;
 ```
 
 Creates a blank contract state
 
 #### Returns
 
-[`ContractState`](ContractState.md)
+`ContractState`
 
 ## Properties
+
+### balance
+
+```ts
+balance: Map<TokenType, bigint>;
+```
+
+The public balances held by this contract
+
+***
 
 ### data
 
 ```ts
-data: StateValue;
+data: ChargedState;
 ```
 
 The current value of the primary state of the contract
@@ -51,14 +61,16 @@ The maintenance authority associated with this contract
 ### operation()
 
 ```ts
-operation(operation): undefined | ContractOperation
+operation(operation): undefined | ContractOperation;
 ```
 
 Get the operation at a specific entry point name
 
 #### Parameters
 
-• **operation**: `string` \| `Uint8Array`
+##### operation
+
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
 
 #### Returns
 
@@ -69,21 +81,21 @@ Get the operation at a specific entry point name
 ### operations()
 
 ```ts
-operations(): (string | Uint8Array)[]
+operations(): (string | Uint8Array<ArrayBufferLike>)[];
 ```
 
 Return a list of the entry points currently registered on this contract
 
 #### Returns
 
-(`string` \| `Uint8Array`)[]
+(`string` \| `Uint8Array`\<`ArrayBufferLike`\>)[]
 
 ***
 
 ### query()
 
 ```ts
-query(query, cost_model): GatherResult[]
+query(query, cost_model): GatherResult[];
 ```
 
 Runs a series of operations against the current state, and returns the
@@ -91,9 +103,13 @@ results
 
 #### Parameters
 
-• **query**: [`Op`](../type-aliases/Op.md)\<`null`\>[]
+##### query
 
-• **cost\_model**: [`CostModel`](CostModel.md)
+[`Op`](../type-aliases/Op.md)\<`null`\>[]
+
+##### cost\_model
+
+[`CostModel`](CostModel.md)
 
 #### Returns
 
@@ -104,12 +120,8 @@ results
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -120,16 +132,20 @@ serialize(networkid): Uint8Array
 ### setOperation()
 
 ```ts
-setOperation(operation, value): void
+setOperation(operation, value): void;
 ```
 
 Set a specific entry point name to contain a given operation
 
 #### Parameters
 
-• **operation**: `string` \| `Uint8Array`
+##### operation
 
-• **value**: [`ContractOperation`](ContractOperation.md)
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
+
+##### value
+
+[`ContractOperation`](ContractOperation.md)
 
 #### Returns
 
@@ -140,12 +156,14 @@ Set a specific entry point name to contain a given operation
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -156,15 +174,15 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractState
+static deserialize(raw): ContractState;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`ContractState`](ContractState.md)
+`ContractState`

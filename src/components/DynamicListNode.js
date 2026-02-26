@@ -19,7 +19,7 @@ const releases = [
   {
     id: 1,
     version: '0.12.1',
-    status: 'LATEST',
+    status: 'UNSUPPORTED',
     date: '11 June 2025',
     summary: 'Summary of Release 0.12.1',
     details: [

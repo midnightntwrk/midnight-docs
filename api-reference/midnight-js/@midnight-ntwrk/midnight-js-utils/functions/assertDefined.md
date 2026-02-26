@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: assertDefined()
 
-> **assertDefined**\<`A`\>(`value`, `message`?): `asserts value is NonNullable<A>`
+> **assertDefined**\<`A`\>(`value`, `message?`): `asserts value is NonNullable<A>`
 
 Asserts that the given value is non-nullable.
 
@@ -22,7 +22,7 @@ Asserts that the given value is non-nullable.
 
 The value to test for nullability.
 
-`undefined` | `null` | `A`
+`A` | `null` | `undefined`
 
 ### message?
 

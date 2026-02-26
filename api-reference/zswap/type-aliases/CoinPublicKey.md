@@ -1,10 +1,10 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / CoinPublicKey
+[@midnight/zswap](../globals.md) / CoinPublicKey
 
-# Type alias: CoinPublicKey
+# Type Alias: CoinPublicKey
 
 ```ts
 type CoinPublicKey: string;

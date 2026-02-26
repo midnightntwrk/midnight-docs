@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / AlignedValue
+[@midnight/ledger](../globals.md) / AlignedValue
 
-# Type alias: AlignedValue
+# Type Alias: AlignedValue
 
 ```ts
-type AlignedValue: {
+type AlignedValue = {
   alignment: Alignment;
   value: Value;
 };
@@ -16,13 +16,15 @@ type AlignedValue: {
 An onchain data value, in field-aligned binary format, annotated with its
 alignment.
 
-## Type declaration
+## Properties
 
 ### alignment
 
 ```ts
 alignment: Alignment;
 ```
+
+***
 
 ### value
 

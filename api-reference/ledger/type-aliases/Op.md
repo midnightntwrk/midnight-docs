@@ -1,18 +1,18 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / Op
+[@midnight/ledger](../globals.md) / Op
 
-# Type alias: Op\<R\>
+# Type Alias: Op\<R\>
 
 ```ts
-type Op<R>: 
+type Op<R> = 
   | {
   noop: {
      n: number;
   };
-  }
+}
   | "lt"
   | "eq"
   | "type"
@@ -29,33 +29,33 @@ type Op<R>:
      cached: boolean;
      result: R;
   };
-  }
+}
   | {
   addi: {
      immediate: number;
   };
-  }
+}
   | {
   subi: {
      immediate: number;
   };
-  }
+}
   | {
   push: {
      storage: boolean;
      value: EncodedStateValue;
   };
-  }
+}
   | {
   branch: {
      skip: number;
   };
-  }
+}
   | {
   jmp: {
      skip: number;
   };
-  }
+}
   | "add"
   | "sub"
   | {
@@ -63,44 +63,46 @@ type Op<R>:
      cached: boolean;
      n: number;
   };
-  }
+}
   | "member"
   | {
   rem: {
      cached: boolean;
   };
-  }
+}
   | {
   dup: {
      n: number;
   };
-  }
+}
   | {
   swap: {
      n: number;
   };
-  }
+}
   | {
   idx: {
      cached: boolean;
      path: Key[];
      pushPath: boolean;
   };
-  }
+}
   | {
   ins: {
      cached: boolean;
      n: number;
   };
-  }
+}
   | "ckpt";
 ```
 
 An individual operation in the onchain VM
 
-## Type parameters
+## Type Parameters
 
-• **R**
+### R
+
+`R`
 
 `null` or [AlignedValue](AlignedValue.md), for gathering and verifying
 mode respectively

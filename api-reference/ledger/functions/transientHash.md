@@ -1,24 +1,28 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / transientHash
+[@midnight/ledger](../globals.md) / transientHash
 
 # Function: transientHash()
 
-`Internal`
-
 ```ts
-transientHash(align, val): Value
+function transientHash(align, val): Value;
 ```
+
+**`Internal`**
 
 Internal implementation of the transient hash primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
+
+### val
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -26,4 +30,4 @@ Internal implementation of the transient hash primitive
 
 ## Throws
 
-If val does not have alignment align
+If [val](#transienthash) does not have alignment [align](#transienthash)

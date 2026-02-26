@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / StateBoundedMerkleTree
+[@midnight/ledger](../globals.md) / StateBoundedMerkleTree
 
 # Class: StateBoundedMerkleTree
 
@@ -11,21 +11,23 @@ are unknown
 
 ## Constructors
 
-### new StateBoundedMerkleTree(height)
+### Constructor
 
 ```ts
-new StateBoundedMerkleTree(height): StateBoundedMerkleTree
+new StateBoundedMerkleTree(height): StateBoundedMerkleTree;
 ```
 
 Create a blank tree with the given height
 
 #### Parameters
 
-• **height**: `number`
+##### height
+
+`number`
 
 #### Returns
 
-[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+`StateBoundedMerkleTree`
 
 ## Properties
 
@@ -39,24 +41,28 @@ readonly height: number;
 
 ### collapse()
 
-`Internal`
-
 ```ts
-collapse(start, end): StateBoundedMerkleTree
+collapse(start, end): StateBoundedMerkleTree;
 ```
+
+**`Internal`**
 
 Erases all but necessary hashes between, and inclusive of, `start` and
 `end` inidices
 
 #### Parameters
 
-• **start**: `bigint`
+##### start
 
-• **end**: `bigint`
+`bigint`
+
+##### end
+
+`bigint`
 
 #### Returns
 
-[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+`StateBoundedMerkleTree`
 
 #### Throws
 
@@ -66,43 +72,46 @@ If the indices are out-of-bounds for the tree, or `end < start`
 
 ### findPathForLeaf()
 
-`Internal`
-
 ```ts
-findPathForLeaf(leaf): AlignedValue
+findPathForLeaf(leaf): undefined | AlignedValue;
 ```
 
-Internal implementation of the finding path primitive
+**`Internal`**
+
+Internal implementation of the finding path primitive.
+Returns undefined if the leaf is not in the tree.
 
 #### Parameters
 
-• **leaf**: [`AlignedValue`](../type-aliases/AlignedValue.md)
-
-#### Returns
+##### leaf
 
 [`AlignedValue`](../type-aliases/AlignedValue.md)
 
-#### Throws
+#### Returns
 
-If the leaf is not in the tree
+`undefined` \| [`AlignedValue`](../type-aliases/AlignedValue.md)
 
 ***
 
 ### pathForLeaf()
 
-`Internal`
-
 ```ts
-pathForLeaf(index, leaf): AlignedValue
+pathForLeaf(index, leaf): AlignedValue;
 ```
+
+**`Internal`**
 
 Internal implementation of the path construction primitive
 
 #### Parameters
 
-• **index**: `bigint`
+##### index
 
-• **leaf**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+`bigint`
+
+##### leaf
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
@@ -114,31 +123,50 @@ If the index is out-of-bounds for the tree
 
 ***
 
-### root()
-
-`Internal`
+### rehash()
 
 ```ts
-root(): Value
+rehash(): StateBoundedMerkleTree;
 ```
 
-Internal implementation of the merkle tree root primitive
+Rehashes the tree, updating all internal hashes and ensuring all
+node hashes are present. Necessary because the onchain runtime does
+not automatically rehash trees.
 
 #### Returns
 
-[`Value`](../type-aliases/Value.md)
+`StateBoundedMerkleTree`
+
+***
+
+### root()
+
+```ts
+root(): undefined | AlignedValue;
+```
+
+**`Internal`**
+
+Internal implementation of the merkle tree root primitive.
+Returns undefined if the tree has not been fully hashed.
+
+#### Returns
+
+`undefined` \| [`AlignedValue`](../type-aliases/AlignedValue.md)
 
 ***
 
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -149,20 +177,24 @@ toString(compact?): string
 ### update()
 
 ```ts
-update(index, leaf): StateBoundedMerkleTree
+update(index, leaf): StateBoundedMerkleTree;
 ```
 
 Inserts a value into the Merkle tree, returning the updated tree
 
 #### Parameters
 
-• **index**: `bigint`
+##### index
 
-• **leaf**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+`bigint`
+
+##### leaf
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
-[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+`StateBoundedMerkleTree`
 
 #### Throws
 

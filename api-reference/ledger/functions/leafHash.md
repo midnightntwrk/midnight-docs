@@ -1,22 +1,24 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / leafHash
+[@midnight/ledger](../globals.md) / leafHash
 
 # Function: leafHash()
 
-`Internal`
-
 ```ts
-leafHash(value): AlignedValue
+function leafHash(value): AlignedValue;
 ```
+
+**`Internal`**
 
 Internal implementation of the Merkle tree leaf hash primitive.
 
 ## Parameters
 
-• **value**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+### value
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 ## Returns
 
