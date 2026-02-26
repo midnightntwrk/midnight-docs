@@ -1,16 +1,16 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / QualifiedCoinInfo
+[@midnight-ntwrk/onchain-runtime](../globals.md) / QualifiedShieldedCoinInfo
 
-# Type alias: QualifiedCoinInfo
+# Type Alias: QualifiedShieldedCoinInfo
 
 ```ts
-type QualifiedCoinInfo: {
+type QualifiedShieldedCoinInfo: {
   mt_index: bigint;
   nonce: Nonce;
-  type: TokenType;
+  type: RawTokenType;
   value: bigint;
 };
 ```
@@ -41,7 +41,7 @@ The coin's randomness, preventing it from colliding with other coins
 ### type
 
 ```ts
-type: TokenType;
+type: RawTokenType;
 ```
 
 The coin's type, identifying the currency it represents
