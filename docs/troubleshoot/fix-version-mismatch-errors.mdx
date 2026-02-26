@@ -2,10 +2,9 @@
 title: Fix version mismatch errors
 description: Resolve version compatibility issues between Midnight compiler, runtime, and other components using the official compatibility matrix.
 sidebar_label: Fix version mismatches
-sidebar_position: 4
+sidebar_position: 20
 tags: [troubleshooting, version, compatibility, errors]
 slug: /how-to/fix-version-mismatches
-toc_max_heading_level: 2
 ---
 
 import Tabs from "@theme/Tabs";
@@ -16,14 +15,15 @@ import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
 Learn how to resolve version compatibility issues between Midnight components that cause build failures and runtime errors.
 
-## Understanding version mismatches
+## Understand the cause of version mismatches
 
 Midnight consists of multiple components that must work together in compatible versions:
 
-- **Compact compiler**
-- **Runtime libraries** (`@midnight-ntwrk/compact-runtime`, `@midnight-ntwrk/ledger`, etc.)
-- **Proof server**
-- **Indexer** (if used)
+- **Compact toolchain**: Binaries, compiler, and formatter
+- **Runtime libraries**: `@midnight-ntwrk/compact-runtime`, `@midnight-ntwrk/ledger-v7`, and related packages
+- **JavaScript libraries**: `@midnight-ntwrk/midnight-js`, `@midnight-ntwrk/dapp-connector-api`, `@midnight-ntwrk/midnight-wallet-sdk-facade`, and related packages
+- **Proof server**: Zero-knowledge proof generation service
+- **Indexer**: GraphQL API for querying blockchain data (optional)
 
 When these components are out of sync, you may encounter build errors, deployment failures, or runtime issues.
 
@@ -33,7 +33,7 @@ Always refer to the official [release compatibility matrix](/relnotes/support-ma
 
 ## Check your current versions
 
-Identify which components need updating.
+Before fixing version mismatches, identify which components are currently installed and compare them with the compatibility matrix.
 
 <StepsProvider>
 
@@ -53,13 +53,15 @@ Compare the output with the [compatibility matrix](/relnotes/support-matrix).
 
 ### Check runtime package versions
 
+Run these commands to check the installed versions of runtime packages:
+
 ```bash
 npm list @midnight-ntwrk/compact-runtime
 npm list @midnight-ntwrk/ledger
 npm list @midnight-ntwrk/zswap
 ```
 
-All runtime packages should use the same version number.
+Verify that all runtime packages use compatible version numbers as specified in the compatibility matrix.
 
 </Step>
 
@@ -82,9 +84,7 @@ Look for version information in the startup logs.
 
 ### Compare versions with the compatibility matrix
 
-Review the [release compatibility matrix](/relnotes/support-matrix) and verify your versions are compatible.
-
-All components show compatible versions according to the official matrix.
+Review the [release compatibility matrix](/relnotes/support-matrix) and verify your versions are compatible. Note any components that do not match the recommended versions.
 
 </Step>
 
@@ -92,7 +92,7 @@ All components show compatible versions according to the official matrix.
 
 ## Align component versions
 
-Update components to compatible versions using the official compatibility matrix.
+After identifying version mismatches, update all components to compatible versions. Always update related components together to maintain compatibility across your development environment.
 
 <StepsProvider>
 
@@ -100,12 +100,13 @@ Update components to compatible versions using the official compatibility matrix
 
 ### Consult the compatibility matrix
 
-Review the [release compatibility matrix](/relnotes/support-matrix) to find compatible versions for:
+Review the [release compatibility matrix](/relnotes/support-matrix) to identify the correct versions for your components:
 
-- Compact compiler
-- Runtime packages
-- Proof server
-- Indexer (if used)
+- Compact toolchain.
+- Runtime libraries.
+- JavaScript libraries.
+- Proof server.
+- Indexer (if used).
 
 </Step>
 
@@ -138,14 +139,13 @@ npm install
 
 ### Update proof server
 
-If using Docker, update your container image to a compatible version:
+If you use Docker, update your container image to a compatible version. Stop the current container, update your `docker-compose.yml` with the correct version, then restart:
 
 ```bash
 # Stop current container
 docker-compose down
 
-# Update docker-compose.yml with compatible version
-# Then restart
+# Update docker-compose.yml with compatible version, then restart
 docker-compose up -d
 ```
 
@@ -173,10 +173,10 @@ After updating components, recompile your smart contracts:
 
 ```bash
 # Clean old artifacts
-rm -rf contract/*.cjs contract/*.prover contract/*.verifier
+rm -rf contract/managed/
 
 # Recompile using direct compact command
-compact compile src/contract.compact contract/
+compact compile src/contract.compact contract/managed
 ```
 
 </Step>
@@ -184,12 +184,12 @@ compact compile src/contract.compact contract/
 </StepsProvider>
 
 :::warning Keep components in sync
-When updating any component, check the compatibility matrix and update all related components together to maintain compatibility.
+Always check the compatibility matrix when updating components. Update all related components together to maintain compatibility across your development environment.
 :::
 
 ## Lock exact versions
 
-Prevent automatic version updates that could break compatibility.
+Prevent automatic version updates by specifying exact version numbers in your project configuration. This ensures your project remains stable and avoids unexpected compatibility issues.
 
 <StepsProvider>
 
@@ -197,7 +197,7 @@ Prevent automatic version updates that could break compatibility.
 
 ### Use exact version numbers
 
-In your `package.json`, specify exact versions without range operators:
+In your `package.json`, specify exact versions without range operators such as `^` or `~`:
 
 ```json title="package.json"
 {
@@ -209,7 +209,7 @@ In your `package.json`, specify exact versions without range operators:
 ```
 
 :::caution Avoid version ranges
-Don't use `^x.x.x` or `~x.x.x`. Always specify exact versions like `x.x.x` to prevent unexpected updates.
+Do not use version range operators such as `^x.x.x` or `~x.x.x`. Always specify exact versions like `x.x.x` to prevent unexpected updates.
 :::
 
 </Step>
@@ -234,7 +234,7 @@ This installs exact versions from `package-lock.json`.
 
 ### Document your versions
 
-Create a `VERSIONS.md` file documenting your component versions:
+Create a `VERSIONS.md` file in your project root to document the component versions you are using. This helps team members maintain consistency and troubleshoot version issues:
 
 ```markdown title="VERSIONS.md"
 # Component Versions
@@ -259,6 +259,8 @@ See: /relnotes/support-matrix
 
 ## Platform-specific considerations
 
+Different operating systems may require specific configuration or verification steps. Select your platform below for relevant guidance.
+
 <Tabs>
 <TabItem value="linux" label="Linux">
 
@@ -275,7 +277,7 @@ node --version
 </TabItem>
 <TabItem value="mac" label="macOS">
 
-For Apple Silicon (M1/M2), ensure Docker images use the correct architecture:
+On Apple Silicon (M1/M2/M3), verify that Docker images use the correct architecture:
 
 ```bash
 # Check Docker architecture
@@ -285,11 +287,11 @@ docker info | grep Architecture
 </TabItem>
 <TabItem value="windows" label="Windows/WSL">
 
-Use WSL-native paths for consistency:
+When using Windows Subsystem for Linux (WSL), use native WSL paths rather than Windows mount paths for better performance and consistency:
 
 ```bash
-# Use native WSL paths
-cd /home/username/project  # Not /mnt/c/...
+# Use native WSL paths, not Windows mount paths like /mnt/c/
+cd /home/username/project
 
 # Verify compiler access
 compact --version
@@ -300,7 +302,7 @@ compact --version
 
 ## Create a version check script
 
-Automate version checking with this script:
+Create a simple shell script to automate version checking across your development environment. This script helps you quickly verify that all components match the compatibility matrix.
 
 ```bash title="check-versions.sh"
 #!/bin/bash
@@ -324,16 +326,16 @@ echo "⚠️  Compare these versions with:"
 echo "/relnotes/support-matrix"
 ```
 
-Run the check:
+Make the script executable and run it:
 
 ```bash
 chmod +x check-versions.sh
 ./check-versions.sh
 ```
 
-## Backup before upgrading
+## Back up before upgrading
 
-Always backup your project before upgrading components:
+Always back up your project files before upgrading components to prevent data loss if issues occur during the upgrade process:
 
 ```bash
 # Back up package.json
@@ -349,7 +351,7 @@ git commit -m "Backup before version upgrade"
 
 ## Verify after updates
 
-After aligning versions, confirm everything works:
+After aligning component versions, test your setup to confirm everything works correctly:
 
 ```bash
 # Test compilation
@@ -364,42 +366,20 @@ docker logs [proof-server-container-id]
 
 ## Common mistakes to avoid
 
+Avoid these common errors when managing component versions:
+
 :::caution
 
-- **Don't mix version ranges** - Use exact versions only
-- **Don't update one component** - Update all related components together
-- **Don't skip the compatibility matrix** - Always verify compatibility first
-- **Don't forget to recompile** - Recompile contracts after compiler updates
+- **Don't mix version ranges**: Use exact versions only.
+- **Don't update one component**: Update all related components together.
+- **Don't skip the compatibility matrix**: Always verify compatibility first.
+- **Don't forget to recompile**: Recompile contracts after compiler updates.
   :::
 
 ## Get help
 
-If version issues persist:
+If version issues persist after following these troubleshooting steps, use these resources:
 
-1. **Check the compatibility matrix**: [Release compatibility matrix](/relnotes/support-matrix)
-2. **Review release notes**: Check for breaking changes in component updates
-3. **Ask for help**: Post in #developer-support on Discord with your version details
-
-:::tip Related guides
-
-## Install Development Tools
-
-- [Installation guide](/getting-started/installation) - Comprehensive setup guide covering the Lace wallet, test tokens, Compact compiler, and proof server installation
-
-- [Build a DApp tutorial](/develop/tutorial/building/) - Detailed instructions for building your first DApp with the Compact developer tools
-
-- [Using Midnight tutorial](/develop/tutorial/using/) - Prerequisites and setup instructions for connecting to the Midnight network
-
-## Configure Your Environment
-
-- [Development Environment for Writing and Deploying Midnight Applications](/academy/module-5#development-environment-for-writing-and-deploying-midnight-applications) - Step-by-step environment setup including Docker, Chrome browser, Lace wallet, and proof server configuration
-
-- [Environment Setup and First Contract](/academy/module-6#environment-setup-and-first-contract) - Foundational steps for configuring your development environment with all necessary tools
-
-## Reference
-
-- [Release compatibility matrix](/relnotes/support-matrix) - Official version compatibility reference for all Midnight components
-
-These guides cover everything from basic prerequisites to advanced version management for maintaining a stable development environment.
-
-:::
+1. **Check the compatibility matrix**: Review the [release compatibility matrix](/relnotes/support-matrix) for verified compatible versions.
+2. **Review release notes**: Check component release notes for breaking changes and migration guidance.
+3. **Ask for help**: Post in the #dev-chat channel on Discord with your version details and error messages.
