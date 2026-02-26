@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,11 +6,14 @@
 
 # Function: httpClientProofProvider()
 
-> **httpClientProofProvider**\<`K`\>(`url`): [`ProofProvider`](../../midnight-js-types/interfaces/ProofProvider.md)\<`K`\>
+> **httpClientProofProvider**\<`K`\>(`url`, `zkConfigProvider`, `config?`): `ProofProvider`
 
-Creates a [ProofProvider](../../midnight-js-types/interfaces/ProofProvider.md) by creating a client for a running proof server.
-Allows for HTTP and HTTPS. The data passed to 'proveTx' are intended to be
-secret, so usage of this function should be heavily scrutinized.
+Creates a high-level ProofProvider that implements transaction-level proving
+using the low-level circuit-by-circuit ProvingProvider as its foundation.
+
+This adapter bridges the gap between:
+- High-level ProofProvider interface (works with complete transactions)
+- Low-level ProvingProvider interface (works with individual circuits)
 
 ## Type Parameters
 
@@ -24,8 +27,36 @@ secret, so usage of this function should be heavily scrutinized.
 
 `string`
 
-The url of a running proof server.
+The URL of the proof server
+
+### zkConfigProvider
+
+`ZKConfigProvider`\<`K`\>
+
+Provider for zero-knowledge configuration artifacts
+
+### config?
+
+[`ProvingProviderConfig`](../interfaces/ProvingProviderConfig.md)
+
+Optional configuration for the underlying ProvingProvider
 
 ## Returns
 
-[`ProofProvider`](../../midnight-js-types/interfaces/ProofProvider.md)\<`K`\>
+`ProofProvider`
+
+A ProofProvider instance that uses ProvingProvider internally
+
+## Remarks
+
+**Architecture:**
+```
+ProofProvider (Transaction-level)
+    ↓ (adapter)
+ProvingProvider (Circuit-level)
+    ↓ (HTTP client)
+Proof Server (/check, /prove endpoints)
+```
+
+**Note:** The /prove-tx endpoint is NOT used. All proving is done through
+individual circuit operations using /check and /prove endpoints.

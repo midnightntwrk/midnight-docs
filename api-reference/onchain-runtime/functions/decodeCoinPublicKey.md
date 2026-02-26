@@ -1,13 +1,13 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / decodeCoinPublicKey
+[@midnight-ntwrk/onchain-runtime](../globals.md) / decodeCoinPublicKey
 
 # Function: decodeCoinPublicKey()
 
 ```ts
-decodeCoinPublicKey(pk): CoinPublicKey
+function decodeCoinPublicKey(pk): string
 ```
 
 Decode a [CoinPublicKey](../type-aliases/CoinPublicKey.md) from a `Uint8Array` originating from Compact's
@@ -15,8 +15,10 @@ Decode a [CoinPublicKey](../type-aliases/CoinPublicKey.md) from a `Uint8Array` o
 
 ## Parameters
 
-• **pk**: `Uint8Array`
+### pk
+
+`Uint8Array`
 
 ## Returns
 
-[`CoinPublicKey`](../type-aliases/CoinPublicKey.md)
+`string`

@@ -1,36 +1,20 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / SystemTransaction
+[@midnight/ledger](../globals.md) / SystemTransaction
 
 # Class: SystemTransaction
 
-A priviledged transaction issued by the system.
-
-## Constructors
-
-### new SystemTransaction()
-
-```ts
-private new SystemTransaction(): SystemTransaction
-```
-
-#### Returns
-
-[`SystemTransaction`](SystemTransaction.md)
+A privileged transaction issued by the system.
 
 ## Methods
 
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -41,12 +25,14 @@ serialize(netid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -57,15 +43,15 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, netid): Transaction
+static deserialize(raw): SystemTransaction;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`Transaction`](Transaction.md)
+`SystemTransaction`

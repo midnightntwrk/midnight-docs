@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / UnprovenTransient
+[@midnight/zswap](../globals.md) / UnprovenTransient
 
 # Class: UnprovenTransient
 
@@ -10,18 +10,6 @@ A [Transient](Transient.md), before being proven
 
 All "shielded" information in the transient can still be extracted at this
 stage!
-
-## Constructors
-
-### new UnprovenTransient()
-
-```ts
-private new UnprovenTransient(): UnprovenTransient
-```
-
-#### Returns
-
-[`UnprovenTransient`](UnprovenTransient.md)
 
 ## Properties
 
@@ -58,16 +46,18 @@ The nullifier of the transient
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -79,7 +69,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -95,9 +87,13 @@ static deserialize(raw, netid): UnprovenTransient
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -108,7 +104,10 @@ static deserialize(raw, netid): UnprovenTransient
 ### newFromContractOwnedOutput()
 
 ```ts
-static newFromContractOwnedOutput(coin, output): UnprovenTransient
+static newFromContractOwnedOutput(
+   coin, 
+   segment, 
+   output): UnprovenTransient
 ```
 
 Creates a new contract-owned transient, from a given output and its coin.
@@ -117,9 +116,17 @@ The [QualifiedCoinInfo](../type-aliases/QualifiedCoinInfo.md) should have an `mt
 
 #### Parameters
 
-• **coin**: [`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+##### coin
 
-• **output**: [`UnprovenOutput`](UnprovenOutput.md)
+[`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+
+##### segment
+
+`number`
+
+##### output
+
+[`UnprovenOutput`](UnprovenOutput.md)
 
 #### Returns
 

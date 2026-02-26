@@ -1,13 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / sampleTokenType
+[@midnight/zswap](../globals.md) / sampleTokenType
 
 # Function: sampleTokenType()
 
 ```ts
-sampleTokenType(): TokenType
+function sampleTokenType(): TokenType
 ```
 
 Samples a uniform token type, for use in testing

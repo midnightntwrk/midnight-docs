@@ -1,26 +1,28 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / Transcript
+[@midnight/ledger](../globals.md) / Transcript
 
-# Type alias: Transcript\<R\>
+# Type Alias: Transcript\<R\>
 
 ```ts
-type Transcript<R>: {
+type Transcript<R> = {
   effects: Effects;
-  gas: bigint;
+  gas: RunningCost;
   program: Op<R>[];
 };
 ```
 
 A transcript of operations, to be recorded in a transaction
 
-## Type parameters
+## Type Parameters
 
-• **R**
+### R
 
-## Type declaration
+`R`
+
+## Properties
 
 ### effects
 
@@ -29,16 +31,20 @@ effects: Effects;
 ```
 
 The effects of the transcript, which are checked before execution, and
-must match those constructed by program
+must match those constructed by [program](#program)
+
+***
 
 ### gas
 
 ```ts
-gas: bigint;
+gas: RunningCost;
 ```
 
-The execution budget for this transcript, which program must not
+The execution budget for this transcript, which [program](#program) must not
 exceed
+
+***
 
 ### program
 

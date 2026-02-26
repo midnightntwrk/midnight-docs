@@ -1,13 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / sampleContractAddress
+[@midnight/zswap](../globals.md) / sampleContractAddress
 
 # Function: sampleContractAddress()
 
 ```ts
-sampleContractAddress(): ContractAddress
+function sampleContractAddress(): ContractAddress
 ```
 
 Samples a uniform contract address, for use in testing

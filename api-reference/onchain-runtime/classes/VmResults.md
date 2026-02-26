@@ -1,24 +1,12 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / VmResults
+[@midnight-ntwrk/onchain-runtime](../globals.md) / VmResults
 
 # Class: VmResults
 
 Represents the results of a VM call
-
-## Constructors
-
-### new VmResults()
-
-```ts
-private new VmResults(): VmResults
-```
-
-#### Returns
-
-[`VmResults`](VmResults.md)
 
 ## Properties
 
@@ -35,7 +23,7 @@ The events that got emitted by this VM invocation
 ### gasCost
 
 ```ts
-readonly gasCost: bigint;
+readonly gasCost: RunningCost;
 ```
 
 The computed gas cost of running this VM invocation
@@ -60,7 +48,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

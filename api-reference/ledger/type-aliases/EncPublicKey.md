@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / EncPublicKey
+[@midnight/ledger](../globals.md) / EncPublicKey
 
-# Type alias: EncPublicKey
+# Type Alias: EncPublicKey
 
 ```ts
-type EncPublicKey: string;
+type EncPublicKey = string;
 ```
 
 An encryption public key, used to inform users of new coins sent to them

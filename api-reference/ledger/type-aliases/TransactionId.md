@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / TransactionId
+[@midnight/ledger](../globals.md) / TransactionId
 
-# Type alias: TransactionId
+# Type Alias: TransactionId
 
 ```ts
-type TransactionId: string;
+type TransactionId = string;
 ```
 
 A transaction identifier, used to index merged transactions

@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / SignatureVerifyingKey
+[@midnight/ledger](../globals.md) / SignatureVerifyingKey
 
-# Type alias: SignatureVerifyingKey
+# Type Alias: SignatureVerifyingKey
 
 ```ts
-type SignatureVerifyingKey: string;
+type SignatureVerifyingKey = string;
 ```
 
 A hex-encoded signature BIP-340 verifying key, with a 3-byte version prefix

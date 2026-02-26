@@ -1,27 +1,27 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / BlockContext
+[@midnight-ntwrk/onchain-runtime](../globals.md) / BlockContext
 
-# Type alias: BlockContext
+# Type Alias: BlockContext
 
 ```ts
 type BlockContext: {
-  blockHash: string;
+  parentBlockHash: string;
   secondsSinceEpoch: bigint;
   secondsSinceEpochErr: number;
 };
 ```
 
-The context information about a block available inside the VM
+Context information about the block forwarded to [CallContext](CallContext.md).
 
 ## Type declaration
 
-### blockHash
+### parentBlockHash
 
 ```ts
-blockHash: string;
+parentBlockHash: string;
 ```
 
 The hash of the block prior to this transaction, as a hex-encoded string
@@ -40,5 +40,5 @@ The seconds since the UNIX epoch that have elapsed
 secondsSinceEpochErr: number;
 ```
 
-The maximum error on secondsSinceEpoch that should occur, as a
+The maximum error on [secondsSinceEpoch](BlockContext.md#secondssinceepoch) that should occur, as a
 positive seconds value

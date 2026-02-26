@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / signData
+[@midnight/ledger](../globals.md) / signData
 
 # Function: signData()
 
 ```ts
-signData(key, data): Signature
+function signData(key, data): string;
 ```
 
 Signs arbitrary data with the given signing key.
@@ -17,10 +17,14 @@ that is not strictly controlled!
 
 ## Parameters
 
-• **key**: `string`
+### key
 
-• **data**: `Uint8Array`
+`string`
+
+### data
+
+`Uint8Array`
 
 ## Returns
 
-[`Signature`](../type-aliases/Signature.md)
+`string`

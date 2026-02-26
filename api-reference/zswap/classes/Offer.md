@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / Offer
+[@midnight/zswap](../globals.md) / Offer
 
 # Class: Offer
 
@@ -10,18 +10,6 @@ A full Zswap offer; the zswap part of a transaction
 
 Consists of sets of [Input](Input.md)s, [Output](Output.md)s, and [Transient](Transient.md)s,
 as well as a [deltas](Offer.md#deltas) vector of the transaction value
-
-## Constructors
-
-### new Offer()
-
-```ts
-private new Offer(): Offer
-```
-
-#### Returns
-
-[`Offer`](Offer.md)
 
 ## Properties
 
@@ -78,7 +66,9 @@ Combine this offer with another
 
 #### Parameters
 
-• **other**: [`Offer`](Offer.md)
+##### other
+
+[`Offer`](Offer.md)
 
 #### Returns
 
@@ -89,16 +79,18 @@ Combine this offer with another
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -110,7 +102,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -126,9 +120,13 @@ static deserialize(raw, netid): Offer
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

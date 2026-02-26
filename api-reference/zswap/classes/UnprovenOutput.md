@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / UnprovenOutput
+[@midnight/zswap](../globals.md) / UnprovenOutput
 
 # Class: UnprovenOutput
 
@@ -10,18 +10,6 @@ An [Output](Output.md) before being proven
 
 All "shielded" information in the output can still be extracted at this
 stage!
-
-## Constructors
-
-### new UnprovenOutput()
-
-```ts
-private new UnprovenOutput(): UnprovenOutput
-```
-
-#### Returns
-
-[`UnprovenOutput`](UnprovenOutput.md)
 
 ## Properties
 
@@ -48,16 +36,18 @@ The contract address receiving the output, if the recipient is a contract
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -69,7 +59,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -85,9 +77,13 @@ static deserialize(raw, netid): UnprovenOutput
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -100,8 +96,9 @@ static deserialize(raw, netid): UnprovenOutput
 ```ts
 static new(
    coin, 
+   segment, 
    target_cpk, 
-   target_epk?): UnprovenOutput
+   target_epk): UnprovenOutput
 ```
 
 Creates a new output, targeted to a user's coin public key.
@@ -112,11 +109,21 @@ is transferred to the recipient another way
 
 #### Parameters
 
-• **coin**: [`CoinInfo`](../type-aliases/CoinInfo.md)
+##### coin
 
-• **target\_cpk**: `string`
+[`CoinInfo`](../type-aliases/CoinInfo.md)
 
-• **target\_epk?**: `string`
+##### segment
+
+`number`
+
+##### target\_cpk
+
+`string`
+
+##### target\_epk
+
+`string`
 
 #### Returns
 
@@ -127,7 +134,10 @@ is transferred to the recipient another way
 ### newContractOwned()
 
 ```ts
-static newContractOwned(coin, contract): UnprovenOutput
+static newContractOwned(
+   coin, 
+   segment, 
+   contract): UnprovenOutput
 ```
 
 Creates a new output, targeted to a smart contract
@@ -137,9 +147,17 @@ the output to be valid
 
 #### Parameters
 
-• **coin**: [`CoinInfo`](../type-aliases/CoinInfo.md)
+##### coin
 
-• **contract**: `string`
+[`CoinInfo`](../type-aliases/CoinInfo.md)
+
+##### segment
+
+`number`
+
+##### contract
+
+`string`
 
 #### Returns
 

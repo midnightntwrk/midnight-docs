@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 
 Data for an unsubmitted call transaction.
 
-## Type declaration
+## Type Declaration
 
 ### private
 
@@ -22,8 +22,8 @@ Private data relevant to this call transaction.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`
 
 ### ICK
 
-`ICK` *extends* [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>
+`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>

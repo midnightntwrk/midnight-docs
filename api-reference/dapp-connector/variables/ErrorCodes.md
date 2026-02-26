@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/dapp-connector-api v3.0.0**](../README.md)
+[**@midnight-ntwrk/dapp-connector-api v4.0.1**](../README.md)
 
 ***
 
@@ -8,9 +8,15 @@
 
 > `const` **ErrorCodes**: `object`
 
-The following error codes can be thrown by the dapp connector.
+All possible error codes gathered in a single object.
 
-## Type declaration
+## Type Declaration
+
+### Disconnected
+
+> `readonly` **Disconnected**: `"Disconnected"` = `'Disconnected'`
+
+The connection to the wallet was lost
 
 ### InternalError
 
@@ -23,6 +29,12 @@ The dapp connector wasn't able to process the request
 > `readonly` **InvalidRequest**: `"InvalidRequest"` = `'InvalidRequest'`
 
 Can be thrown in various circumstances, e.g. one being a malformed transaction
+
+### PermissionRejected
+
+> `readonly` **PermissionRejected**: `"PermissionRejected"` = `'PermissionRejected'`
+
+Permission to perform action was rejected.
 
 ### Rejected
 
