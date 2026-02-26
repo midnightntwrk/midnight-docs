@@ -136,6 +136,23 @@ const config = {
       },
     ],
 
+    // INDEXER SCHEMA DOCS
+    [
+      "@graphql-markdown/docusaurus",
+      /** @type {import('@graphql-markdown/types').ConfigOptions} */
+      {
+        schema: "./static/midnight-indexer/schema-v3.graphql",
+        rootPath: "api-reference", // docs will be generated under './api-reference/midnight-indexer' (rootPath/baseURL)
+        baseURL: "midnight-indexer",
+        loaders: {
+          GraphQLFileLoader: "@graphql-tools/graphql-file-loader", // local file schema
+        },
+        // Optional advanced settings
+        pretty: true,
+        
+      },
+    ],
+
     // BLOG
     [
       "./plugins/blog-plugin.js",
