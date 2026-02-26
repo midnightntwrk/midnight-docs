@@ -1,13 +1,16 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / TokenType
+[@midnight/ledger](../globals.md) / TokenType
 
-# Type alias: TokenType
+# Type Alias: TokenType
 
 ```ts
-type TokenType: string;
+type TokenType = 
+  | UnshieldedTokenType
+  | ShieldedTokenType
+  | DustTokenType;
 ```
 
-A token type (or color), as a hex-encoded 35-byte string
+A token type (or color), as a hex-encoded 35-byte string, shielded, unshielded, or Dust

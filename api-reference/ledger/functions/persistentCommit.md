@@ -1,29 +1,35 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / persistentCommit
+[@midnight/ledger](../globals.md) / persistentCommit
 
 # Function: persistentCommit()
 
-`Internal`
-
 ```ts
-persistentCommit(
+function persistentCommit(
    align, 
    val, 
-   opening): Value
+   opening): Value;
 ```
+
+**`Internal`**
 
 Internal implementation of the persistent commitment primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
 
-• **opening**: [`Value`](../type-aliases/Value.md)
+### val
+
+[`Value`](../type-aliases/Value.md)
+
+### opening
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -31,6 +37,6 @@ Internal implementation of the persistent commitment primitive
 
 ## Throws
 
-If val does not have alignment align,
-opening does not encode a 32-byte bytestring, or any component has a
+If [val](#persistentcommit) does not have alignment [align](#persistentcommit),
+[opening](#persistentcommit) does not encode a 32-byte bytestring, or any component has a
 compress alignment

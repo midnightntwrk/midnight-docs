@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractDeploy
+[@midnight/ledger](../globals.md) / ContractDeploy
 
 # Class: ContractDeploy
 
@@ -11,10 +11,10 @@ address, if not already present
 
 ## Constructors
 
-### new ContractDeploy(initial_state)
+### Constructor
 
 ```ts
-new ContractDeploy(initial_state): ContractDeploy
+new ContractDeploy(initial_state): ContractDeploy;
 ```
 
 Creates a deployment for an arbitrary contract state
@@ -23,11 +23,13 @@ The deployment and its address are randomised.
 
 #### Parameters
 
-• **initial\_state**: [`ContractState`](ContractState.md)
+##### initial\_state
+
+[`ContractState`](ContractState.md)
 
 #### Returns
 
-[`ContractDeploy`](ContractDeploy.md)
+`ContractDeploy`
 
 ## Properties
 
@@ -52,12 +54,14 @@ readonly initialState: ContractState;
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

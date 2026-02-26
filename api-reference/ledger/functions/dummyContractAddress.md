@@ -1,17 +1,16 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / dummyContractAddress
+[@midnight/ledger](../globals.md) / dummyContractAddress
 
 # Function: dummyContractAddress()
 
 ```ts
-dummyContractAddress(): string
+function dummyContractAddress(): string;
 ```
 
-A sample contract address, guaranteed to be the same for a given network ID
-for use in testing
+A sample contract address
 
 ## Returns
 

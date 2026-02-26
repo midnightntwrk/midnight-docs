@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -14,11 +14,11 @@ It is also used directly as parameter to [createUnprovenDeployTx](../functions/c
 to save private state (and therefore doesn't need a private state ID) but does need to supply an
 initial private state to run the contract constructor against.
 
-## Type declaration
+## Type Declaration
 
 ### initialPrivateState
 
-> `readonly` **initialPrivateState**: [`PrivateState`](../../midnight-js-types/type-aliases/PrivateState.md)\<`C`\>
+> `readonly` **initialPrivateState**: `Contract.PrivateState`\<`C`\>
 
 The private state to run the contract constructor against.
 
@@ -26,4 +26,4 @@ The private state to run the contract constructor against.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

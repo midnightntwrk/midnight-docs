@@ -1,25 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / Transient
+[@midnight/zswap](../globals.md) / Transient
 
 # Class: Transient
 
 A shielded "transient"; an output that is immediately spent within the same
 transaction
-
-## Constructors
-
-### new Transient()
-
-```ts
-private new Transient(): Transient
-```
-
-#### Returns
-
-[`Transient`](Transient.md)
 
 ## Properties
 
@@ -56,16 +44,18 @@ The nullifier of the transient
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -77,7 +67,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -93,9 +85,13 @@ static deserialize(raw, netid): Transient
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

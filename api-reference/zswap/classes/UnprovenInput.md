@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / UnprovenInput
+[@midnight/zswap](../globals.md) / UnprovenInput
 
 # Class: UnprovenInput
 
@@ -10,18 +10,6 @@ A [Input](Input.md), before being proven
 
 All "shielded" information in the input can still be extracted at this
 stage!
-
-## Constructors
-
-### new UnprovenInput()
-
-```ts
-private new UnprovenInput(): UnprovenInput
-```
-
-#### Returns
-
-[`UnprovenInput`](UnprovenInput.md)
 
 ## Properties
 
@@ -48,16 +36,18 @@ The nullifier of the input
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -69,7 +59,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -85,9 +77,13 @@ static deserialize(raw, netid): UnprovenInput
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -100,6 +96,7 @@ static deserialize(raw, netid): UnprovenInput
 ```ts
 static newContractOwned(
    coin, 
+   segment, 
    contract, 
    state): UnprovenInput
 ```
@@ -112,11 +109,21 @@ contract
 
 #### Parameters
 
-• **coin**: [`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+##### coin
 
-• **contract**: `string`
+[`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
 
-• **state**: [`ZswapChainState`](ZswapChainState.md)
+##### segment
+
+`number`
+
+##### contract
+
+`string`
+
+##### state
+
+[`ZswapChainState`](ZswapChainState.md)
 
 #### Returns
 

@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -16,31 +16,31 @@ An error indicating that a transaction submitted to a consensus node failed.
 
 - [`CallTxFailedError`](CallTxFailedError.md)
 - [`DeployTxFailedError`](DeployTxFailedError.md)
-- [`ReplaceMaintenanceAuthorityTxFailedError`](ReplaceMaintenanceAuthorityTxFailedError.md)
 - [`InsertVerifierKeyTxFailedError`](InsertVerifierKeyTxFailedError.md)
 - [`RemoveVerifierKeyTxFailedError`](RemoveVerifierKeyTxFailedError.md)
+- [`ReplaceMaintenanceAuthorityTxFailedError`](ReplaceMaintenanceAuthorityTxFailedError.md)
 
 ## Constructors
 
 ### Constructor
 
-> **new TxFailedError**(`finalizedTxData`, `circuitId`?): `TxFailedError`
+> **new TxFailedError**(`finalizedTxData`, `circuitId?`): `TxFailedError`
 
 #### Parameters
 
 ##### finalizedTxData
 
-[`FinalizedTxData`](../../midnight-js-types/interfaces/FinalizedTxData.md)
+`FinalizedTxData`
 
 The finalization data of the transaction that failed.
 
 ##### circuitId?
 
-`string`
-
 The name of the circuit that was called to create the call
                  transaction that failed. Only defined if a call transaction
                  failed.
+
+`string` | `string`[]
 
 #### Returns
 
@@ -54,7 +54,7 @@ The name of the circuit that was called to create the call
 
 ### circuitId?
 
-> `readonly` `optional` **circuitId**: `string`
+> `readonly` `optional` **circuitId**: `string` \| `string`[]
 
 The name of the circuit that was called to create the call
                  transaction that failed. Only defined if a call transaction
@@ -64,6 +64,6 @@ The name of the circuit that was called to create the call
 
 ### finalizedTxData
 
-> `readonly` **finalizedTxData**: [`FinalizedTxData`](../../midnight-js-types/interfaces/FinalizedTxData.md)
+> `readonly` **finalizedTxData**: `FinalizedTxData`
 
 The finalization data of the transaction that failed.

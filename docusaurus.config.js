@@ -183,6 +183,48 @@ const config = {
       },
     ],
 
+    // LLMS TXT GENERATOR
+    [
+      "docusaurus-plugin-llms",
+      {
+        generateLLMsTxt: true,
+        generateLLMsFullTxt: true,
+        docsDir: 'docs',
+        title: 'Midnight Network Documentation',
+        description: 'Complete developer documentation for Midnight Network',
+        // includeBlog: true,
+        pathTransformation: {
+          // Paths to ignore when constructing URLs (will be removed if found)
+          ignorePaths: ['docs'],
+        },
+        // Control documentation order
+        includeOrder: [
+          'overview/*',
+          'getting-started/*',
+          'examples/*',
+          'tutorials/*',
+          'concepts/*',
+          'guides/*',
+          'compact/*',
+          'nodes/*',
+          'relnotes/*',
+          'glossary/*',
+          'troubleshoot/*',
+        ],
+        ignoreFiles: [
+          '_architecture/*', 
+          '_contribute/*', 
+          '_learn/*', 
+          '_legal/*', 
+          '_develop/*', 
+          '_operate/*', 
+          '_other/*', 
+          '_validate/*', 
+          'relnotes/*/**' 
+        ]
+      },
+    ],
+
     require.resolve("./plugins/webpack-yaml-loader"),
   ],
 

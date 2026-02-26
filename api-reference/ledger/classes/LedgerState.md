@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / LedgerState
+[@midnight/ledger](../globals.md) / LedgerState
 
 # Class: LedgerState
 
@@ -10,31 +10,87 @@ The state of the Midnight ledger
 
 ## Constructors
 
-### new LedgerState(zswap)
+### Constructor
 
 ```ts
-new LedgerState(zswap): LedgerState
+new LedgerState(network_id, zswap): LedgerState;
 ```
 
-Initializes from a Zswap state, with an empty contract set
+Intializes from a Zswap state, with an empty contract set
 
 #### Parameters
 
-• **zswap**: [`ZswapChainState`](ZswapChainState.md)
+##### network\_id
+
+`string`
+
+##### zswap
+
+[`ZswapChainState`](ZswapChainState.md)
 
 #### Returns
 
-[`LedgerState`](LedgerState.md)
+`LedgerState`
 
 ## Properties
 
-### unmintedNativeTokenSupply
+### blockRewardPool
 
 ```ts
-readonly unmintedNativeTokenSupply: bigint;
+readonly blockRewardPool: bigint;
 ```
 
-The remaining unminted supply of native tokens.
+The remaining unrewarded supply of native tokens.
+
+***
+
+### dust
+
+```ts
+readonly dust: DustState;
+```
+
+The dust subsystem state
+
+***
+
+### lockedPool
+
+```ts
+readonly lockedPool: bigint;
+```
+
+The remaining size of the locked Night pool.
+
+***
+
+### parameters
+
+```ts
+parameters: LedgerParameters;
+```
+
+The parameters of the ledger
+
+***
+
+### reservePool
+
+```ts
+readonly reservePool: bigint;
+```
+
+The size of the reserve Night pool
+
+***
+
+### utxo
+
+```ts
+readonly utxo: UtxoState;
+```
+
+The unshielded utxos present
 
 ***
 
@@ -51,52 +107,104 @@ The Zswap part of the ledger state
 ### apply()
 
 ```ts
-apply(transaction, context): [LedgerState, TransactionResult]
+apply(transaction, context): [LedgerState, TransactionResult];
 ```
 
-Applies a [ProofErasedTransaction](ProofErasedTransaction.md)
+Applies a [Transaction](Transaction.md)
 
 #### Parameters
 
-• **transaction**: [`ProofErasedTransaction`](ProofErasedTransaction.md)
+##### transaction
 
-• **context**: [`TransactionContext`](TransactionContext.md)
+[`VerifiedTransaction`](VerifiedTransaction.md)
+
+##### context
+
+[`TransactionContext`](TransactionContext.md)
 
 #### Returns
 
-[[`LedgerState`](LedgerState.md), [`TransactionResult`](TransactionResult.md)]
+\[`LedgerState`, [`TransactionResult`](TransactionResult.md)\]
 
 ***
 
 ### applySystemTx()
 
 ```ts
-applySystemTx(transaction): LedgerState
+applySystemTx(transaction, tblock): [LedgerState, Event[]];
 ```
 
 Applies a system transaction to this ledger state.
 
 #### Parameters
 
-• **transaction**: [`SystemTransaction`](SystemTransaction.md)
+##### transaction
+
+[`SystemTransaction`](SystemTransaction.md)
+
+##### tblock
+
+`Date`
 
 #### Returns
 
-[`LedgerState`](LedgerState.md)
+\[`LedgerState`, [`Event`](Event.md)[]\]
+
+***
+
+### bridgeReceiving()
+
+#### Call Signature
+
+```ts
+bridgeReceiving(recipient): bigint;
+```
+
+How much in bridged night a recipient is owed and can claim.
+
+##### Parameters
+
+###### recipient
+
+`string`
+
+##### Returns
+
+`bigint`
+
+#### Call Signature
+
+```ts
+bridgeReceiving(recipient): bigint;
+```
+
+How much in bridged night a recipient is owed and can claim.
+
+##### Parameters
+
+###### recipient
+
+`string`
+
+##### Returns
+
+`bigint`
 
 ***
 
 ### index()
 
 ```ts
-index(address): undefined | ContractState
+index(address): undefined | ContractState;
 ```
 
 Indexes into the contract state map with a given contract address
 
 #### Parameters
 
-• **address**: `string`
+##### address
+
+`string`
 
 #### Returns
 
@@ -104,15 +212,46 @@ Indexes into the contract state map with a given contract address
 
 ***
 
-### serialize()
+### postBlockUpdate()
 
 ```ts
-serialize(netid): Uint8Array
+postBlockUpdate(
+   tblock, 
+   detailedBlockFullness?, 
+   overallBlockFullness?): LedgerState;
 ```
+
+Carries out a post-block update, which does amortized bookkeeping that
+only needs to be done once per state change.
+
+Typically, `postBlockUpdate` should be run after any (sequence of)
+(system)-transaction application(s).
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### tblock
+
+`Date`
+
+##### detailedBlockFullness?
+
+[`NormalizedCost`](../type-aliases/NormalizedCost.md)
+
+##### overallBlockFullness?
+
+`number`
+
+#### Returns
+
+`LedgerState`
+
+***
+
+### serialize()
+
+```ts
+serialize(): Uint8Array;
+```
 
 #### Returns
 
@@ -120,15 +259,49 @@ serialize(netid): Uint8Array
 
 ***
 
+### testingDistributeNight()
+
+```ts
+testingDistributeNight(
+   recipient, 
+   amount, 
+   tblock): LedgerState;
+```
+
+Allows distributing the specified amount of Night to the recipient's address.
+Use is for testing purposes only.
+
+#### Parameters
+
+##### recipient
+
+`string`
+
+##### amount
+
+`bigint`
+
+##### tblock
+
+`Date`
+
+#### Returns
+
+`LedgerState`
+
+***
+
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -139,14 +312,16 @@ toString(compact?): string
 ### treasuryBalance()
 
 ```ts
-treasuryBalance(token_type): bigint
+treasuryBalance(token_type): bigint;
 ```
 
 Retrieves the balance of the treasury for a specific token type.
 
 #### Parameters
 
-• **token\_type**: `string`
+##### token\_type
+
+[`TokenType`](../type-aliases/TokenType.md)
 
 #### Returns
 
@@ -154,20 +329,19 @@ Retrieves the balance of the treasury for a specific token type.
 
 ***
 
-### unclaimedMints()
+### unclaimedBlockRewards()
 
 ```ts
-unclaimedMints(recipient, token_type): bigint
+unclaimedBlockRewards(recipient): bigint;
 ```
 
-How much in minting rewards a recipient, for a specific token type, is
-owed and can claim.
+How much in block rewards a recipient is owed and can claim.
 
 #### Parameters
 
-• **recipient**: `string`
+##### recipient
 
-• **token\_type**: `string`
+`string`
 
 #### Returns
 
@@ -178,49 +352,66 @@ owed and can claim.
 ### updateIndex()
 
 ```ts
-updateIndex(address, context): LedgerState
+updateIndex(
+   address, 
+   state, 
+   balance): LedgerState;
 ```
 
-Sets the state of a given contract address from a [QueryContext](QueryContext.md)
+Sets the state of a given contract address from a [ChargedState](ChargedState.md)
 
 #### Parameters
 
-• **address**: `string`
+##### address
 
-• **context**: [`QueryContext`](QueryContext.md)
+`string`
+
+##### state
+
+[`ChargedState`](ChargedState.md)
+
+##### balance
+
+`Map`\<[`TokenType`](../type-aliases/TokenType.md), `bigint`\>
 
 #### Returns
 
-[`LedgerState`](LedgerState.md)
+`LedgerState`
 
 ***
 
 ### blank()
 
 ```ts
-static blank(): LedgerState
+static blank(network_id): LedgerState;
 ```
 
 A fully blank state
 
+#### Parameters
+
+##### network\_id
+
+`string`
+
 #### Returns
 
-[`LedgerState`](LedgerState.md)
+`LedgerState`
 
 ***
 
 ### deserialize()
 
 ```ts
-static deserialize(raw, netid): LedgerState
+static deserialize(raw): LedgerState;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`LedgerState`](LedgerState.md)
+`LedgerState`

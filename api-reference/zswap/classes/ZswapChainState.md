@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / ZswapChainState
+[@midnight/zswap](../globals.md) / ZswapChainState
 
 # Class: ZswapChainState
 
@@ -37,16 +37,18 @@ The first free index in the coin commitment tree
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -58,7 +60,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -77,9 +81,13 @@ and a map on newly inserted coin commitments to their inserted indices.
 
 #### Parameters
 
-• **offer**: [`Offer`](Offer.md)
+##### offer
 
-• **whitelist?**: `Set`\<`string`\>
+[`Offer`](Offer.md)
+
+##### whitelist?
+
+`Set`\<`string`\>
 
 A set of contract addresses that are of interest. If
 set, *only* these addresses are tracked, and all other information is
@@ -101,9 +109,13 @@ tryApplyProofErased(offer, whitelist?): [ZswapChainState, Map<string, bigint>]
 
 #### Parameters
 
-• **offer**: [`ProofErasedOffer`](ProofErasedOffer.md)
+##### offer
 
-• **whitelist?**: `Set`\<`string`\>
+[`ProofErasedOffer`](ProofErasedOffer.md)
+
+##### whitelist?
+
+`Set`\<`string`\>
 
 #### Returns
 
@@ -119,9 +131,13 @@ static deserialize(raw, netid): ZswapChainState
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -139,9 +155,13 @@ Given a whole ledger serialized state, deserialize only the Zswap portion
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

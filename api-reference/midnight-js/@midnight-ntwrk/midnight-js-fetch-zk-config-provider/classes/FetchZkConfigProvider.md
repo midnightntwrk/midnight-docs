@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@ Retrieves ZK artifacts from a remote source.
 
 ## Extends
 
-- [`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md)\<`K`\>
+- `ZKConfigProvider`\<`K`\>
 
 ## Type Parameters
 
@@ -22,7 +22,7 @@ Retrieves ZK artifacts from a remote source.
 
 ### Constructor
 
-> **new FetchZkConfigProvider**\<`K`\>(`baseURL`, `fetchFunc`): `FetchZkConfigProvider`\<`K`\>
+> **new FetchZkConfigProvider**\<`K`\>(`baseURL`, `fetchFunc?`): `FetchZkConfigProvider`\<`K`\>
 
 #### Parameters
 
@@ -32,9 +32,9 @@ Retrieves ZK artifacts from a remote source.
 
 The endpoint to query for ZK artifacts.
 
-##### fetchFunc
+##### fetchFunc?
 
-\{(`input`, `init`?): `Promise`\<`Response`\>; (`input`, `init`?): `Promise`\<`Response`\>; \}
+\{(`input`, `init?`): `Promise`\<`Response`\>; (`input`, `init?`): `Promise`\<`Response`\>; \}
 
 The function to use to execute queries.
 
@@ -44,7 +44,7 @@ The function to use to execute queries.
 
 #### Overrides
 
-[`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md).[`constructor`](../../midnight-js-types/classes/ZKConfigProvider.md#constructor)
+`ZKConfigProvider<K>.constructor`
 
 ## Properties
 
@@ -56,11 +56,25 @@ The endpoint to query for ZK artifacts.
 
 ## Methods
 
+### asKeyMaterialProvider()
+
+> **asKeyMaterialProvider**(): `KeyMaterialProvider`
+
+#### Returns
+
+`KeyMaterialProvider`
+
+#### Inherited from
+
+`ZKConfigProvider.asKeyMaterialProvider`
+
+***
+
 ### get()
 
-> **get**(`circuitId`): `Promise`\<[`ZKConfig`](../../midnight-js-types/interfaces/ZKConfig.md)\<`K`\>\>
+> **get**(`circuitId`): `Promise`\<`ZKConfig`\<`K`\>\>
 
-Retrieves all zero-knowledge artifacts produced by `compactc` for the given circuit.
+Retrieves all zero-knowledge artifacts produced by `compact` compiler for the given circuit.
 
 #### Parameters
 
@@ -72,19 +86,19 @@ The circuit ID of the artifacts to retrieve.
 
 #### Returns
 
-`Promise`\<[`ZKConfig`](../../midnight-js-types/interfaces/ZKConfig.md)\<`K`\>\>
+`Promise`\<`ZKConfig`\<`K`\>\>
 
 #### Inherited from
 
-[`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md).[`get`](../../midnight-js-types/classes/ZKConfigProvider.md#get)
+`ZKConfigProvider.get`
 
 ***
 
 ### getProverKey()
 
-> **getProverKey**(`circuitId`): `Promise`\<[`ProverKey`](../../midnight-js-types/type-aliases/ProverKey.md)\>
+> **getProverKey**(`circuitId`): `Promise`\<`ProverKey`\>
 
-Retrieves the prover key produced by `compactc` for the given circuit.
+Retrieves the prover key produced by `compact` compiler for the given circuit.
 
 #### Parameters
 
@@ -96,19 +110,19 @@ The circuit ID of the prover key to retrieve.
 
 #### Returns
 
-`Promise`\<[`ProverKey`](../../midnight-js-types/type-aliases/ProverKey.md)\>
+`Promise`\<`ProverKey`\>
 
 #### Overrides
 
-[`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md).[`getProverKey`](../../midnight-js-types/classes/ZKConfigProvider.md#getproverkey)
+`ZKConfigProvider.getProverKey`
 
 ***
 
 ### getVerifierKey()
 
-> **getVerifierKey**(`circuitId`): `Promise`\<[`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\>
+> **getVerifierKey**(`circuitId`): `Promise`\<`VerifierKey`\>
 
-Retrieves the verifier key produced by `compactc` for the given circuit.
+Retrieves the verifier key produced by `compact` compiler for the given circuit.
 
 #### Parameters
 
@@ -120,19 +134,19 @@ The circuit ID of the verifier key to retrieve.
 
 #### Returns
 
-`Promise`\<[`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\>
+`Promise`\<`VerifierKey`\>
 
 #### Overrides
 
-[`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md).[`getVerifierKey`](../../midnight-js-types/classes/ZKConfigProvider.md#getverifierkey)
+`ZKConfigProvider.getVerifierKey`
 
 ***
 
 ### getVerifierKeys()
 
-> **getVerifierKeys**(`circuitIds`): `Promise`\<\[`K`, [`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\][]\>
+> **getVerifierKeys**(`circuitIds`): `Promise`\<\[`K`, `VerifierKey`\][]\>
 
-Retrieves the verifier keys produced by `compactc` for the given circuits.
+Retrieves the verifier keys produced by `compact` compiler for the given circuits.
 
 #### Parameters
 
@@ -144,19 +158,19 @@ The circuit IDs of the verifier keys to retrieve.
 
 #### Returns
 
-`Promise`\<\[`K`, [`VerifierKey`](../../midnight-js-types/type-aliases/VerifierKey.md)\][]\>
+`Promise`\<\[`K`, `VerifierKey`\][]\>
 
 #### Inherited from
 
-[`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md).[`getVerifierKeys`](../../midnight-js-types/classes/ZKConfigProvider.md#getverifierkeys)
+`ZKConfigProvider.getVerifierKeys`
 
 ***
 
 ### getZKIR()
 
-> **getZKIR**(`circuitId`): `Promise`\<[`ZKIR`](../../midnight-js-types/type-aliases/ZKIR.md)\>
+> **getZKIR**(`circuitId`): `Promise`\<`ZKIR`\>
 
-Retrieves the zero-knowledge intermediate representation produced by `compactc` for the given circuit.
+Retrieves the zero-knowledge intermediate representation produced by `compact` compiler for the given circuit.
 
 #### Parameters
 
@@ -168,8 +182,8 @@ The circuit ID of the ZKIR to retrieve.
 
 #### Returns
 
-`Promise`\<[`ZKIR`](../../midnight-js-types/type-aliases/ZKIR.md)\>
+`Promise`\<`ZKIR`\>
 
 #### Overrides
 
-[`ZKConfigProvider`](../../midnight-js-types/classes/ZKConfigProvider.md).[`getZKIR`](../../midnight-js-types/classes/ZKConfigProvider.md#getzkir)
+`ZKConfigProvider.getZKIR`

@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / maxField
+[@midnight/ledger](../globals.md) / maxField
 
 # Function: maxField()
 
 ```ts
-maxField(): bigint
+function maxField(): bigint;
 ```
 
 Returns the maximum representable value in the proof systems scalar field

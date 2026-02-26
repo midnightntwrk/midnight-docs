@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ReplaceAuthority
+[@midnight/ledger](../globals.md) / ReplaceAuthority
 
 # Class: ReplaceAuthority
 
@@ -11,19 +11,21 @@ with a new one.
 
 ## Constructors
 
-### new ReplaceAuthority(authority)
+### Constructor
 
 ```ts
-new ReplaceAuthority(authority): ReplaceAuthority
+new ReplaceAuthority(authority): ReplaceAuthority;
 ```
 
 #### Parameters
 
-• **authority**: [`ContractMaintenanceAuthority`](ContractMaintenanceAuthority.md)
+##### authority
+
+[`ContractMaintenanceAuthority`](ContractMaintenanceAuthority.md)
 
 #### Returns
 
-[`ReplaceAuthority`](ReplaceAuthority.md)
+`ReplaceAuthority`
 
 ## Properties
 
@@ -38,12 +40,14 @@ readonly authority: ContractMaintenanceAuthority;
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
