@@ -1,13 +1,1704 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-sidebar_label: "Build the bulletin board CLI"
-title: "Build the bulletin board CLI"
-description: "Learn how to build a privacy-preserving bulletin board CLI on Midnight Network."
+sidebar_label: "Bulletin board CLI"
+title: "Bulletin board CLI"
+description: "Learn how to build a bulletin board CLI DApp on Midnight Network."
 sidebar_position: 20
 toc_max_heading_level: 2
 ---
 
-:::note
-Coming soon...
+# Bulletin board CLI
+
+This tutorial explains how to build a command-line interface that interacts with the bulletin board smart contract created in the [bulletin board contract](./smart-contract) tutorial.
+
+## Prerequisites
+
+Before you begin, ensure that you have:
+
+- Completed the [bulletin board contract](./smart-contract) tutorial with the contract compiled in `contract/src/managed/bboard/`
+- Docker Desktop installed and running
+- Node.js version 22 or higher
+
+## Set up the root package
+
+This section explains the process of setting up the root package.
+
+### Create the root configuration
+
+From the `example-bboard` root directory, create or update `package.json`:
+
+```json
+{
+  "name": "@midnight-ntwrk/example-bboard",
+  "version": "0.1.0",
+  "author": "IOG",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "workspaces": {
+    "packages": [
+      "bboard-cli",
+      "api",
+      "contract"
+    ]
+  },
+  "dependencies": {
+    "@midnight-ntwrk/dapp-connector-api": "4.0.0",
+    "@midnight-ntwrk/ledger-v7": "7.0.0",
+    "@midnight-ntwrk/midnight-js-compact": "3.0.0",
+    "@midnight-ntwrk/midnight-js-contracts": "3.0.0",
+    "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "3.0.0",
+    "@midnight-ntwrk/midnight-js-types": "3.0.0",
+    "@midnight-ntwrk/midnight-js-utils": "3.0.0",
+    "@midnight-ntwrk/testkit-js": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "1.0.0",
+    "@midnight-ntwrk/wallet-sdk-hd": "3.0.0",
+    "axios": "^1.13.5",
+    "buffer": "^6.0.3",
+    "fp-ts": "^2.16.11",
+    "pino": "^10.3.0",
+    "pino-pretty": "^13.1.3",
+    "rxjs": "^7.8.2",
+    "semver": "^7.7.3",
+    "testcontainers": "^11.11.0",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@originjs/vite-plugin-commonjs": "^1.0.3",
+    "@types/babel__core": "^7.20.5",
+    "@types/semver": "^7.7.1",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-react": "^7.37.5",
+    "http-server": "^14.1.1",
+    "prettier": "^3.8.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0",
+    "vite": "^7.3.1",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0"
+  }
+}
+```
+
+The workspaces configuration tells npm to manage the contract, API, and bboard-cli as linked packages. Dependencies defined at the root level are shared across all workspaces, reducing duplication and ensuring version consistency.
+
+:::tip Version compatibility
+Always refer to the [release compatibility matrix](../../../relnotes/support-matrix) to ensure you are using compatible versions.
 :::
+
+### Install root dependencies
+
+Install all dependencies from the root:
+
+```bash
+npm install
+```
+
+This command installs dependencies for the root package and all workspace packages, creating symlinks between them for local development.
+
+## Set up the API package
+
+The API package provides a reusable abstraction layer for bulletin board contract interactions. This package can be shared between the CLI and browser-based UI.
+
+### Create the API directory
+
+From the root, create the API structure:
+
+```bash
+mkdir -p api/src/utils
+cd api
+```
+
+### Configure the API package
+
+Create `api/package.json`:
+
+```json
+{
+  "name": "@midnight-ntwrk/bboard-api",
+  "version": "0.1.0",
+  "author": "IOG",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "module": "./dist/index.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "ci": "npm run typecheck && npm run lint && npm run build",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
+```
+
+### Configure TypeScript for the API
+
+Create `api/tsconfig.json`:
+
+```json
+{
+  "include": ["src/**/*.ts", "src/test/jest.setup.ts"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "declaration": true,
+    "lib": ["ESNext", "DOM"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+### Implement utility functions
+
+Create `api/src/utils/index.ts`:
+
+```typescript title="api/src/utils/index.ts"
+/**
+ * Provides utility functions.
+ *
+ * @module
+ */
+
+/**
+ * Generates a buffer containing a series of randomly generated bytes.
+ *
+ * @param length The number of bytes to generate.
+ * @returns A `Uint8Array` representing `length` randomly generated bytes.
+ */
+export const randomBytes = (length: number): Uint8Array => {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return bytes;
+};
+```
+
+This utility function generates cryptographically secure random bytes using the Web Crypto API. The bulletin board uses this to generate secret keys for users.
+
+### Define common types
+
+Create `api/src/common-types.ts`:
+
+```typescript title="api/src/common-types.ts"
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import { type FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
+import type { State, BBoardPrivateState, Contract, Witnesses } from '../../contract/src/index';
+
+export const bboardPrivateStateKey = 'bboardPrivateState';
+export type PrivateStateId = typeof bboardPrivateStateKey;
+
+export type PrivateStates = {
+  readonly bboardPrivateState: BBoardPrivateState;
+};
+
+export type BBoardContract = Contract<BBoardPrivateState, Witnesses<BBoardPrivateState>>;
+
+export type BBoardCircuitKeys = Exclude<keyof BBoardContract['impureCircuits'], number | symbol>;
+
+export type BBoardProviders = MidnightProviders<BBoardCircuitKeys, PrivateStateId, BBoardPrivateState>;
+
+export type DeployedBBoardContract = FoundContract<BBoardContract>;
+
+export type BBoardDerivedState = {
+  readonly state: State;
+  readonly sequence: bigint;
+  readonly message: string | undefined;
+  readonly isOwner: boolean;
+};
+```
+
+These type definitions create aliases for complex generic types:
+
+- `BBoardContract`: The contract instance type with private state and witnesses
+- `BBoardCircuitKeys`: Extracted circuit identifiers (post and takeDown)
+- `BBoardProviders`: Provider interface with appropriate type parameters
+- `BBoardDerivedState`: Combines public ledger state with computed ownership information
+
+The `isOwner` field in `BBoardDerivedState` determines whether the current user posted the message by comparing the ledger's owner commitment with the user's secret key.
+
+### Implement the BBoardAPI class
+
+The `BBoardAPI` class provides a high-level interface for interacting with the bulletin board smart contract. It handles contract deployment, state management, and transaction submission while exposing a reactive state observable for real-time updates.
+
+Create `api/src/index.ts` and add the following sections.
+
+#### Import required packages
+
+The API module requires contract bindings, runtime utilities, RxJS for reactive state management, and contract deployment functions.
+
+```typescript title="api/src/index.ts"
+import * as BBoard from '../../contract/src/managed/bboard/contract/index.js';
+
+import { type ContractAddress, convertFieldToBytes } from '@midnight-ntwrk/compact-runtime';
+import { type Logger } from 'pino';
+import {
+  type BBoardDerivedState,
+  type BBoardContract,
+  type BBoardProviders,
+  type DeployedBBoardContract,
+  bboardPrivateStateKey,
+} from './common-types.js';
+import { CompiledBBoardContractContract } from '../../contract/src/index';
+import * as utils from './utils/index.js';
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { combineLatest, map, tap, from, type Observable } from 'rxjs';
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+import { BBoardPrivateState, createBBoardPrivateState } from '@midnight-ntwrk/bboard-contract';
+```
+
+#### Define the DeployedBBoardAPI interface
+
+The interface defines the public API surface for interacting with a deployed bulletin board contract.
+
+```typescript title="api/src/index.ts"
+export interface DeployedBBoardAPI {
+  readonly deployedContractAddress: ContractAddress;
+  readonly state$: Observable<BBoardDerivedState>;
+
+  post: (message: string) => Promise<void>;
+  takeDown: () => Promise<void>;
+}
+```
+
+This interface exposes:
+
+- `deployedContractAddress`: The on-chain address of the deployed contract
+- `state$`: A reactive observable that emits updates whenever the contract state changes
+- `post()`: Method to submit a message posting transaction
+- `takeDown()`: Method to remove the current message from the bulletin board
+
+#### Implement the constructor and state observable
+
+The constructor initializes the API instance and creates a reactive state observable that combines public ledger state with private state.
+
+```typescript title="api/src/index.ts"
+export class BBoardAPI implements DeployedBBoardAPI {
+  private constructor(
+    public readonly deployedContract: DeployedBBoardContract,
+    providers: BBoardProviders,
+    private readonly logger?: Logger,
+  ) {
+    this.deployedContractAddress = deployedContract.deployTxData.public.contractAddress;
+    this.state$ = combineLatest(
+      [
+        providers.publicDataProvider.contractStateObservable(this.deployedContractAddress, { type: 'latest' }).pipe(
+          map((contractState) => BBoard.ledger(contractState.data)),
+          tap((ledgerState) =>
+            logger?.trace({
+              ledgerStateChanged: {
+                ledgerState: {
+                  ...ledgerState,
+                  state: ledgerState.state === BBoard.State.OCCUPIED ? 'occupied' : 'vacant',
+                  owner: toHex(ledgerState.owner),
+                },
+              },
+            }),
+          ),
+        ),
+        from(providers.privateStateProvider.get(bboardPrivateStateKey) as Promise<BBoardPrivateState>),
+      ],
+      (ledgerState, privateState) => {
+        const hashedSecretKey = BBoard.pureCircuits.publicKey(
+          privateState.secretKey,
+          convertFieldToBytes(32, ledgerState.sequence, 'api/src/index.ts'),
+        );
+
+        return {
+          state: ledgerState.state,
+          message: ledgerState.message.value,
+          sequence: ledgerState.sequence,
+          isOwner: toHex(ledgerState.owner) === toHex(hashedSecretKey),
+        };
+      },
+    );
+  }
+
+  readonly deployedContractAddress: ContractAddress;
+
+  readonly state$: Observable<BBoardDerivedState>;
+```
+
+The constructor performs several key operations:
+
+- **Extract contract address**: Stores the deployed contract's on-chain address from the deployment transaction data.
+- **Create state observable**: Uses RxJS `combineLatest` to merge two data streams into a single reactive observable.
+- **Fetch ledger state**: Subscribes to contract state updates from the public data provider and transforms the raw state into the ledger format.
+- **Log state changes**: Optionally logs ledger state changes at trace level for debugging.
+- **Retrieve private state**: Fetches the local private state (secret key) from the private state provider.
+- **Compute derived state**: Combines ledger and private state to determine ownership by hashing the private secret key and comparing it with the on-chain owner field.
+
+The `isOwner` flag is critical because it determines whether the user can call the `takeDown()` circuit to remove their message. This flag updates reactively whenever the ledger state or sequence number changes.
+
+#### Implement the post method
+
+The `post` method submits a transaction to post a message to the bulletin board.
+
+```typescript title="api/src/index.ts"
+  async post(message: string): Promise<void> {
+    this.logger?.info(`postingMessage: ${message}`);
+
+    const txData = await this.deployedContract.callTx.post(message);
+
+    this.logger?.trace({
+      transactionAdded: {
+        circuit: 'post',
+        txHash: txData.public.txHash,
+        blockHeight: txData.public.blockHeight,
+      },
+    });
+  }
+```
+
+This method:
+
+- **Logs the message**: Records the message being posted for debugging purposes.
+- **Calls the post circuit**: Invokes the smart contract's `post` circuit through the deployed contract interface, passing the message string.
+- **Awaits transaction finalization**: Waits for the zero-knowledge proof to be generated, the transaction to be submitted, and confirmation from the network.
+- **Logs transaction details**: Records the transaction hash and block height for tracking and debugging.
+
+The transaction includes a zero-knowledge proof that demonstrates the caller knows a valid secret key without revealing it.
+
+#### Implement the takeDown method
+
+The `takeDown` method submits a transaction to remove the current message from the bulletin board.
+
+```typescript title="api/src/index.ts"
+  async takeDown(): Promise<void> {
+    this.logger?.info('takingDownMessage');
+
+    const txData = await this.deployedContract.callTx.takeDown();
+
+    this.logger?.trace({
+      transactionAdded: {
+        circuit: 'takeDown',
+        txHash: txData.public.txHash,
+        blockHeight: txData.public.blockHeight,
+      },
+    });
+  }
+```
+
+This method follows the same pattern as `post`:
+
+- **Logs the action**: Records that a takedown is being initiated.
+- **Calls the takeDown circuit**: Invokes the smart contract's `takeDown` circuit, which requires proof of ownership.
+- **Awaits transaction finalization**: Waits for proof generation and network confirmation.
+- **Logs transaction details**: Records the transaction hash and block height.
+
+The `takeDown` circuit can only succeed if the caller's hashed secret key matches the on-chain owner field, ensuring only the message poster can remove their message.
+
+#### Implement the deploy method
+
+The `deploy` static method creates a new bulletin board contract instance on the blockchain.
+
+```typescript title="api/src/index.ts"
+  static async deploy(providers: BBoardProviders, logger?: Logger): Promise<BBoardAPI> {
+    logger?.info('deployContract');
+
+    const deployedBBoardContract = await deployContract(providers, {
+      compiledContract: CompiledBBoardContractContract,
+      privateStateId: bboardPrivateStateKey,
+      initialPrivateState: await BBoardAPI.getPrivateState(providers),
+    });
+
+    logger?.trace({
+      contractDeployed: {
+        finalizedDeployTxData: deployedBBoardContract.deployTxData.public,
+      },
+    });
+
+    return new BBoardAPI(deployedBBoardContract, providers, logger);
+  }
+```
+
+The deployment process:
+
+- **Logs deployment start**: Records that contract deployment has begun.
+- **Deploy contract**: Uses the `deployContract` utility to deploy a new contract instance with the compiled contract bytecode, private state identifier, and initial private state.
+- **Await deployment**: Waits for the deployment transaction to be confirmed and the contract address to be assigned.
+- **Log deployment success**: Records the deployment transaction data at trace level.
+- **Create API instance**: Constructs and returns a new `BBoardAPI` instance configured with the deployed contract.
+
+Each deployed contract gets a unique on-chain address that other users can use to join and interact with the bulletin board.
+
+#### Implement the join method
+
+The `join` static method connects to an existing deployed bulletin board contract.
+
+```typescript title="api/src/index.ts"
+  static async join(providers: BBoardProviders, contractAddress: ContractAddress, logger?: Logger): Promise<BBoardAPI> {
+    logger?.info({
+      joinContract: {
+        contractAddress,
+      },
+    });
+
+    const deployedBBoardContract = await findDeployedContract<BBoardContract>(providers, {
+      contractAddress,
+      compiledContract: CompiledBBoardContractContract,
+      privateStateId: bboardPrivateStateKey,
+      initialPrivateState: await BBoardAPI.getPrivateState(providers),
+    });
+
+    logger?.trace({
+      contractJoined: {
+        finalizedDeployTxData: deployedBBoardContract.deployTxData.public,
+      },
+    });
+
+    return new BBoardAPI(deployedBBoardContract, providers, logger);
+  }
+```
+
+The join process:
+
+- **Logs join attempt**: Records the contract address being joined.
+- **Find deployed contract**: Uses `findDeployedContract` to locate the existing contract on-chain and verify it matches the compiled contract structure.
+- **Initialize private state**: Sets up local private state for interacting with the contract (generates a new secret key if none exists).
+- **Log join success**: Records the contract information at trace level.
+- **Create API instance**: Constructs and returns a new `BBoardAPI` instance configured with the found contract.
+
+Joining a contract allows users to read the public state and, if they deployed the current message, remove it using their secret key.
+
+#### Implement private state helper
+
+The `getPrivateState` helper method retrieves or creates the private state needed for contract operations.
+
+```typescript title="api/src/index.ts"
+  private static async getPrivateState(providers: BBoardProviders): Promise<BBoardPrivateState> {
+    const existingPrivateState = await providers.privateStateProvider.get(bboardPrivateStateKey);
+    return existingPrivateState ?? createBBoardPrivateState(utils.randomBytes(32));
+  }
+}
+```
+
+This helper:
+
+- **Attempts to retrieve existing state**: Checks if private state already exists for this bulletin board.
+- **Creates new state if needed**: Generates a new random 32-byte secret key if no private state exists.
+- **Returns private state**: Provides the state to the `deploy` or `join` methods.
+
+The private state persists across application restarts, allowing users to prove ownership of their posted messages in future sessions.
+
+#### Export utilities and types
+
+Export the utility functions and common types for use by other modules.
+
+```typescript title="api/src/index.ts"
+export * as utils from './utils/index.js';
+
+export * from './common-types.js';
+```
+
+These exports make the API's utility functions and TypeScript types available to the CLI application and other consumers of the API module.
+
+### Build the API package
+
+Build the API package:
+
+```bash
+npm run build
+```
+
+This compiles the TypeScript to JavaScript and generates type definitions in the `dist` directory.
+
+## Set up the CLI package
+
+This section explains the process of setting up the CLI DApp.
+
+### Create the CLI directory
+
+From the root, create the bboard-cli structure:
+
+```bash
+cd ..
+mkdir -p bboard-cli/src/launcher
+cd bboard-cli
+```
+
+### Configure the CLI package
+
+Create `bboard-cli/package.json`:
+
+```json
+{
+  "name": "@midnight-ntwrk/bboard-cli",
+  "version": "0.1.0",
+  "author": "IOG",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rm -rf dist && tsc && cp -R ../contract/src/managed dist/contract/src/managed",
+    "ci": "npm run typecheck && npm run lint && npm run build",
+    "lint": "eslint src",
+    "preprod": "node --experimental-specifier-resolution=node --loader ts-node/esm src/launcher/preprod.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/json-schema": "^7.0.15",
+    "@types/node": "^25.2.0"
+  }
+}
+```
+
+The `preprod` script runs the CLI application and connects to the Midnight Preprod testnet. The script uses Node.js experimental features to enable ES module resolution and TypeScript execution via `ts-node`.
+
+### Configure TypeScript
+
+Create `bboard-cli/tsconfig.json`:
+
+```json
+{
+  "include": ["src/**/*.ts"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "declaration": true,
+    "lib": ["ESNext"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+The TypeScript configuration enables ES modules and strict type checking. The `ts-node` section allows direct execution of TypeScript files during development without a separate build step.
+
+## Implement configuration
+
+The configuration file defines network endpoints and contract settings for the Preprod testnet environment. This configuration connects your CLI to the hosted Midnight Preprod infrastructure.
+
+Create `bboard-cli/src/config.ts`:
+
+```typescript title="bboard-cli/src/config.ts"
+import path from 'node:path';
+import {
+  EnvironmentConfiguration,
+  getTestEnvironment,
+  RemoteTestEnvironment,
+  TestEnvironment,
+} from '@midnight-ntwrk/testkit-js';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { Logger } from 'pino';
+
+export interface Config {
+  readonly privateStateStoreName: string;
+  readonly logDir: string;
+  readonly zkConfigPath: string;
+  getEnvironment(logger: Logger): TestEnvironment;
+  readonly requestFaucetTokens: boolean;
+  readonly generateDust: boolean;
+}
+
+export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+```
+
+The `Config` interface defines the contract for environment configuration:
+
+- `privateStateStoreName`: Database name for storing private state
+- `logDir`: Path for storing application logs with timestamps
+- `zkConfigPath`: Path to the compiled contract artifacts directory
+- `getEnvironment()`: Factory method that returns the configured test environment
+- `requestFaucetTokens`: Whether to automatically request tokens from the faucet
+- `generateDust`: Whether to generate DUST tokens for paying shielded transaction fees
+
+### Preprod configuration
+
+The Preprod configuration connects to the Midnight hosted testnet. Add these classes to your `config.ts` file:
+
+```typescript title="bboard-cli/src/config.ts"
+export class PreprodRemoteConfig implements Config {
+  getEnvironment(logger: Logger): TestEnvironment {
+    setNetworkId('preprod');
+    return new PreprodTestEnvironment(logger);
+  }
+  privateStateStoreName = 'bboard-private-state';
+  logDir = path.resolve(currentDir, '..', 'logs', 'preprod-remote', `${new Date().toISOString()}.log`);
+  zkConfigPath = path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'bboard');
+  requestFaucetTokens = false;
+  generateDust = true;
+}
+
+export class PreprodTestEnvironment extends RemoteTestEnvironment {
+  constructor(logger: Logger) {
+    super(logger);
+  }
+
+  private getProofServerUrl(): string {
+    const container = this.proofServerContainer as { getUrl(): string } | undefined;
+    if (!container) {
+      throw new Error('Proof server container is not available.');
+    }
+    return container.getUrl();
+  }
+
+  getEnvironmentConfiguration(): EnvironmentConfiguration {
+    return {
+      walletNetworkId: 'preprod',
+      networkId: 'preprod',
+      indexer: 'https://indexer.preprod.midnight.network/api/v3/graphql',
+      indexerWS: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
+      node: 'https://rpc.preprod.midnight.network',
+      nodeWS: 'wss://rpc.preprod.midnight.network',
+      faucet: 'https://faucet.preprod.midnight.network/api/request-tokens',
+      proofServer: this.getProofServerUrl(),
+    };
+  }
+}
+```
+
+Key configuration choices for Preprod:
+
+- Calls `setNetworkId('preprod')` to establish a global network context that Midnight.js libraries use for address formatting and network-specific behavior.
+- Enables `generateDust` because Preprod requires explicit DUST registration before performing shielded transactions.
+- Extends `RemoteTestEnvironment` to provide custom endpoint configuration for the hosted Preprod services.
+- Uses a local Docker proof server while connecting to remote Midnight Preprod infrastructure for other services.
+
+The `PreprodTestEnvironment` class returns the official Preprod endpoint URLs. These endpoints connect your DApp to the hosted testnet while using your local proof server for zero-knowledge proof generation.
+
+## Implement logging utilities
+
+Logging utilities provide structured logging to both console and file.
+
+Create `bboard-cli/src/logger-utils.ts`:
+
+```typescript title="bboard-cli/src/logger-utils.ts"
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import pinoPretty from 'pino-pretty';
+import pino from 'pino';
+import { createWriteStream } from 'node:fs';
+
+export const createLogger = async (logPath: string): Promise<pino.Logger> => {
+  await fs.mkdir(path.dirname(logPath), { recursive: true });
+  const pretty: pinoPretty.PrettyStream = pinoPretty({
+    colorize: true,
+    sync: true,
+  });
+  const level =
+    process.env.DEBUG_LEVEL !== undefined && process.env.DEBUG_LEVEL !== null && process.env.DEBUG_LEVEL !== ''
+      ? process.env.DEBUG_LEVEL
+      : 'info';
+  return pino(
+    {
+      level,
+      depthLimit: 20,
+    },
+    pino.multistream([
+      { stream: pretty, level },
+      { stream: createWriteStream(logPath), level },
+    ]),
+  );
+};
+```
+
+The logger configuration creates two output streams: a pretty-printed console stream for development and a file stream for persistent logs. The log level can be controlled through the `DEBUG_LEVEL` environment variable, defaulting to 'info'.
+
+## Implement wallet utilities
+
+Wallet utilities handle synchronization and funding operations. These functions manage the complexities of waiting for wallet state to synchronize with the blockchain and ensuring the wallet has sufficient funds before interacting with contracts.
+
+Create `bboard-cli/src/wallet-utils.ts` and add the following sections.
+
+### Import required packages
+
+The wallet utilities module requires wallet SDK components, RxJS for reactive state management, and faucet client for requesting test tokens.
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+import { UnshieldedTokenType } from '@midnight-ntwrk/ledger-v7';
+import { type FacadeState, type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import { type UnshieldedWallet, UnshieldedWalletState } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import * as Rx from 'rxjs';
+
+import { FaucetClient, type EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
+import { Logger } from 'pino';
+import { UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+```
+
+### Get initial wallet states
+
+The initial state functions retrieve the first emitted state from wallet observables. These functions are used to access wallet addresses and balances before starting synchronization.
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+export const getInitialState = async (wallet: ShieldedWallet | UnshieldedWallet) => {
+  if (wallet instanceof ShieldedWallet) {
+    return Rx.firstValueFrom((wallet as ShieldedWallet).state);
+  } else {
+    return Rx.firstValueFrom((wallet as UnshieldedWallet).state);
+  }
+};
+
+export const getInitialShieldedState = async (logger: Logger, wallet: ShieldedWallet) => {
+  logger.info('Getting initial state of wallet...');
+  return Rx.firstValueFrom(wallet.state);
+};
+
+export const getInitialUnshieldedState = async (logger: Logger, wallet: UnshieldedWallet) => {
+  logger.info('Getting initial state of wallet...');
+  return Rx.firstValueFrom(wallet.state);
+};
+```
+
+These helper functions:
+
+- `getInitialState()`: Generic function that retrieves the initial state from either a shielded or unshielded wallet using type checking
+- `getInitialShieldedState()`: Specifically retrieves the shielded wallet's initial state and logs the operation
+- `getInitialUnshieldedState()`: Specifically retrieves the unshielded wallet's initial state and logs the operation
+
+All three functions use RxJS `firstValueFrom()` to convert the wallet's state observable into a Promise that resolves with the first emitted value. This is useful when you need to check the current state without subscribing to ongoing updates.
+
+### Sync wallet
+
+The `syncWallet` function monitors the wallet's synchronization progress and waits until all wallet components are fully synced with the blockchain.
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+const isProgressStrictlyComplete = (progress: unknown): boolean => {
+  if (!progress || typeof progress !== 'object') {
+    return false;
+  }
+  const candidate = progress as { isStrictlyComplete?: unknown };
+  if (typeof candidate.isStrictlyComplete !== 'function') {
+    return false;
+  }
+  return (candidate.isStrictlyComplete as () => boolean)();
+};
+
+export const syncWallet = (logger: Logger, wallet: WalletFacade, throttleTime = 2_000, timeout = 90_000) => {
+  logger.info('Syncing wallet...');
+
+  return Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.tap((state: FacadeState) => {
+        const shieldedSynced = isProgressStrictlyComplete(state.shielded.state.progress);
+        const unshieldedSynced = isProgressStrictlyComplete(state.unshielded.progress);
+        const dustSynced = isProgressStrictlyComplete(state.dust.state.progress);
+        logger.debug(
+          `Wallet synced state emission: { shielded=${shieldedSynced}, unshielded=${unshieldedSynced}, dust=${dustSynced} }`,
+        );
+      }),
+      Rx.throttleTime(throttleTime),
+      Rx.tap((state: FacadeState) => {
+        const shieldedSynced = isProgressStrictlyComplete(state.shielded.state.progress);
+        const unshieldedSynced = isProgressStrictlyComplete(state.unshielded.progress);
+        const dustSynced = isProgressStrictlyComplete(state.dust.state.progress);
+        const isSynced = shieldedSynced && dustSynced && unshieldedSynced;
+
+        logger.debug(
+          `Wallet synced state emission (synced=${isSynced}): { shielded=${shieldedSynced}, unshielded=${unshieldedSynced}, dust=${dustSynced} }`,
+        );
+      }),
+      Rx.filter(
+        (state: FacadeState) =>
+          isProgressStrictlyComplete(state.shielded.state.progress) &&
+          isProgressStrictlyComplete(state.dust.state.progress) &&
+          isProgressStrictlyComplete(state.unshielded.progress),
+      ),
+      Rx.tap(() => logger.info('Sync complete')),
+      Rx.tap((state: FacadeState) => {
+        const shieldedBalances = state.shielded.balances || {};
+        const unshieldedBalances = state.unshielded.balances || {};
+        const dustBalances = state.dust.walletBalance(new Date(Date.now())) || 0n;
+
+        logger.info(
+          `Wallet balances after sync - Shielded: ${JSON.stringify(shieldedBalances)}, Unshielded: ${JSON.stringify(unshieldedBalances)}, Dust: ${dustBalances}`,
+        );
+      }),
+      Rx.timeout({
+        each: timeout,
+        with: () => Rx.throwError(() => new Error(`Wallet sync timeout after ${timeout}ms`)),
+      }),
+    ),
+  );
+};
+```
+
+The synchronization process involves several steps:
+
+- **Helper function**: `isProgressStrictlyComplete()` safely checks if a wallet component's progress object indicates complete synchronization. It performs runtime type checking to ensure the progress object has the expected `isStrictlyComplete()` method.
+- **Start monitoring**: The function subscribes to the wallet facade's state observable, which emits updates as the wallet syncs with the blockchain.
+- **Log all state emissions**: The first `tap` operator logs the sync status of all three wallet components (shielded, unshielded, DUST) at debug level for every state emission.
+- **Throttle updates**: `throttleTime(2_000)` limits state processing to once every 2 seconds, preventing excessive logging and computation during rapid state updates.
+
+### Wait for unshielded funds
+
+The `waitForUnshieldedFunds` function ensures the unshielded wallet has sufficient funds before proceeding with operations. It optionally requests tokens from the faucet if the wallet is empty.
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+export const waitForUnshieldedFunds = async (
+  logger: Logger,
+  wallet: WalletFacade,
+  env: EnvironmentConfiguration,
+  tokenType: UnshieldedTokenType,
+  fundFromFaucet = false,
+): Promise<UnshieldedWalletState> => {
+  const initialState = await getInitialUnshieldedState(logger, wallet.unshielded);
+  const unshieldedAddress = UnshieldedAddress.codec.encode(getNetworkId(), initialState.address);
+  logger.info(`Using unshielded address: ${unshieldedAddress.toString()} waiting for funds...`);
+  if (fundFromFaucet && env.faucet) {
+    logger.info('Requesting tokens from faucet...');
+    await new FaucetClient(env.faucet, logger).requestTokens(unshieldedAddress.toString());
+  }
+  const initialBalance = initialState.balances[tokenType.raw];
+  if (initialBalance === undefined || initialBalance === 0n) {
+    logger.info(`Your wallet initial balance is: 0 (not yet initialized)`);
+    logger.info(`Waiting to receive tokens...`);
+    const facadeState = await syncWallet(logger, wallet);
+    return facadeState.unshielded;
+  }
+  return initialState;
+};
+```
+
+This function performs the following operations:
+
+- **Get initial state**: Retrieves the unshielded wallet's current state to access the address and check existing balances.
+- **Encode address**: Converts the raw address bytes into a human-readable format using the network-specific codec, which produces addresses like `tmnight1...` for testnet.
+- **Log address**: Displays the unshielded address so users can manually send funds if needed.
+- **Request faucet funds**: If `fundFromFaucet` is enabled and a faucet endpoint is configured, automatically requests test tokens from the faucet. This is useful for Preprod testing where initial funding is required.
+- **Check balance**: Looks up the balance for the specified token type (typically tNIGHT).
+- **Wait if needed**: If the balance is zero or undefined, logs the empty balance state and calls `syncWallet()` to wait for incoming funds. The sync function monitors the blockchain until tokens arrive and the wallet updates its balance.
+- **Return state**: Once funds are available (either initially present or after syncing), returns the unshielded wallet state for use by the calling code.
+
+This function is essential for ensuring the wallet has funds before attempting contract deployment or transaction submission, which require paying network fees.
+
+## Implement DUST generation
+
+DUST generation designates tNIGHT tokens to automatically produce DUST tokens for transaction fees. This section implements two key functions: deriving the unshielded wallet key from an HD wallet seed, and creating a DUST generation registration transaction.
+
+Create `bboard-cli/src/generate-dust.ts` and add the following sections.
+
+### Import required packages
+
+The DUST generation module requires packages for wallet management, HD key derivation, UTXO handling, and reactive state management.
+
+```typescript title="bboard-cli/src/generate-dust.ts"
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { UtxoWithMeta as UtxoWithMetaDust } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import { createKeystore, UnshieldedWalletState } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { Logger } from 'pino';
+import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import * as rx from 'rxjs';
+```
+
+### Get unshielded seed
+
+The `getUnshieldedSeed` function derives an unshielded wallet key from the HD wallet seed:
+
+```typescript title="bboard-cli/src/generate-dust.ts"
+export const getUnshieldedSeed = (seed: string): Uint8Array<ArrayBufferLike> => {
+  const seedBuffer = Buffer.from(seed, 'hex');
+  const hdWalletResult = HDWallet.fromSeed(seedBuffer);
+
+  const { hdWallet } = hdWalletResult as {
+    type: 'seedOk';
+    hdWallet: HDWallet;
+  };
+
+  const derivationResult = hdWallet.selectAccount(0).selectRole(Roles.NightExternal).deriveKeyAt(0);
+
+  if (derivationResult.type === 'keyOutOfBounds') {
+    throw new Error('Key derivation out of bounds');
+  }
+
+  return derivationResult.key;
+};
+```
+
+This function:
+
+- **Converts seed format**: Transforms the hex string seed into a buffer that the HD wallet can process.
+- **Creates HD wallet**: Initializes an HD wallet from the seed, which enables hierarchical key derivation.
+- **Derives unshielded key**: Navigates the HD wallet hierarchy using account 0, the `NightExternal` role (for unshielded operations), and key index 0.
+- **Validates derivation**: Checks that the derived key is within valid bounds and throws an error if derivation fails.
+
+The derived key is used to sign unshielded transactions, including DUST generation registration.
+
+### Generate DUST
+
+The `generateDust` function registers unshielded UTXOs for DUST generation:
+
+```typescript title="bboard-cli/src/generate-dust.ts"
+export const generateDust = async (
+  logger: Logger,
+  walletSeed: string,
+  unshieldedState: UnshieldedWalletState,
+  walletFacade: WalletFacade,
+) => {
+  const ttlIn10min = new Date(Date.now() + 10 * 60 * 1000);
+  const dustState = await walletFacade.dust.waitForSyncedState();
+  const networkId = getNetworkId();
+  const unshieldedKeystore = createKeystore(getUnshieldedSeed(walletSeed), networkId);
+  const utxos: UtxoWithMetaDust[] = unshieldedState.availableCoins
+    .filter((coin) => !coin.meta.registeredForDustGeneration)
+    .map((utxo) => ({ ...utxo.utxo, ctime: new Date(utxo.meta.ctime) }));
+
+  if (utxos.length === 0) {
+    logger.info('No unregistered UTXOs found for dust generation.');
+    return;
+  }
+
+  logger.info(`Generating dust with ${utxos.length} UTXOs...`);
+
+  const registerForDustTransaction = await walletFacade.dust.createDustGenerationTransaction(
+    new Date(),
+    ttlIn10min,
+    utxos,
+    unshieldedKeystore.getPublicKey(),
+    dustState.dustAddress,
+  );
+
+  const intent = registerForDustTransaction.intents?.get(1);
+  const intentSignatureData = intent!.signatureData(1);
+  const signature = unshieldedKeystore.signData(intentSignatureData);
+  const recipe = await walletFacade.dust.addDustGenerationSignature(registerForDustTransaction, signature);
+
+  const transaction = await walletFacade.finalizeTransaction(recipe);
+  const txId = await walletFacade.submitTransaction(transaction);
+
+  const dustBalance = await rx.firstValueFrom(
+    walletFacade.state().pipe(
+      rx.filter((s) => s.dust.walletBalance(new Date()) > 0n),
+      rx.map((s) => s.dust.walletBalance(new Date())),
+    ),
+  );
+  logger.info(`Dust generation transaction submitted with txId: ${txId}`);
+  logger.info(`Receiver dust balance after generation: ${dustBalance}`);
+
+  return txId;
+};
+```
+
+This function performs several steps to register UTXOs for DUST generation:
+
+- **Set transaction TTL**: Creates a 10-minute time-to-live for the transaction, after which it becomes invalid if not confirmed.
+- **Sync DUST state**: Waits for the wallet's DUST state to synchronize with the network, ensuring accurate balance information.
+- **Create keystore**: Builds an unshielded keystore from the derived seed, which is needed to sign the registration transaction.
+- **Filter UTXOs**: Identifies unregistered UTXOs (coins not yet designated for DUST generation) and transforms them into the format required by the transaction builder.
+- **Early return**: If no unregistered UTXOs exist, logs a message and exits early since there's nothing to register.
+- **Build transaction**: Creates a DUST generation transaction using the filtered UTXOs, the keystore's public key, and the network's DUST address.
+- **Sign transaction**: Extracts the transaction intent, retrieves the signature data, signs it with the unshielded keystore, and adds the signature to the transaction recipe.
+- **Submit and track**: Finalizes the transaction, submits it to the network, and waits for the DUST balance to update, confirming successful registration.
+
+DUST generation requires a one-time on-chain registration transaction. Once registered, the designated tNIGHT UTXOs automatically produce DUST tokens over time, which are used to pay shielded transaction fees.
+
+## Implement wallet provider
+
+The wallet provider bridges the Wallet SDK to the Midnight.js contracts API. 
+It implements the interfaces required by the contract deployment system and handles transaction balancing, submission, and wallet lifecycle management.
+
+Create `bboard-cli/src/midnight-wallet-provider.ts` and add the following sections.
+
+### Import required packages
+
+The wallet provider module requires ledger types, wallet SDK components, and environment configuration utilities.
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+import {
+  type CoinPublicKey,
+  DustSecretKey,
+  type EncPublicKey,
+  type FinalizedTransaction,
+  LedgerParameters,
+  ZswapSecretKeys,
+} from '@midnight-ntwrk/ledger-v7';
+import { type MidnightProvider, UnboundTransaction, type WalletProvider } from '@midnight-ntwrk/midnight-js-types';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import type { Logger } from 'pino';
+
+import { getInitialShieldedState } from './wallet-utils';
+import { DustWalletOptions, EnvironmentConfiguration, FluentWalletBuilder } from '@midnight-ntwrk/testkit-js';
+import { NetworkId } from '@midnight-ntwrk/wallet-sdk-abstractions';
+```
+
+### Define the class and constructor
+
+The `MidnightWalletProvider` class implements both `MidnightProvider` and `WalletProvider` interfaces, providing a unified interface for wallet operations required by the contract system.
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+export class MidnightWalletProvider implements MidnightProvider, WalletProvider {
+  logger: Logger;
+  readonly env: EnvironmentConfiguration;
+  readonly wallet: WalletFacade;
+  readonly zswapSecretKeys: ZswapSecretKeys;
+  readonly dustSecretKey: DustSecretKey;
+
+  private constructor(
+    logger: Logger,
+    environmentConfiguration: EnvironmentConfiguration,
+    wallet: WalletFacade,
+    zswapSecretKeys: ZswapSecretKeys,
+    dustSecretKey: DustSecretKey,
+  ) {
+    this.logger = logger;
+    this.env = environmentConfiguration;
+    this.wallet = wallet;
+    this.zswapSecretKeys = zswapSecretKeys;
+    this.dustSecretKey = dustSecretKey;
+  }
+```
+
+The class stores essential components:
+
+- `logger`: For logging wallet operations and debugging
+- `env`: Environment configuration containing network endpoints and settings
+- `wallet`: The Wallet SDK facade that manages shielded, unshielded, and DUST wallets
+- `zswapSecretKeys`: Secret keys for shielded (zswap) operations, including the coin public key and encryption key
+- `dustSecretKey`: Secret key specifically for DUST token management and fee payment
+
+The private constructor ensures instances are created only through the `build()` factory method, which properly initializes all cryptographic keys.
+
+### Implement key provider methods
+
+The provider methods expose cryptographic public keys needed for receiving funds and decrypting transaction data.
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  getCoinPublicKey(): CoinPublicKey {
+    return this.zswapSecretKeys.coinPublicKey;
+  }
+
+  getEncryptionPublicKey(): EncPublicKey {
+    return this.zswapSecretKeys.encryptionPublicKey;
+  }
+```
+
+These methods provide public keys derived from the wallet's secret keys:
+
+- `getCoinPublicKey()`: Returns the public key for receiving shielded funds. Other users need this address to send you shielded tokens.
+- `getEncryptionPublicKey()`: Returns the encryption public key used to decrypt shielded transaction data. This allows your wallet to read transaction details sent to you.
+
+### Implement transaction methods
+
+The transaction methods handle balancing and submitting transactions to the network.
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  async balanceTx(tx: UnboundTransaction, ttl: Date = ttlOneHour()): Promise<FinalizedTransaction> {
+    const recipe = await this.wallet.balanceUnboundTransaction(
+      tx,
+      { shieldedSecretKeys: this.zswapSecretKeys, dustSecretKey: this.dustSecretKey },
+      { ttl },
+    );
+    return await this.wallet.finalizeRecipe(recipe);
+  }
+
+  submitTx(tx: FinalizedTransaction): Promise<string> {
+    return this.wallet.submitTransaction(tx);
+  }
+```
+
+These methods manage the transaction lifecycle:
+
+- `balanceTx()`: Takes an unbound transaction (one without inputs/outputs selected) and balances it by selecting appropriate UTXOs to cover fees and adding change outputs. Uses a default TTL of one hour. The wallet automatically selects shielded inputs and uses DUST tokens to pay transaction fees.
+- `submitTx()`: Submits a finalized transaction to the network and returns the transaction hash for tracking. The transaction hash can be used to monitor confirmation status.
+
+These methods are called automatically by the contract deployment and circuit invocation functions in Midnight.js.
+
+### Implement lifecycle methods
+
+The lifecycle methods control wallet initialization and cleanup.
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  async start(): Promise<void> {
+    this.logger.info('Starting wallet...');
+    await this.wallet.start(this.zswapSecretKeys, this.dustSecretKey);
+  }
+
+  async stop(): Promise<void> {
+    return this.wallet.stop();
+  }
+```
+
+These methods manage the wallet's operational lifecycle:
+
+- `start()`: Initializes the wallet with the shielded and DUST secret keys, begins synchronizing with the blockchain, and starts monitoring for incoming transactions. This must be called before performing any wallet operations.
+- `stop()`: Gracefully shuts down the wallet, closes network connections, and cleans up resources. Always call this before the application exits to prevent resource leaks and ensure proper cleanup.
+
+### Implement the build factory method
+
+The `build` static method creates and configures a new wallet instance with proper DUST fee settings for the Preprod network.
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  static async build(logger: Logger, env: EnvironmentConfiguration, seed?: string): Promise<MidnightWalletProvider> {
+    const dustOptions: DustWalletOptions = {
+      ledgerParams: LedgerParameters.initialParameters(),
+      additionalFeeOverhead: 1_000n,
+      feeBlocksMargin: 5,
+    };
+    const builder = FluentWalletBuilder.forEnvironment(env).withDustOptions(dustOptions);
+    const buildResult = seed
+      ? await builder.withSeed(seed).buildWithoutStarting()
+      : await builder.withRandomSeed().buildWithoutStarting();
+    const { wallet, seeds } = buildResult as {
+      wallet: WalletFacade;
+      seeds: { masterSeed: string; shielded: Uint8Array; dust: Uint8Array };
+    };
+
+    const initialState = await getInitialShieldedState(logger, wallet.shielded);
+    logger.info(
+      `Your wallet seed is: ${seeds.masterSeed} and your address is: ${initialState.address.coinPublicKeyString()}`,
+    );
+
+    return new MidnightWalletProvider(
+      logger,
+      env,
+      wallet,
+      ZswapSecretKeys.fromSeed(seeds.shielded),
+      DustSecretKey.fromSeed(seeds.dust),
+    );
+  }
+}
+```
+
+The factory method performs several key operations:
+
+- **Configure DUST options**: Sets up DUST wallet parameters with a low `additionalFeeOverhead` (1000n) for the Preprod network. This ensures transactions are properly balanced without overpaying fees. 
+- **Create wallet builder**: Initializes a `FluentWalletBuilder` configured for the specified environment and applies the DUST options.
+- **Build wallet**: If a seed is provided, restores the wallet from that seed (for recovering existing wallets). Otherwise, generates a new random seed for a fresh wallet. 
+- **Extract wallet and seeds**: Destructures the build result to access the wallet facade and the generated seeds. The derived shielded and DUST seeds are used for cryptographic operations.
+- **Create provider instance**: Constructs the `MidnightWalletProvider` with all necessary components, deriving the zswap and DUST secret keys from their respective seeds.
+
+This factory pattern ensures proper wallet initialization with all required cryptographic keys and configuration before the wallet starts synchronizing with the network.
+
+## Implement the main CLI logic
+
+The main CLI file orchestrates the entire bulletin board application. It handles user interaction, wallet setup, contract deployment, and the interactive menu system. This file ties together all the components you built in previous sections.
+
+Create `bboard-cli/src/index.ts` and add the following sections.
+
+### Import required packages
+
+Start by importing all the necessary packages and types. These imports bring together the contract, API, wallet, and provider implementations:
+
+```typescript title="bboard-cli/src/index.ts"
+import { createInterface, type Interface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import { WebSocket } from 'ws';
+import {
+  BBoardAPI,
+  type BBoardDerivedState,
+  bboardPrivateStateKey,
+  type BBoardProviders,
+  type DeployedBBoardContract,
+  type PrivateStateId,
+} from '../../api/src/index';
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { ledger, type Ledger, State } from '../../contract/src/managed/bboard/contract/index.js';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { type Logger } from 'pino';
+import { type Config } from './config.js';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
+import { assertIsContractAddress, toHex } from '@midnight-ntwrk/midnight-js-utils';
+import { TestEnvironment } from '@midnight-ntwrk/testkit-js';
+import { MidnightWalletProvider } from './midnight-wallet-provider';
+import { randomBytes } from '../../api/src/utils';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v7';
+import { syncWallet, waitForUnshieldedFunds } from './wallet-utils';
+import { generateDust } from './generate-dust';
+import { BBoardPrivateState } from '@midnight-ntwrk/bboard-contract';
+
+globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+```
+
+The `globalThis.WebSocket` assignment configures the Node.js WebSocket implementation for browser-compatible APIs. This enables WebSocket connections to the Indexer and Node RPC services.
+
+### Query ledger state
+
+Create a helper function to retrieve the current public ledger state from a deployed contract:
+
+```typescript title="bboard-cli/src/index.ts"
+export const getBBoardLedgerState = async (
+  providers: BBoardProviders,
+  contractAddress: ContractAddress,
+): Promise<Ledger | null> => {
+  assertIsContractAddress(contractAddress);
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  return contractState != null ? ledger(contractState.data) : null;
+};
+```
+
+This function queries the public data provider for the contract's current state and deserializes it using the `ledger()` function from the compiled contract. The `assertIsContractAddress()` call validates that the address has the correct format before querying. The function returns `null` if no contract exists at the specified address.
+
+### Deploy or join a contract
+
+Create a function that prompts the user to either deploy a new bulletin board or connect to an existing one:
+
+```typescript title="bboard-cli/src/index.ts"
+const DEPLOY_OR_JOIN_QUESTION = `
+You can do one of the following:
+  1. Deploy a new bulletin board contract
+  2. Join an existing bulletin board contract
+  3. Exit
+Which would you like to do? `;
+
+const deployOrJoin = async (providers: BBoardProviders, rli: Interface, logger: Logger): Promise<BBoardAPI | null> => {
+  let api: BBoardAPI | null = null;
+
+  while (true) {
+    const choice = await rli.question(DEPLOY_OR_JOIN_QUESTION);
+    switch (choice) {
+      case '1':
+        api = await BBoardAPI.deploy(providers, logger);
+        logger.info(`Deployed contract at address: ${api.deployedContractAddress}`);
+        return api;
+      case '2':
+        api = await BBoardAPI.join(providers, await rli.question('What is the contract address (in hex)? '), logger);
+        logger.info(`Joined contract at address: ${api.deployedContractAddress}`);
+        return api;
+      case '3':
+        logger.info('Exiting...');
+        return null;
+      default:
+        logger.error(`Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+This function presents a menu and waits for the user's choice. The function loops until the user makes a valid selection:
+
+- **Option 1**: Deploys a new contract using `BBoardAPI.deploy()` and logs the contract address that other users can use to join the same bulletin board.
+- **Option 2**: Prompts for an existing contract address (in hexadecimal format) and connects using `BBoardAPI.join()`.
+- **Option 3**: Exits without initializing a contract, returning `null` to signal cancellation.
+- **Invalid input**: Logs an error message and redisplays the menu.
+
+### Display ledger state
+
+Create a function to display the public ledger state that all network participants can see:
+
+```typescript title="bboard-cli/src/index.ts"
+const displayLedgerState = async (
+  providers: BBoardProviders,
+  deployedBBoardContract: DeployedBBoardContract,
+  logger: Logger,
+): Promise<void> => {
+  const contractAddress = deployedBBoardContract.deployTxData.public.contractAddress;
+  const ledgerState = await getBBoardLedgerState(providers, contractAddress);
+  if (ledgerState === null) {
+    logger.info(`There is no bulletin board contract deployed at ${contractAddress}`);
+  } else {
+    const boardState = ledgerState.state === State.OCCUPIED ? 'occupied' : 'vacant';
+    const latestMessage = !ledgerState.message.is_some ? 'none' : ledgerState.message.value;
+    logger.info(`Current state is: '${boardState}'`);
+    logger.info(`Current message is: '${latestMessage}'`);
+    logger.info(`Current sequence is: ${ledgerState.sequence}`);
+    logger.info(`Current owner is: '${toHex(ledgerState.owner)}'`);
+  }
+};
+```
+
+This function retrieves and displays the public ledger state that all network participants can see:
+
+- Queries the contract state using `getBBoardLedgerState()` to fetch the latest on-chain data.
+- Converts the `State` enum value to a human-readable string (occupied or vacant).
+- Checks if a message exists by inspecting the `is_some` property of the `Maybe<string>` type.
+- Displays all public fields including the current message, sequence number, and owner commitment hash.
+- Handles the case where the contract does not exist at the specified address.
+
+### Display private state
+
+Create a function to display the secret key stored in the local private state database:
+
+```typescript title="bboard-cli/src/index.ts"
+const displayPrivateState = async (providers: BBoardProviders, logger: Logger): Promise<void> => {
+  const privateState = await providers.privateStateProvider.get(bboardPrivateStateKey);
+  if (privateState === null) {
+    logger.info(`There is no existing bulletin board private state`);
+  } else {
+    logger.info(`Current secret key is: ${toHex(privateState.secretKey)}`);
+  }
+};
+```
+
+This function retrieves and displays the private state that only the local user knows. The secret key never appears on-chain and is used to generate owner commitments for proving message ownership.
+
+### Display derived state
+
+Create a function to display computed state that combines public and private information:
+
+```typescript title="bboard-cli/src/index.ts"
+const displayDerivedState = (ledgerState: BBoardDerivedState | undefined, logger: Logger) => {
+  if (ledgerState === undefined) {
+    logger.info(`No bulletin board state currently available`);
+  } else {
+    const boardState = ledgerState.state === State.OCCUPIED ? 'occupied' : 'vacant';
+    const latestMessage = ledgerState.state === State.OCCUPIED ? ledgerState.message : 'none';
+    logger.info(`Current state is: '${boardState}'`);
+    logger.info(`Current message is: '${latestMessage}'`);
+    logger.info(`Current sequence is: ${ledgerState.sequence}`);
+    logger.info(`Current owner is: '${ledgerState.isOwner ? 'you' : 'not you'}'`);
+  }
+};
+```
+
+This function displays the derived state that includes the computed `isOwner` flag. Unlike the ledger state which shows the raw owner commitment, the derived state translates ownership into a user-friendly "you" or "not you" message by comparing commitments with the local secret key.
+
+### Create the main interaction loop
+
+Create the main menu loop that handles user commands for interacting with the bulletin board:
+
+```typescript title="bboard-cli/src/index.ts"
+const MAIN_LOOP_QUESTION = `
+You can do one of the following:
+  1. Post a message
+  2. Take down your message
+  3. Display the current ledger state (known by everyone)
+  4. Display the current private state (known only to this DApp instance)
+  5. Display the current derived state (known only to this DApp instance)
+  6. Exit
+Which would you like to do? `;
+
+const mainLoop = async (providers: BBoardProviders, rli: Interface, logger: Logger): Promise<void> => {
+  const bboardApi = await deployOrJoin(providers, rli, logger);
+  if (bboardApi === null) {
+    return;
+  }
+  let currentState: BBoardDerivedState | undefined;
+  const stateObserver = {
+    next: (state: BBoardDerivedState) => (currentState = state),
+  };
+  const subscription = bboardApi.state$.subscribe(stateObserver);
+  try {
+    while (true) {
+      const choice = await rli.question(MAIN_LOOP_QUESTION);
+      switch (choice) {
+        case '1': {
+          const message = await rli.question(`What message do you want to post? `);
+          await bboardApi.post(message);
+          break;
+        }
+        case '2':
+          await bboardApi.takeDown();
+          break;
+        case '3':
+          await displayLedgerState(providers, bboardApi.deployedContract, logger);
+          break;
+        case '4':
+          await displayPrivateState(providers, logger);
+          break;
+        case '5':
+          displayDerivedState(currentState, logger);
+          break;
+        case '6':
+          logger.info('Exiting...');
+          return;
+        default:
+          logger.error(`Invalid choice: ${choice}`);
+      }
+    }
+  } finally {
+    subscription.unsubscribe();
+  }
+};
+```
+
+The main loop manages the interactive bulletin board session and provides the user interface for all contract operations:
+
+- Calls `deployOrJoin()` first to initialize the contract connection. Returns early if the user chooses to exit without deploying or joining.
+- Subscribes to `bboardApi.state$` using an observer pattern to automatically receive state updates whenever transactions modify the contract.
+- Stores the latest state in `currentState` variable so it can be displayed on demand without making additional blockchain queries.
+- Presents a menu with six options (post, take down, view states, exit) and executes the corresponding action based on user input.
+- Uses a `try/finally` block to guarantee that the state subscription is properly cleaned up when the loop exits, preventing memory leaks.
+
+### Set up wallet seed
+
+Create a function that handles wallet seed initialization by prompting the user to create a new wallet or restore an existing one:
+
+```typescript title="bboard-cli/src/index.ts"
+const WALLET_LOOP_QUESTION = `
+You can do one of the following:
+  1. Build a fresh wallet
+  2. Build wallet from a seed
+  3. Exit
+Which would you like to do? `;
+
+const buildWallet = async (config: Config, rli: Interface, logger: Logger): Promise<string | undefined> => {
+  while (true) {
+    const choice = await rli.question(WALLET_LOOP_QUESTION);
+    switch (choice) {
+      case '1':
+        return toHex(randomBytes(32));
+      case '2':
+        return await rli.question('Enter your wallet seed: ');
+      case '3':
+        logger.info('Exiting...');
+        return undefined;
+      default:
+        logger.error(`Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+The wallet setup function provides three options for managing wallet seeds:
+
+- **Build a fresh wallet**: Generates a new random 32-byte seed for a completely new wallet. Save this seed securely if you want to use the same wallet in future sessions.
+- **Build wallet from a seed**: Restores an existing wallet from a seed phrase you created previously, allowing you to access the same wallet across multiple sessions.
+- **Exit**: Returns `undefined` to signal that wallet creation was cancelled and the application should terminate.
+
+### Implement the run function
+
+Create the main `run()` function that coordinates the entire application lifecycle from environment setup through contract interaction:
+
+```typescript title="bboard-cli/src/index.ts"
+export const run = async (config: Config, testEnv: TestEnvironment, logger: Logger): Promise<void> => {
+  const rli = createInterface({ input, output, terminal: true });
+  const providersToBeStopped: MidnightWalletProvider[] = [];
+  try {
+    const envConfiguration = await testEnv.start();
+    logger.info(`Environment started with configuration: ${JSON.stringify(envConfiguration)}`);
+    const seed = await buildWallet(config, rli, logger);
+    if (seed === undefined) {
+      return;
+    }
+    const walletProvider = await MidnightWalletProvider.build(logger, envConfiguration, seed);
+    providersToBeStopped.push(walletProvider);
+    const walletFacade: WalletFacade = walletProvider.wallet;
+
+    await walletProvider.start();
+
+    const unshieldedState = await waitForUnshieldedFunds(
+      logger,
+      walletFacade,
+      envConfiguration,
+      unshieldedToken(),
+      config.requestFaucetTokens,
+    );
+    const nightBalance = unshieldedState.balances[unshieldedToken().raw];
+    if (nightBalance === undefined) {
+      logger.info('No funds received, exiting...');
+      return;
+    }
+    logger.info(`Your NIGHT wallet balance is: ${nightBalance}`);
+
+    if (config.generateDust) {
+      const dustGeneration = await generateDust(logger, seed, unshieldedState, walletFacade);
+      if (dustGeneration) {
+        logger.info(`Submitted dust generation registration transaction: ${dustGeneration}`);
+        await syncWallet(logger, walletFacade);
+      }
+    }
+
+    const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>(config.zkConfigPath);
+    const providers: BBoardProviders = {
+      privateStateProvider: levelPrivateStateProvider<PrivateStateId, BBoardPrivateState>({
+        privateStateStoreName: config.privateStateStoreName,
+        signingKeyStoreName: `${config.privateStateStoreName}-signing-keys`,
+        privateStoragePasswordProvider: () => {
+          return 'key-just-for-testing-here!';
+        },
+      }),
+      publicDataProvider: indexerPublicDataProvider(envConfiguration.indexer, envConfiguration.indexerWS),
+      zkConfigProvider: zkConfigProvider,
+      proofProvider: httpClientProofProvider(envConfiguration.proofServer, zkConfigProvider),
+      walletProvider: walletProvider,
+      midnightProvider: walletProvider,
+    };
+    await mainLoop(providers, rli, logger);
+  } catch (e) {
+    logError(logger, e);
+    logger.info('Exiting...');
+  } finally {
+    try {
+      rli.close();
+      rli.removeAllListeners();
+    } catch (e) {
+      logError(logger, e);
+    } finally {
+      try {
+        for (const wallet of providersToBeStopped) {
+          logger.info('Stopping wallet...');
+          await wallet.stop();
+        }
+        if (testEnv) {
+          logger.info('Stopping test environment...');
+          await testEnv.shutdown();
+        }
+      } catch (e) {
+        logError(logger, e);
+      }
+    }
+  }
+};
+```
+
+The `run()` function executes the following workflow:
+
+- **Environment startup**: Starts the test environment and retrieves endpoint configuration for the Indexer, Node RPC, proof server, and faucet.
+- **Wallet creation**: Calls `buildWallet()` to obtain a seed, then builds and starts a `MidnightWalletProvider` instance.
+- **Funding check**: Waits for unshielded NIGHT tokens using `waitForUnshieldedFunds()`, which optionally requests tokens from the faucet.
+- **DUST generation**: If `config.generateDust` is enabled, registers the wallet for DUST generation to enable shielded transaction fees.
+- **Provider configuration**: Creates the provider object with all six required providers (private state, public data, ZK config, proof, wallet, and midnight).
+- **Main interaction**: Calls `mainLoop()` to begin the interactive bulletin board session.
+- **Cleanup**: Uses nested `finally` blocks to guarantee cleanup of the readline interface, wallet, and test environment even if errors occur during execution.
+
+### Add error logging utility
+
+Create a helper function to log errors consistently throughout the application:
+
+```typescript title="bboard-cli/src/index.ts"
+function logError(logger: Logger, e: unknown) {
+  if (e instanceof Error) {
+    logger.error(`Found error '${e.message}'`);
+    logger.debug(`${e.stack}`);
+  } else {
+    logger.error(`Found error (unknown type)`);
+  }
+}
+```
+
+The `logError()` function checks if the error is an `Error` instance to access the message and stack trace. For unknown error types, it logs a generic message. This ensures errors are always logged even when they do not follow standard JavaScript error patterns.
+
+## Create the application entry point
+
+Create a launcher file that initializes the CLI application with the Preprod configuration. This file serves as the entry point when running the application.
+
+Create `bboard-cli/src/launcher/preprod.ts`:
+
+```typescript title="bboard-cli/src/launcher/preprod.ts"
+import { createLogger } from '../logger-utils.js';
+import { run } from '../index.js';
+import { PreprodRemoteConfig } from '../config.js';
+
+const config = new PreprodRemoteConfig();
+const logger = await createLogger(config.logDir);
+const testEnvironment = config.getEnvironment(logger);
+await run(config, testEnvironment, logger);
+```
+
+This launcher file performs three essential steps:
+
+- Creates a `PreprodRemoteConfig` instance that defines the Preprod network endpoints and settings.
+- Initializes a logger using the log directory path from the configuration.
+- Gets the test environment and passes everything to the `run()` function to start the CLI application.
+
+The launcher uses top-level await to execute asynchronous initialization code directly at the module level.
+
+## Configure proof server
+
+Create `bboard-cli/proof-server.yml` for the testkit-managed proof server:
+
+```yaml title="bboard-cli/proof-server.yml"
+services:
+  proof-server:
+    image: 'bricktowers/proof-server:7.0.0'
+    container_name: "proof-server_$TESTCONTAINERS_UID"
+    ports:
+      - "0:6300"
+    environment:
+      EXTRA_ARGS: -v
+      RUST_BACKTRACE: "full"
+```
+
+:::note Credits
+The proof server used in this tutorial is a community-maintained Docker image by Brick Towers.
+:::
+
+This Docker Compose file configures the proof server used by the Preprod environment. The testkit automatically manages this container's lifecycle.
+
+:::info
+The proof server is managed by the `testkit-js` library. It checks for the proof server file `proof-server.yml` in the current directory and starts the proof server if it is not already running.
+:::
+
+## Project structure
+
+The complete example-bboard project uses a monorepo structure with npm workspaces:
+
+```
+example-bboard/
+├── package.json                 # Root package with workspaces
+├── contract/                    # Compact contract
+│   ├── src/
+│   │   ├── bboard.compact
+│   │   ├── managed/
+│   │   ├── witnesses.ts
+│   │   └── index.ts
+│   └── package.json
+├── api/                         # Shared API layer
+│   ├── src/
+│   │   ├── index.ts            # BBoardAPI implementation
+│   │   ├── common-types.ts     # Type definitions
+│   │   └── utils/
+│   │       └── index.ts        # Utility functions
+│   └── package.json
+└── bboard-cli/                  # Bulletin board CLI
+    ├── src/
+    │   ├── config.ts           # Network configuration
+    │   ├── index.ts            # Main CLI logic
+    │   ├── logger-utils.ts     # Logging setup
+    │   ├── wallet-utils.ts     # Wallet synchronization
+    │   ├── generate-dust.ts    # DUST generation
+    │   ├── midnight-wallet-provider.ts  # Wallet provider
+    │   └── launcher/
+    │       └── preprod.ts      # Preprod entry point
+    ├── proof-server.yml        # Docker compose for proof server
+    └── package.json
+```
+
+The monorepo structure enables code sharing between packages through workspace references.
+
+## Run the CLI
+
+To run the CLI, use the `npm run preprod` command in the `bboard-cli` directory.
+
+```bash
+npm run preprod
+```
+
+This command will start the CLI and connect to the Preprod network. You should see the following output:
+
+```
+You can do one of the following:
+  1. Build a fresh wallet
+  2. Build wallet from a seed
+  3. Exit
+Which would you like to do?
+```
+
+From here, you can choose to build a fresh wallet or build a wallet from a seed. You can also exit the CLI by entering `3`.
+For more information on running the CLI, see the [bulletin board example guide](../../../examples/bboard).
+
+## Next steps
+
+Now that you have built a complete bulletin board CLI with privacy-preserving message posting:
+
+- **Build the UI**: Create a browser-based interface for the bulletin board using the [DApp connector API](/api-reference/dapp-connector/).
+- **Extend functionality**: Add features like message history, multiple boards, or time-limited posts.
