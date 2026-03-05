@@ -1,16 +1,249 @@
 ---
-title: Hello world
-description: Your first Midnight smart contract.
+title: Create your first Midnight contract
+description: Learn how to create and compile a Hello World smart contract on Midnight's Preprod network.
 sidebar_position: 20
 sidebar_label: Hello world
-tags: [getting-started, hello-world, smart-contract, ZK]
+tags: [compact, smart contract]
 toc_max_heading_level: 2
 ---
 
-# Hello world
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
-Your first Midnight smart contract.
+# Create your first Midnight contract
+
+In this tutorial, you'll write your first Compact smart contract, deploy it to the Preprod test network and write a Hello World message to the blockchain using privacy-preserving logic.
+
+By the end of this tutorial, you'll:
+
+- Create a Compact smart contract with state storage
+- Compile the contract into zero-knowledge circuits
+- Deploy your contract to the Preprod test network
+- Write a Hello World message to the blockchain
+
+## Prerequisites
+
+Before you begin, ensure you have completed the [install the toolchain](./installation) guide to install the necessary tools.
+
+<StepsProvider>
+<Step>
+
+## Set up project
+
+Clone the starter repo:
+
+```bash
+git clone https://github.com/midnightntwrk/example-hello-world.git
+```
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Create the required directories:
+
+```bash
+mkdir contracts
+```
+
+The `contracts` folder will contain your Compact smart contract source files.
+
+</Step>
+<Step>
+
+## Create the contract file
+
+Create a new file named `hello-world.compact` in the `contracts` directory:
+
+```bash
+touch contracts/hello-world.compact
+```
+
+Open this file in VS Code:
+```bash
+code .
+```
+
+</Step>
+<Step>
+
+## Create the Compact Smart Contract
+
+```compact
+pragma language_version 0.21;
+
+export ledger message: Opaque<"string">;
+
+export circuit storeMessage(newMessage: Opaque<"string">): [] {
+  message = disclose(newMessage);
+}
+```
+- `pragma language_version` specifies which version of Compact your contract uses.
+- `ledger message` creates a state variable named `message` that stores a string value in the on-chain state. On-chain state is public and persistent on the blockchain.
+- `circuit storeMessage` is a Compact circuit (function) that defines the logic to modify on-chain state.
+- `newMessage: Opaque<"string">` is the input parameter. *Circuit parameters are always private by default.* The `disclose()` function marks the private value as safe to store publicly. Without it, trying to assign `newMessage` directly to the ledger returns a compiler error.
+
+</Step>
+
+<Step>
+
+## Compile the contract
+
+Compiling transforms your Compact code into zero-knowledge circuits, generates cryptographic keys, 
+and creates TypeScript APIs and a JavaScript implementation for the contract to be used by DApps. 
+
+Run the compiler from your project root:
+
+```bash
+npm run compile
+```
+
+You should see the following output:
+
+```
+Compiling 1 circuits:
+  circuit "storeMessage" (k=6, rows=26)
+```
+
+The compilation process will:
+1. Parse and validate your Compact code.
+2. Generate zero-knowledge circuits from your logic.
+3. Create proving and verifying keys for the circuits.
+4. Generate the TypeScript API and JavaScript implementation for the contract.
+
+When compilation completes, you'll see a new directory structure:
+
+```
+contracts/
+├── managed/
+|   └── hello-world/
+|        ├── compiler/
+|        ├── contract/
+|        ├── keys/
+|        └── zkir/
+└── hello-world.compact
+```
+
+Here's what each directory contains:
+
+- **contract/**: The compiled contract artifacts, which includes the JavaScript implementation and type definitions.
+- **keys/**: Cryptographic proving and verifying keys that enable zero-knowledge proofs.
+- **zkir/**: Zero-Knowledge Intermediate Representation—the bridge between Compact and the ZK backend.
+- **compiler/**: Compiler-generated JSON output that other tools can use to understand the contract structure.
+
+</Step>
+
+<Step>
+
+## Deploy Contract to Preprod
+Now that your contract is compiled, it needs to be deployed to the blockchain so that you can interact with it.
+
+Be sure the Docker engine is running and in a *separate terminal* start the proof server from the project root:
+```bash
+npm run start-proof-server
+```
+
+Leave the proof server running for the following steps.
+
+To deploy the contract, you'll need a wallet. The deploy script will help you create a new wallet. 
 
 :::note
-Coming soon...
+Be sure to save the seed phrase as you'll need it in the following steps.
 :::
+
+Run the deployment script:
+```bash
+npm run deploy
+```
+
+</Step>
+
+<Step>
+
+### Deployment Failed!
+
+You should have noticed a failure in deploying your contract:
+```
+(FiberFailure) Wallet.Transacting: Not enough Dust generated to pay the fee
+```
+
+This is because the Midnight network requires DUST to pay for your transactions. DUST is generated by the NIGHT you received from the faucet, but it takes time to generate. The more NIGHT you have, the faster DUST generates. Enough tricks, let's deploy and interact with your Compact contract.
+
+Run the deployment script again, this time choosing option 2 'Restore from seed'. Be sure to paste the seed from your previously created wallet:
+```bash
+npm run deploy
+``` 
+
+When deployment completes, you'll see output similar to the following:
+```shell
+✅ Contract deployed successfully!
+
+Contract Address: 0x1234567890abcdef...
+
+Saved to deployment.json
+```
+</Step>
+
+<Step>
+
+## Contract interaction
+
+Now that the contract has been successfully deployed, let's interact with it:
+```bash
+npm run cli
+```
+
+Enter your wallet seed when prompted and wait to connect to the Preprod network.
+
+Choose option [2] to verify the current message is an "(empty)" string:
+```
+  [1] Store a message
+  [2] Read current message
+  [3] Exit
+```
+
+Then choose option 1 and enter "Hello World!" when prompted. You should then see a successful storage of your message:
+```
+ ✅ Message stored!
+  Transaction: 0007f15ce66f14b01ff7d5c2b4fbf4a40f65630cd7950785a81832b11103c5a0f1
+  Block: 402893
+```
+
+Now choose option [2] again, this time returning your "Hello World!" message:
+```
+  Reading message from blockchain...
+  Current message: "Hello World!"
+```
+
+Hello World! You are now ready to explore [Tutorials](../category/tutorials) for more detailed instructions on building DApps on Midnight!
+
+</Step>
+</StepsProvider>
+
+## Troubleshoot
+
+This section covers common issues that you might encounter during compilation and their solutions.
+
+### Compiler not found
+
+If the `compact compile` command isn't recognized, verify your installation:
+
+1. Check if the Compact devtools are installed: `which compact` or `compact --version`.
+2. If step 1 succeeds, verify the compiler toolchain is installed: `compact compile --version`.
+3. For details on installing the Compact toolchain, refer to the [install the toolchain](./installation) guide.
+
+### Compilation errors
+
+If you see syntax or type errors:
+
+- Verify your `pragma language_version` matches your compiler version.
+- Check that all required imports are present.
+- Ensure the `disclose` operator is used where required.
+- Review the error message for specific line numbers and issues.
+
+## Next steps
+
+Explore the [Tutorials](../category/tutorials) for detailed explanations on building Midnight DApps. For less detailed walkthroughs of DApps that provide additional content see [Examples](../category/examples).

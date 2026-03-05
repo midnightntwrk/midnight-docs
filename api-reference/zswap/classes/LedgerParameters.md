@@ -1,25 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / LedgerParameters
+[@midnight/zswap](../globals.md) / LedgerParameters
 
 # Class: LedgerParameters
 
 Parameters used by the Midnight ledger, including transaction fees and
 bounds
-
-## Constructors
-
-### new LedgerParameters()
-
-```ts
-private new LedgerParameters(): LedgerParameters
-```
-
-#### Returns
-
-[`LedgerParameters`](LedgerParameters.md)
 
 ## Properties
 
@@ -36,16 +24,18 @@ The cost model used for transaction fees contained in these parameters
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -57,7 +47,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -73,9 +65,13 @@ static deserialize(raw, netid): LedgerParameters
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

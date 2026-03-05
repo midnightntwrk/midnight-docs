@@ -1,23 +1,25 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / valueToBigInt
+[@midnight/ledger](../globals.md) / valueToBigInt
 
 # Function: valueToBigInt()
 
-`Internal`
-
 ```ts
-valueToBigInt(x): bigint
+function valueToBigInt(x): bigint;
 ```
+
+**`Internal`**
 
 Internal conversion between field-aligned binary values and bigints within
 the scalar field
 
 ## Parameters
 
-• **x**: [`Value`](../type-aliases/Value.md)
+### x
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 

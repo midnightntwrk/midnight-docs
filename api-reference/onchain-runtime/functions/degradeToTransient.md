@@ -1,22 +1,24 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / degradeToTransient
+[@midnight-ntwrk/onchain-runtime](../globals.md) / degradeToTransient
 
 # Function: degradeToTransient()
 
-`Internal`
-
 ```ts
-degradeToTransient(persistent): Value
+function degradeToTransient(persistent): Value
 ```
+
+**`Internal`**
 
 Internal implementation of the degrade to transient primitive
 
 ## Parameters
 
-• **persistent**: [`Value`](../type-aliases/Value.md)
+### persistent
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -24,4 +26,4 @@ Internal implementation of the degrade to transient primitive
 
 ## Throws
 
-If persistent does not encode a 32-byte bytestring
+If [persistent](degradeToTransient.md#persistent) does not encode a 32-byte bytestring

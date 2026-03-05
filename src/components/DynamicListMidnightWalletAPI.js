@@ -19,7 +19,7 @@ const releases = [
   {
     id: 1,
     version: '5.0.0',
-    status: 'LATEST',
+    status: 'DEPRECATED',
     date: '12 May 2025',
     summary: 'Summary of 5.0.0',
     details: [
@@ -34,7 +34,7 @@ const releases = [
   {
     id: 2,
     version: '4.0.0',
-    status: 'LATEST',
+    status: 'DEPRECATED',
     date: '2 April 2025',
     summary: 'Summary of 4.0.0',
     details: [

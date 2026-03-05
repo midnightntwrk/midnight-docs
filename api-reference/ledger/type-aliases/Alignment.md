@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / Alignment
+[@midnight/ledger](../globals.md) / Alignment
 
-# Type alias: Alignment
+# Type Alias: Alignment
 
 ```ts
-type Alignment: AlignmentSegment[];
+type Alignment = AlignmentSegment[];
 ```
 
 The alignment of an onchain field-aligned binary data value.

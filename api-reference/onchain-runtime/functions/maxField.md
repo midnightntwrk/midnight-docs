@@ -1,13 +1,13 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / maxField
+[@midnight-ntwrk/onchain-runtime](../globals.md) / maxField
 
 # Function: maxField()
 
 ```ts
-maxField(): bigint
+function maxField(): bigint
 ```
 
 Returns the maximum representable value in the proof systems scalar field

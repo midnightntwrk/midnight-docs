@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / MerkleTreeCollapsedUpdate
+[@midnight/ledger](../globals.md) / MerkleTreeCollapsedUpdate
 
 # Class: MerkleTreeCollapsedUpdate
 
@@ -12,13 +12,13 @@ transactions.
 
 ## Constructors
 
-### new MerkleTreeCollapsedUpdate(state, start, end)
+### Constructor
 
 ```ts
 new MerkleTreeCollapsedUpdate(
    state, 
    start, 
-   end): MerkleTreeCollapsedUpdate
+   end): MerkleTreeCollapsedUpdate;
 ```
 
 Create a new compact update from a non-compact state, and inclusive
@@ -26,15 +26,21 @@ Create a new compact update from a non-compact state, and inclusive
 
 #### Parameters
 
-• **state**: [`ZswapChainState`](ZswapChainState.md)
+##### state
 
-• **start**: `bigint`
+[`ZswapChainState`](ZswapChainState.md)
 
-• **end**: `bigint`
+##### start
+
+`bigint`
+
+##### end
+
+`bigint`
 
 #### Returns
 
-[`MerkleTreeCollapsedUpdate`](MerkleTreeCollapsedUpdate.md)
+`MerkleTreeCollapsedUpdate`
 
 #### Throws
 
@@ -45,12 +51,8 @@ If the indices are out-of-bounds for the state, or `end < start`
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -61,12 +63,14 @@ serialize(netid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -77,15 +81,15 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, netid): MerkleTreeCollapsedUpdate
+static deserialize(raw): MerkleTreeCollapsedUpdate;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`MerkleTreeCollapsedUpdate`](MerkleTreeCollapsedUpdate.md)
+`MerkleTreeCollapsedUpdate`

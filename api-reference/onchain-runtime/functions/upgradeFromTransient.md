@@ -1,22 +1,24 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / upgradeFromTransient
+[@midnight-ntwrk/onchain-runtime](../globals.md) / upgradeFromTransient
 
 # Function: upgradeFromTransient()
 
-`Internal`
-
 ```ts
-upgradeFromTransient(transient): Value
+function upgradeFromTransient(transient): Value
 ```
+
+**`Internal`**
 
 Internal implementation of the upgrade from transient primitive
 
 ## Parameters
 
-• **transient**: [`Value`](../type-aliases/Value.md)
+### transient
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -24,4 +26,4 @@ Internal implementation of the upgrade from transient primitive
 
 ## Throws
 
-If transient does not encode a field element
+If [transient](upgradeFromTransient.md#transient) does not encode a field element

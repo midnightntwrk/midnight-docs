@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -12,7 +12,7 @@ Set of providers needed for transaction construction and submission.
 
 ### ICK
 
-`ICK` *extends* [`ImpureCircuitId`](../type-aliases/ImpureCircuitId.md) = [`ImpureCircuitId`](../type-aliases/ImpureCircuitId.md)
+`ICK` *extends* `Contract.ImpureCircuitId`\<`Contract.Any`\> = `Contract.ImpureCircuitId`\<`Contract.Any`\>
 
 A union of string literal types representing the callable circuits.
 
@@ -56,7 +56,7 @@ Manages the private state of a contract.
 
 ### proofProvider
 
-> `readonly` **proofProvider**: [`ProofProvider`](ProofProvider.md)\<`ICK`\>
+> `readonly` **proofProvider**: [`ProofProvider`](ProofProvider.md)
 
 Creates proven, unbalanced transactions.
 

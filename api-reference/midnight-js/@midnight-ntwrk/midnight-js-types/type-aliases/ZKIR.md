@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 
 A type representing a zero-knowledge circuit intermediate representation derived from a contract circuit.
 
-## Type declaration
+## Type Declaration
 
 ### ZKIR
 

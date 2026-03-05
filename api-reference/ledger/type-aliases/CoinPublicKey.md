@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / CoinPublicKey
+[@midnight/ledger](../globals.md) / CoinPublicKey
 
-# Type alias: CoinPublicKey
+# Type Alias: CoinPublicKey
 
 ```ts
-type CoinPublicKey: string;
+type CoinPublicKey = string;
 ```
 
 A user public key capable of receiving Zswap coins, as a hex-encoded 35-byte

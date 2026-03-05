@@ -1,27 +1,33 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / verifySignature
+[@midnight/ledger](../globals.md) / verifySignature
 
 # Function: verifySignature()
 
 ```ts
-verifySignature(
+function verifySignature(
    vk, 
    data, 
-   signature): boolean
+   signature): boolean;
 ```
 
 Verifies if a signature is correct
 
 ## Parameters
 
-• **vk**: `string`
+### vk
 
-• **data**: `Uint8Array`
+`string`
 
-• **signature**: `string`
+### data
+
+`Uint8Array`
+
+### signature
+
+`string`
 
 ## Returns
 

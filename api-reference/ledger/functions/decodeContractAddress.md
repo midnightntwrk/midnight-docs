@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / decodeContractAddress
+[@midnight/ledger](../globals.md) / decodeContractAddress
 
 # Function: decodeContractAddress()
 
 ```ts
-decodeContractAddress(addr): ContractAddress
+function decodeContractAddress(addr): string;
 ```
 
 Decode a [ContractAddress](../type-aliases/ContractAddress.md) from a `Uint8Array` originating from
@@ -15,8 +15,10 @@ Compact's `ContractAddress` type
 
 ## Parameters
 
-• **addr**: `Uint8Array`
+### addr
+
+`Uint8Array`
 
 ## Returns
 
-[`ContractAddress`](../type-aliases/ContractAddress.md)
+`string`

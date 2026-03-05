@@ -1,96 +1,289 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / Transaction
+[@midnight/ledger](../globals.md) / Transaction
 
-# Class: Transaction
+# Class: Transaction\<S, P, B\>
 
-A Midnight transaction, consisting a section of [ContractAction](../type-aliases/ContractAction.md)s, and a guaranteed and fallible [Offer](Offer.md).
+A Midnight transaction, consisting a section of [ContractAction](../type-aliases/ContractAction.md)s, and a guaranteed and fallible [ZswapOffer](ZswapOffer.md).
 
 The guaranteed section are run first, and fee payment is taken during this
 part. If it succeeds, the fallible section is also run, and atomically
 rolled back if it fails.
 
-## Constructors
+## Type Parameters
 
-### new Transaction()
+### S
 
-```ts
-private new Transaction(): Transaction
-```
+`S` *extends* [`Signaturish`](../type-aliases/Signaturish.md)
 
-#### Returns
+### P
 
-[`Transaction`](Transaction.md)
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
+
+### B
+
+`B` *extends* [`Bindingish`](../type-aliases/Bindingish.md)
 
 ## Properties
 
-### contractCalls
+### bindingRandomness
 
 ```ts
-readonly contractCalls: ContractAction[];
+readonly bindingRandomness: bigint;
 ```
 
-The contract interactions contained in this transaction
+The binding randomness associated with this transaction
 
 ***
 
-### fallibleCoins
+### fallibleOffer
 
 ```ts
-readonly fallibleCoins: undefined | Offer;
+fallibleOffer: undefined | Map<number, ZswapOffer<P>>;
 ```
 
 The fallible Zswap offer
 
+Note that writing to this re-computes binding information if and only if
+this transaction is unbound *and* unproven. If this is not the case,
+creating or removing offer components will lead to a binding error down
+the line.
+
+#### Throws
+
+On writing if `B` is [Binding](Binding.md) or this is not a standard
+transaction
+
 ***
 
-### guaranteedCoins
+### guaranteedOffer
 
 ```ts
-readonly guaranteedCoins: undefined | Offer;
+guaranteedOffer: undefined | ZswapOffer<P>;
 ```
 
 The guaranteed Zswap offer
 
+Note that writing to this re-computes binding information if and only if
+this transaction is unbound *and* unproven. If this is not the case,
+creating or removing offer components will lead to a binding error down
+the line.
+
+#### Throws
+
+On writing if `B` is [Binding](Binding.md) or this is not a standard
+transaction
+
 ***
 
-### mint
+### intents
 
 ```ts
-readonly mint: undefined | AuthorizedMint;
+intents: undefined | Map<number, Intent<S, P, B>>;
 ```
 
-The mint this transaction represents, if applicable
+The intents contained in this transaction
+
+Note that writing to this re-computes binding information if and only if
+this transaction is unbound *and* unproven. If this is not the case,
+creating or removing intents will lead to a binding error down the line,
+but modifying existing intents will succeed.
+
+#### Throws
+
+On writing if `B` is [Binding](Binding.md) or this is not a standard
+transaction
+
+***
+
+### rewards
+
+```ts
+readonly rewards: 
+  | undefined
+| ClaimRewardsTransaction<S>;
+```
+
+The rewards this transaction represents, if applicable
 
 ## Methods
+
+### addCalls()
+
+```ts
+addCalls(
+   segment, 
+   calls, 
+   params, 
+   ttl, 
+   zswapInputs?, 
+   zswapOutputs?, 
+zswapTransient?): Transaction<S, P, B>;
+```
+
+Adds a set of new calls to the transaction.
+
+In contrast to [Intent.addCall](Intent.md#addcall), this takes calls *before*
+transcript partitioning ([partitionTranscripts](../functions/partitionTranscripts.md)), will create the
+target intent where needed, and will ensure that relevant Zswap parts are
+placed in the same section as contract interactions with them.
+
+#### Parameters
+
+##### segment
+
+[`SegmentSpecifier`](../type-aliases/SegmentSpecifier.md)
+
+##### calls
+
+[`PrePartitionContractCall`](PrePartitionContractCall.md)[]
+
+##### params
+
+[`LedgerParameters`](LedgerParameters.md)
+
+##### ttl
+
+`Date`
+
+##### zswapInputs?
+
+[`ZswapInput`](ZswapInput.md)\<[`PreProof`](PreProof.md)\>[]
+
+##### zswapOutputs?
+
+[`ZswapOutput`](ZswapOutput.md)\<[`PreProof`](PreProof.md)\>[]
+
+##### zswapTransient?
+
+[`ZswapTransient`](ZswapTransient.md)\<[`PreProof`](PreProof.md)\>[]
+
+#### Returns
+
+`Transaction`\<`S`, `P`, `B`\>
+
+#### Throws
+
+If called on bound, proven, or proof-erased transactions.
+
+***
+
+### bind()
+
+```ts
+bind(): Transaction<S, P, Binding>;
+```
+
+Enforces binding for this transaction. This is irreversible.
+
+#### Returns
+
+`Transaction`\<`S`, `P`, [`Binding`](Binding.md)\>
+
+***
+
+### cost()
+
+```ts
+cost(params, enforceTimeToDismiss?): SyntheticCost;
+```
+
+The underlying resource cost of this transaction.
+
+#### Parameters
+
+##### params
+
+[`LedgerParameters`](LedgerParameters.md)
+
+##### enforceTimeToDismiss?
+
+`boolean`
+
+#### Returns
+
+[`SyntheticCost`](../type-aliases/SyntheticCost.md)
+
+***
 
 ### eraseProofs()
 
 ```ts
-eraseProofs(): ProofErasedTransaction
+eraseProofs(): Transaction<S, NoProof, NoBinding>;
 ```
 
 Erases the proofs contained in this transaction
 
 #### Returns
 
-[`ProofErasedTransaction`](ProofErasedTransaction.md)
+`Transaction`\<`S`, [`NoProof`](NoProof.md), [`NoBinding`](NoBinding.md)\>
+
+***
+
+### eraseSignatures()
+
+```ts
+eraseSignatures(): Transaction<SignatureErased, P, B>;
+```
+
+Removes signatures from this transaction.
+
+#### Returns
+
+`Transaction`\<[`SignatureErased`](SignatureErased.md), `P`, `B`\>
 
 ***
 
 ### fees()
 
 ```ts
-fees(params): bigint
+fees(params, enforceTimeToDismiss?): bigint;
 ```
 
-The cost of this transaction, in the atomic unit of the base token
+The cost of this transaction, in SPECKs.
+
+Note that this is *only* accurate when called with proven transactions.
 
 #### Parameters
 
-• **params**: [`LedgerParameters`](LedgerParameters.md)
+##### params
+
+[`LedgerParameters`](LedgerParameters.md)
+
+##### enforceTimeToDismiss?
+
+`boolean`
+
+#### Returns
+
+`bigint`
+
+***
+
+### feesWithMargin()
+
+```ts
+feesWithMargin(params, margin): bigint;
+```
+
+The cost of this transaction, in SPECKs, with a safety margin of `n` blocks applied.
+
+As with [fees](#fees), this is only accurate for proven transactions.
+
+Warning: `n` must be a non-negative integer, and it is an exponent, it is
+very easy to get a completely unreasonable margin here!
+
+#### Parameters
+
+##### params
+
+[`LedgerParameters`](LedgerParameters.md)
+
+##### margin
+
+`number`
 
 #### Returns
 
@@ -101,7 +294,7 @@ The cost of this transaction, in the atomic unit of the base token
 ### identifiers()
 
 ```ts
-identifiers(): string[]
+identifiers(): string[];
 ```
 
 Returns the set of identifiers contained within this transaction. Any of
@@ -116,7 +309,7 @@ these *may* be used to watch for a specific transaction.
 ### imbalances()
 
 ```ts
-imbalances(guaranteed, fees?): Map<string, bigint>
+imbalances(segment, fees?): Map<TokenType, bigint>;
 ```
 
 For given fees, and a given section (guaranteed/fallible), what the
@@ -124,31 +317,41 @@ surplus or deficit of this transaction in any token type is.
 
 #### Parameters
 
-• **guaranteed**: `boolean`
+##### segment
 
-• **fees?**: `bigint`
+`number`
+
+##### fees?
+
+`bigint`
 
 #### Returns
 
-`Map`\<`string`, `bigint`\>
+`Map`\<[`TokenType`](../type-aliases/TokenType.md), `bigint`\>
+
+#### Throws
+
+If `segment` is not a valid segment ID
 
 ***
 
 ### merge()
 
 ```ts
-merge(other): Transaction
+merge(other): Transaction<S, P, B>;
 ```
 
 Merges this transaction with another
 
 #### Parameters
 
-• **other**: [`Transaction`](Transaction.md)
+##### other
+
+`Transaction`\<`S`, `P`, `B`\>
 
 #### Returns
 
-[`Transaction`](Transaction.md)
+`Transaction`\<`S`, `P`, `B`\>
 
 #### Throws
 
@@ -157,15 +360,63 @@ same coins
 
 ***
 
-### serialize()
+### mockProve()
 
 ```ts
-serialize(netid): Uint8Array
+mockProve(): Transaction<S, Proof, Binding>;
 ```
+
+Mocks proving, producing a 'proven' transaction that, while it will
+*not* verify, is accurate for fee computation purposes.
+
+Due to the variability in proof sizes, this *only* works for transactions
+that do not contain unproven contract calls.
+
+#### Returns
+
+`Transaction`\<`S`, [`Proof`](Proof.md), [`Binding`](Binding.md)\>
+
+#### Throws
+
+If called on bound, proven, or proof-erased transactions, or if the
+transaction contains unproven contract calls.
+
+***
+
+### prove()
+
+```ts
+prove(provider, cost_model): Promise<Transaction<S, Proof, B>>;
+```
+
+Proves the transaction, with access to a low-level proving provider.
+This may *only* be called for `P = PreProof`.
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### provider
+
+[`ProvingProvider`](../type-aliases/ProvingProvider.md)
+
+##### cost\_model
+
+[`CostModel`](CostModel.md)
+
+#### Returns
+
+`Promise`\<`Transaction`\<`S`, [`Proof`](Proof.md), `B`\>\>
+
+#### Throws
+
+If called on bound, proven, or proof-erased transactions.
+
+***
+
+### serialize()
+
+```ts
+serialize(): Uint8Array;
+```
 
 #### Returns
 
@@ -176,12 +427,14 @@ serialize(netid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -192,7 +445,7 @@ toString(compact?): string
 ### transactionHash()
 
 ```ts
-transactionHash(): string
+transactionHash(): string;
 ```
 
 Returns the hash associated with this transaction. Due to the ability to
@@ -208,20 +461,31 @@ transaction.
 ### wellFormed()
 
 ```ts
-wellFormed(ref_state, strictness): void
+wellFormed(
+   ref_state, 
+   strictness, 
+   tblock): VerifiedTransaction;
 ```
 
 Tests well-formedness criteria, optionally including transaction balancing
 
 #### Parameters
 
-• **ref\_state**: [`LedgerState`](LedgerState.md)
+##### ref\_state
 
-• **strictness**: [`WellFormedStrictness`](WellFormedStrictness.md)
+[`LedgerState`](LedgerState.md)
+
+##### strictness
+
+[`WellFormedStrictness`](WellFormedStrictness.md)
+
+##### tblock
+
+`Date`
 
 #### Returns
 
-`void`
+[`VerifiedTransaction`](VerifiedTransaction.md)
 
 #### Throws
 
@@ -232,36 +496,145 @@ If the transaction is not well-formed for any reason
 ### deserialize()
 
 ```ts
-static deserialize(raw, netid): Transaction
+static deserialize<S, P, B>(
+   markerS, 
+   markerP, 
+   markerB, 
+raw): Transaction<S, P, B>;
 ```
+
+#### Type Parameters
+
+##### S
+
+`S` *extends* [`Signaturish`](../type-aliases/Signaturish.md)
+
+##### P
+
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
+
+##### B
+
+`B` *extends* [`Bindingish`](../type-aliases/Bindingish.md)
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### markerS
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`S`\[`"instance"`\]
+
+##### markerP
+
+`P`\[`"instance"`\]
+
+##### markerB
+
+`B`\[`"instance"`\]
+
+##### raw
+
+`Uint8Array`
 
 #### Returns
 
-[`Transaction`](Transaction.md)
+`Transaction`\<`S`, `P`, `B`\>
 
 ***
 
-### fromUnproven()
+### fromParts()
 
 ```ts
-static fromUnproven(prove, unproven): Promise<Transaction>
+static fromParts(
+   network_id, 
+   guaranteed?, 
+   fallible?, 
+   intent?): UnprovenTransaction;
 ```
 
-Type hint that you should use an external proving function, for instance
-via the proof server.
+Creates a transaction from its parts.
 
 #### Parameters
 
-• **prove**
+##### network\_id
 
-• **unproven**: [`UnprovenTransaction`](UnprovenTransaction.md)
+`string`
+
+##### guaranteed?
+
+[`UnprovenOffer`](../type-aliases/UnprovenOffer.md)
+
+##### fallible?
+
+[`UnprovenOffer`](../type-aliases/UnprovenOffer.md)
+
+##### intent?
+
+[`UnprovenIntent`](../type-aliases/UnprovenIntent.md)
 
 #### Returns
 
-`Promise`\<[`Transaction`](Transaction.md)\>
+[`UnprovenTransaction`](../type-aliases/UnprovenTransaction.md)
+
+***
+
+### fromPartsRandomized()
+
+```ts
+static fromPartsRandomized(
+   network_id, 
+   guaranteed?, 
+   fallible?, 
+   intent?): UnprovenTransaction;
+```
+
+Creates a transaction from its parts, randomizing the segment ID to better
+allow merging.
+
+#### Parameters
+
+##### network\_id
+
+`string`
+
+##### guaranteed?
+
+[`UnprovenOffer`](../type-aliases/UnprovenOffer.md)
+
+##### fallible?
+
+[`UnprovenOffer`](../type-aliases/UnprovenOffer.md)
+
+##### intent?
+
+[`UnprovenIntent`](../type-aliases/UnprovenIntent.md)
+
+#### Returns
+
+[`UnprovenTransaction`](../type-aliases/UnprovenTransaction.md)
+
+***
+
+### fromRewards()
+
+```ts
+static fromRewards<S>(rewards): Transaction<S, PreProof, Binding>;
+```
+
+Creates a rewards claim transaction, the funds claimed must have been
+legitimately rewarded previously.
+
+#### Type Parameters
+
+##### S
+
+`S` *extends* [`Signaturish`](../type-aliases/Signaturish.md)
+
+#### Parameters
+
+##### rewards
+
+[`ClaimRewardsTransaction`](ClaimRewardsTransaction.md)\<`S`\>
+
+#### Returns
+
+`Transaction`\<`S`, [`PreProof`](PreProof.md), [`Binding`](Binding.md)\>

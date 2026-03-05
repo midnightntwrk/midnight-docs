@@ -1,10 +1,10 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / CoinCommitment
+[@midnight/zswap](../globals.md) / CoinCommitment
 
-# Type alias: CoinCommitment
+# Type Alias: CoinCommitment
 
 ```ts
 type CoinCommitment: string;

@@ -1,21 +1,23 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / signatureVerifyingKey
+[@midnight/ledger](../globals.md) / signatureVerifyingKey
 
 # Function: signatureVerifyingKey()
 
 ```ts
-signatureVerifyingKey(sk): SignatureVerifyingKey
+function signatureVerifyingKey(sk): string;
 ```
 
 Returns the verifying key for a given signing key
 
 ## Parameters
 
-• **sk**: `string`
+### sk
+
+`string`
 
 ## Returns
 
-[`SignatureVerifyingKey`](../type-aliases/SignatureVerifyingKey.md)
+`string`

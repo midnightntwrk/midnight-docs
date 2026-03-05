@@ -1,24 +1,28 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / persistentHash
+[@midnight-ntwrk/onchain-runtime](../globals.md) / persistentHash
 
 # Function: persistentHash()
 
-`Internal`
-
 ```ts
-persistentHash(align, val): Value
+function persistentHash(align, val): Value
 ```
+
+**`Internal`**
 
 Internal implementation of the persistent hash primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
+
+### val
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -26,5 +30,5 @@ Internal implementation of the persistent hash primitive
 
 ## Throws
 
-If val does not have alignment align, or any
+If [val](persistentHash.md#val) does not have alignment [align](persistentHash.md#align), or any
 component has a compress alignment

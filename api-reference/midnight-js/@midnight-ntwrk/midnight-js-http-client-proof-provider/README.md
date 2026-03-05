@@ -1,8 +1,6 @@
----
-title: midnight-js-http-client-proof-provider
----
+# midnight-js-http-client-proof-provider
 
-[**Midnight.js API Reference v2.0.2**](../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../README.md)
 
 ***
 
@@ -10,12 +8,16 @@ title: midnight-js-http-client-proof-provider
 
 # @midnight-ntwrk/midnight-js-http-client-proof-provider
 
+## Interfaces
+
+- [ProvingProviderConfig](interfaces/ProvingProviderConfig.md)
+
 ## Variables
 
 - [DEFAULT\_CONFIG](variables/DEFAULT_CONFIG.md)
+- [DEFAULT\_TIMEOUT](variables/DEFAULT_TIMEOUT.md)
 
 ## Functions
 
 - [httpClientProofProvider](functions/httpClientProofProvider.md)
-- [serializePayload](functions/serializePayload.md)
-- [serializeZKConfig](functions/serializeZKConfig.md)
+- [httpClientProvingProvider](functions/httpClientProvingProvider.md)

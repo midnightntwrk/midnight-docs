@@ -1,29 +1,35 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / persistentCommit
+[@midnight-ntwrk/onchain-runtime](../globals.md) / persistentCommit
 
 # Function: persistentCommit()
 
-`Internal`
-
 ```ts
-persistentCommit(
+function persistentCommit(
    align, 
    val, 
    opening): Value
 ```
 
+**`Internal`**
+
 Internal implementation of the persistent commitment primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
 
-• **opening**: [`Value`](../type-aliases/Value.md)
+### val
+
+[`Value`](../type-aliases/Value.md)
+
+### opening
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -31,6 +37,6 @@ Internal implementation of the persistent commitment primitive
 
 ## Throws
 
-If val does not have alignment align,
-opening does not encode a 32-byte bytestring, or any component has a
+If [val](persistentCommit.md#val) does not have alignment [align](persistentCommit.md#align),
+[opening](persistentCommit.md#opening) does not encode a 32-byte bytestring, or any component has a
 compress alignment

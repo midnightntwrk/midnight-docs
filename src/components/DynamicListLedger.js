@@ -33,6 +33,7 @@ const releases = [
     artifacts: [
       { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger-v7' },
       { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnight-ntwrk/onchain-runtime-v2' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server/' }
     ],
     link: '/relnotes/ledger/ledger-7-0-0',
   },

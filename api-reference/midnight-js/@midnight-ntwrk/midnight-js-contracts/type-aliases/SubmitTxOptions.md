@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -14,25 +14,21 @@ Configuration for [submitTx](../functions/submitTx.md).
 
 ### ICK
 
-`ICK` *extends* [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)
+`ICK` *extends* `Contract.ImpureCircuitId`\<`Contract.Any`\>
 
 ## Properties
 
 ### circuitId?
 
-> `readonly` `optional` **circuitId**: `ICK`
+> `readonly` `optional` **circuitId**: `ICK` \| `ICK`[]
 
 A circuit identifier to use to fetch the ZK artifacts needed to prove the
 transaction. Only defined if a call transaction is being submitted.
 
-***
+#### Remarks
 
-### newCoins?
-
-> `readonly` `optional` **newCoins**: `CoinInfo`[]
-
-Any new coins created during the construction of the transaction. Only defined
-if the transaction being submitted is a call or deploy transaction.
+Where a transaction involves multiple circuits (e.g., when circuit calls are scoped to a transaction
+context), this may be an array of circuit IDs.
 
 ***
 

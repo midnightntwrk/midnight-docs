@@ -1,8 +1,6 @@
----
-title: midnight-js-utils
----
+# midnight-js-utils
 
-[**Midnight.js API Reference v2.0.2**](../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../README.md)
 
 ***
 
@@ -26,3 +24,4 @@ title: midnight-js-utils
 - [parseEncPublicKeyToHex](functions/parseEncPublicKeyToHex.md)
 - [parseHex](functions/parseHex.md)
 - [toHex](functions/toHex.md)
+- [ttlOneHour](functions/ttlOneHour.md)

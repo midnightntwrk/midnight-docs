@@ -1,22 +1,10 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / TransactionCostModel
+[@midnight/zswap](../globals.md) / TransactionCostModel
 
 # Class: TransactionCostModel
-
-## Constructors
-
-### new TransactionCostModel()
-
-```ts
-private new TransactionCostModel(): TransactionCostModel
-```
-
-#### Returns
-
-[`TransactionCostModel`](TransactionCostModel.md)
 
 ## Properties
 
@@ -43,16 +31,18 @@ The increase in fees to expect from adding a new output to a transaction
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -64,7 +54,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -80,9 +72,13 @@ static deserialize(raw, netid): TransactionCostModel
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -21,14 +21,14 @@ to the given identifier using the given providers.
 
 ### publicDataProvider
 
-[`PublicDataProvider`](../../midnight-js-types/interfaces/PublicDataProvider.md)
+`PublicDataProvider`
 
 The provider to use to fetch the public states (Zswap and ledger)
                           from the blockchain.
 
 ### privateStateProvider
 
-[`PrivateStateProvider`](../../midnight-js-types/interfaces/PrivateStateProvider.md)\<`string`, `PS`\>
+`PrivateStateProvider`\<`string`, `PS`\>
 
 The provider to use to fetch the private state.
 

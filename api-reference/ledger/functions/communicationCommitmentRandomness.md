@@ -1,17 +1,17 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / communicationCommitmentRandomness
+[@midnight/ledger](../globals.md) / communicationCommitmentRandomness
 
 # Function: communicationCommitmentRandomness()
 
 ```ts
-communicationCommitmentRandomness(): CommunicationCommitmentRand
+function communicationCommitmentRandomness(): string;
 ```
 
 Samples a new [CommunicationCommitmentRand](../type-aliases/CommunicationCommitmentRand.md) uniformly
 
 ## Returns
 
-[`CommunicationCommitmentRand`](../type-aliases/CommunicationCommitmentRand.md)
+`string`

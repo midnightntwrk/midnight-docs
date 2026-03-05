@@ -1,25 +1,27 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / coinCommitment
+[@midnight/ledger](../globals.md) / coinCommitment
 
 # Function: coinCommitment()
 
-`Internal`
-
 ```ts
-coinCommitment(coin, recipient): AlignedValue
+function coinCommitment(coin, coinPublicKey): string;
 ```
 
-Internal implementation of the coin commitment primitive.
+Calculate commitment of a coin owned by a user
 
 ## Parameters
 
-• **coin**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+### coin
 
-• **recipient**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+[`ShieldedCoinInfo`](../type-aliases/ShieldedCoinInfo.md)
+
+### coinPublicKey
+
+`string`
 
 ## Returns
 
-[`AlignedValue`](../type-aliases/AlignedValue.md)
+`string`

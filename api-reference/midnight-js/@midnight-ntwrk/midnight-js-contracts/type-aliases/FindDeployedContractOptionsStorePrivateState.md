@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -13,11 +13,11 @@ state to store and the private state ID at which to store it. Only used if
 the intention is to overwrite the private state currently stored at the given
 private state ID.
 
-## Type declaration
+## Type Declaration
 
 ### initialPrivateState
 
-> `readonly` **initialPrivateState**: [`PrivateState`](../../midnight-js-types/type-aliases/PrivateState.md)\<`C`\>
+> `readonly` **initialPrivateState**: `Contract.PrivateState`\<`C`\>
 
 For types of contract that make no use of private state and or witnesses that operate upon it, this
 property may be `undefined`. Otherwise, the value provided via this property should be same initial
@@ -27,4 +27,4 @@ state that was used when calling [deployContract](../functions/deployContract.md
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractOperation
+[@midnight/ledger](../globals.md) / ContractOperation
 
 # Class: ContractOperation
 
@@ -16,15 +16,15 @@ Note that the serialized form of the key is checked on initialization
 
 ## Constructors
 
-### new ContractOperation()
+### Constructor
 
 ```ts
-new ContractOperation(): ContractOperation
+new ContractOperation(): ContractOperation;
 ```
 
 #### Returns
 
-[`ContractOperation`](ContractOperation.md)
+`ContractOperation`
 
 ## Properties
 
@@ -39,12 +39,8 @@ verifierKey: Uint8Array;
 ### serialize()
 
 ```ts
-serialize(networkid): Uint8Array
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -55,12 +51,14 @@ serialize(networkid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -71,15 +69,15 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, networkid): ContractOperation
+static deserialize(raw): ContractOperation;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **networkid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`ContractOperation`](ContractOperation.md)
+`ContractOperation`
