@@ -8,26 +8,13 @@ sidebar_position: 20
 toc_max_heading_level: 2
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Counter CLI
 
 This tutorial explains how to build a command-line interface that interacts with the counter smart contract created in the [build the counter contract](./smart-contract) tutorial. 
-This CLI demonstrates wallet management, contract deployment, and transaction submission on the Midnight Preprod network.
-
-By the end of this tutorial, you will:
-
-- Set up a CLI project with Midnight.js dependencies.
-- Implement wallet creation using Hierarchical Deterministic (HD) key derivation.
-- Configure providers for contract interaction.
-- Deploy the counter contract to Preprod.
-- Submit increment transactions with Zero Knowledge (ZK) proofs.
-- Query contract state from the blockchain.
-- Handle DUST token generation for transaction fees.
-
-The CLI uses the `WalletFacade` from the Midnight wallet SDK, which manages three wallet types: 
-
-- Shielded (ZSwap) for privacy-preserving transactions
-- Unshielded for transparent operations
-- Dust for transaction fees
+This CLI demonstrates wallet management, contract deployment, and transaction submission on the Midnight network.
 
 ## Prerequisites
 
@@ -158,6 +145,7 @@ Create `counter-cli/package.json`:
   "type": "module",
   "scripts": {
     "preprod": "node --experimental-specifier-resolution=node --loader ts-node/esm src/preprod.ts",
+    "undeployed": "node --experimental-specifier-resolution=node --loader ts-node/esm src/undeployed.ts",
     "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -233,6 +221,18 @@ export class PreprodConfig implements Config {
   
   constructor() {
     setNetworkId('preprod');
+  }
+}
+
+export class UndeployedConfig implements Config {
+  logDir = path.resolve(currentDir, '..', 'logs', 'undeployed', `${new Date().toISOString()}.log`);
+  indexer = 'http://localhost:8088/api/v3/graphql';
+  indexerWS = 'ws://localhost:8088/api/v3/graphql/ws';
+  node = 'ws://localhost:9944';
+  proofServer = 'http://localhost:6300';
+  
+  constructor() {
+    setNetworkId('undeployed');
   }
 }
 ```
@@ -546,7 +546,7 @@ Below the `waitForFunds` function, create the `registerForDustGeneration` functi
 /**
  * Register unshielded NIGHT UTXOs for dust generation.
  *
- * On Preprod/Preview, NIGHT tokens generate DUST over time, but only after
+ * On Preprod/Undeployed, NIGHT tokens generate DUST over time, but only after
  * the UTXOs have been explicitly designated for dust generation via an on-chain
  * transaction. DUST is the non-transferable network resource used by the Midnight network to process transactions.
  */
@@ -724,7 +724,7 @@ ${DIV}
     console.log(`    Balance: ${formatBalance(fundedBalance)} tNight\n`);
   }
 
-  // Register NIGHT UTXOs for dust generation (required for tx fees on Preprod/Preview)
+  // Register NIGHT UTXOs for dust generation (required for tx fees on Preprod/Undeployed)
   await registerForDustGeneration(wallet, unshieldedKeystore);
 
   return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
@@ -740,7 +740,7 @@ The wallet building process follows these key steps:
 2. **Sync with network**: The `waitForSync` function monitors the wallet's synchronization progress until it catches up with the blockchain. This ensures the wallet has accurate balance information.
 3. **Display wallet summary**: After syncing, `printWalletSummary` shows all three address types (shielded, unshielded, and dust) along with their current balances.
 4. **Check and wait for funds**: The function checks if the unshielded balance is non-zero. If the balance is zero, it calls `waitForFunds` to monitor the wallet state until tokens arrive from the faucet.
-5. **Register for dust generation**: This step registers the wallet's NIGHT UTXOs with the dust generation service, which is required for transaction fees on Preprod and Preview networks.
+5. **Register for dust generation**: This step registers the wallet's NIGHT UTXOs with the dust generation service, which is required for transaction fees on Preprod and Undeployed networks.
 
 The function waits for both synchronization and funding before proceeding, ensuring the wallet is ready for transactions.
 
@@ -1368,6 +1368,8 @@ The `run` function handles the complete CLI workflow with proper resource cleanu
 
 ## Create entry point and exports
 
+<Tabs>
+<TabItem value="preprod">
 Create `counter-cli/src/preprod.ts`:
 
 ```typescript title="counter-cli/src/preprod.ts"
@@ -1379,6 +1381,23 @@ const config = new PreprodConfig();
 const logger = await createLogger(config.logDir);
 await run(config, logger);
 ```
+
+</TabItem>
+<TabItem value="undeployed">
+Create `counter-cli/src/undeployed.ts`:
+
+```typescript title="counter-cli/src/undeployed.ts"
+import { createLogger } from './logger-utils.js';
+import { run } from './cli.js';
+import { UndeployedConfig } from './config.js';
+
+const config = new UndeployedConfig();
+const logger = await createLogger(config.logDir);
+await run(config, logger);
+```
+
+</TabItem>
+</Tabs>
 
 Create `counter-cli/src/index.ts`:
 
@@ -1433,77 +1452,7 @@ The CLI displays a banner and presents the wallet setup menu:
 >
 ```
 
-**Create or restore a wallet**: Select option 1 to create a new wallet or option 2 to restore from an existing seed. After entering your seed, the wallet builds and synchronizes with the network:
-
-```
-  ✓ Building wallet
-  ✓ Syncing with network
-
-──────────────────────────────────────────────────────────────
-  Wallet Overview                            Network: preprod
-──────────────────────────────────────────────────────────────
-  Shielded (ZSwap)
-  └─ Address: mn_shield-addr_preprod1m...
-
-  Unshielded
-  ├─ Address: mn_addr_preprod12gseaq...
-  └─ Balance: 2,000,000,000 tNight
-
-  Dust
-  └─ Address: mn_dust_preprod1w0dar...
-──────────────────────────────────────────────────────────────
-```
-
-**Deploy a contract**: After wallet setup, the contract actions menu appears. Select option 1 to deploy a new counter contract:
-
-```
-──────────────────────────────────────────────────────────────
-  Contract Actions                    DUST: 4,693,721,522,000,000,000
-──────────────────────────────────────────────────────────────
-  [1] Deploy a new counter contract
-  [2] Join an existing counter contract
-  [3] Monitor DUST balance
-  [4] Exit
-──────────────────────────────────────────────────────────────
-> 1
-
-  ✓ Deploying counter contract
-  Contract deployed at: ea87c25015951b098a..........
-```
-
-**Query the counter value**: After deployment, select option 2 to display the current counter value (starts at 0):
-
-```
-──────────────────────────────────────────────────────────────
-  Counter Actions                     DUST: 4,698,778,537,999,999,999
-──────────────────────────────────────────────────────────────
-  [1] Increment counter
-  [2] Display current counter value
-  [3] Exit
-──────────────────────────────────────────────────────────────
-> 2
-
-Current counter value: 0
-```
-
-**Increment the counter**: Select option 1 to increment the counter. The operation generates a Zero Knowledge proof and submits the transaction:
-
-```
-> 1
-
-  ✓ Incrementing counter
-Transaction 00fe2faaa99f71216162d2c850123ea067d74e08e77fef1d7d4c534a256e55de8f added in block 262860
-```
-
-**Verify the increment**: Select option 2 again to confirm the counter incremented:
-
-```
-> 2
-
-Current counter value: 1
-```
-
-Select option 3 to exit the application when finished. The CLI displays status messages and spinners throughout, providing visual feedback for each operation.
+To learn more about interacting with the CLI, see the [counter Dapp example](../../examples/dapps/counter) guide.
 
 ## Next steps
 
