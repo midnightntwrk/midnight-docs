@@ -55,19 +55,25 @@ They can also import externally defined modules via an **import** form:
 **import** '_name_';
 
 By default, the compiler looks for include files and externally defined modules
-in the current working directory under the full filename _name_**.compact**.
-When the environment variable **COMPACT_PATH** is set to a colon-separated
-(semicolon-separated on Windows) list of directory pathnames
-_dirpath_**:...:**_dirpath_ (_dirpath_**;...;**_dirpath_ under Windows), the
-compiler looks instead 
-under the full pathname _dirpath_**/**_name_**.compact** for each
-_dirpath_ until the file is found or the set of _dirpath_ entries
-is exhausted.
+with non-absolute pathnames relative to the directory of the including or importing
+file under the full filename _name_**.compact**.
+If this fails, it looks for the file in the *Compact search list*.
+The Compact search list is
+- the value of the **--compact-path** command-line option, if provided,
+- otherwise the value of the **COMPACT_PATH** environment variable, if set,
+- otherwise empty.
+The search list is a colon-separated (semicolon-separated on Windows) list of
+directory pathnames _dirpath_**:...:**_dirpath_ (_dirpath_**;...;**_dirpath_
+under Windows), and the compiler looks under the full pathname
+_dirpath_**/**_name_**.compact** for each _dirpath_ in order until the file is
+found or the set of _dirpath_ entries is exhausted.
 
-Every Compact source program should import the standard library **CompactStandardLibrary**.
-This is typically done by placing the following line at the top of the program:
+Most Compact source programs should import the standard library **CompactStandardLibrary**.
+This is typically done by placing the following line near the top of the program:
 
 **import CompactStandardLibrary;** 
+
+**CompactStandardLibrary** is built into the compiler, not found in the filesystem.
 
 FLAGS
 =====
@@ -84,7 +90,15 @@ prints the compiler version and exits.
 
 **--language-version**
 
-prints the language version and exits.
+prints the language version supported by the compiler and exits.
+
+**--runtime-version**
+
+prints the runtime version required by the compiler and exits.
+
+**--ledger-version**
+
+prints the ledger version required by the compiler and exits.
 
 **--vscode**
 
@@ -110,6 +124,15 @@ sourceRoot field in the generated source-map (.js.map) file.  By default,
 the compiler tries to determine a useful value based on the source and
 target-directory pathnames, but this value might not be appropriate for
 the deployed structure of the application.
+
+**--compact-path _search list_**
+
+sets the Compact search list to **_search list_**.
+
+**--trace-import**
+
+causes the compiler to print a sequence of messages saying where it is looking
+for each included file and imported module source file.
 
 **--trace-passes**
 

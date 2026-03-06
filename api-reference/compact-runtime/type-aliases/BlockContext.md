@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.102**](../README.md)
 
 ***
 
@@ -8,6 +8,7 @@
 
 ```ts
 type BlockContext = {
+  lastBlockTime: bigint;
   parentBlockHash: string;
   secondsSinceEpoch: bigint;
   secondsSinceEpochErr: number;
@@ -17,6 +18,16 @@ type BlockContext = {
 Context information about the block forwarded to [CallContext](CallContext.md).
 
 ## Properties
+
+### lastBlockTime
+
+```ts
+lastBlockTime: bigint;
+```
+
+The [secondsSinceEpoch](#secondssinceepoch) of the previous block
+
+***
 
 ### parentBlockHash
 

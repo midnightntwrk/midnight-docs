@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.102**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: ecAdd()
 
 ```ts
-function ecAdd(a, b): NativePoint;
+function ecAdd(a, b): JubjubPoint;
 ```
 
 The Compact builtin `ec_add` function
@@ -18,12 +18,12 @@ This function add two elliptic curve points (in multiplicative notation)
 
 ### a
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)
 
 ### b
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)
 
 ## Returns
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)

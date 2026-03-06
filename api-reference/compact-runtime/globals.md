@@ -1,8 +1,8 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](README.md)
+[**@midnight-ntwrk/compact-runtime v0.14.102**](README.md)
 
 ***
 
-# @midnight-ntwrk/compact-runtime v0.14.0
+# @midnight-ntwrk/compact-runtime v0.14.102
 
 ## Classes
 
@@ -38,10 +38,10 @@
 - [EncodedRecipient](interfaces/EncodedRecipient.md)
 - [EncodedShieldedCoinInfo](interfaces/EncodedShieldedCoinInfo.md)
 - [EncodedZswapLocalState](interfaces/EncodedZswapLocalState.md)
+- [JubjubPoint](interfaces/JubjubPoint.md)
 - [MerkleTreeDigest](interfaces/MerkleTreeDigest.md)
 - [MerkleTreePath](interfaces/MerkleTreePath.md)
 - [MerkleTreePathEntry](interfaces/MerkleTreePathEntry.md)
-- [NativePoint](interfaces/NativePoint.md)
 - [PartialProofData](interfaces/PartialProofData.md)
 - [ProofData](interfaces/ProofData.md)
 - [Recipient](interfaces/Recipient.md)
@@ -105,9 +105,9 @@
 - [Bytes32Descriptor](variables/Bytes32Descriptor.md)
 - [CompactTypeBoolean](variables/CompactTypeBoolean.md)
 - [CompactTypeField](variables/CompactTypeField.md)
+- [CompactTypeJubjubPoint](variables/CompactTypeJubjubPoint.md)
 - [CompactTypeMerkleTreeDigest](variables/CompactTypeMerkleTreeDigest.md)
 - [CompactTypeMerkleTreePathEntry](variables/CompactTypeMerkleTreePathEntry.md)
-- [CompactTypeNativePoint](variables/CompactTypeNativePoint.md)
 - [CompactTypeOpaqueString](variables/CompactTypeOpaqueString.md)
 - [CompactTypeOpaqueUint8Array](variables/CompactTypeOpaqueUint8Array.md)
 - [CONTRACT\_ADDRESS\_BYTE\_LENGTH](variables/CONTRACT_ADDRESS_BYTE_LENGTH.md)
@@ -131,6 +131,7 @@
 - [checkRuntimeVersion](functions/checkRuntimeVersion.md)
 - [communicationCommitment](functions/communicationCommitment.md)
 - [communicationCommitmentRandomness](functions/communicationCommitmentRandomness.md)
+- [constructJubjubPoint](functions/constructJubjubPoint.md)
 - [contractDependencies](functions/contractDependencies.md)
 - [convertBytesToField](functions/convertBytesToField.md)
 - [convertBytesToUint](functions/convertBytesToUint.md)
@@ -170,6 +171,8 @@
 - [hashToCurve](functions/hashToCurve.md)
 - [isContractAddress](functions/isContractAddress.md)
 - [isEncodedContractAddress](functions/isEncodedContractAddress.md)
+- [jubjubPointX](functions/jubjubPointX.md)
+- [jubjubPointY](functions/jubjubPointY.md)
 - [leafHash](functions/leafHash.md)
 - [maxAlignedSize](functions/maxAlignedSize.md)
 - [maxField](functions/maxField.md)
