@@ -12,7 +12,7 @@ This repository contains comprehensive developer documentation including:
 
 The documentation website is built with [Docusaurus 3](https://docusaurus.io) and is publicly accessible at [docs.midnight.network](https://docs.midnight.network).
 
-## Quick start
+## Quickstart
 
 To get started, ensure you have [Node](https://github.com/nvm-sh/nvm) version v22.17.1 or higher installed:
 
