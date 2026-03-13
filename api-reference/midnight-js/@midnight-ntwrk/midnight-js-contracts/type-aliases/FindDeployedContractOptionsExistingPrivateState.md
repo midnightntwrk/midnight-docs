@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -13,11 +13,11 @@ state to store and the private state ID at which to store it. Only used if
 the intention is to overwrite the private state currently stored at the given
 private state ID.
 
-## Type declaration
+## Type Declaration
 
 ### privateStateId
 
-> `readonly` **privateStateId**: [`PrivateStateId`](../../midnight-js-types/type-aliases/PrivateStateId.md)
+> `readonly` **privateStateId**: `PrivateStateId`
 
 An identifier for the private state of the contract being found.
 
@@ -25,4 +25,4 @@ An identifier for the private state of the contract being found.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

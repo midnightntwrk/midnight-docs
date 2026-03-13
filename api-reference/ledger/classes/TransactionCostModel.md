@@ -1,24 +1,22 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / TransactionCostModel
+[@midnight/ledger](../globals.md) / TransactionCostModel
 
 # Class: TransactionCostModel
 
-## Constructors
+## Properties
 
-### new TransactionCostModel()
+### baselineCost
 
 ```ts
-private new TransactionCostModel(): TransactionCostModel
+readonly baselineCost: RunningCost;
 ```
 
-#### Returns
+A baseline cost to begin with
 
-[`TransactionCostModel`](TransactionCostModel.md)
-
-## Properties
+***
 
 ### inputFeeOverhead
 
@@ -38,17 +36,23 @@ readonly outputFeeOverhead: bigint;
 
 The increase in fees to expect from adding a new output to a transaction
 
+***
+
+### runtimeCostModel
+
+```ts
+readonly runtimeCostModel: CostModel;
+```
+
+A cost model for calculating transaction fees
+
 ## Methods
 
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(): Uint8Array;
 ```
-
-#### Parameters
-
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -59,12 +63,14 @@ serialize(netid): Uint8Array
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -75,29 +81,29 @@ toString(compact?): string
 ### deserialize()
 
 ```ts
-static deserialize(raw, netid): TransactionCostModel
+static deserialize(raw): TransactionCostModel;
 ```
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`
 
 #### Returns
 
-[`TransactionCostModel`](TransactionCostModel.md)
+`TransactionCostModel`
 
 ***
 
-### dummyTransactionCostModel()
+### initialTransactionCostModel()
 
 ```ts
-static dummyTransactionCostModel(): TransactionCostModel
+static initialTransactionCostModel(): TransactionCostModel;
 ```
 
-A dummy cost model, for use in testing
+The initial cost model of Midnight
 
 #### Returns
 
-[`TransactionCostModel`](TransactionCostModel.md)
+`TransactionCostModel`

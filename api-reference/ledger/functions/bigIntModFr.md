@@ -1,20 +1,22 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / bigIntModFr
+[@midnight/ledger](../globals.md) / bigIntModFr
 
 # Function: bigIntModFr()
 
 ```ts
-bigIntModFr(x): bigint
+function bigIntModFr(x): bigint;
 ```
 
 Takes a bigint modulus the proof systems scalar field
 
 ## Parameters
 
-• **x**: `bigint`
+### x
+
+`bigint`
 
 ## Returns
 

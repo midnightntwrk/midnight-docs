@@ -1,4 +1,4 @@
-# Midnight Indexer API documentation v3
+# Midnight Indexer API v3
 
 The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data—blocks, transactions, contracts, DUST generation, and shielded/unshielded transaction events—indexed from the Midnight blockchain. These capabilities facilitate both historical lookups and real-time monitoring.
 

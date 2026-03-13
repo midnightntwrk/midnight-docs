@@ -1,24 +1,28 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / ecAdd
+[@midnight-ntwrk/onchain-runtime](../globals.md) / ecAdd
 
 # Function: ecAdd()
 
-`Internal`
-
 ```ts
-ecAdd(a, b): Value
+function ecAdd(a, b): Value
 ```
+
+**`Internal`**
 
 Internal implementation of the elliptic curve addition primitive
 
 ## Parameters
 
-• **a**: [`Value`](../type-aliases/Value.md)
+### a
 
-• **b**: [`Value`](../type-aliases/Value.md)
+[`Value`](../type-aliases/Value.md)
+
+### b
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 

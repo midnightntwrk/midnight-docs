@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -13,7 +13,7 @@ Base type for configuration for [deployContract](../functions/deployContract.md)
 now optional, since [deployContract](../functions/deployContract.md) will generate a fresh signing key
 in the event that `signingKey` is undefined.
 
-## Type declaration
+## Type Declaration
 
 ### signingKey?
 
@@ -29,4 +29,4 @@ useful when you want to use the same CMA for two different contracts.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

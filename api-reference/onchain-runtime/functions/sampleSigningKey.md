@@ -1,17 +1,17 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / sampleSigningKey
+[@midnight-ntwrk/onchain-runtime](../globals.md) / sampleSigningKey
 
 # Function: sampleSigningKey()
 
 ```ts
-sampleSigningKey(): SigningKey
+function sampleSigningKey(): string
 ```
 
 Randomly samples a [SigningKey](../type-aliases/SigningKey.md).
 
 ## Returns
 
-[`SigningKey`](../type-aliases/SigningKey.md)
+`string`

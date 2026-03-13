@@ -1,22 +1,24 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / maxAlignedSize
+[@midnight-ntwrk/onchain-runtime](../globals.md) / maxAlignedSize
 
 # Function: maxAlignedSize()
 
-`Internal`
-
 ```ts
-maxAlignedSize(alignment): bigint
+function maxAlignedSize(alignment): bigint
 ```
+
+**`Internal`**
 
 Internal implementation of the max aligned size primitive.
 
 ## Parameters
 
-• **alignment**: [`Alignment`](../type-aliases/Alignment.md)
+### alignment
+
+[`Alignment`](../type-aliases/Alignment.md)
 
 ## Returns
 

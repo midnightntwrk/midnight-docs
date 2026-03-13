@@ -1,24 +1,12 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / VmResults
+[@midnight/ledger](../globals.md) / VmResults
 
 # Class: VmResults
 
 Represents the results of a VM call
-
-## Constructors
-
-### new VmResults()
-
-```ts
-private new VmResults(): VmResults
-```
-
-#### Returns
-
-[`VmResults`](VmResults.md)
 
 ## Properties
 
@@ -35,7 +23,7 @@ The events that got emitted by this VM invocation
 ### gasCost
 
 ```ts
-readonly gasCost: bigint;
+readonly gasCost: RunningCost;
 ```
 
 The computed gas cost of running this VM invocation
@@ -55,12 +43,14 @@ The VM stack at the end of the VM invocation
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

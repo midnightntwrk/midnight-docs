@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,11 +10,11 @@
 
 Data for a submitted, finalized call transaction.
 
-## Type declaration
+## Type Declaration
 
 ### public
 
-> `readonly` **public**: [`FinalizedTxData`](../../midnight-js-types/interfaces/FinalizedTxData.md)
+> `readonly` **public**: `FinalizedTxData`
 
 Public data relevant to this call transaction.
 
@@ -22,8 +22,8 @@ Public data relevant to this call transaction.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`
 
 ### ICK
 
-`ICK` *extends* [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>
+`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>

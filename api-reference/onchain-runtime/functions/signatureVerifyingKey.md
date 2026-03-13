@@ -1,21 +1,23 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / signatureVerifyingKey
+[@midnight-ntwrk/onchain-runtime](../globals.md) / signatureVerifyingKey
 
 # Function: signatureVerifyingKey()
 
 ```ts
-signatureVerifyingKey(sk): SignatureVerifyingKey
+function signatureVerifyingKey(sk): string
 ```
 
 Returns the verifying key for a given signing key
 
 ## Parameters
 
-• **sk**: `string`
+### sk
+
+`string`
 
 ## Returns
 
-[`SignatureVerifyingKey`](../type-aliases/SignatureVerifyingKey.md)
+`string`

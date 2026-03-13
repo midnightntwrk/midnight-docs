@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -11,7 +11,7 @@
 Object containing the publicly visible states of a contract and the private
 state of a contract.
 
-## Type declaration
+## Type Declaration
 
 ### privateState
 

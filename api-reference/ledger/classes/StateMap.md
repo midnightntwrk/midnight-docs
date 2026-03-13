@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / StateMap
+[@midnight/ledger](../globals.md) / StateMap
 
 # Class: StateMap
 
@@ -11,27 +11,29 @@ are [StateValue](StateValue.md)s.
 
 ## Constructors
 
-### new StateMap()
+### Constructor
 
 ```ts
-new StateMap(): StateMap
+new StateMap(): StateMap;
 ```
 
 #### Returns
 
-[`StateMap`](StateMap.md)
+`StateMap`
 
 ## Methods
 
 ### get()
 
 ```ts
-get(key): undefined | StateValue
+get(key): undefined | StateValue;
 ```
 
 #### Parameters
 
-• **key**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### key
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
@@ -42,25 +44,29 @@ get(key): undefined | StateValue
 ### insert()
 
 ```ts
-insert(key, value): StateMap
+insert(key, value): StateMap;
 ```
 
 #### Parameters
 
-• **key**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### key
 
-• **value**: [`StateValue`](StateValue.md)
+[`AlignedValue`](../type-aliases/AlignedValue.md)
+
+##### value
+
+[`StateValue`](StateValue.md)
 
 #### Returns
 
-[`StateMap`](StateMap.md)
+`StateMap`
 
 ***
 
 ### keys()
 
 ```ts
-keys(): AlignedValue[]
+keys(): AlignedValue[];
 ```
 
 #### Returns
@@ -72,28 +78,32 @@ keys(): AlignedValue[]
 ### remove()
 
 ```ts
-remove(key): StateMap
+remove(key): StateMap;
 ```
 
 #### Parameters
 
-• **key**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### key
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
-[`StateMap`](StateMap.md)
+`StateMap`
 
 ***
 
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / VerifierKeyInsert
+[@midnight/ledger](../globals.md) / VerifierKeyInsert
 
 # Class: VerifierKeyInsert
 
@@ -11,28 +11,32 @@ version.
 
 ## Constructors
 
-### new VerifierKeyInsert(operation, vk)
+### Constructor
 
 ```ts
-new VerifierKeyInsert(operation, vk): VerifierKeyInsert
+new VerifierKeyInsert(operation, vk): VerifierKeyInsert;
 ```
 
 #### Parameters
 
-• **operation**: `string` \| `Uint8Array`
+##### operation
 
-• **vk**: [`ContractOperationVersionedVerifierKey`](ContractOperationVersionedVerifierKey.md)
+`string` | `Uint8Array`\<`ArrayBufferLike`\>
+
+##### vk
+
+[`ContractOperationVersionedVerifierKey`](ContractOperationVersionedVerifierKey.md)
 
 #### Returns
 
-[`VerifierKeyInsert`](VerifierKeyInsert.md)
+`VerifierKeyInsert`
 
 ## Properties
 
 ### operation
 
 ```ts
-readonly operation: string | Uint8Array;
+readonly operation: string | Uint8Array<ArrayBufferLike>;
 ```
 
 ***
@@ -48,12 +52,14 @@ readonly vk: ContractOperationVersionedVerifierKey;
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

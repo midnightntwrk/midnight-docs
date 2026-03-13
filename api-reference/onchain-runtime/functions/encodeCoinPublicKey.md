@@ -1,13 +1,13 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / encodeCoinPublicKey
+[@midnight-ntwrk/onchain-runtime](../globals.md) / encodeCoinPublicKey
 
 # Function: encodeCoinPublicKey()
 
 ```ts
-encodeCoinPublicKey(pk): Uint8Array
+function encodeCoinPublicKey(pk): Uint8Array
 ```
 
 Encode a [CoinPublicKey](../type-aliases/CoinPublicKey.md) into a `Uint8Array` for use in Compact's
@@ -15,7 +15,9 @@ Encode a [CoinPublicKey](../type-aliases/CoinPublicKey.md) into a `Uint8Array` f
 
 ## Parameters
 
-• **pk**: `string`
+### pk
+
+`string`
 
 ## Returns
 

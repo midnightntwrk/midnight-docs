@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 
 Data for an unsubmitted deployment transaction.
 
-## Type declaration
+## Type Declaration
 
 ### private
 
@@ -18,7 +18,7 @@ Data for an unsubmitted deployment transaction.
 
 The data of this transaction that is only visible on the user device.
 
-#### Type declaration
+#### Type Declaration
 
 ##### initialZswapState
 
@@ -31,4 +31,4 @@ inputs or outputs are created in the contract constructor.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

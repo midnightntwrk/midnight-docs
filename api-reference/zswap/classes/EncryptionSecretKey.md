@@ -1,25 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / EncryptionSecretKey
+[@midnight/zswap](../globals.md) / EncryptionSecretKey
 
 # Class: EncryptionSecretKey
 
 Holds the encryption secret key of a user, which may be used to determine if
 a given offer contains outputs addressed to this user
-
-## Constructors
-
-### new EncryptionSecretKey()
-
-```ts
-private new EncryptionSecretKey(): EncryptionSecretKey
-```
-
-#### Returns
-
-[`EncryptionSecretKey`](EncryptionSecretKey.md)
 
 ## Methods
 
@@ -31,7 +19,9 @@ test(offer): boolean
 
 #### Parameters
 
-• **offer**: [`Offer`](Offer.md)
+##### offer
+
+[`Offer`](Offer.md)
 
 #### Returns
 
@@ -42,16 +32,18 @@ test(offer): boolean
 ### yesIKnowTheSecurityImplicationsOfThis\_serialize()
 
 ```ts
-yesIKnowTheSecurityImplicationsOfThis_serialize(netid): Uint8Array
+yesIKnowTheSecurityImplicationsOfThis_serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -63,9 +55,13 @@ static deserialize(raw, netid): EncryptionSecretKey
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
