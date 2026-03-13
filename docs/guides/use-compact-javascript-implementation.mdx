@@ -1,0 +1,214 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+description: Learn how to use the Compact JavaScript implementation for the Midnight Network.
+sidebar_label: Use the Compact JavaScript implementation
+title: Use the Compact JavaScript implementation
+sidebar_position: 46
+---
+
+# Use the Compact JavaScript implementation
+
+This guide shows how to use the Compact JavaScript implementation in your development workflow. 
+Learn how to import the implementation, create a contract instance, and call its functions from a JavaScript or TypeScript environment.
+
+## Import the implementation
+
+Once you have compiled your Compact contract, the compiler outputs these key files in the `managed` directory:
+
+- `index.js`: The JavaScript implementation
+- `index.d.ts`: TypeScript type definitions
+- `index.js.map`: Source map for debugging
+
+You can load the implementation like any other ECMAScript (ES) module:
+
+```typescript
+import { Contract, State, pureCircuits, ledger } from './managed/bboard/contract/index.js';
+```
+
+If you are using TypeScript, then the accompanying declaration file `index.d.ts` automatically provides type hints for your contract and its methods.
+
+## Implement witnesses
+
+Every Compact contract with witness functions requires a witnesses object when instantiated. This object contains implementations for all witness functions declared in your Compact code.
+
+For the bulletin board contract, create a `witnesses.ts` file in the `contract/src` directory:
+
+```typescript
+import { Ledger } from "./managed/bboard/contract/index.js";
+import { WitnessContext } from "@midnight-ntwrk/compact-runtime";
+
+export type BBoardPrivateState = {
+  readonly secretKey: Uint8Array;
+};
+
+export const createBBoardPrivateState = (secretKey: Uint8Array) => ({
+  secretKey,
+});
+
+export const witnesses = {
+  localSecretKey: ({
+    privateState,
+  }: WitnessContext<Ledger, BBoardPrivateState>): [
+    BBoardPrivateState,
+    Uint8Array,
+  ] => [privateState, privateState.secretKey],
+};
+```
+
+The witnesses object maps witness function names to their implementations. Each witness function receives a `WitnessContext` containing the ledger state, private state, and contract address. The function returns a tuple of the updated private state and the witness value.
+
+## Call contract circuits
+
+Each circuit is exposed as a JavaScript function under `contract.circuits` or `contract.impureCircuits`. These wrappers prepare the inputs, run the JavaScript implementation, and return structured results containing the output, updated context, and proof data.
+
+Here's an example of calling the `post` impure circuit:
+
+```typescript
+const initialContext = {
+  originalState: {
+    state: State.VACANT,
+    message: { is_some: false, value: '' },
+    sequence: 1n,
+    owner: new Uint8Array(32)
+  },
+  privateState: {
+    secretKey: new Uint8Array(32)
+  },
+  contractAddress: '0x...',
+  transactionContext: {}
+};
+
+const message = "Hello from Compact!";
+
+const { result, context, proofData, gasCost } = 
+  contract.circuits.post(initialContext, message);
+```
+
+The returned object contains:
+- `result`: The circuit's return value (empty array for post)
+- `context`: The updated circuit context with new ledger state
+- `proofData`: Data structure containing input, output, and transcripts for proof generation
+- `gasCost`: Gas cost tracking information
+
+Here's an example of calling the `publicKey` pure circuit:
+
+```typescript
+const secretKey = new Uint8Array(32);
+const sequenceBytes = new Uint8Array(32);
+
+const ownerCommitment = pureCircuits.publicKey(secretKey, sequenceBytes);
+```
+
+Pure circuits can be called directly without a circuit context. They perform deterministic computations and return values immediately.
+
+## Write unit tests
+
+Because the Compact implementation is a standard ES module, you can integrate it with testing frameworks such as Vitest, Jest, or Mocha.
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { Contract, State } from './managed/bboard/contract/index.js';
+import { witnesses, createBBoardPrivateState } from './witnesses.js';
+
+describe('Bulletin board contract', () => {
+  it('accepts a new post on vacant board', () => {
+    const contract = new Contract(witnesses);
+
+    const context = {
+      originalState: {
+        state: State.VACANT,
+        message: { is_some: false, value: '' },
+        sequence: 1n,
+        owner: new Uint8Array(32)
+      },
+      privateState: createBBoardPrivateState(new Uint8Array(32)),
+      contractAddress: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      transactionContext: {}
+    };
+
+    const { result, context: newContext } = contract.circuits.post(context, "Test message");
+
+    expect(newContext.originalState.state).toBe(State.OCCUPIED);
+    expect(newContext.originalState.message.is_some).toBe(true);
+    expect(newContext.originalState.message.value).toBe("Test message");
+  });
+
+  it('rejects post on occupied board', () => {
+    const contract = new Contract(witnesses);
+
+    const context = {
+      originalState: {
+        state: State.OCCUPIED,
+        message: { is_some: true, value: 'Existing message' },
+        sequence: 1n,
+        owner: new Uint8Array(32)
+      },
+      privateState: createBBoardPrivateState(new Uint8Array(32)),
+      contractAddress: '0x0000000000000000000000000000000000000000000000000000000000000000',
+      transactionContext: {}
+    };
+
+    expect(() => contract.circuits.post(context, "New message"))
+      .toThrow("Attempted to post to an occupied board");
+  });
+});
+```
+
+This allows you to test your contract logic off-chain with full control over inputs and without requiring a Midnight Node or proof server.
+
+## Why the Compact JavaScript implementation matters
+
+This section explains why Compact generates a JavaScript implementation and why this design is critical for building privacy-preserving smart contracts.
+
+### A bridge between ZK circuits and everyday code
+
+Zero-knowledge (ZK) circuits are powerful, but they are also complex and opaque. You cannot easily debug or test them directly.
+
+The JavaScript implementation acts as a bridge between the low-level proof system and the high-level contract logic. When you call `contract.circuits.post(context, "Hello world!")`, you are running exactly the same logic that the ZK circuit executes on-chain, but in a form that you can step through, log, and inspect in Node.js.
+
+This means you can validate the behavior of your contract locally before you need to generate proofs or submit transactions to the Midnight network.
+
+### Type safety and consistency across environments
+
+The implementation uses Compact's own type descriptors, such as `CompactTypeBoolean` and `CompactTypeBytes`, ensuring the data you pass in your JavaScript tests is encoded in exactly the same way it will be on-chain. This consistency eliminates a whole class of subtle bugs related to differences in byte order, field alignment, or encoding length.
+
+```typescript
+const message = "Hello Midnight!";
+const proof = contract.circuits.post(context, message);
+```
+
+You can test and reason about your contract logic with confidence that the ZK circuit behaves identically.
+
+### Reproducibility and proof transparency
+
+Each call to a contract circuit returns a structured `proofData` object. This data is the input to the prover along with a representation of the circuit.
+
+That data is crucial for reproducible testing and transparent verification:
+
+```javascript
+{
+  input: { value: [...], alignment: [...] },
+  output: { value: [...], alignment: [...] },
+  publicTranscript: [...],
+  privateTranscriptOutputs: [...]
+}
+```
+
+Having this available directly in JavaScript lets you record, replay, and verify circuit executions as part of your normal testing flow. You don't need to rely on external tools.
+
+### Developer productivity without compromising privacy
+
+The implementation design allows Compact developers to use familiar tools, such as TypeScript, Jest, VSCode, and Node.js, while working with privacy-preserving logic.
+
+Instead of being locked into a specialized proving environment, you can:
+
+- Write integration tests in the same language as your application.
+- Simulate user flows off-chain.
+- Validate logic changes before recompiling circuits.
+
+This combination provides developer-friendly ergonomics with cryptographic guarantees under the hood.
+
+## Next steps
+
+Now you understand how to use the Compact JavaScript implementation. Explore the [Bulletin board DApp](../examples/dapps/bboard) for a complete example of using the JavaScript implementation.
