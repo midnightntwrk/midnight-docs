@@ -15,10 +15,11 @@ designed to be used in combination with TypeScript for writing smart contracts
 for the three-part structure of Midnight, where contracts have the following
 components:
 
-- a replicated component on a public ledger
-- a zero-knowledge circuit component, confidentially proving the correctness of
-  the former
-- a local, off-chain component that can perform arbitrary code
+- a replicated component on a public ledger,
+- a zero-knowledge circuit component that confidentially proofs the
+  replicated component resulted from a valid execution according to
+  the logic of the contract, and
+- a local, off-chain component that can perform arbitrary code.
 
 Each Compact program (also referred to as a *contract*) can contain several
 kinds of program elements:
@@ -460,15 +461,16 @@ The following are the primitive types of Compact:
   be rewritten to one that uses only bounded integer types, but the converse is
   not true.
 
-- `Field` represents the set of unsigned integer values up to the maximum value of
-  the scalar prime field of the ZK proving system.
+- `Field` represents the set of unsigned intergers with values up to the order of
+  the native prime field of the ZK proving system.
   The current maximum field value is given in
   [Implementation-specific limits](#implementation-specific-limits).
 
-- `[`*T*, ⋯, *T*`]`, where *T*, ⋯, *T* are zero or more comma-separated types,
-  is the type of *tuple* values with element types *T*, ⋯, *T*.
+- `[`*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*`]`, where *T<sub>1</sub>*, ⋯,
+  *T<sub>n</sub>* are zero or more comma-separated types, is the type of *tuple*
+  values with element types *T<sub>1</sub>*, ⋯, *T<sub>n</sub>*.
   Tuples are heterogeneous: any element type can differ from any of the others.
-  The *length* of a tuple type is the number of element types.
+  The *length* of a tuple type is the number *n* of element types.
   Two tuple types with different lengths are different types.
   Two tuple types where any element type of one differs from the corresponding
   element type of the other are also different types, though one of the tuple
@@ -724,10 +726,14 @@ Subtyping is defined by the following rules:
 
 - Any type *T* is a subtype of itself (subtyping is reflexive)
 - `Uint<0..`*n*`>` is a subtype of `Uint<0..`*m*>` if *n* is less than (or equal to) *m*
-- `Uint<0..`*n*`>` is a subtype of `Field` for all *n*
-- The tuple type `[`*T*, ⋯, *T*`]` is a subtype of the tuple type `[`*S*, ⋯, *S*`]`
-  if they have the same length and each type *T* is a subtype of the
-  corresponding type *S*.
+- `Uint<0..`*n*`>` is a subtype of `Field` if *n* is less than or equal to
+  the maximum field value.
+- `Field` is a subtype of `Uint<0..`*n*`>` if *n* is greater than or equal to
+  the maximum field value.
+- The tuple type `[`*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*`]` is a subtype of the
+  tuple type `[`*S<sub>1</sub>*, ⋯, *S<sub>n</sub>*`]`
+  if they have the same length and each type *T<sub>i</sub>* is a subtype of the
+  corresponding type *S<sub>i</sub>*.
 
 The *least upper bound* (with respect to subtyping) of a non-empty set of types
 \{*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*} is a type *S* such that:
@@ -742,7 +748,7 @@ some types (such as `Boolean` and `Field`) are not related.
 
 **Tuple and vector types:** Every vector type has an equivalent tuple type:
 `Vector<`*n*, *T*`>` is equivalent to (in fact, the same type as)
-`[`*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*`]`.
+`[`*T*, ⋯, *T*`]` with *n* occurrences of *T*.
 The converse is not always true.
 For example, neither `[Boolean, Field]` nor `[Uint<8>, Uint<16>]` have an
 equivalent vector type.
@@ -1430,10 +1436,10 @@ export circuit getF(): Uint<64> {
 }
 ```
 
-The ledger-state types are designed in to minimize the extent to which a circuit
+The ledger-state types are designed to minimize the extent to which a circuit
 proof depends upon the exact value of a ledger-state field as of when a transaction
-is created to minimize the chance of the transaction being rejected when the
-proof is checked on chain.
+is created in order to minimize the chance of the transaction being rejected when
+the proof is checked on chain.
 For example, `Counter` increment and decrement do not commit to the current value
 of the counter.
 While the preceding example could be written using a Cell instead:
