@@ -694,7 +694,7 @@ that expects a value of type `Vector<3, Uint<16>>` without an explicit cast.
 When one operand of an arithmetic operation (e.g., `+`) receives a value of some
 nominal type alias *type-name*, the other operand must also be of type *type-name*,
 and the result of performing the operation is cast to type *type-name*.
-This might cause a run-time error if the result cannot be represented by type
+This might cause a dynamic error if the result cannot be represented by type
 *type-name*.
 
 Values of any nominal type alias *type-name* cannot be compared directly using,
@@ -1378,9 +1378,9 @@ The following *ledger-state types* are supported.
 - `Map<K, T>`, for any Compact types `K` and `T`
 - `Map<K, V>`, for any Compact type `K` and ledger-state type `V` (see the following section)
 - `List<T>`, for any Compact type `T`
-- `MerkleTree<n, T>`, for a compile time integer `1 < n <= 32`, and any Compact
+- `MerkleTree<n, T>`, for a compile time integer 1 \< *n* ≤ 32, and any Compact
   type `T`
-- `HistoricMerkleTree<n, T>`, for a compile time integer `1 < n <= 32`, and any
+- `HistoricMerkleTree<n, T>`, for a compile time integer 1 \< *n* ≤ 32, and any
   Compact type `T`
 
 Each ledger type supports a set of operations, which can be invoked with
@@ -2451,7 +2451,7 @@ On the other hand, if the type of either subexpression is a nominal type alias
 *T* for a `Field` or a `Uint`, the type of the other subexpression must also have
 type *T*, and the type of the result also has type *T*.
 Evaluation proceeds as if the two operands had the underlying `Field` or `Uint`
-type with the value cast back to *T*, which can result in a run-time error if *T*
+type with the value cast back to *T*, which can result in a dynamic error if *T*
 is a nominal alias for a type `Uint<0..`*n*`>` and the value is not less than *n*.
 For example:
 
@@ -2919,7 +2919,7 @@ The values of the sequence-value expressions are the input sequence values.
 The witness or circuit *fun* is then applied in turn, from index 0 up to index *n*-1,
 to an accumulator value argument and arguments taken from the input sequence values.
 The 0th (initial) accumulator value is the value of the expression *init*, and
-each subsequent *i+1*th accumulator value is the result of applying *fun* to the
+each subsequent *i+1th* accumulator value is the result of applying *fun* to the
 *ith* accumulator value and to the *ith* elements of the corresponding input
 sequence values.
 The result is the *nth* (final) accumulator value where *n* is the length of the
@@ -2928,117 +2928,118 @@ input vectors.
 ### Type cast expressions
 
 Values of one type can be cast to another, when allowed, via a *cast*, which
-takes the following form:
-
-```compact
-e as T
-```
-
-where `e` is an expression and `T` is a type.
-The effects of casting an expression `e` of type `T` to another type `U` depend
+takes the form *e* `as` *T* where *e* is an expression and *T* is a type.
+The effects of casting an expression *e* of type *T* to another type *U* depend
 on the specific types involved.
-For some types `T` and `U`, the cast is not allowed, which is a static error.
-Even if the cast is allowed, some values of type `T` might not be representable
-as values of type `U`.
-In such cases, a run-time check of the value of `e` is required and can result
-in a run-time error.
-In cases where the run-time representation of `T` is different from the run-time
-representation of `U`, the value of `e` must be converted at run time from the
+For some types *T* and *U*, the cast is not allowed, which is a static error.
+Even if the cast is allowed, some values of type *T* might not be representable
+as values of type *U*.
+In such cases, a run-time check of the value of *e* is required and can result
+in a dynamic error.
+In cases where the run-time representation of *T* is different from the run-time
+representation of *U*, the value of *e* must be converted at run time from the
 one representation to the other.
 
-The type of any (allowed) cast `e as T` is, naturally, `T`.
+The type of any (allowed) cast *e* `as` *T* is, naturally, *T*.
 
 Evaluation of a cast proceeds by evaluation of its subexpression, followed by
 any checks and conversions required by the cast.
-If a check fails, a run-time error is reported.
+If a check fails, a dynamic error is reported.
 
-TypeScript casts of the form `<T>e` are not supported in Compact.
+TypeScript casts of the form `<`*T*`>`*e* are not supported in Compact.
 
-The following rules govern when casts are allowed, when casts might cause run-time
+The following rules govern when casts are allowed, when casts might cause dynamic
 errors, and casts might require run-time conversions.
 Any cast not covered by one of the rules is not allowed.
 
 #### Upcasts
 
 - Upcasts, i.e., casts from a type to a [supertype](#subtyping-and-least-upper-bounds)
-  (e.g., from `Vector<3, Uint<8>>` to `Vector<3, Uint<16>>`), are always allowed
-  (but never required), never result in run-time errors, and, except in the case
-  where the type and the supertype are the same, might require run-time conversions.
+  (e.g., from `Vector<3, Uint<8>>` to `Vector<3, Uint<16>>`), are always allowed,
+  never result in dynamic errors, and, except in the case where the type and
+  the supertype are the same, might require run-time conversions.
+  Upcasts are never required: it is always possible to use a value of type *T*
+  as a value of a supertype of *T*.
 
-This rule has three implications:
+  This rule is straightfoward, but some implications regarding tuple and
+  vector types are worth noting:
 
-- Tuple-to-vector upcasts: if a tuple type `[T, ...]` has a vector type `Vector<n, S>`
-  (i.e., `S` is the least upper bound of the element types), then the tuple is a subtype
-  of that vector type and can be used where the vector type is expected without an
-  explicit cast. For example, values of type `[Uint<8>, Uint<16>]` can be used where a
-  value of type `Vector<2, Uint<16>>` are required.
-- Vector-to-tuple upcasts: a vector type `Vector<n, T>` is a subtype of any tuple type
-  `[S, ...]` of length `n` where `T` is a subtype of each `S`, so a vector can be used where
-  such a tuple is expected without an explicit cast. For example, values of type
-  `Vector<2, Uint<8>>` can be used where values of type `[Uint<16>, Uint<16>]` are required.
-- Since `Vector<n, T>` is the same type as the tuple `[T, ..., T]` with `n` occurrences of `T`,
-  casts between a vector type and its equivalent tuple type are always upcasts in both
-  directions.
+  - Since `Vector<`*n*, *T*`>` is the same type as `[`*T*, ⋯, *T*`]` of length *n*,
+    a cast from either of these types to the other is allowed but not required.
+  - If a tuple type `[`*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*`]`
+    [has a vector type](#subtyping-and-least-upper-bounds) `Vector<`*n*, *S*`>`,
+    then since the tuple type is a subtype of the vector type, a cast from the
+    tuple type to the vector type is allowed but not required.
+    For example, values of type `[Uint<8>, Uint<16>]` can be used where values of
+    type `Vector<2, Uint<16>>` are required.
+  - Since a vector type `Vector<`*n*, *T*`>` is a subtype of any tuple type
+    `[`*S<sub>1</sub>*, ⋯, *S<sub>n</sub>*`]` where *T* is a subtype
+    of each *S*, a cast from the vector type to the tuple type is allowed but not
+    required.
+    For example, values of type `Vector<2, Uint<8>>` can be used where
+    values of type `[Uint<16>, Uint<16>]` are required.
 
 #### Downcasts of `Field` and `Uint` types
 
-- `Uint` downcasts, i.e., casts from `Uint<m>` to `Uint<n>`, `m > n`, are always
-   allowed, always require run-time checks, and might require run-time conversions.
-   The same applies to `Field` to `Uint` casts where the maximum value of the
-   `Uint` type exceeds the maximum `Field` value, as well as `Uint` to `Field` casts
-   where the maximum value of the `Uint` type is less than or equal to the maximum
-   `Field` value.
+-  Any `Uint` downcast, i.e., any cast from `Uint<0..`*m*`>` to `Uint<0..`*n*`>`, *m* > *n*,
+   is allowed, requires a run-time check, and might require a run-time conversion.
+   The same applies to any `Field` to `Uint` casts where the maximum `Field` value
+   exceeds the maximum value of the `Uint` type, as well as any `Uint` to `Field`
+   casts where the maximum value of the `Uint` type exceeds the maximum `Field` value.
 
 #### Casts of `Boolean` to and from `Field` and `Uint`:
 
-- Casts from `Boolean` to `Field` or `Uint<0..m>` are always allowed, sometimes
-  require run-time checks, and require a run-time conversion (of `false` to `0`
+- Any cast from `Boolean` to `Field` or any `Uint` type is allowed, sometimes
+  requires a run-time check, and requires a run-time conversion (of `false` to `0`
   and `true` to `1`).
   A run-time check is required for `Uint<0..1>`.
-- Casts from `Field` or `Uint<0..m>` to `Boolean` are always allowed, cannot
-  result in run-time errors, and require a simple run-time conversion (of `0` to
+- Any casts from `Field` or any `Uint` type to `Boolean` is allowed, cannot
+  result in a dynamic error, and requires a simple run-time conversion (of `0` to
   `false` and any other value to `true`).
 
 #### Casts of Enum types to and from `Field` and `Uint`:
 
-- Casts from enum types with `n` elements to `Field` or `Uint<0..m>` are
-  always allowed, sometimes require run-time checks, and might require a run-time
+- Any cast from an enum type to `Field` or any `Uint` type is allowed,
+  sometimes requires a run-time check, and might require a run-time
   conversion.
-  A run-time check is required for `Uint<0..m>`, `m <= n`.
-- Casts from `Field` or `Uint<0..m>` to an enum type with `n` elements are
-  always allowed, sometimes requires a run-time checks, and might require a run-time
-  conversion.
-  A run-time check is required for `Field` and `Uint<0..m>`, `m > n + 1`.
+  A run-time check is required for a cast from an enum type with *n* elements
+  to `Uint<0..`*m*`>`, *n* > *m*.
+- Any cast from `Field` or any `Uint` type to an enum type is allowed,
+  sometimes requires a run-time check, and might require a run-time conversion.
+  A run-time check is required for casts from `Field`.
+  For an enum type with *n* elements, a run-type check is required for casts
+  from `Uint<0..`*m*`>`, *m* > *n*.
 
 #### Casts of `Bytes` to and from `Field` and `Uint`:
 
-- Casts from `Bytes<m>`, `m != 0`, to `Field` or `Uint<0..k>` are always allowed,
-  require a run-time check, and require a run-time conversion.
+- Any cast from `Bytes<`*m*`>`, *m* != 0, to `Field` or any `Uint` type is allowed,
+  requires a run-time check, and requires a run-time conversion.
   That is, the byte-vector value of the expression is converted into a `Field` or
-  `Uint<0..m>` with the least-significant byte of the result corresponding to the
+  `Uint` value with the least-significant byte of the result corresponding to the
   first byte in the byte vector.
-  A run-time error occurs if the result exceeds the maximum value of `Field`
-  or `Uint<0..m>`.
-- Casts from `Field` or `Uint<0..k>` to `Bytes<m>`, `m != 0`, are always allowed,
-  require a run-time check, and require a run-time conversion.
+  A dynamic error occurs if the result exceeds the maximum value of the `Field`
+  or `Uint` type.
+- Any cast from `Field` or any `Uint` type to `Bytes<`*m*`>`, *m* != 0, is allowed,
+  requires a run-time check, and requires a run-time conversion.
   That is, the integer value of the expression is converted into a byte vector
   with the first byte of the byte vector corresponding to the least-significant
   byte of the integer.
-  A run-time error occurs if the result does not fit in `m` bytes.
+  A dynamic error occurs if the result does not fit in *m* bytes.
 
 #### Casts of `Bytes` to and from `Vector` and tuple types:
 
-- Casts from `Bytes<m>` to `Vector<m, Field>` or `Vector<m, Uint<0..k>>`,
-  `k >= 256`, or `[U1, ..., Um]`, where each `Ui = Uint<0..j>` for some j >= are allowed, cannot cause a run-time error, but do require a
+- Any cast from `Bytes<`*m*`>` to `Vector<`*m*, `Field>` or
+  `Vector<`*m*, `Uint<0..`*k*`>>`, *k* ≥ 256 is allowed, cannot
+  cause a dynamic error, but does require a run-time conversion.
+- Any cast from `Bytes<`*m*`>` to tuple type `[`*T<sub>1</sub>*, ⋯, *T<sub>m</sub>*`]`,
+  where each *T<sub>i</sub>* is `Field` or `Uint<0..`*k*`>` for some *k* ≥ 256 is allowed,
+  cannot cause a dynamic error, but does require a run-time conversion.
+- Any cast from `Vector<`*m*, `Uint<0..`*k*`>>`, *k* ≤ 256, to `Bytes<`*m*`>`
+  is allowed, cannot cause a dynamic error, but does require a run-time conversion.
+- Any cast from tuple type `[`*T<sub>1</sub>*, ⋯, *T<sub>m</sub>*`]` to
+  `Bytes<`*m*`>`, where each *T<sub>i</sub>* is `Uint<0..`*k*`>` for some
+  *k* ≤ 256 is allowed, cannot cause a dynamic error, but does require a
   run-time conversion.
-- Casts from `Bytes<m>` to tuple type `[U1, ..., Um]`, where each `Ui` is
-  `Uint<0..j>` for some `j >= 256` are allowed, cannot cause a run-time error,
-  but do require a run-time conversion.
-- Casts from tuple type `[U1, ..., Um]` to `Bytes<m>`, where each `Ui` is
-  `Uint<0..j>` for some `j < 256` are allowed, cannot cause a run-time error,
-  but do require a run-time conversion.
-- Casts from `Vector<m, Uint<0..k>>`, `k < 256`, to `Bytes<m>` are allowed,
-  cannot cause a run-time error, but do require a run-time conversion.
 
 ### Ledger state operations
 
@@ -3047,10 +3048,10 @@ the ledger.
 There are two different forms of ledger operations.
 
 __Kernel operations__ are operations that do not depend on specific ledger
-state.  They can be invoked by expressions of the form `k.op(e, ...)`, where
-`k` is the name of a ledger field declared to have the special ledger-state type `Kernel`,
-`op` is the name of a builtin kernel operation, and
-`e, ...` is a comma separated sequence of zero or more argument expressions.
+state.  They can be invoked by expressions of the form *id*`.`*op*`(`*e*, ⋯, *e*`)`, where
+*id* is the name of a ledger field declared to have the special ledger-state type `Kernel`,
+*op* is the name of a builtin kernel operation, and
+*e*, ⋯, *e* is a comma separated sequence of zero or more argument expressions.
 The `CompactStandardLibrary` predefines the ledger field name `kernel` to have
 ledger type `Kernel`, so for example, the built-in `self` operation can be called
 from a circuit as follows:
@@ -3071,12 +3072,11 @@ order from left to right and then invoking the corresponding kernel operation
 with the argument values.
 
 __Ledger-state operations__ are operations on the contract's declared public ledger-state.
-In its simplest form, a ledger-state operation is an expression `F.op(e, ...)`, where `F`
-is a ledger field name
-([declared via a `ledger` field declaration](#declaring-and-maintaining-public-state)),
-`op` is the name of a ledger-state operator,
-and each `e` is an expression.
-`F` can also be another ledger-state operation, allowing ledger-state operations
+In its simplest form, a ledger-state operation is an expression
+*F*`.`*op*`(`*e*, ⋯, *e*`)`, where *F* is a ledger field name
+[declared via a `ledger` field declaration](#declaring-and-maintaining-public-state),
+*op* is the name of a ledger-state operator, and each *e* is an expression.
+*F* can also be another ledger-state operation, allowing ledger-state operations
 to be chained when the result of a ledger-state operation might itself have a
 ledger-state type.
 (Kernel operations cannot be chained, because the kernel is not a ledger-state
@@ -3092,49 +3092,49 @@ A ledger-state operation whose return type is a ledger-state type *must* be
 chained, i.e., immediately subject to another ledger-state operation.
 It is a static error if this is not the case.
 
-A ledger-state operation `F.op(e, ...)` is evaluated by evaluating `F` if `F`
+A ledger-state operation *F*`.`*op*`(`*e*, ⋯, *e*`)` is evaluated by evaluating *F* if *F*
 is itself a ledger-state operation, then evaluating the argument subexpressions
-from left to right, and then invoking the operation `op` with the argument
-values on the portion of the public ledger state identified by `F`.
+from left to right, and then invoking the operation *op* with the argument
+values on the portion of the public ledger state identified by *F*.
 
 ### Ledger-state-operation shorthands
 
 Compact supports several shorthands for common ledger-state operations.
 
 The simplest of these is a shorthand for the ledger-state operation
-`F.read()` where `F` is a ledger-state field name or itself a another
+*F*`.read()` where *F* is a ledger-state field name or itself a another
 ledger-state operation.
-If the type of `F` is a ledger-state type that supports the `read`
-operation, `F.read()` can be abbreviated, simply, to `F`.
+If the type of *F* is a ledger-state type that supports the `read`
+operation, *F*`.read()` can be abbreviated, simply, to *F*.
 
 The other shorthands all take the form of assignment statements and
-abbreviate the ledger operations `F.write(e)`, `F.increment(e), and
-`F.decrement(e)`, where `e` is an expression.
+abbreviate the ledger operations *F*`.write(`*e*`)`, *F*`.increment(`*e*`)`, and
+`F.decrement(`*e*`)`, where *e* is an expression.
 
-If the type of `F` is a ledger-state type that supports the `write`
-operation, `F.write(e)` can be abbreviated `F = e`.
-Similarly, if the type of `F` is a ledger-state type that supports the
-`increment` operation, `F.increment(e)` can be abbreviated `F += e`,
-and if the type of `F` is a ledger-state type that supports the
-`decrement` operation, `F.decrement(e)` can be abbreviated `F -= e`.
+If the type of *F* is a ledger-state type that supports the `write`
+operation, *F*`.write(`*e*`)` can be abbreviated *F* `=` *e*.
+Similarly, if the type of *F* is a ledger-state type that supports the
+`increment` operation, *F*`.increment(`*e*`)` can be abbreviated *F* `+=` *e*,
+and if the type of *F* is a ledger-state type that supports the
+`decrement` operation, *F*`.decrement(`*e*`)` can be abbreviated *F* `-=` *e*.
 
 The typing and evaluation rules for the abbreviations are identical
 to expressions they abbreviate.
 
 ### Asserts
 
-An assertion has the form `assert(e, "msg")` where `e` is an expression and `msg`
+An assertion has the form `assert(`*e*, *msg*`)` where *e* is an expression and *msg*
 is a string message.
-`e` must have a Boolean type, otherwise it is a static error.
+*e* must have a Boolean type, otherwise it is a static error.
 
 The type of every `assert` form is `[]`.
 
-Evaluation form proceeds by evaluating `e`.
-If the value of `e` is true (the assertion succeeds), the `assert` form produces
+Evaluation proceeds by evaluating *e*.
+If the value of *e* is true (the assertion succeeds), the `assert` form produces
 the value `[]`.
-If, however, the value of `e` is false (the assertion fails), the `assert` form
-halts computation of the enclosing top-level circuit or constructor with the
-message `msg`.
+If, however, the value of *e* is false (the assertion fails), it is a dynamic
+error, i.e., the `assert` form halts computation of the enclosing top-level
+circuit or constructor with the message *msg*.
 
 Each assertion is checked at runtime and constrained in-circuit.
 
