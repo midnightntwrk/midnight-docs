@@ -2748,6 +2748,12 @@ type of *e* is an enumeration type.
 
 ### Circuit and witness calls
 
+Circuits and witnesses, collectively referred to as functions, are called via
+expressions of the form *fun*`(`*e*, ⋯, *e*`)`, where *fun* is a function expression
+and *e*, ⋯, *e* is a sequence of zero or more comma-separated argument expressions.
+
+The function expression *fun* can take one of the following forms:
+
 <div className="lang-ref-table">
 |                        |         |                                                                                                                                            |
 |------------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------|
@@ -2760,42 +2766,28 @@ type of *e* is an enumeration type.
 </div>
 
 
-Circuits and witnesses, collectively referred to as functions, are called via an
-expression of the form `f(e, ...)`, where `f` is a function and `e, ...` is a
-sequence of zero or more comma-separated argument expressions.
-
-The function expression can take several different forms:
-
-A **function name** is the name of a circuit or witness from a circuit or
-witness declaration in scope.
-
-An **anonymous circuit** is an inline circuit definition having the form `(P,
-...) => body` or `(P, ...): R => body`, where `P, ...` are zero or more
-comma-separated parameter declarations, `R` is an optional return type
-annotation, and `body` is the circuit's body.
-Each parameter is a [pattern](#patterns-and-destructuring) with an optional type
-annotation `: T` where `T` is a Compact type.
-The optional return type `R` is a Compact type.
-The body is either a [block](#blocks) or an expression.
-
-There is no syntax for generic anonymous circuits.  This is because circuits are
-not first-class values: they cannot be passed around or stored in data
-structures, they *must* be called.  And generic circuits must be specialized to
-call them, so anonymous generic circuits would have to be immediately
-specialized.  In that case, the programmer can just write the non-generic
-version themselves.
-
-A **parenthesized function** has the form `(f)` where `f` is a function expression,
-i.e., a function name, anonymous circuit, or parenthesized function.
-
-Because circuits and witnesses are not first class, parameter names and constant
-names are not allowed as the circuit or witness part of a call.  Nor are
-arbitrary expressions allowed, for the same reason.
-
-Generic functions cannot be called without explicitly specializing them with
-generic arguments enclosed in angle brackets.  Calls to generic functions must
-be fully specialized: the number of generic arguments must match the number of
+In the simplest form, *fun* is just a identifier *id* referring to a witness or
+named circuit.
+When *id* refers to a generic witness or circuit, it must be fully specialized via
 generic parameters.
+
+*fun* can also be an *anonymous circuit*, also known as an *arrow circuit*.
+This form consists of a parameter list
+`(`*optionally-typed-pattern*, ⋯, *optionally-typed-pattern*`)` followed
+by an optional return type `:` *type*,
+an arrow (`=>`), and a body, which can be a *block* or an *expr*.
+Each *optionally-typed-pattern* is a [pattern](#patterns-and-destructuring)
+with an optional type annotation `:` *type*.
+
+Finally, *fun* can be a parenthesized function `(`*fun*`)`.
+
+Because circuits and witnesses are not first class, *fun* cannot be a variable
+name or arbitary expresison.
+
+Anonymous circuits cannot have generic parameters.
+Since they appear only in contexts where they are directly called, the circuit
+would have to be immediately specialized, in which case only one specialization
+can exist and the non-generic version would be clearer.
 
 The *underlying function* of a function expression is a non-parenthesized
 function expression.  For a function name it is the function name, for an
@@ -2811,7 +2803,7 @@ Type checking a function call depends on the form of the underlying function.
   present in the scope of the call.
 
   A candidate function is not necessarily compatible with the number and kinds
-  of the generic parameter values, nor with the number and types of the argument
+  of the generic parameter values nor with the number and types of the argument
   expressions provided at the call site.  It is compatible if and only if the
   number of generic parameters is the same as the number of generic arguments,
   each generic argument is of the required kind (numeric or type), the number
@@ -2838,13 +2830,13 @@ Type checking a function call depends on the form of the underlying function.
   pieces of the corresponding argument is the type of the corresponding part of
   the structure of the declared or inferred parameter type.
 
-  If there is a return type annotation, it is a static error if the body can
-  return a type of value that is not a subtype of the return type annotation.
+  If there is a return-type annotation, it is a static error if the body can
+  return a type of value that is not a subtype of the return-type annotation.
   A return statement of the form `return;` implicitly returns a value of type
   `[]`, as does every control flow path through a body that does not explicitly
   end with a return statement.
 
-  If there is no return type annotation, then a return type is inferred from the
+  If there is no return-type annotation, then a return type is inferred from the
   body as the least upper bound of the types of the values that can be returned
   from the body (explicitly or implicitly).
   It is a static error if these types do not have a least upper bound.
@@ -2863,73 +2855,74 @@ value of a witness call is the value returned by the witness function.
 ### Map and fold expressions
 
 Compact supports expressions that perform the higher-order operations _map_ and
-(left) _fold_ over vectors, tuples that have vector types (not arbitrary tuples),
+(left-to-right) _fold_ over vectors, tuples that have vector types (not arbitrary tuples),
 and byte vectors.
 
-Map expressions have the form `map(f, e, e, ...)` where `map` is a keyword, `f`
-is a circuit or witness taking at least one argument, and each `e` is an expression.
-A circuit or witness taking _n_ arguments can be mapped over _n_ sequence values
-(vectors, tuples that have vector types, or byte-vectors) by providing _n_
+Map expressions have the form `map(`*fun*, *e*, ⋯¹, *e*`)` where `map` is a
+keyword, *fun* is a circuit or witness taking at least one argument, and each *e*
+is an expression.
+A circuit or witness taking *n* arguments can be mapped over *n* sequence values
+(vectors, tuples that have vector types, or byte-vectors) by providing *n*
 sequence-value subexpressions to the `map`.
 
-Fold expressions have the form `fold(f, init, e, e, ...)` where `fold` is a
-keyword, `f` is a circuit or witness taking at least two arguments, `init`
-is an expression, and each `e` is an expression.
-A circuit or witness taking _n_+1 arguments can be folded over an initial value
-`init` and _n_ sequence values by providing _n_ sequence-value subexpressions to
+Fold expressions have the form `fold(`*fun*, *init*, *e*, ⋯¹, *e*`)` where
+`fold` is a keyword, *fun* is a circuit or witness taking at least two arguments,
+*init* is an expression, and each *e* is an expression.
+A circuit or witness taking *n*+1 arguments can be folded over an initial value
+*init* and *n* sequence values by providing *n* sequence-value subexpressions to
 the `fold`.
 
-A detailed description of the circuit or witness `f` is given in
+A detailed description of the circuit or witness *fun* is given in
 [Circuit and witness calls](#circuit-and-witness-calls) above.
 
 A map expression is type-checked by checking the type of the witness or circuit
-`f` to find its declared or inferred parameter types and its declared or
-inferred return type `R`.
-`f` must have at least one parameter, and the map expression must have the same
-number of sequence-value subexpressions as the number of parameters of `f`.
+*fun* to find its declared or inferred parameter types and its declared or
+inferred return type *R*.
+*fun* must have at least one parameter, and the map expression must have the same
+number of sequence-value subexpressions as the number of parameters of *fun*.
 Each of the sequence-value subexpressions must have a vector or byte-vector type,
-and all these types must have the same length `n`.
-If the type of the *i*th parameter to `f` is `T`, then the *i*th sequence-value
-subexpression must have the vector type `Vector<n, S>` where `S` is a subtype of
-`T`, or it must be the byte-vector type `Bytes<n>` and `Uint<8>` must be a subtype
-of `T`.
-The type of `map` expression is `Vector<n, R>`, regardless of whether the input
-sequence-value subexpressions are vectors, tuples, or byte-vectors.
+and all these types must have the same length *n*.
+If the type of the *ith* parameter to *fun* is *T*, then the *ith* sequence-value
+subexpression must have the vector type `Vector<`*n*, *S*`>` where *S* is a subtype of
+*T*, or it must be the byte-vector type `Bytes<`*n*`>` and `Uint<8>` must be a subtype
+of *T*.
+The type of the `map` expression is `Vector<`*n*, *R*`>`; `map` produces a vector
+regardless of whether the input sequence-value subexpressions are vectors, tuples,
+byte-vectors, or some combination.
 
 A fold expression is type-checked by checking the type of the witness or circuit
-`f` to find its parameter types and its return type `R`.
-`f` must have at least two parameters, and the type of the first parameter must
-be the same type as the return type `R`.
-The `fold` expression must have one fewer sequence-value subexpression than the
-number of parameters of `f`.
-The first subexpression `init` gives the initial value for the fold.
-It must have a type which is a subtype `R`.
-Each of the sequence-value subexpressions must have a vector or byte-vector type
-and all these types must have the same length `n`.
-If the type of the *i*+1th parameter of `f` is `T`, then the type of the *i*th
-sequence-value subexpression must have the vector type `Vector<n, S>` where `S`
-is a subtype of `T`, or it must be the byte-vector type `Bytes<n>` and `Uint<8>`
-must be a subtype of `T`.
-The type of the entire expression is `R`.
+*fun* to find its parameter types and its return type *R*.
+*fun* must have at least two parameters, and the type of the first parameter must
+be the same type as the return type *R*.
+The fold expression must have one fewer sequence-value subexpression than the
+number of parameters of *fun*.
+The first subexpression *init* gives the initial value for the fold.
+It must have a type which is a subtype *R*.
+Each of the sequence-value subexpressions must have a vector or byte-vector type,
+and all these types must have the same length *n*.
+If the type of parameter *i*+1 of *fun* is *T*, then the type of the *ith*
+sequence-value subexpression must have the vector type `Vector<`*n*, *S*`>` where *S*
+is a subtype of *T*, or it must be the byte-vector type `Bytes<`*n*`>` and `Uint<8>`
+must be a subtype of *T*.
+The type of the entire expression is *R*.
 
 Map expressions are evaluated by evaluating the sequence-value subexpressions
-from left to right.
-These values are the input sequence values.
-The witness or circuit `f` is then applied in turn, from index 0 up to index
-`n`-1, to arguments taken from the input sequence values.
-The result is a vector of length `n` where each *i*th element is the result of
-applying `f` to the *i*th elements of the corresponding input sequence values.
+from left to right to produce the input sequence values.
+The witness or circuit *fun* is then applied in turn, from index 0 up to index
+*n*-1, to arguments taken from the input sequence values.
+The result is a vector of length *n* where each *ith* element is the result of
+applying *fun* to the *ith* elements of the corresponding input sequence values.
 
-Fold expressions are evaluated by evaluating the initial value expression `init` and
+Fold expressions are evaluated by evaluating the initial value expression *init* and
 then evaluating the sequence-value subexpressions from left to right.
 The values of the sequence-value expressions are the input sequence values.
-The witness or circuit `f` is then applied in turn, from index 0 up to index `n`-1,
+The witness or circuit *fun* is then applied in turn, from index 0 up to index *n*-1,
 to an accumulator value argument and arguments taken from the input sequence values.
-The 0th (initial) accumulator value is the value of the expression `init`, and
-each subsequent *i*+1th accumulator value is the result of applying `f` to the
-*i*th accumulator value and to the *i*th elements of the corresponding input
+The 0th (initial) accumulator value is the value of the expression *init*, and
+each subsequent *i+1*th accumulator value is the result of applying *fun* to the
+*ith* accumulator value and to the *ith* elements of the corresponding input
 sequence values.
-The result is the `n`th (final) accumulator value where `n` is the length of the
+The result is the *nth* (final) accumulator value where *n* is the length of the
 input vectors.
 
 ### Type cast expressions
