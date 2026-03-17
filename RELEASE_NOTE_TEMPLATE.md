@@ -1,20 +1,20 @@
-# <component><version> (Example: Midnight.js v3.1.0)
+# <component><version> (Example: Midnight.js 3.1.0)
  
-* **Date**: YYYY-MM-DD  
+* **Date**: YYYY-MM-DD
 * **Environment**: All public networks at time of release. For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/next/relnotes/overview).
 
-## High-level summary 
+## High-level summary
 
-1–3 sentences summarizing the most important changes in this release  
-Example: “This release updates the Compact compiler to 0.27, introduces ledger v6 on Preview, and adds new ZK proof APIs. Breaking changes affect all Preview developers.”
+1–3 sentences summarizing the most important changes in this release
+Example: "This release updates the Compact compiler to 0.27, introduces ledger v6 on Preview, and adds new ZK proof APIs. Breaking changes affect all Preview developers."
 
 ## Audience
 
-This release note is critical for developers who:
+These release notes are intended for:
 
-- For example, run a node on Preview.
-- Use Compact compiler or SDK version X.
-- Maintain infrastructure for Testnet environments.
+- Operators who run a node on Preview.
+- Developers who use Compact compiler or SDK version X.
+- Administrators who maintain infrastructure for Testnet environments.
 
 ## What changed
 
@@ -59,8 +59,8 @@ Non-breaking enhancements.
 
 Example:
 
-- “Enhanced proof generation performance for large circuits.”
-- “Redesigned CLI prompts for clarity.”
+- "Enhanced proof generation performance for large circuits."
+- "Redesigned CLI prompts for clarity."
 
 ## Deprecations
 
@@ -87,8 +87,9 @@ Below is a list of breaking changes and required actions for developers.
 
 ### Breaking change <name>
 
-**What changed**: <clear description>  
-**What breaks**: <exact scenarios>  
+**What changed**: <clear description>
+
+**What breaks**: <exact scenarios>
 
 **Required actions**:
 
@@ -106,7 +107,7 @@ The following issues are known at the time of release:
 
 ### Issue name
 
-**Description**: <what's affected + conditions>  
+**Description**: <what's affected + conditions>
 **Workaround (if any)**: <instructions>
 
 ## Links and references
