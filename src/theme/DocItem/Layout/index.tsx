@@ -30,7 +30,7 @@ function useDocTOC() {
 export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
   const { metadata } = useDoc();
-  const { editUrl, unversionedId } = metadata;
+  const { editUrl, unversionedId } = metadata as any;
   const showTools = unversionedId !== "index" && !unversionedId?.endsWith("/index");
 
   return (
@@ -39,19 +39,20 @@ export default function DocItemLayout({ children }) {
         <DocVersionBanner />
         <div className={styles.docItemContainer}>
           <article>
-            {children?.type?.metadata?.sourceDirName !== "." && <DocBreadcrumbs />}
-            <DocVersionBadge />
+            <div className={styles.breadcrumbsRow}>
+              <div className={styles.breadcrumbsLeft}>
+                {children?.type?.metadata?.sourceDirName !== "." && <DocBreadcrumbs />}
+              </div>
+              <div className={styles.breadcrumbsRight}>
+                <DocVersionBadge />
+                {showTools && <DocTools />}
+              </div>
+            </div>
             {editUrl && (
               <div className={styles.topMeta}>
               </div>
             )}
             {docTOC.mobile}
-
-            {showTools && (
-              <div style={{ margin: "8px 0 12px" }}>
-                <DocTools />
-              </div>
-            )}
 
             <DocItemContent>{children}</DocItemContent>
             <DocItemFooter />
