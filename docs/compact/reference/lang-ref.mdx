@@ -722,14 +722,14 @@ types are subtypes of the corresponding parameter type annotations, and
 a constant binding statement with a type annotation can be initialized with an
 expression whose type is a subtype of the type annotation.
 
-Subtyping is defined by the following rules:
+Subtyping is exclusively defined by the following rules:
 
 - Any type *T* is a subtype of itself (subtyping is reflexive)
 - `Uint<0..`*n*`>` is a subtype of `Uint<0..`*m*>` if *n* is less than (or equal to) *m*
-- `Uint<0..`*n*`>` is a subtype of `Field` if *n* is less than or equal to
+- `Uint<0..`*n*`>` is a subtype of `Field` if *n-1* is less than or equal to
   the maximum field value.
-- `Field` is a subtype of `Uint<0..`*n*`>` if *n* is greater than or equal to
-  the maximum field value.
+  (Whether `Field` is a subtype of `Uint<0..`*n*`>` if *n-1* is greater than
+  the maximum field value is currently unspecified.)
 - The tuple type `[`*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*`]` is a subtype of the
   tuple type `[`*S<sub>1</sub>*, ⋯, *S<sub>n</sub>*`]`
   if they have the same length and each type *T<sub>i</sub>* is a subtype of the
@@ -746,13 +746,24 @@ The *least upper bound* (with respect to subtyping) of a non-empty set of types
 Note that least upper bounds do not exist for all sets of types, because
 some types (such as `Boolean` and `Field`) are not related.
 
-**Tuple and vector types:** Every vector type has an equivalent tuple type:
-`Vector<`*n*, *T*`>` is equivalent to (in fact, the same type as)
+**Tuple and vector types:**
+Every vector type is equivalent to some tuple type.
+Specifically, as noted in the earlier section on [Primitive types](#primitive-types),
+the vector type `Vector<`*n*, *T*`>` is equivalent to the tuple type
 `[`*T*, ⋯, *T*`]` with *n* occurrences of *T*.
-The converse is not always true.
-For example, neither `[Boolean, Field]` nor `[Uint<8>, Uint<16>]` have an
-equivalent vector type.
 
+Thus the above subtyping rule for tuple types applies to vector types as well:
+every vector type is a subtype of the equivalent tuple type and possibly of some
+other tuple and vector types.
+In general, a vector type `Vector<`*n*, *T*`>` is a subtype of a tuple type
+`[`*S<sub>1</sub>*, ⋯, *S<sub>n</sub>*`]` if *T* is a subtype of each of the
+types *S<sub>1</sub>*, ⋯, *S<sub>n</sub>*.
+This means, for instance, that a vector can often be passed to a circuit where a
+tuple is expected.
+
+On the other hand, tuple types do not always have equivalent vector types.
+For example, neither `[Boolean, Field]` nor `[Uint<8>, Uint<16>]` is
+equivalent to any vector type.
 We say, however, that a tuple type `[`*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*`]` with
 possibly distinct types *T<sub>1</sub>*, ⋯, *T<sub>n</sub>* "*has a vector type*" if the
 least upper bound *S* of the set of types \{*T<sub>1</sub>*, ⋯, *T<sub>n</sub>*}
@@ -764,16 +775,8 @@ to have a vector type.
 When a tuple type has a vector type, the tuple type is a subtype of the vector
 type, but it might not be the same as the vector type.
 For example, `[Uint<16>, Uint<16>]` has the vector type `Vector<2, Uint<16>>`,
-and the two types are equivalent, whereas `[Uint<8>, Uint<16>]` also has the
-vector type `Vector<2, Uint<16>>`, but the types are not equivalent.
-
-Every vector type is a subtype of the equivalent tuple type and possibly of some
-other tuple types.
-In general, a vector type `Vector<`*n*, *T*`>` is a subtype of a tuple type
-`[`*S<sub>1</sub>*, ⋯, *S<sub>n</sub>*`]` if *T* is a subtype of each of the
-types *S<sub>1</sub>*, ⋯, *S<sub>n</sub>*.
-This means, for instance, that a vector can often be passed to a circuit where a
-tuple is expected.
+and the two types are the same, whereas `[Uint<8>, Uint<16>]` also has the
+vector type `Vector<2, Uint<16>>`, but the types are not the same.
 
 ## Patterns and destructuring
 
@@ -2398,31 +2401,37 @@ and If *v* is `false`, the value of the Boolean negation expression is `true`.
 ### Binary arithmetic expressions
 
 Binary arithmetic expressions have the form *e<sub>1</sub> op e<sub>2</sub>*,
-where *e<sub>1</sub>* and *e<sub>2</sub>* are expressions and *op* is one of
+where *e<sub>1</sub>* and *e<sub>2</sub>* are operand expressions and *op* is one of
 Compact's binary arithmetic operators.
 The binary arithmetic operators are **add** (`+`), **subtract** (`-`) and
 **multiply** (`*`).
 
-Arithmetic expressions require the types of both subexpressions to be numeric
-types, that is, either a `Field`, a `Uint`, or a type alias for a `Field` or
+Arithmetic expressions require the type of each operand to be a numeric
+type, that is, either a `Field`, a `Uint`, or a type alias for a `Field` or
 a `Uint`.
 Putting aside type aliases for now, the type of the result depends on the
-types of the subexpressions as follows:
+types of the operands as follows:
 
-- If either subexpression has type `Field`, the result has type `Field`.
-- Otherwise *e<sub>1</sub>* must have type `Uint<0..`*m*`>`, and
-  *e<sub>2</sub>* must have type `Uint<0..`*n*`>` for some bounds *m* and *n*.
-  The type of the result depends on the operation as follows:
+- If both operands have type `Field`, the result has type `Field`.
+- If both operands have `Uint` types, i.e., *e<sub>1</sub>* has type
+  `Uint<0..`*m*`>` for some *m* and *e<sub>2</sub>* has type `Uint<0..`*n*`>` for
+  some *n*, the type of the result depends on the operation as follows:
   - for add, the result has type `Uint<0..`*m+n*`>`,
   - for subtract, the result has type `Uint<0..`*m*`>`, and
   - for multiply, the result has type `Uint<0..`*m⋅n*`>`.
+- If one operand has type `Field` and the other has type `Uint<0..`*n*`>`
+  where *n-1* is less than or equal to the maximum field value, the `Uint`
+  operand is implicitly cast to `Field`, and the result has type `Field`.
+  (If *n-1* is greater than the maximum field value, the behavior of the
+  compiler is currently unspecified.)
 
 For arithmetic operations with `Uint` result types, it is a static error if
-the result's bound would be greater than the maximum unsigned integer.
+the result's bound would be greater than the
+[maximum unsigned integer, if any](#implementation-specific-limits).
 
 Evaluating an arithmetic expression *e<sub>1</sub> op e<sub>2</sub>* involves
 first evaluating *e<sub>1</sub>*, then evaluating *e<sub>2</sub>*.
-Integer addition, subtraction, or multiplication is then used on the subexpression
+Integer addition, subtraction, or multiplication is then used on the operand
 values.
 The overflow and underflow behavior differs for `Field` (either operand has
 type `Field`) and `Uint` operations (both operands have a `Uint` type):
@@ -2437,12 +2446,12 @@ type `Field`) and `Uint` operations (both operands have a `Uint` type):
   be negative, i.e., if the value of *e<sub>2</sub>* is greater the the value
   of *e<sub>1</sub>*.
 
-If the type of either subexpression is a structural type alias for a `Field` or
+If the type of either operand is a structural type alias for a `Field` or
 `Uint` it is treated identically to that `Field` or `Uint`, both in type checking
 and evaluation.
 
-On the other hand, if the type of either subexpression is a nominal type alias
-*T* for a `Field` or a `Uint`, the type of the other subexpression must also have
+On the other hand, if the type of either operand is a nominal type alias
+*T* for a `Field` or a `Uint`, the type of the other operand must also have
 type *T*, and the type of the result also has type *T*.
 Evaluation proceeds as if the two operands had the underlying `Field` or `Uint`
 type with the value cast back to *T*, which can result in a dynamic error if *T*
@@ -2977,8 +2986,9 @@ Any cast not covered by one of the rules is not allowed.
 -  Any `Uint` downcast, i.e., any cast from `Uint<0..`*m*`>` to `Uint<0..`*n*`>`, *m* > *n*,
    is allowed, requires a run-time check, and might require a run-time conversion.
    The same applies to any `Field` to `Uint` casts where the maximum `Field` value
-   exceeds the maximum value of the `Uint` type, as well as any `Uint` to `Field`
-   casts where the maximum value of the `Uint` type exceeds the maximum `Field` value.
+   exceeds the maximum value of the `Uint` type.
+   (If the maximum value of the `Uint` type exceeds the maximum `Field` value, the
+   behavior of the compiler is currently unspecified.)
 
 #### Casts of `Boolean` to and from `Field` and `Uint`:
 
@@ -3232,10 +3242,10 @@ This is necessary even when the caller or witness is written in properly
 typed TypeScript because some Compact types have size and range limits
 that are not expressible via the TypeScript type system:
 
-- `Field` values are limited by a maximum field value
-- `Uint` values are limited by the declared bounds
-- `Bytes` and tuple values are limited by their lengths
-- enum values are limited by the maximum index for the enum elements
+- `Field` values are limited by a maximum field value.
+- `Uint` values are limited by the declared bounds.
+- `Bytes`, `Vector`, and tuple values are limited by their lengths.
+- Enum values are limited by the maximum index for the enum elements.
 
 It is also necessary because compile-time type checks are easily
 defeated in TypeScript and are nonexistent when a caller or witness
