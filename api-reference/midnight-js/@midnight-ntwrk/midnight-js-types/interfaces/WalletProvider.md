@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,46 +6,49 @@
 
 # Interface: WalletProvider
 
-Interface for a wallet
-
-## Properties
-
-### coinPublicKey
-
-> `readonly` **coinPublicKey**: `string`
-
-Wallet public coin key
-
-***
-
-### encryptionPublicKey
-
-> `readonly` **encryptionPublicKey**: `string`
-
-Wallet EncryptionPublicKey
+Interface representing a WalletProvider that handles operations such as
+transaction balancing and finalization, and provides access to cryptographic secret keys.
 
 ## Methods
 
 ### balanceTx()
 
-> **balanceTx**(`tx`, `newCoins`): `Promise`\<[`BalancedTransaction`](../type-aliases/BalancedTransaction.md)\>
+> **balanceTx**(`tx`, `ttl?`): `Promise`\<`FinalizedTransaction`\>
 
-Balances selects coins, creates spend proofs, and pays fees for a transaction with call proofs.
+Balances a transaction
 
 #### Parameters
 
 ##### tx
 
-[`UnbalancedTransaction`](../type-aliases/UnbalancedTransaction.md)
+[`UnboundTransaction`](../type-aliases/UnboundTransaction.md)
 
 The transaction to balance.
 
-##### newCoins
+##### ttl?
 
-`CoinInfo`[]
-
-The outputs created during a transaction.
+`Date`
 
 #### Returns
 
-`Promise`\<[`BalancedTransaction`](../type-aliases/BalancedTransaction.md)\>
+`Promise`\<`FinalizedTransaction`\>
+
+***
+
+### getCoinPublicKey()
+
+> **getCoinPublicKey**(): `string`
+
+#### Returns
+
+`string`
+
+***
+
+### getEncryptionPublicKey()
+
+> **getEncryptionPublicKey**(): `string`
+
+#### Returns
+
+`string`

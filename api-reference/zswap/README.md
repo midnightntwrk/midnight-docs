@@ -1,6 +1,6 @@
 # ZSwap API
 
-**@midnight/zswap v3.0.2** • Readme \| [API](globals.md)
+**@midnight/zswap v4.0.0-rc**
 
 ***
 
@@ -10,7 +10,7 @@ This document outlines the usage of the Zswap TS API
 
 ## Network ID
 
-Prior to any interaction, setNetworkId should be used to set the [NetworkId](enumerations/NetworkId.md) to target the correct network.
+Prior to any interaction,  setNetworkId should be used to set the [NetworkId](enumerations/NetworkId.md) to target the correct network.
 
 ## Proof stages
 
@@ -47,7 +47,7 @@ A Zswap [Offer](classes/Offer.md) consists of:
 
 [Input](classes/Input.md)s can be created either from a [QualifiedCoinInfo](type-aliases/QualifiedCoinInfo.md) and a contract
 address, if the coin is contract-owned, or from a [QualifiedCoinInfo](type-aliases/QualifiedCoinInfo.md) and a
-ZswapLocalState, if it is user-owned. Similarly, [Output](classes/Output.md)s can be created
+ ZswapLocalState, if it is user-owned. Similarly, [Output](classes/Output.md)s can be created
 from a [CoinInfo](type-aliases/CoinInfo.md) and a contract address for contract-owned coins, or from a
 [CoinInfo](type-aliases/CoinInfo.md) and a user's public key(s), if it is user-owned. A [Transient](classes/Transient.md)
 is created similarly to a [Input](classes/Input.md), but directly converts an existing
@@ -59,4 +59,5 @@ coin commitments that can be used to find the relevant coin to spend, while a
 
 ## State Structure
 
-[ZswapChainState](classes/ZswapChainState.md) holds the on-chain state of Zswap, while ZswaplocalState contains the local, wallet state.
+[ZswapChainState](classes/ZswapChainState.md) holds the on-chain state of Zswap, while 
+ZswaplocalState contains the local, wallet state.

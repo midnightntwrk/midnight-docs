@@ -1,8 +1,8 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / UnprovenTransaction
+[@midnight/zswap](../globals.md) / UnprovenTransaction
 
 # Class: UnprovenTransaction
 
@@ -13,7 +13,7 @@ stage!
 
 ## Constructors
 
-### new UnprovenTransaction(guaranteed, fallible)
+### new UnprovenTransaction()
 
 ```ts
 new UnprovenTransaction(guaranteed, fallible?): UnprovenTransaction
@@ -23,9 +23,13 @@ Creates the transaction from guaranteed/fallible [UnprovenOffer](UnprovenOffer.m
 
 #### Parameters
 
-• **guaranteed**: [`UnprovenOffer`](UnprovenOffer.md)
+##### guaranteed
 
-• **fallible?**: [`UnprovenOffer`](UnprovenOffer.md)
+[`UnprovenOffer`](UnprovenOffer.md)
+
+##### fallible?
+
+[`UnprovenOffer`](UnprovenOffer.md)
 
 #### Returns
 
@@ -102,7 +106,9 @@ Merges this transaction with another
 
 #### Parameters
 
-• **other**: [`UnprovenTransaction`](UnprovenTransaction.md)
+##### other
+
+[`UnprovenTransaction`](UnprovenTransaction.md)
 
 #### Returns
 
@@ -118,16 +124,18 @@ same coins
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -139,7 +147,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -155,9 +165,13 @@ static deserialize(raw, netid): UnprovenTransaction
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
@@ -176,7 +190,9 @@ legitimately minted previously.
 
 #### Parameters
 
-• **mint**: [`UnprovenAuthorizedMint`](UnprovenAuthorizedMint.md)
+##### mint
+
+[`UnprovenAuthorizedMint`](UnprovenAuthorizedMint.md)
 
 #### Returns
 

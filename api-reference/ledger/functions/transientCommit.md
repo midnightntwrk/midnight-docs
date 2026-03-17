@@ -1,29 +1,35 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / transientCommit
+[@midnight/ledger](../globals.md) / transientCommit
 
 # Function: transientCommit()
 
-`Internal`
-
 ```ts
-transientCommit(
+function transientCommit(
    align, 
    val, 
-   opening): Value
+   opening): Value;
 ```
+
+**`Internal`**
 
 Internal implementation of the transient commitment primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
 
-• **opening**: [`Value`](../type-aliases/Value.md)
+### val
+
+[`Value`](../type-aliases/Value.md)
+
+### opening
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -31,5 +37,5 @@ Internal implementation of the transient commitment primitive
 
 ## Throws
 
-If val does not have alignment align, or
-opening does not encode a field element
+If [val](#transientcommit) does not have alignment [align](#transientcommit), or
+[opening](#transientcommit) does not encode a field element

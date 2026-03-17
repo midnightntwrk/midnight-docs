@@ -1,16 +1,16 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / AlignmentSegment
+[@midnight-ntwrk/onchain-runtime](../globals.md) / AlignmentSegment
 
-# Type alias: AlignmentSegment
+# Type Alias: AlignmentSegment
 
 ```ts
 type AlignmentSegment: {
   tag: "option";
   value: Alignment[];
-  } | {
+ } | {
   tag: "atom";
   value: AlignmentAtom;
 };

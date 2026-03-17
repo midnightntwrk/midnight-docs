@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -22,7 +22,7 @@ The public state resulting from executing the circuit.
 
 ### partitionedTranscript
 
-> `readonly` **partitionedTranscript**: [`PartitionedTranscript`](PartitionedTranscript.md)
+> `readonly` **partitionedTranscript**: `PartitionedTranscript`
 
 A [publicTranscript](#publictranscript) partitioned into guaranteed and fallible sections.
 The guaranteed section of a public transcript must succeed for the corresponding

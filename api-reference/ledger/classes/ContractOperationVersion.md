@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractOperationVersion
+[@midnight/ledger](../globals.md) / ContractOperationVersion
 
 # Class: ContractOperationVersion
 
@@ -10,26 +10,28 @@ The version associated with a [ContractOperation](ContractOperation.md)
 
 ## Constructors
 
-### new ContractOperationVersion(version)
+### Constructor
 
 ```ts
-new ContractOperationVersion(version): ContractOperationVersion
+new ContractOperationVersion(version): ContractOperationVersion;
 ```
 
 #### Parameters
 
-• **version**: `"v1"`
+##### version
+
+`"v3"`
 
 #### Returns
 
-[`ContractOperationVersion`](ContractOperationVersion.md)
+`ContractOperationVersion`
 
 ## Properties
 
 ### version
 
 ```ts
-readonly version: "v1";
+readonly version: "v3";
 ```
 
 ## Methods
@@ -37,12 +39,14 @@ readonly version: "v1";
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

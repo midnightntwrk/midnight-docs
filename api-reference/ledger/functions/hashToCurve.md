@@ -1,24 +1,28 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / hashToCurve
+[@midnight/ledger](../globals.md) / hashToCurve
 
 # Function: hashToCurve()
 
-`Internal`
-
 ```ts
-hashToCurve(align, val): Value
+function hashToCurve(align, val): Value;
 ```
+
+**`Internal`**
 
 Internal implementation of the hash to curve primitive
 
 ## Parameters
 
-• **align**: [`Alignment`](../type-aliases/Alignment.md)
+### align
 
-• **val**: [`Value`](../type-aliases/Value.md)
+[`Alignment`](../type-aliases/Alignment.md)
+
+### val
+
+[`Value`](../type-aliases/Value.md)
 
 ## Returns
 
@@ -26,4 +30,4 @@ Internal implementation of the hash to curve primitive
 
 ## Throws
 
-If val does not have alignment align
+If [val](#hashtocurve) does not have alignment [align](#hashtocurve)

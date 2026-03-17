@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -22,7 +22,7 @@ An error indicating that a verifier key removal transaction failed.
 
 ##### finalizedTxData
 
-[`FinalizedTxData`](../../midnight-js-types/interfaces/FinalizedTxData.md)
+`FinalizedTxData`
 
 #### Returns
 
@@ -36,7 +36,7 @@ An error indicating that a verifier key removal transaction failed.
 
 ### circuitId?
 
-> `readonly` `optional` **circuitId**: `string`
+> `readonly` `optional` **circuitId**: `string` \| `string`[]
 
 The name of the circuit that was called to create the call
                  transaction that failed. Only defined if a call transaction
@@ -50,7 +50,7 @@ The name of the circuit that was called to create the call
 
 ### finalizedTxData
 
-> `readonly` **finalizedTxData**: [`FinalizedTxData`](../../midnight-js-types/interfaces/FinalizedTxData.md)
+> `readonly` **finalizedTxData**: `FinalizedTxData`
 
 The finalization data of the transaction that failed.
 

@@ -1,22 +1,22 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / Transcript
+[@midnight-ntwrk/onchain-runtime](../globals.md) / Transcript
 
-# Type alias: Transcript\<R\>
+# Type Alias: Transcript\<R\>
 
 ```ts
 type Transcript<R>: {
   effects: Effects;
-  gas: bigint;
+  gas: RunningCost;
   program: Op<R>[];
 };
 ```
 
 A transcript of operations, to be recorded in a transaction
 
-## Type parameters
+## Type Parameters
 
 • **R**
 
@@ -29,15 +29,15 @@ effects: Effects;
 ```
 
 The effects of the transcript, which are checked before execution, and
-must match those constructed by program
+must match those constructed by [program](Transcript.md#program)
 
 ### gas
 
 ```ts
-gas: bigint;
+gas: RunningCost;
 ```
 
-The execution budget for this transcript, which program must not
+The execution budget for this transcript, which [program](Transcript.md#program) must not
 exceed
 
 ### program

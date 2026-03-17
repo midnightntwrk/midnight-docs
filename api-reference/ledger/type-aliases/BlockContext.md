@@ -1,30 +1,32 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / BlockContext
+[@midnight/ledger](../globals.md) / BlockContext
 
-# Type alias: BlockContext
+# Type Alias: BlockContext
 
 ```ts
-type BlockContext: {
-  blockHash: string;
+type BlockContext = {
+  parentBlockHash: string;
   secondsSinceEpoch: bigint;
   secondsSinceEpochErr: number;
 };
 ```
 
-The context information about a block available inside the VM
+Context information about the block forwarded to [CallContext](CallContext.md).
 
-## Type declaration
+## Properties
 
-### blockHash
+### parentBlockHash
 
 ```ts
-blockHash: string;
+parentBlockHash: string;
 ```
 
 The hash of the block prior to this transaction, as a hex-encoded string
+
+***
 
 ### secondsSinceEpoch
 
@@ -34,11 +36,13 @@ secondsSinceEpoch: bigint;
 
 The seconds since the UNIX epoch that have elapsed
 
+***
+
 ### secondsSinceEpochErr
 
 ```ts
 secondsSinceEpochErr: number;
 ```
 
-The maximum error on secondsSinceEpoch that should occur, as a
+The maximum error on [secondsSinceEpoch](#secondssinceepoch) that should occur, as a
 positive seconds value

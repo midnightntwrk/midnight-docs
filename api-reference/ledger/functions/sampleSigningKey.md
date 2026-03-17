@@ -1,17 +1,17 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / sampleSigningKey
+[@midnight/ledger](../globals.md) / sampleSigningKey
 
 # Function: sampleSigningKey()
 
 ```ts
-sampleSigningKey(): SigningKey
+function sampleSigningKey(): string;
 ```
 
 Randomly samples a [SigningKey](../type-aliases/SigningKey.md).
 
 ## Returns
 
-[`SigningKey`](../type-aliases/SigningKey.md)
+`string`

@@ -1,13 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / LocalState
+[@midnight/zswap](../globals.md) / LocalState
 
 # Class: LocalState
 
-The local state of a user/wallet, consisting of their secret key, and a set
-of unspent coins.
+The local state of a user/wallet, consisting of a set
+of unspent coins
 
 It also keeps track of coins that are in-flight, either expecting to spend
 or expecting to receive, and a local copy of the global coin commitment
@@ -21,23 +21,13 @@ Merkle tree to generate proofs against.
 new LocalState(): LocalState
 ```
 
-Creates a new state with a randomly sampled secret key
+Creates a new, empty state
 
 #### Returns
 
 [`LocalState`](LocalState.md)
 
 ## Properties
-
-### coinPublicKey
-
-```ts
-readonly coinPublicKey: string;
-```
-
-The coin public key of this wallet
-
-***
 
 ### coins
 
@@ -46,16 +36,6 @@ readonly coins: Set<QualifiedCoinInfo>;
 ```
 
 The set of *spendable* coins of this wallet
-
-***
-
-### encryptionPublicKey
-
-```ts
-readonly encryptionPublicKey: string;
-```
-
-The encryption public key of this wallet
 
 ***
 
@@ -94,14 +74,20 @@ future
 ### apply()
 
 ```ts
-apply(offer): LocalState
+apply(secretKeys, offer): LocalState
 ```
 
 Locally applies an offer to the current state, returning the updated state
 
 #### Parameters
 
-• **offer**: [`Offer`](Offer.md)
+##### secretKeys
+
+[`SecretKeys`](SecretKeys.md)
+
+##### offer
+
+[`Offer`](Offer.md)
 
 #### Returns
 
@@ -123,7 +109,7 @@ The general flow for usage if Alice is in state A, and wants to ask Bob how to r
  - Find out where she's going – ask for Bob's firstFree.
  - Find what contents she does care about – ask Bob for the filtered
    entries she want to include proper in her tree.
- - In order, of Merkle tree indicies:
+ - In order, of Merkle tree indices:
    - Insert (with `apply` offers Alice cares about).
    - Skip (with this method) sections Alice does not care about, obtaining
      the collapsed update covering the gap from Bob.
@@ -132,7 +118,9 @@ updates *are* included.
 
 #### Parameters
 
-• **update**: [`MerkleTreeCollapsedUpdate`](MerkleTreeCollapsedUpdate.md)
+##### update
+
+[`MerkleTreeCollapsedUpdate`](MerkleTreeCollapsedUpdate.md)
 
 #### Returns
 
@@ -151,7 +139,9 @@ spendable once more.
 
 #### Parameters
 
-• **offer**: [`Offer`](Offer.md)
+##### offer
+
+[`Offer`](Offer.md)
 
 #### Returns
 
@@ -170,7 +160,9 @@ to be spendable once more.
 
 #### Parameters
 
-• **offer**: [`ProofErasedOffer`](ProofErasedOffer.md)
+##### offer
+
+[`ProofErasedOffer`](ProofErasedOffer.md)
 
 #### Returns
 
@@ -181,7 +173,7 @@ to be spendable once more.
 ### applyProofErased()
 
 ```ts
-applyProofErased(offer): LocalState
+applyProofErased(secretKeys, offer): LocalState
 ```
 
 Locally applies a proof-erased offer to the current state, returning the
@@ -189,7 +181,13 @@ updated state
 
 #### Parameters
 
-• **offer**: [`ProofErasedOffer`](ProofErasedOffer.md)
+##### secretKeys
+
+[`SecretKeys`](SecretKeys.md)
+
+##### offer
+
+[`ProofErasedOffer`](ProofErasedOffer.md)
 
 #### Returns
 
@@ -200,7 +198,10 @@ updated state
 ### applyProofErasedTx()
 
 ```ts
-applyProofErasedTx(tx, res): LocalState
+applyProofErasedTx(
+   secretKeys, 
+   tx, 
+   res): LocalState
 ```
 
 Locally applies a proof-erased transaction to the current state, returning
@@ -208,12 +209,20 @@ the updated state
 
 #### Parameters
 
-• **tx**: [`ProofErasedTransaction`](ProofErasedTransaction.md)
+##### secretKeys
 
-• **res**: `"success"` \| `"partialSuccess"` \| `"failure"`
+[`SecretKeys`](SecretKeys.md)
+
+##### tx
+
+[`ProofErasedTransaction`](ProofErasedTransaction.md)
+
+##### res
 
 The result type of applying this transaction against the
 ledger state
+
+`"success"` | `"partialSuccess"` | `"failure"`
 
 #### Returns
 
@@ -224,7 +233,7 @@ ledger state
 ### applySystemTx()
 
 ```ts
-applySystemTx(tx): LocalState
+applySystemTx(secretKeys, tx): LocalState
 ```
 
 Locally applies a system transaction to the current state, returning the
@@ -232,7 +241,13 @@ updated state
 
 #### Parameters
 
-• **tx**: [`SystemTransaction`](SystemTransaction.md)
+##### secretKeys
+
+[`SecretKeys`](SecretKeys.md)
+
+##### tx
+
+[`SystemTransaction`](SystemTransaction.md)
 
 #### Returns
 
@@ -243,7 +258,10 @@ updated state
 ### applyTx()
 
 ```ts
-applyTx(tx, res): LocalState
+applyTx(
+   secretKeys, 
+   tx, 
+   res): LocalState
 ```
 
 Locally applies a transaction to the current state, returning the updated
@@ -251,12 +269,20 @@ state
 
 #### Parameters
 
-• **tx**: [`Transaction`](Transaction.md)
+##### secretKeys
 
-• **res**: `"success"` \| `"partialSuccess"` \| `"failure"`
+[`SecretKeys`](SecretKeys.md)
+
+##### tx
+
+[`Transaction`](Transaction.md)
+
+##### res
 
 The result type of applying this transaction against the
 ledger state
+
+`"success"` | `"partialSuccess"` | `"failure"`
 
 #### Returns
 
@@ -267,23 +293,28 @@ ledger state
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
 ### spend()
 
 ```ts
-spend(coin): [LocalState, UnprovenInput]
+spend(
+   secretKeys, 
+   coin, 
+   segment): [LocalState, UnprovenInput]
 ```
 
 Initiates a new spend of a specific coin, outputting the corresponding
@@ -292,7 +323,17 @@ in-flight.
 
 #### Parameters
 
-• **coin**: [`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+##### secretKeys
+
+[`SecretKeys`](SecretKeys.md)
+
+##### coin
+
+[`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+
+##### segment
+
+`number`
 
 #### Returns
 
@@ -303,7 +344,11 @@ in-flight.
 ### spendFromOutput()
 
 ```ts
-spendFromOutput(coin, output): [LocalState, UnprovenTransient]
+spendFromOutput(
+   secretKeys, 
+   coin, 
+   segment, 
+   output): [LocalState, UnprovenTransient]
 ```
 
 Initiates a new spend of a new-yet-received output, outputting the
@@ -312,9 +357,21 @@ this coin as in-flight.
 
 #### Parameters
 
-• **coin**: [`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+##### secretKeys
 
-• **output**: [`UnprovenOutput`](UnprovenOutput.md)
+[`SecretKeys`](SecretKeys.md)
+
+##### coin
+
+[`QualifiedCoinInfo`](../type-aliases/QualifiedCoinInfo.md)
+
+##### segment
+
+`number`
+
+##### output
+
+[`UnprovenOutput`](UnprovenOutput.md)
 
 #### Returns
 
@@ -330,7 +387,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -341,7 +400,7 @@ toString(compact?): string
 ### watchFor()
 
 ```ts
-watchFor(coin): LocalState
+watchFor(coinPublicKey, coin): LocalState
 ```
 
 Adds a coin to the list of coins that are expected to be received
@@ -352,23 +411,17 @@ know the commitment ahead of time to notice the receipt.
 
 #### Parameters
 
-• **coin**: [`CoinInfo`](../type-aliases/CoinInfo.md)
+##### coinPublicKey
+
+`string`
+
+##### coin
+
+[`CoinInfo`](../type-aliases/CoinInfo.md)
 
 #### Returns
 
 [`LocalState`](LocalState.md)
-
-***
-
-### yesIKnowTheSecurityImplicationsOfThis\_encryptionSecretKey()
-
-```ts
-yesIKnowTheSecurityImplicationsOfThis_encryptionSecretKey(): EncryptionSecretKey
-```
-
-#### Returns
-
-[`EncryptionSecretKey`](EncryptionSecretKey.md)
 
 ***
 
@@ -380,28 +433,13 @@ static deserialize(raw, netid): LocalState
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
 
-#### Returns
+##### netid
 
-[`LocalState`](LocalState.md)
-
-***
-
-### fromSeed()
-
-```ts
-static fromSeed(seed): LocalState
-```
-
-Creates a new state from a predefined random seed (which can act as a
-recovery phrase)
-
-#### Parameters
-
-• **seed**: `Uint8Array`
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

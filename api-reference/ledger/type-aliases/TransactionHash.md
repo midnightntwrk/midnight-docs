@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / TransactionHash
+[@midnight/ledger](../globals.md) / TransactionHash
 
-# Type alias: TransactionHash
+# Type Alias: TransactionHash
 
 ```ts
-type TransactionHash: string;
+type TransactionHash = string;
 ```
 
 The hash of a transaction, as a hex-encoded 256-bit bytestring

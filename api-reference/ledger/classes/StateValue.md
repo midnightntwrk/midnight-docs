@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / StateValue
+[@midnight/ledger](../globals.md) / StateValue
 
 # Class: StateValue
 
@@ -19,52 +19,42 @@ There are different *classes* of state values:
 State values are *immutable*, any operations that mutate states will return
 a new state instead.
 
-## Constructors
-
-### new StateValue()
-
-```ts
-private new StateValue(): StateValue
-```
-
-#### Returns
-
-[`StateValue`](StateValue.md)
-
 ## Methods
 
 ### arrayPush()
 
 ```ts
-arrayPush(value): StateValue
+arrayPush(value): StateValue;
 ```
 
 #### Parameters
 
-• **value**: [`StateValue`](StateValue.md)
+##### value
+
+`StateValue`
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`
 
 ***
 
 ### asArray()
 
 ```ts
-asArray(): undefined | StateValue[]
+asArray(): undefined | StateValue[];
 ```
 
 #### Returns
 
-`undefined` \| [`StateValue`](StateValue.md)[]
+`undefined` \| `StateValue`[]
 
 ***
 
 ### asBoundedMerkleTree()
 
 ```ts
-asBoundedMerkleTree(): undefined | StateBoundedMerkleTree
+asBoundedMerkleTree(): undefined | StateBoundedMerkleTree;
 ```
 
 #### Returns
@@ -76,7 +66,7 @@ asBoundedMerkleTree(): undefined | StateBoundedMerkleTree
 ### asCell()
 
 ```ts
-asCell(): AlignedValue
+asCell(): AlignedValue;
 ```
 
 #### Returns
@@ -88,7 +78,7 @@ asCell(): AlignedValue
 ### asMap()
 
 ```ts
-asMap(): undefined | StateMap
+asMap(): undefined | StateMap;
 ```
 
 #### Returns
@@ -99,11 +89,11 @@ asMap(): undefined | StateMap
 
 ### encode()
 
-`Internal`
-
 ```ts
-encode(): EncodedStateValue
+encode(): EncodedStateValue;
 ```
+
+**`Internal`**
 
 #### Returns
 
@@ -114,7 +104,7 @@ encode(): EncodedStateValue
 ### logSize()
 
 ```ts
-logSize(): number
+logSize(): number;
 ```
 
 #### Returns
@@ -126,12 +116,14 @@ logSize(): number
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -142,108 +134,107 @@ toString(compact?): string
 ### type()
 
 ```ts
-type(): 
-  | "map"
-  | "null"
-  | "cell"
-  | "array"
-  | "boundedMerkleTree"
+type(): "map" | "null" | "cell" | "array" | "boundedMerkleTree";
 ```
 
 #### Returns
 
-  \| `"map"`
-  \| `"null"`
-  \| `"cell"`
-  \| `"array"`
-  \| `"boundedMerkleTree"`
+`"map"` \| `"null"` \| `"cell"` \| `"array"` \| `"boundedMerkleTree"`
 
 ***
 
 ### decode()
 
-`Internal`
-
 ```ts
-static decode(value): StateValue
+static decode(value): StateValue;
 ```
+
+**`Internal`**
 
 #### Parameters
 
-• **value**: [`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
+##### value
+
+[`EncodedStateValue`](../type-aliases/EncodedStateValue.md)
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`
 
 ***
 
 ### newArray()
 
 ```ts
-static newArray(): StateValue
+static newArray(): StateValue;
 ```
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`
 
 ***
 
 ### newBoundedMerkleTree()
 
 ```ts
-static newBoundedMerkleTree(tree): StateValue
+static newBoundedMerkleTree(tree): StateValue;
 ```
 
 #### Parameters
 
-• **tree**: [`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+##### tree
+
+[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`
 
 ***
 
 ### newCell()
 
 ```ts
-static newCell(value): StateValue
+static newCell(value): StateValue;
 ```
 
 #### Parameters
 
-• **value**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+##### value
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`
 
 ***
 
 ### newMap()
 
 ```ts
-static newMap(map): StateValue
+static newMap(map): StateValue;
 ```
 
 #### Parameters
 
-• **map**: [`StateMap`](StateMap.md)
+##### map
+
+[`StateMap`](StateMap.md)
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`
 
 ***
 
 ### newNull()
 
 ```ts
-static newNull(): StateValue
+static newNull(): StateValue;
 ```
 
 #### Returns
 
-[`StateValue`](StateValue.md)
+`StateValue`

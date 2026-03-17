@@ -1,36 +1,26 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / CostModel
+[@midnight/ledger](../globals.md) / CostModel
 
 # Class: CostModel
 
 A cost model for calculating transaction fees
-
-## Constructors
-
-### new CostModel()
-
-```ts
-private new CostModel(): CostModel
-```
-
-#### Returns
-
-[`CostModel`](CostModel.md)
 
 ## Methods
 
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -38,14 +28,14 @@ toString(compact?): string
 
 ***
 
-### dummyCostModel()
+### initialCostModel()
 
 ```ts
-static dummyCostModel(): CostModel
+static initialCostModel(): CostModel;
 ```
 
-A cost model for use in non-critical contexts
+The initial cost model of Midnight
 
 #### Returns
 
-[`CostModel`](CostModel.md)
+`CostModel`

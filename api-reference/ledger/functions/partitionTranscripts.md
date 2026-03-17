@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / partitionTranscripts
+[@midnight/ledger](../globals.md) / partitionTranscripts
 
 # Function: partitionTranscripts()
 
 ```ts
-partitionTranscripts(calls, params): [Transcript<AlignedValue> | undefined, Transcript<AlignedValue> | undefined][]
+function partitionTranscripts(calls, params): PartitionedTranscript[];
 ```
 
 Finalizes a set of programs against their initial contexts,
@@ -16,10 +16,14 @@ allocated, and heuristically covered for gas fees.
 
 ## Parameters
 
-• **calls**: [`PreTranscript`](../classes/PreTranscript.md)[]
+### calls
 
-• **params**: [`LedgerParameters`](../classes/LedgerParameters.md)
+[`PreTranscript`](../classes/PreTranscript.md)[]
+
+### params
+
+[`LedgerParameters`](../classes/LedgerParameters.md)
 
 ## Returns
 
-[[`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\> \| `undefined`, [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\> \| `undefined`][]
+[`PartitionedTranscript`](../type-aliases/PartitionedTranscript.md)[]

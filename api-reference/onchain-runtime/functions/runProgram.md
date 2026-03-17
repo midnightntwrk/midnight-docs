@@ -1,13 +1,13 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / runProgram
+[@midnight-ntwrk/onchain-runtime](../globals.md) / runProgram
 
 # Function: runProgram()
 
 ```ts
-runProgram(
+function runProgram(
    initial, 
    ops, 
    cost_model, 
@@ -18,13 +18,21 @@ Runs a VM program against an initial stack, with an optional gas limit
 
 ## Parameters
 
-• **initial**: [`VmStack`](../classes/VmStack.md)
+### initial
 
-• **ops**: [`Op`](../type-aliases/Op.md)\<`null`\>[]
+[`VmStack`](../classes/VmStack.md)
 
-• **cost\_model**: [`CostModel`](../classes/CostModel.md)
+### ops
 
-• **gas\_limit?**: `bigint`
+[`Op`](../type-aliases/Op.md)\<`null`\>[]
+
+### cost\_model
+
+[`CostModel`](../classes/CostModel.md)
+
+### gas\_limit?
+
+[`RunningCost`](../type-aliases/RunningCost.md)
 
 ## Returns
 

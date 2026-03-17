@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Type Alias: CircuitMaintenanceTxInterfaces\<C\>
 
-> **CircuitMaintenanceTxInterfaces**\<`C`\> = `{ [ICK in ImpureCircuitId<C>]: CircuitMaintenanceTxInterface }`
+> **CircuitMaintenanceTxInterfaces**\<`C`\> = `Record`\<`Contract.ImpureCircuitId`\<`C`\>, [`CircuitMaintenanceTxInterface`](CircuitMaintenanceTxInterface.md)\>
 
 A set of maintenance transaction creation interfaces, one for each circuit defined in
 a given contract, keyed by the circuit name.
@@ -15,4 +15,4 @@ a given contract, keyed by the circuit name.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`

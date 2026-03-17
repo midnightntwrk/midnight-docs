@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v7.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / MaintenanceUpdate
+[@midnight/ledger](../globals.md) / MaintenanceUpdate
 
 # Class: MaintenanceUpdate
 
@@ -11,26 +11,32 @@ changing the maintenance authority.
 
 ## Constructors
 
-### new MaintenanceUpdate(address, updates, counter)
+### Constructor
 
 ```ts
 new MaintenanceUpdate(
    address, 
    updates, 
-   counter): MaintenanceUpdate
+   counter): MaintenanceUpdate;
 ```
 
 #### Parameters
 
-• **address**: `string`
+##### address
 
-• **updates**: [`SingleUpdate`](../type-aliases/SingleUpdate.md)[]
+`string`
 
-• **counter**: `bigint`
+##### updates
+
+[`SingleUpdate`](../type-aliases/SingleUpdate.md)[]
+
+##### counter
+
+`bigint`
 
 #### Returns
 
-[`MaintenanceUpdate`](MaintenanceUpdate.md)
+`MaintenanceUpdate`
 
 ## Properties
 
@@ -87,32 +93,38 @@ The updates to carry out
 ### addSignature()
 
 ```ts
-addSignature(idx, signature): MaintenanceUpdate
+addSignature(idx, signature): MaintenanceUpdate;
 ```
 
 Adds a new signature to this update
 
 #### Parameters
 
-• **idx**: `bigint`
+##### idx
 
-• **signature**: `string`
+`bigint`
+
+##### signature
+
+`string`
 
 #### Returns
 
-[`MaintenanceUpdate`](MaintenanceUpdate.md)
+`MaintenanceUpdate`
 
 ***
 
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

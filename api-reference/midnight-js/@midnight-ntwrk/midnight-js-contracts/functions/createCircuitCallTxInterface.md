@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v3.1.0**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: createCircuitCallTxInterface()
 
-> **createCircuitCallTxInterface**\<`C`\>(`providers`, `contract`, `contractAddress`, `privateStateId`): [`CircuitCallTxInterface`](../type-aliases/CircuitCallTxInterface.md)\<`C`\>
+> **createCircuitCallTxInterface**\<`C`\>(`providers`, `compiledContract`, `contractAddress`, `privateStateId`): [`CircuitCallTxInterface`](../type-aliases/CircuitCallTxInterface.md)\<`C`\>
 
 Creates a circuit call transaction interface for a contract.
 
@@ -14,7 +14,7 @@ Creates a circuit call transaction interface for a contract.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`any`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`any`\>\>
+`C` *extends* `Any`
 
 ## Parameters
 
@@ -24,9 +24,9 @@ Creates a circuit call transaction interface for a contract.
 
 The providers to use to build transactions.
 
-### contract
+### compiledContract
 
-`C`
+`CompiledContract`\<`C`, `any`\>
 
 The contract to use to execute circuits.
 
@@ -40,7 +40,7 @@ The ledger address of the contract.
 
 The identifier of the state of the witnesses of the contract.
 
-`undefined` | `string`
+`string` | `undefined`
 
 ## Returns
 

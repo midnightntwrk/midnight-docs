@@ -1,6 +1,6 @@
 # Ledger API
 
-**@midnight-ntwrk/ledger v3.0.2** • Readme \| [API](globals.md)
+**@midnight/ledger v7.0.0**
 
 ***
 
@@ -8,10 +8,6 @@
 
 This document outlines the flow of transaction assembly and usage with the
 ledger TS API.
-
-## Network ID
-
-Prior to any interaction, setNetworkId should be used to set the [NetworkId](enumerations/NetworkId.md) to target the correct network.
 
 ## Proof stages
 
@@ -24,39 +20,39 @@ other two stages.
 
 ## Transaction structure
 
-A [Transaction](classes/Transaction.md) runs in two phases: a _guaranteed_ phase, handling fee payments
-and fast-to-verify operations, and a _fallible_ phase, handling operations
-which may fail atomically, separately from the guaranteed phase. It therefore
+A [Transaction](classes/Transaction.md) runs in two phases: a _guaranteed_ segment, handling fee payments
+and fast-to-verify operations, and a series of _fallible segments_. Each segment
+may fail atomically, separately from the guaranteed segment. It therefore
 contains:
 
-* A "guaranteed" [Offer](classes/Offer.md)
-* Optionally, a "fallible" [Offer](classes/Offer.md)
-* Optionally, a sequence of [ContractCall](classes/ContractCall.md)s or [ContractDeploy](classes/ContractDeploy.md)s.
+* A "guaranteed" [ZswapOffer](classes/ZswapOffer.md)
+* A map of segment IDs to "fallible" [ZswapOffer](classes/ZswapOffer.md)s.
+* A map of segment IDs to [Intent](classes/Intent.md)s, which include [UnshieldedOffer](classes/UnshieldedOffer.md)s and [ContractAction](type-aliases/ContractAction.md)s.
 
 It also contains additional cryptographic glue that will be omitted in this
 document.
 
 ### Zswap
 
-A Zswap [Offer](classes/Offer.md) consists of:
-* A set of [Input](classes/Input.md)s, burning coins.
-* A set of [Output](classes/Output.md)s, creating coins.
-* A set of [Transient](classes/Transient.md)s, indicating a coin that is created and burnt in
+A [ZswapOffer](classes/ZswapOffer.md) consists of:
+* A set of [ZswapInput](classes/ZswapInput.md)s, burning coins.
+* A set of [ZswapOutput](classes/ZswapOutput.md)s, creating coins.
+* A set of [ZswapTransient](classes/ZswapTransient.md)s, indicating a coin that is created and burnt in
   the same transaction.
-* A mapping from [TokenType](type-aliases/TokenType.md)s to offer balance, positive when there are more
+* A mapping from [RawTokenType](type-aliases/RawTokenType.md)s to offer balance, positive when there are more
   inputs than outputs and vice versa.
 
-[Input](classes/Input.md)s can be created either from a [QualifiedCoinInfo](type-aliases/QualifiedCoinInfo.md) and a contract
-address, if the coin is contract-owned, or from a [QualifiedCoinInfo](type-aliases/QualifiedCoinInfo.md) and a
-ZswapLocalState, if it is user-owned. Similarly, [Output](classes/Output.md)s can be created
-from a [CoinInfo](type-aliases/CoinInfo.md) and a contract address for contract-owned coins, or from a
-[CoinInfo](type-aliases/CoinInfo.md) and a user's public key(s), if it is user-owned. A [Transient](classes/Transient.md)
-is created similarly to a [Input](classes/Input.md), but directly converts an existing
-[Output](classes/Output.md).
+[ZswapInput](classes/ZswapInput.md)s can be created either from a [QualifiedShieldedCoinInfo](type-aliases/QualifiedShieldedCoinInfo.md) and a contract
+address, if the coin is contract-owned, or from a [QualifiedShieldedCoinInfo](type-aliases/QualifiedShieldedCoinInfo.md) and a
+[ZswapLocalState](classes/ZswapLocalState.md), if it is user-owned. Similarly, [ZswapOutput](classes/ZswapOutput.md)s can be created
+from a [ShieldedCoinInfo](type-aliases/ShieldedCoinInfo.md) and a contract address for contract-owned coins, or from a
+[ShieldedCoinInfo](type-aliases/ShieldedCoinInfo.md) and a user's public key(s), if it is user-owned. A [ZswapTransient](classes/ZswapTransient.md)
+is created similarly to a [ZswapInput](classes/ZswapInput.md), but directly converts an existing
+[ZswapOutput](classes/ZswapOutput.md).
 
-A [QualifiedCoinInfo](type-aliases/QualifiedCoinInfo.md) is a [CoinInfo](type-aliases/CoinInfo.md) with an index into the Merkle tree of
+A [QualifiedShieldedCoinInfo](type-aliases/QualifiedShieldedCoinInfo.md) is a [ShieldedCoinInfo](type-aliases/ShieldedCoinInfo.md) with an index into the Merkle tree of
 coin commitments that can be used to find the relevant coin to spend, while a
-[CoinInfo](type-aliases/CoinInfo.md) consists of a coins [TokenType](type-aliases/TokenType.md), value, and a nonce.
+[ShieldedCoinInfo](type-aliases/ShieldedCoinInfo.md) consists of a coin's [RawTokenType](type-aliases/RawTokenType.md), value, and a nonce.
 
 ### Calls
 
@@ -81,9 +77,9 @@ commitment, and a proof. [ContractCall](classes/ContractCall.md)s are constructe
 NOTE: currently the JS code only generates a single transcript. We probably
 just want a canonical way to split this into guaranteed/fallible?
 
-A ContractCalls object is assembed, and [ContractCallPrototype](classes/ContractCallPrototype.md)s /
+A [Intent](classes/Intent.md) object is assembed, and [ContractCallPrototype](classes/ContractCallPrototype.md)s /
 [ContractDeploy](classes/ContractDeploy.md)s are added to this directly. This can then be inserted into an
-[UnprovenTransaction](classes/UnprovenTransaction.md).
+[Transaction](classes/Transaction.md).
 
 ## State Structure
 

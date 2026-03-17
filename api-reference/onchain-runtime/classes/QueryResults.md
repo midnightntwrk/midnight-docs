@@ -1,24 +1,12 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / QueryResults
+[@midnight-ntwrk/onchain-runtime](../globals.md) / QueryResults
 
 # Class: QueryResults
 
 The results of making a query against a specific state or context
-
-## Constructors
-
-### new QueryResults()
-
-```ts
-private new QueryResults(): QueryResults
-```
-
-#### Returns
-
-[`QueryResults`](QueryResults.md)
 
 ## Properties
 
@@ -46,7 +34,7 @@ Any events/results that occurred during or from the query
 ### gasCost
 
 ```ts
-readonly gasCost: bigint;
+readonly gasCost: RunningCost;
 ```
 
 The measured cost of executing the query
@@ -61,7 +49,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
