@@ -19,9 +19,19 @@ import { useLocation } from '@docusaurus/router';
 // elements is used to assign a numeric `id`.
 const releases = [
   {
+  version: '0.30.0',
+  compactVersion: '0.22.0',
+  status: 'LATEST',
+  date: '17 March 2026',
+  summary: 'Summary of Release 0.30.0',
+  details: [],
+  artifacts: [],
+  link: '/relnotes/compact/toolchain-0.30.0',
+},
+  {
     version: '0.28.0',
     compactVersion: '0.20.0',
-    status: 'LATEST',
+    status: 'UNSUPPORTED',
     date: '28 January 2026',
     summary: 'Summary of Release 0.28.0',
     details: [
