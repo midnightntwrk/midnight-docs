@@ -7,13 +7,13 @@ sidebar_position: 20
 tags: [node]
 ---
 
-# Setting up Boot Nodes for Midnight
+# Setting up boot nodes for Midnight
 
-Boot nodes are a valuable part of the Midnight network, acting as initial connection points for nodes joining the network. While running a bootnode is optional for end users, doing so helps expand the list of available nodes.
+Boot nodes serve as initial connection points for nodes joining the Midnight Network. They help new nodes discover and connect to active peers in the network. While running a boot node is optional, doing so strengthens network decentralization and improves peer discovery.
 
 ## Boot Node
 
-A **boot node** is a specialized type of node that helps other nodes connect to the Midnight blockchain by providing a list of active peer addresses. Rather than being defined by a unique configuration, any node used to share connection information qualifies as a boot node.
+A *boot node* is a node that helps other nodes connect to the Midnight blockchain by providing a list of active peer addresses. Any node can function as a boot node - it's determined by usage rather than unique configuration. When a node starts, it connects to known boot nodes to discover other peers in the network.
 
 ## Prerequisites
 
@@ -23,21 +23,23 @@ Before setting up your Midnight boot node, ensure you have the following:
 * [Cardano-db-sync instance set up](./cardano-db-sync) with accessible PostgreSQL port.
 * Sufficient resources (CPU, memory, and storage).
 
-## Setting Up a Boot Node
+## Setting up a boot node
 
-### Step 1: Configure PostgreSQL Database
+### Step 1: Configure PostgreSQL database
 
 Set up a PostgreSQL instance with the following parameters:
 
 * **Host:** PostgreSQL server address.
 * **Port:** Default 5432.
-* *Username:** Database user.
+* **Username:** Database user.
 * **Password:** Database password.
 * **Database Name:** Name of the database (e.g., cexplorer).
 
-### Step 2: Run the Docker Command for a Boot Node
+### Step 2: Run the Docker command for a boot node
 
-Use the following Docker command to set up your boot node:
+Use the following Docker command to set up your boot node. Replace placeholder values with your actual configuration.
+
+**For Preview network:**
 
 ```bash
 docker run \
@@ -45,39 +47,81 @@ docker run \
   --platform linux/amd64 \
   -p 30333:30333 \
   -v midnight-data:/node \
-  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:<VERSION>" \
-  -e BASE_PATH="./node/chain/" \
-  -e CFG_PRESET="testnet" \
+  -e CFG_PRESET="preview" \
+  -e BASE_PATH="/node/chain/" \
+  -e POSTGRES_HOST="<your-postgres-host>" \
+  -e POSTGRES_PORT="5432" \
+  -e POSTGRES_USER="<your-db-user>" \
+  -e POSTGRES_PASSWORD="<your-db-password>" \
+  -e POSTGRES_DB="cexplorer" \
   midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/preview/chain-spec-raw.json \
   --listen-addr /ip4/0.0.0.0/tcp/30333 \
-  --bootnodes \
-  /dns/boot-node-01.testnet-02.midnight.network/tcp/30333/ws/p2p/12D3KooWMjUq13USCvQR9Y6yFzYNYgTQBLNAcmc8psAuPx2UUdnB \
+  --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
+  --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym \
   --no-private-ip
 ```
 
-Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/support-matrix).
-
-## Known Environment Boot Nodes
-
-Use the corresponding boot nodes for your target environment.
-
-### Preprod
+**For Preprod network:**
 
 ```bash
---bootnodes /dns/bootnode-1.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWQxxUgq7ndPfAaCFNbAxtcKYxrAzTxDfRGNktF75SxdX5 \
---bootnodes /dns/bootnode-2.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWNrUBs22FfmgjqFMa9ZqKED2jnxwsXWw5E4q2XVwN35TJ
+docker run \
+  --name midnight-boot-node \
+  --platform linux/amd64 \
+  -p 30333:30333 \
+  -v midnight-data:/node \
+  -e CFG_PRESET="preprod" \
+  -e BASE_PATH="/node/chain/" \
+  -e POSTGRES_HOST="<your-postgres-host>" \
+  -e POSTGRES_PORT="5432" \
+  -e POSTGRES_USER="<your-db-user>" \
+  -e POSTGRES_PASSWORD="<your-db-password>" \
+  -e POSTGRES_DB="cexplorer" \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/preprod/chain-spec-raw.json \
+  --listen-addr /ip4/0.0.0.0/tcp/30333 \
+  --bootnodes /dns/bootnode-1.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWQxxUgq7ndPfAaCFNbAxtcKYxrAzTxDfRGNktF75SxdX5 \
+  --bootnodes /dns/bootnode-2.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWNrUBs22FfmgjqFMa9ZqKED2jnxwsXWw5E4q2XVwN35TJ \
+  --no-private-ip
 ```
 
-### Preview
+Replace the following:
+* `<VERSION>` - Node version from the [release compatibility matrix](../../relnotes/support-matrix)
+* `<your-postgres-host>` - PostgreSQL server address (use `host.docker.internal` if Cardano-db-sync runs on the same machine)
+* `<your-db-user>` - Database username configured in Cardano-db-sync
+* `<your-db-password>` - Database password configured in Cardano-db-sync
+
+:::note
+
+Set `ALLOW_NON_SSL=true` only for local development environments without SSL certificates. Production deployments should always use SSL/TLS for PostgreSQL connections.
+
+:::
+
+## Known network boot nodes
+
+Use the boot nodes corresponding to your target network environment.
+
+### Preview network
 
 ```bash
 --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
 --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym
 ```
 
+### Preprod network
+
+```bash
+--bootnodes /dns/bootnode-1.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWQxxUgq7ndPfAaCFNbAxtcKYxrAzTxDfRGNktF75SxdX5 \
+--bootnodes /dns/bootnode-2.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWNrUBs22FfmgjqFMa9ZqKED2jnxwsXWw5E4q2XVwN35TJ
+```
+
+:::note
+You can specify multiple boot nodes for redundancy. The node will attempt to connect to all provided boot nodes and use them to discover additional peers.
+:::
+
 ## Verifying the Node
 
-### Check Logs
+### Check logs
 
 Monitor the node's logs to ensure it syncs with the network:
 
@@ -85,6 +129,6 @@ Monitor the node's logs to ensure it syncs with the network:
 docker logs -f <node-name>
 ```
 
-### Test Connectivity
+### Test connectivity
 
 Ensure the node's P2P port (default: `30333`) is open and reachable for network communication. Use tools like `telnet`, `netcat`, or `nmap` to verify the port status and ensure the node is properly connected to the network.

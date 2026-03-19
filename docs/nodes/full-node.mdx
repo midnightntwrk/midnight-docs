@@ -1,21 +1,28 @@
 ---
-title: Setting up Full and Archive Nodes
-sidebar_label: Setting up Full and Archive Nodes
+title: Set up Full and Archive Nodes
+sidebar_label: Set up Full and Archive Nodes
 description: A reference on setting up full and archive nodes for Midnight.
 keywords: [node]
 sidebar_position: 30
 tags: [node]
 ---
 
-# Setting up Full and Archive Nodes for Midnight
+# Setting up full and archive nodes for Midnight
 
-Running a full or archive node allows you to sync with the Midnight blockchain, validate transactions, and manage the chain's state without relying on third-party infrastructure. Full nodes are ideal for real-time interaction and efficient storage, while archive nodes provide comprehensive historical data for developers and organizations requiring deeper insights or data access.
+Running a full or archive node allows you to sync with the Midnight blockchain, validate transactions, and maintain the chain's state without relying on third-party infrastructure. Full nodes are ideal for real-time interaction and efficient storage, while archive nodes provide comprehensive historical data for applications requiring deep blockchain analysis.
 
 ## Full Node vs. Archive Node
 
-A **Full Node** syncs with the blockchain, validates transactions, and provides real-time state queries. It prunes historical states older than a configurable number (defaulting to 256 blocks), making it suitable for most dApp development and real-time interactions with the network. Its key advantage lies in its efficient use of disk space, requiring significantly less storage than an archive node. 
+A *full node* syncs with the blockchain, validates transactions, and provides real-time state queries. It prunes historical states older than a configurable number of blocks (default: 256 blocks), making it suitable for most DApp development and real-time network interactions. Full nodes use disk space efficiently, requiring significantly less storage than archive nodes.
 
-An **Archive Node** maintains the entire history of the blockchain, including all blocks and states. While this comprehensive storage consumes substantial disk space, it is essential for use cases requiring access to historical data, such as building block explorers, conducting in-depth debugging, or querying past events. Setting up an archive node involves specific configurations, such as using the --pruning archive parameter.
+An *archive node* maintains the entire history of the blockchain, including all blocks and states since genesis. This comprehensive storage consumes substantial disk space but is essential for use cases requiring access to historical data, such as:
+
+* Building block explorers
+* Conducting in-depth blockchain analysis or debugging
+* Querying historical transaction data
+* Auditing complete chain history
+
+Set up an archive node by adding the `--state-pruning archive --blocks-pruning archive` parameters.
 
 
 ## Prerequisites
@@ -26,21 +33,23 @@ Before setting up your Midnight full node, ensure you have the following:
 * [Cardano-db-sync instance set up](./cardano-db-sync) with accessible PostgreSQL port.
 * Sufficient resources (CPU, memory, and storage).
 
-## Setting Up a Full Node
+## Setting up a full node
 
-### Step 1: Configure PostgreSQL Database
+### Step 1: Configure PostgreSQL database
 
 Set up a PostgreSQL instance with the following parameters:
 
-* **Host:** PostgreSQL server address.
-* **Port:** Default 5432.
-* *Username:** Database user.
-* **Password:** Database password.
-* **Database Name:** Name of the database (e.g., cexplorer).
+* **Host**: PostgreSQL server address.
+* **Port**: Default 5432.
+* **Username**: Database user.
+* **Password**: Database password.
+* **Database name**: Name of the database (e.g., cexplorer).
 
-### Step 2: Run the Docker Command for a Full Node
+### Step 2: Run the Docker command for a full node
 
-Use the following Docker command to set up your full node:
+Use the following Docker command to set up your full node. Choose the configuration for your target network.
+
+**For Preview network:**
 
 ```bash
 docker run \
@@ -48,38 +57,71 @@ docker run \
   --platform linux/amd64 \
   -p 30333:30333 \
   -v midnight-data:/node \
-  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:<VERSION>" \
-  -e POSTGRES_HOST="postgres" \
+  -e CFG_PRESET="preview" \
+  -e BASE_PATH="/node/chain/" \
+  -e POSTGRES_HOST="<your-postgres-host>" \
   -e POSTGRES_PORT="5432" \
-  -e POSTGRES_USER="postgres" \
-  -e POSTGRES_PASSWORD="password123" \
+  -e POSTGRES_USER="<your-db-user>" \
+  -e POSTGRES_PASSWORD="<your-db-password>" \
   -e POSTGRES_DB="cexplorer" \
-  -e DB_SYNC_POSTGRES_CONNECTION_STRING="psql://postgres:password123@x.x.x.x:5432/cexplorer" \
-  -e BASE_PATH="./node/chain/" \
-  -e CFG_PRESET="testnet-02" \
   midnightnetwork/midnight-node:<VERSION> \
-  --chain=/res/testnet-02/testnetRaw.json \
+  --chain=/res/preview/chain-spec-raw.json \
+  --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
+  --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym \
   --no-private-ip
 ```
 
-Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/support-matrix).
+**For Preprod network:**
 
+```bash
+docker run \
+  --name midnight-full-node \
+  --platform linux/amd64 \
+  -p 30333:30333 \
+  -v midnight-data:/node \
+  -e CFG_PRESET="preprod" \
+  -e BASE_PATH="/node/chain/" \
+  -e POSTGRES_HOST="<your-postgres-host>" \
+  -e POSTGRES_PORT="5432" \
+  -e POSTGRES_USER="<your-db-user>" \
+  -e POSTGRES_PASSWORD="<your-db-password>" \
+  -e POSTGRES_DB="cexplorer" \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/preprod/chain-spec-raw.json \
+  --bootnodes /dns/bootnode-1.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWQxxUgq7ndPfAaCFNbAxtcKYxrAzTxDfRGNktF75SxdX5 \
+  --bootnodes /dns/bootnode-2.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWNrUBs22FfmgjqFMa9ZqKED2jnxwsXWw5E4q2XVwN35TJ \
+  --no-private-ip
+```
 
-## Setting Up an Archive Node
+Replace the following:
+* `<VERSION>` - Node version from the [release compatibility matrix](../../relnotes/support-matrix)
+* `<your-postgres-host>` - PostgreSQL server address (use `host.docker.internal` if Cardano-db-sync runs on the same machine)
+* `<your-db-user>` - Database username configured in Cardano-db-sync
+* `<your-db-password>` - Database password configured in Cardano-db-sync
 
-### Step 1: Configure PostgreSQL Database
+:::note Security
+
+For production deployments, enable SSL/TLS for PostgreSQL connections. Only set `ALLOW_NON_SSL=true` for local development environments.
+
+:::
+
+## Setting up an archive node
+
+### Step 1: Configure PostgreSQL database
 
 Set up a PostgreSQL instance with the following parameters:
 
-* **Host:** PostgreSQL server address.
-* **Port:** Default 5432.
-* *Username:** Database user.
-* **Password:** Database password.
-* **Database Name:** Name of the database (e.g., cexplorer).
+* **Host**: PostgreSQL server address
+* **Port**: Default 5432
+* **Username**: Database user
+* **Password**: Database password
+* **Database Name**: Name of the database (for example, cexplorer)
 
-### Step 2: Run the Docker Command for an Archive Node
+### Step 2: Run the Docker command for an archive node
 
-To set up an archive node, modify the `--pruning` parameter to store all historical states:
+To set up an archive node, add the pruning parameters to store all historical states. Choose the configuration for your target network.
+
+**For Preview network:**
 
 ```bash
 docker run \
@@ -87,25 +129,56 @@ docker run \
   --platform linux/amd64 \
   -p 30333:30333 \
   -v midnight-data:/node \
-  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:0.6.6-6288973b" \
-  -e POSTGRES_HOST="postgres" \
+  -e CFG_PRESET="preview" \
+  -e BASE_PATH="/node/chain/" \
+  -e POSTGRES_HOST="<your-postgres-host>" \
   -e POSTGRES_PORT="5432" \
-  -e POSTGRES_USER="postgres" \
-  -e POSTGRES_PASSWORD="password123" \
+  -e POSTGRES_USER="<your-db-user>" \
+  -e POSTGRES_PASSWORD="<your-db-password>" \
   -e POSTGRES_DB="cexplorer" \
-  -e DB_SYNC_POSTGRES_CONNECTION_STRING="psql://postgres:password123@x.x.x.x:5432/cexplorer" \
-  -e BASE_PATH="./node/chain/" \
-  -e CFG_PRESET="testnet-02" \
-  midnightnetwork/midnight-node:0.6.6-6288973b \
-  --chain=/res/testnet-02/testnetRaw.json \
-  --pruning archive \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/preview/chain-spec-raw.json \
+  --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
+  --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym \
+  --state-pruning archive \
+  --blocks-pruning archive \
   --no-private-ip
 ```
+
+**For Preprod network:**
+
+```bash
+docker run \
+  --name midnight-archive-node \
+  --platform linux/amd64 \
+  -p 30333:30333 \
+  -v midnight-data:/node \
+  -e CFG_PRESET="preprod" \
+  -e BASE_PATH="/node/chain/" \
+  -e POSTGRES_HOST="<your-postgres-host>" \
+  -e POSTGRES_PORT="5432" \
+  -e POSTGRES_USER="<your-db-user>" \
+  -e POSTGRES_PASSWORD="<your-db-password>" \
+  -e POSTGRES_DB="cexplorer" \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=/res/preprod/chain-spec-raw.json \
+  --bootnodes /dns/bootnode-1.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWQxxUgq7ndPfAaCFNbAxtcKYxrAzTxDfRGNktF75SxdX5 \
+  --bootnodes /dns/bootnode-2.preprod.midnight.network/tcp/30333/ws/p2p/12D3KooWNrUBs22FfmgjqFMa9ZqKED2jnxwsXWw5E4q2XVwN35TJ \
+  --state-pruning archive \
+  --blocks-pruning archive \
+  --no-private-ip
+```
+
+Replace the same placeholder values as in the full node setup above.
+
+:::warning Storage requirements
+Archive nodes require significantly more disk space than full nodes. Ensure you have sufficient storage capacity (4+ TB recommended for Mainnet) before running an archive node.
+:::
 
 
 ## Verifying the Node
 
-### Check Logs
+### Check logs
 
 Monitor the node's logs to ensure it syncs with the network:
 
@@ -113,6 +186,6 @@ Monitor the node's logs to ensure it syncs with the network:
 docker logs -f <node-name>
 ```
 
-### Test Connectivity
+### Test connectivity
 
 Ensure the node's P2P port (default: `30333`) is open and reachable for network communication. Use tools like `telnet`, `netcat`, or `nmap` to verify the port status and ensure the node is properly connected to the network.
