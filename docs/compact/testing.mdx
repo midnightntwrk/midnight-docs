@@ -1,10 +1,460 @@
 ---
-title: Testing and debugging
+title: Test and debug
+sidebar_label: Test and debug
 sidebar_position: 30
+description: Learn how to test and debug Compact smart contracts.
+tags: [testing, debugging]
 ---
 
-# Testing and debugging
+# Test and debug
 
-:::note
-Coming soon!
-:::
+Testing Compact smart contracts requires a comprehensive approach that validates both functional correctness and security properties. 
+
+This guide covers unit testing, integration testing, and debugging strategies for privacy-preserving contracts on Midnight.
+
+## Overview
+
+Compact contracts execute across multiple contexts (on-chain ledger, zero-knowledge circuits, and local witnesses), requiring different testing strategies for each layer. Effective testing ensures your contract behaves correctly, maintains privacy guarantees, and handles edge cases appropriately.
+
+### Test layers
+
+* **Circuit logic testing** - Validate that individual circuits produce correct outputs and state transitions
+* **Privacy verification** - Confirm that private data does not leak through public outputs
+* **Authorization testing** - Ensure access control mechanisms prevent unauthorized operations
+* **Integration testing** - Test complete transaction flows on test networks
+* **Performance testing** - Verify proof generation completes within acceptable timeframes
+
+## Input validation patterns
+
+Validate all inputs at circuit boundaries to prevent invalid state transitions and security vulnerabilities. Proper input validation ensures your contract behaves correctly and rejects malicious or malformed inputs.
+
+### Comprehensive validation example
+
+This example demonstrates multiple validation techniques applied to a transfer circuit:
+
+```compact
+const MAX_AMOUNT: Uint<64> = 1000000;
+const MIN_AMOUNT: Uint<64> = 1;
+
+ledger balance: Uint<64>;
+
+export circuit transfer(recipient: Bytes<32>, amount: Uint<64>): [] {
+  // Bounds checking
+  assert(amount >= MIN_AMOUNT, "Amount too small");
+  assert(amount <= MAX_AMOUNT, "Amount exceeds maximum");
+  
+  // State validation
+  assert(balance >= amount, "Insufficient funds");
+  
+  // Format validation
+  assert(recipient != Bytes<32>{}, "Invalid recipient");
+  
+  // Execute transfer
+  balance = balance - amount;
+}
+```
+
+## Unit test circuits
+
+Unit tests validate individual circuit behavior in isolation. Test both success paths and failure conditions to ensure your contract handles all scenarios correctly.
+
+### Test circuit execution
+
+The following example tests the basic increment operation for the [Counter contract](../examples/dapps/counter). This demonstrates unit testing at the circuit level without requiring a full blockchain deployment:
+
+```typescript
+import { describe, it, expect } from '@jest/globals';
+import { Contract } from '../managed/counter/contract/index.js';
+import { witnesses, type CounterPrivateState } from '../witnesses.js';
+
+describe('Counter circuit', () => {
+  it('should increment counter value', async () => {
+    const contract = new Contract(witnesses);
+    const privateState: CounterPrivateState = { privateCounter: 0 };
+    
+    // Create circuit context
+    const context = {
+      privateState,
+      ledgerState: { round: 0n }
+    };
+    
+    // Call increment circuit
+    const result = contract.impureCircuits.increment(context);
+    
+    // Verify ledger state updated
+    expect(result.newLedgerState.round).toBe(1n);
+  });
+});
+```
+
+### Testing state transitions
+
+Test that your contract enforces valid state machine transitions and rejects invalid ones. The [bulletin board](../examples/dapps/bboard) contract demonstrates two-state validation:
+
+```typescript
+import { Contract } from '../managed/bboard/contract/index.js';
+import { witnesses, type BBoardPrivateState } from '../witnesses.js';
+import { State } from '../managed/bboard/contract/index.js';
+
+describe('Bulletin board state transitions', () => {
+  it('should enforce valid state transitions', async () => {
+    const contract = new Contract(witnesses);
+    const privateState: BBoardPrivateState = { 
+      secretKey: new Uint8Array(32)
+    };
+    
+    // Initial state - board is vacant
+    const context = {
+      privateState,
+      ledgerState: {
+        state: State.VACANT,
+        message: { is_some: false, value: '' },
+        sequence: 0n,
+        owner: new Uint8Array(32)
+      }
+    };
+    
+    // Valid transition: post to vacant board
+    const postResult = contract.impureCircuits.post(context, 'Hello');
+    expect(postResult.newLedgerState.state).toBe(State.OCCUPIED);
+    expect(postResult.newLedgerState.message.value).toBe('Hello');
+    
+    // Invalid transition: post to occupied board should fail
+    expect(() => {
+      contract.impureCircuits.post(postResult.newContext, 'World');
+    }).toThrow('Board is occupied');
+  });
+});
+```
+
+### Test boundary conditions
+
+Test edge cases and boundary values to ensure your contract handles limits correctly:
+
+```typescript
+import { Contract } from '../managed/counter/contract/index.js';
+import { witnesses, type CounterPrivateState } from '../witnesses.js';
+
+describe('Boundary conditions', () => {
+  it('should handle Counter operations correctly', async () => {
+    const contract = new Contract(witnesses);
+    const privateState: CounterPrivateState = { privateCounter: 0 };
+    
+    // Test normal increment
+    const context = {
+      privateState,
+      ledgerState: { round: 0n }
+    };
+    
+    const result = contract.impureCircuits.increment(context);
+    expect(result.newLedgerState.round).toBe(1n);
+    
+    // Test multiple increments
+    let currentContext = result.newContext;
+    for (let i = 0; i < 10; i++) {
+      const nextResult = contract.impureCircuits.increment(currentContext);
+      currentContext = nextResult.newContext;
+    }
+    expect(currentContext.ledgerState.round).toBe(11n);
+  });
+  
+  it('should validate input bounds with assertions', async () => {
+    // Example of testing bounds validation in circuit
+    const MAX_AMOUNT = 1000000n;
+    const balance = 500000n;
+    
+    // This would be tested in your circuit's assert statements
+    expect(() => {
+      if (MAX_AMOUNT + 1n > balance) {
+        throw new Error('Amount exceeds maximum');
+      }
+    }).toThrow('Amount exceeds maximum');
+  });
+});
+```
+
+## Integration test
+
+Integration tests validate complete transaction flows on test networks (Preview or Preprod). These tests ensure your contract interacts correctly with the Midnight blockchain, proof servers, and other system components.
+
+### Transaction finalization test
+
+Test that transactions complete successfully and update on-chain state. This verifies the full transaction lifecycle from submission to confirmation:
+
+```typescript
+it('should handle transaction finalization correctly', async () => {
+  // Submit transaction
+  const tx = await deployedContract.callTx.increment();
+  
+  // Wait for transaction confirmation
+  const receipt = await tx.wait();
+  
+  expect(receipt.status).toBe('APPLIED_TO_CHAIN');
+  expect(receipt.found).toBe(true);
+  
+  // Verify state updated on-chain
+  const contractState = await providers.publicDataProvider.contractStateObservable(
+    deployedContract.deployTxData.public.contractAddress,
+    { type: 'latest' }
+  ).toPromise();
+  
+  expect(contractState.data.round).toBeGreaterThan(0n);
+});
+```
+
+## Privacy verification
+
+Privacy tests ensure that private witness data does not appear in public transaction outputs or blockchain state. These tests are critical for verifying that zero-knowledge proofs properly protect sensitive information.
+
+### Test disclosure behavior
+
+Verify that only explicitly disclosed values appear in public state. The `disclose()` function in Compact marks witness values for public inclusion:
+
+```typescript
+import { Contract } from '../managed/bboard/contract/index.js';
+import { witnesses, type BBoardPrivateState } from '../witnesses.js';
+import { State } from '../managed/bboard/contract/index.js';
+
+it('should only disclose explicitly disclosed values', async () => {
+  const contract = new Contract(witnesses);
+  const secretKey = new Uint8Array(32);
+  crypto.getRandomValues(secretKey);
+  const privateState: BBoardPrivateState = { secretKey };
+  
+  const context = {
+    privateState,
+    ledgerState: {
+      state: State.VACANT,
+      message: { is_some: false, value: '' },
+      sequence: 0n,
+      owner: new Uint8Array(32)
+    }
+  };
+  
+  // Call circuit that uses secret key via witness
+  const result = contract.impureCircuits.post(context, 'Message');
+  
+  // Owner field should contain disclosed public key hash, not secret key
+  expect(result.newLedgerState.owner).toBeDefined();
+  expect(result.newLedgerState.owner).not.toEqual(secretKey);
+  
+  // Message should be disclosed (it's a public field)
+  expect(result.newLedgerState.message.value).toBe('Message');
+  
+  // Secret key remains in private state, not ledger
+  expect(result.newContext.privateState.secretKey).toEqual(secretKey);
+});
+```
+
+## Negative test
+
+Negative tests verify that contracts correctly reject invalid operations and unauthorized access. These tests are essential for ensuring your contract's security properties.
+
+### Test assertion failures
+
+Test that circuits reject operations when preconditions are not met. Assert statements in Compact enforce invariants at runtime:
+
+```typescript
+import { Contract } from '../managed/bboard/contract/index.js';
+import { witnesses, type BBoardPrivateState } from '../witnesses.js';
+import { State } from '../managed/bboard/contract/index.js';
+
+describe('Assertion handling', () => {
+  it('should reject takeDown on vacant board', async () => {
+    const contract = new Contract(witnesses);
+    const privateState: BBoardPrivateState = { 
+      secretKey: new Uint8Array(32) 
+    };
+    
+    const vacantContext = {
+      privateState,
+      ledgerState: {
+        state: State.VACANT,
+        message: { is_some: false, value: '' },
+        sequence: 0n,
+        owner: new Uint8Array(32)
+      }
+    };
+    
+    // Attempt to take down when board is vacant
+    expect(() => {
+      contract.impureCircuits.takeDown(vacantContext);
+    }).toThrow('Board is vacant');
+  });
+  
+  it('should enforce authorization for takeDown', async () => {
+    const ownerKey = new Uint8Array(32);
+    const attackerKey = new Uint8Array(32);
+    crypto.getRandomValues(ownerKey);
+    crypto.getRandomValues(attackerKey);
+    
+    const vacantState = {
+      state: State.VACANT,
+      message: { is_some: false, value: '' },
+      sequence: 0n,
+      owner: new Uint8Array(32)
+    };
+    
+    // Post with owner key
+    const ownerPrivateState: BBoardPrivateState = { secretKey: ownerKey };
+    const postResult = contract.impureCircuits.post(
+      { privateState: ownerPrivateState, ledgerState: vacantState },
+      'Message'
+    );
+    
+    // Attempt takeDown with different key
+    const attackerPrivateState: BBoardPrivateState = { secretKey: attackerKey };
+    expect(() => {
+      contract.impureCircuits.takeDown({
+        privateState: attackerPrivateState,
+        ledgerState: postResult.newLedgerState
+      });
+    }).toThrow('Not authorized');
+  });
+});
+```
+
+### Test double-spend prevention
+
+Test that nullifiers prevent reusing the same resource. Nullifiers are one-time identifiers derived from private data that prevent double-spending:
+
+```typescript
+it('should prevent double-spend with sequence tracking', async () => {
+  const secretKey = new Uint8Array(32);
+  crypto.getRandomValues(secretKey);
+  const privateState: BBoardPrivateState = { secretKey };
+  
+  const vacantState = {
+    state: State.VACANT,
+    message: { is_some: false, value: '' },
+    sequence: 0n,
+    owner: new Uint8Array(32)
+  };
+  
+  // First post should succeed
+  const firstPost = contract.impureCircuits.post(
+    { privateState, ledgerState: vacantState },
+    'First message'
+  );
+  expect(firstPost.newLedgerState.sequence).toBe(1n);
+  
+  // Take down and post again should increment sequence
+  const takeDown = contract.impureCircuits.takeDown({
+    privateState,
+    ledgerState: firstPost.newLedgerState
+  });
+  
+  const secondPost = contract.impureCircuits.post(
+    { privateState, ledgerState: takeDown.newLedgerState },
+    'Second message'
+  );
+  
+  // Sequence increments to prevent replay attacks
+  expect(secondPost.newLedgerState.sequence).toBe(2n);
+});
+```
+
+## Debug strategies
+
+When your contract behaves unexpectedly, systematic debugging helps identify the root cause. These strategies help you trace circuit execution, inspect state changes, and diagnose common issues.
+
+### Enable verbose logging
+
+Use logging to trace contract execution and understand circuit behavior:
+
+```typescript
+import pino from 'pino';
+
+const logger = pino({ level: 'debug' });
+
+// Log before transaction
+logger.debug('Submitting increment transaction');
+
+const tx = await deployedContract.callTx.increment();
+
+// Log transaction details
+logger.debug('Transaction submitted');
+
+const receipt = await tx.wait();
+logger.debug({
+  txId: receipt.public.txId,
+  blockHeight: receipt.public.blockHeight,
+  status: receipt.status
+}, 'Transaction confirmed');
+```
+
+### Inspect circuit execution
+
+Add detailed logging to understand state transitions during testing:
+
+```typescript
+it('should debug circuit state changes', async () => {
+  // Query initial ledger state
+  const initialContractState = await providers.publicDataProvider.contractStateObservable(
+    deployedContract.deployTxData.public.contractAddress,
+    { type: 'latest' }
+  ).toPromise();
+  
+  console.log('Initial ledger state:', initialContractState.data);
+  
+  // Submit transaction
+  const tx = await deployedContract.callTx.post('Debug message');
+  console.log('Transaction submitted');
+  
+  // Wait and inspect receipt
+  const receipt = await tx.wait();
+  console.log('Transaction receipt:', {
+    status: receipt.status,
+    blockHeight: receipt.public.blockHeight,
+    txId: receipt.public.txId
+  });
+  
+  // Query final state
+  const finalContractState = await providers.publicDataProvider.contractStateObservable(
+    deployedContract.deployTxData.public.contractAddress,
+    { type: 'latest' }
+  ).toPromise();
+  
+  console.log('Final ledger state:', finalContractState.data);
+  
+  // Verify state transition
+  expect(finalContractState.data.state).toBe(State.OCCUPIED);
+});
+```
+
+## Common debug scenarios
+
+The following scenarios cover typical issues encountered during Compact contract development and how to diagnose them.
+
+### Circuit execution failures
+
+When a circuit fails during execution, check these common causes:
+
+- **Witness function return types**: Ensure witness functions return tuples matching the `witness` declaration, for example `[PrivateState, ReturnValue]`.
+- **Assert conditions**: Verify all `assert` statements pass with your test inputs. Log the values you are comparing to identify which assertion is failing.
+- **Variable initialization**: Confirm you initialize all variables before use. Compact does not allow reading uninitialized variables.
+- **Bounded integer types**: Review bounds on types like `Uint<8>` and `Uint<64>`. Ensure values fit within declared ranges.
+
+### Proof generation failures
+
+When proof generation fails or times out, investigate these potential issues:
+
+- **Circuit complexity**: Verify circuit computational bounds are reasonable. Extremely complex circuits may exceed proof server capacity limits.
+- **Infinite loops**: Check for loops that may not terminate. Use bounded loop counters to guarantee termination.
+- **Witness data types**: Confirm witness functions return data matching circuit expectations. Verify correct sizes for `Uint8Array` values and valid ranges for `bigint` values.
+- **Memory constraints**: Review large data structures that may exceed memory limits. Consider chunking or pagination for large collections.
+
+### State synchronization issues
+
+When ledger state does not update as expected, verify these aspects:
+
+- **Transaction finalization**: Verify transactions complete with `await tx.wait()` before querying state. Premature queries might return stale data.
+- **Witness consistency**: Confirm witness functions return consistent values across calls. Avoid external dependencies that might change between invocations.
+- **Ledger field operations**: Review how you modify ledger fields. Ensure operations are valid for the field type (for example, `Counter.increment()` vs direct assignment).
+
+## Next steps
+
+Now that you understand testing strategies for Compact smart contracts:
+
+- Review the [smart contract security](./smart-contract-security) guide for security best practices
+- Review the [Compact JavaScript implementation](../guides/compact-javascript-runtime) guide for more information on how to use the JavaScript implementation to test your contracts.

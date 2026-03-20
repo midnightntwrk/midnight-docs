@@ -1,0 +1,500 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Smart contract security
+sidebar_label: Smart contract security
+sidebar_position: 35
+tags: [security]
+---
+
+# Smart contract security
+
+Compact smart contracts on Midnight combine privacy-preserving computation with cryptographic guarantees. 
+
+This guide covers essential security concepts, best practices, and common pitfalls when developing Compact contracts.
+
+## Security model overview
+
+Compact enforces security through multiple layers:
+
+* **Privacy by default**: Private data must be explicitly disclosed before appearing on-chain
+* **Compile-time validation**: The compiler prevents accidental disclosure of witness data
+* **zero-knowledge proofs**: All circuit computations are cryptographically verified without revealing inputs
+* **Bounded execution**: Fixed computational bounds prevent resource exhaustion attacks
+* **Immutable deployments**: Contracts cannot tamper with deployed state
+
+### Three execution contexts
+
+Compact contracts operate across three distinct security contexts:
+
+1. **Public ledger**: Replicated on-chain state visible to all network participants
+2. **zero-knowledge circuits**: Off-chain proofs that validate operations without revealing private inputs
+3. **Local computation**: Arbitrary code execution on user machines via witness functions
+
+Understanding these boundaries is crucial for writing secure contracts.
+
+## Privacy-preserving fundamentals
+
+Compact's privacy model is built on the principle that sensitive data remains hidden by default. Understanding how privacy works in Compact is essential for building secure contracts that protect user data while maintaining necessary transparency for on-chain operations.
+
+### Explicit disclosure requirement
+
+Compact enforces a "privacy by default" model where all witness data and values derived from witnesses remain private unless explicitly disclosed. The compiler tracks private data flow and requires the `disclose()` wrapper before allowing it to be:
+
+* Stored in public ledger state
+* Returned from exported circuits
+* Passed to cross-contract calls
+
+```compact
+witness secretKey(): Bytes<32>;
+
+export circuit set(value: Uint<64>): [] {
+  const sk = secretKey();  // Private by default
+  const pk = persistentHash(Vector<2, Bytes<32>>([pad(32, "domain"), sk]));
+  
+  // Must explicitly disclose before storing in ledger
+  authority = disclose(pk);
+  storedValue = disclose(value);
+}
+```
+
+Attempting to store witness data without `disclose()` results in a compilation error:
+
+```
+Exception: potential witness-value disclosure must be declared but is not:
+  witness value potentially disclosed:
+    the return value of witness secretKey at line 1
+  nature of the disclosure:
+    assignment to ledger field 'authority'
+```
+
+### Sealed vs. unsealed ledger fields
+
+Ledger fields can be optionally marked as `sealed` to make them immutable after contract initialization. A sealed field can only be set during contract deployment by the constructor or helper circuits the constructor calls. After initialization, no exported circuit can modify sealed fields.
+
+* **Unsealed fields** (default) - Exported circuits can modify these during contract execution
+* **Sealed fields** - Can only be set during initialization; immutable afterward
+
+```compact
+sealed ledger field1: Uint<32>;
+export sealed ledger field2: Uint<32>;
+
+circuit init(x: Uint<32>): [] {
+  field2 = x;  // Valid: called by constructor
+}
+
+constructor(x: Uint<16>) {
+  field1 = 2 * x;  // Valid: in constructor
+  init(x);         // Valid: helper circuit
+}
+
+export circuit modify(): [] {
+  field1 = 10;  // ❌ Compilation error: sealed field
+}
+```
+
+Use sealed fields for configuration values, contract parameters, or any data that should remain constant after deployment. The compiler enforces this at compile time, preventing accidental modification in exported circuits.
+
+### Witness functions and private state
+
+Witness functions enable contracts to access private data from the local DApp context. Declare them in Compact and implement them in TypeScript:
+
+```compact
+// Compact declaration
+witness localSecretKey(): Bytes<32>;
+witness getUserBalance(): Uint<64>;
+```
+
+TypeScript implementation of the witness functions:
+
+```typescript
+// TypeScript implementation
+export const witnesses = {
+  localSecretKey: ({ privateState }: WitnessContext<Ledger, PrivateState>) => 
+    [privateState, privateState.secretKey],
+  
+  getUserBalance: ({ privateState }: WitnessContext<Ledger, PrivateState>) =>
+    [privateState, privateState.balance],
+};
+```
+
+:::warning Witness security
+
+Witness implementations run outside zero-knowledge circuits and are *not* cryptographically verified. Each user provides their own witness implementation, so contract logic must never trust witness values without validation.
+
+:::
+
+## Cryptographic primitives
+
+Compact provides cryptographic primitives through the standard library for hashing, commitments, and privacy-preserving operations. Understanding when to use each primitive is essential for building secure smart contracts.
+
+### Hash functions
+
+Compact provides two hash functions with different guarantees.
+
+* **`transientHash<T>(value: T): Field`** - Circuit-optimized hash for temporary consistency checks; not guaranteed to persist between protocol upgrades
+* **`persistentHash<T>(value: T): Bytes<32>`** - SHA-256 hash suitable for deriving state data; guaranteed to remain consistent across upgrades
+
+Use `persistentHash` for any values stored in ledger state or used for authentication.
+
+### Commitment schemes
+
+Commitments allow you to publicly commit to a value without revealing it:
+
+* **`transientCommit<T>(value: T, rand: Field): Field`** - Circuit-efficient commitment for temporary use
+* **`persistentCommit<T>(value: T, rand: Bytes<32>): Bytes<32>`** - SHA-256-based commitment for persistent storage
+
+Commitments provide two security properties:
+
+* **Hiding** - The commitment reveals nothing about the original value; observers cannot determine what you committed
+* **Binding** - After creating a commitment, you cannot change the committed value; the commitment permanently binds you to the original data
+
+This enables you to publicly post a commitment on-chain, then later prove properties about the committed value (or reveal it) without having disclosed it initially.
+
+```compact
+export ledger valueCommitment: Bytes<32>;
+
+export circuit commitToValue(value: Uint<64>, nonce: Bytes<32>): [] {
+  const commitment = persistentCommit(value, nonce);
+  valueCommitment = disclose(commitment);
+}
+
+export circuit revealValue(value: Uint<64>, nonce: Bytes<32>): [] {
+  const commitment = persistentCommit(value, nonce);
+  assert(commitment == valueCommitment, "Invalid commitment opening");
+  // Value is now verified without prior public disclosure
+}
+```
+
+:::caution Nonce reuse
+
+Never reuse nonces across commitments. Reusing a nonce with different values enables linking the commitments, breaking privacy. Reusing a nonce with the same value enables observers to infer the committed value.
+
+:::
+
+### Double-spend prevention with nullifiers
+
+Nullifiers prevent reusing the same private value multiple times. A nullifier is a one-way hash that uniquely identifies a resource without revealing it:
+
+```compact
+export ledger usedNullifiers: Set<Bytes<32>>;
+
+circuit nullifier(secretKey: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "nullifier-domain"),
+    secretKey
+  ]);
+}
+
+export circuit spend(secretKey: Bytes<32>): [] {
+  const nul = nullifier(secretKey);
+  assert(!usedNullifiers.member(nul), "Already spent");
+  usedNullifiers.insert(disclose(nul));
+}
+```
+
+Use domain separation (different prefixes like `"nullifier-domain"` vs `"commitment-domain"`) to prevent hash collision attacks across different purposes.
+
+## Input validation and access control
+
+Compact contracts must validate all inputs and enforce authorization at circuit boundaries. The language provides built-in mechanisms for these security requirements.
+
+### Assert statements
+
+Use `assert` to validate all inputs, state transitions, and authorization requirements:
+
+```compact
+export circuit transfer(recipient: Bytes<32>, amount: Uint<64>): [] {
+  // Validate state
+  assert(state == State.ACTIVE, "Contract not active");
+  
+  // Validate inputs
+  assert(amount > 0, "Amount must be positive");
+  assert(amount <= balance, "Insufficient balance");
+  
+  // Validate authorization
+  const sk = secretKey();
+  const pk = publicKey(sk);
+  assert(pk == owner, "Unauthorized");
+  
+  // Execute transfer
+  balance = balance - amount;
+}
+```
+
+Assertions provide:
+* **Pre-condition checks** - Verify contract state before operations
+* **Input validation** - Reject invalid parameters early
+* **Authorization** - Enforce access control through cryptographic verification
+* **Invariant preservation** - Maintain contract consistency
+
+### Authentication patterns
+
+Compact circuits can emulate digital signatures using hash-based authentication:
+
+```compact
+circuit publicKey(round: Field, sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "midnight:auth:pk"),
+    round as Bytes<32>,
+    sk
+  ]);
+}
+
+export circuit authorizedOperation(): [] {
+  const sk = secretKey();
+  const pk = publicKey(round, sk);
+  assert(pk == authority, "Authorization failed");
+  
+  // Perform authorized operation
+  round.increment(1);  // Break linkability
+}
+```
+
+Including a `round` counter in the key derivation prevents linkability between operations from the same user.
+
+## Best practices
+
+Following these best practices helps you write secure, privacy-preserving contracts that protect user data while maintaining functionality.
+
+### 1. Minimize disclosure
+
+Only disclose the minimum data necessary for your contract logic:
+
+```compact
+// ✅ Good: Disclose only what's needed
+export circuit vote(choice: Uint<8>): [] {
+  const sk = secretKey();
+  const commitment = persistentCommit(choice, sk);
+  votes.insert(disclose(commitment));  // Commitment disclosed, not choice
+}
+
+// ❌ Bad: Unnecessary disclosure
+export circuit vote(choice: Uint<8>): [] {
+  votes.insert(disclose(choice));  // Vote is public
+}
+```
+
+### 2. Place disclose() strategically
+
+Position `disclose()` as close to the disclosure point as possible to prevent accidental disclosure through multiple code paths:
+
+```compact
+// ✅ Good: Disclose at the point of use
+export circuit store(flag: Boolean): [] {
+  const secret = getSecret();
+  const derived = computeValue(secret);  // Still private
+  result = flag ? disclose(derived) : 0;  // Explicit disclosure
+}
+
+// ❌ Bad: Early disclosure increases risk
+export circuit store(flag: Boolean): [] {
+  const secret = disclose(getSecret());  // Disclosed too early
+  const derived = computeValue(secret);
+  result = flag ? derived : 0;
+}
+```
+
+### 3. Use appropriate cryptographic primitives
+
+Choose the right primitive for your use case:
+
+| Primitive | Use case | Persistence | Disclosure protection |
+|-----------|----------|-------------|----------------------|
+| `transientHash` | Temporary checks | No guarantee | No |
+| `transientCommit` | Temporary hiding | No guarantee | Yes |
+| `persistentHash` | State derivation, authentication | Guaranteed | No |
+| `persistentCommit` | Long-term hiding | Guaranteed | Yes |
+
+### 4. Validate all inputs
+
+Never trust witness data or circuit parameters without validation:
+
+```compact
+export circuit updateBalance(amount: Uint<64>): [] {
+  // Validate bounds
+  assert(amount > 0, "Amount must be positive");
+  assert(amount <= MAX_TRANSFER, "Amount exceeds limit");
+  
+  // Validate state
+  assert(balance >= amount, "Insufficient balance");
+  
+  // Validate authorization
+  const sk = secretKey();
+  assert(isAuthorized(sk), "Unauthorized");
+  
+  balance = balance - amount;
+}
+```
+
+### 5. Handle errors securely
+
+Error messages should not leak sensitive information:
+
+```compact
+// ✅ Good: Generic error message
+export circuit withdraw(amount: Uint<64>): [] {
+  const authorized = checkAuth();
+  assert(authorized, "Operation not permitted");
+}
+
+// ❌ Bad: Leaks private state
+export circuit withdraw(amount: Uint<64>): [] {
+  const sk = secretKey();
+  const balance = getBalance();
+  assert(balance >= amount, "Balance " ++ balance ++ " insufficient");
+}
+```
+
+### 6. Manage randomness carefully
+
+Fresh randomness is essential for commitment security:
+
+```compact
+// ✅ Good: Fresh nonce per commitment
+export circuit commitValue(value: Uint<64>): [] {
+  const nonce = generateFreshNonce();  // New random value
+  const commitment = persistentCommit(value, nonce);
+  commitments.insert(disclose(commitment));
+  round.increment(1);
+}
+
+// ❌ Bad: Reused randomness enables linking
+export circuit commitValue(value: Uint<64>): [] {
+  const sk = secretKey();  // Reused across calls
+  const commitment = persistentCommit(value, sk);
+  commitments.insert(disclose(commitment));
+}
+```
+
+:::caution Randomness safety
+
+Randomness management is error-prone. When in doubt, use fresh cryptographically secure random values for each commitment. Reusing randomness is only safe when paired with a mechanism (like a round counter) that guarantees the committed data will never repeat.
+
+:::
+
+### 7. Use domain separation
+
+Prevent hash collision attacks by using distinct domain separators for different purposes:
+
+```compact
+circuit publicKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "commitment-domain"),
+    sk
+  ]);
+}
+
+circuit nullifier(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "nullifier-domain"),  // Different domain
+    sk
+  ]);
+}
+```
+
+### 8. Prevent overflow and underflow
+
+Compact's bounded integer types prevent arithmetic overflow at compile time. Always specify appropriate bounds:
+
+```compact
+// ✅ Good: Explicit bounds checking
+export ledger balance: Uint<0..1000000>;
+
+export circuit deposit(amount: Uint<64>): [] {
+  assert(balance + amount <= 1000000, "Deposit would overflow");
+  balance = balance + amount;
+}
+
+// ❌ Bad: Unbounded Field type risks overflow
+export ledger balance: Field;  // No bounds checking
+```
+
+## Common vulnerabilities
+
+Understanding common security pitfalls helps you avoid them in your contracts. Each vulnerability includes the issue description and proven mitigation strategies.
+
+### Linkability attacks
+
+**Issue**: Reusing the same hash multiple times allows observers to link operations to the same user
+
+**Mitigation**: Include a round counter or nonce in key derivation:
+
+```compact
+export ledger round: Counter;
+
+circuit publicKey(round: Field, sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "midnight:auth:pk"),
+    round as Bytes<32>,  // Breaks linkability
+    sk
+  ]);
+}
+
+export circuit operation(): [] {
+  const sk = secretKey();
+  const pk = publicKey(round, sk);
+  // Different round = different public key
+  round.increment(1);
+}
+```
+
+### Double-spend attacks
+
+**Issue**: Using the same private resource multiple times
+
+**Mitigation**: Track nullifiers in a `Set` or `MerkleTree`:
+
+```compact
+export ledger usedNullifiers: Set<Bytes<32>>;
+
+export circuit claim(secretKey: Bytes<32>): [] {
+  const nul = persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "nullifier"),
+    secretKey
+  ]);
+  
+  assert(!usedNullifiers.member(nul), "Already claimed");
+  usedNullifiers.insert(disclose(nul));
+  // Process claim...
+}
+```
+
+### Information leakage through conditionals
+
+**Issue**: Conditional logic can leak information about private data
+
+The compiler detects indirect disclosure:
+
+```compact
+witness getBalance(): Uint<64>;
+
+// ❌ Compiler error: conditional leaks balance information
+export circuit balanceExceeds(threshold: Uint<64>): Boolean {
+  return getBalance() > threshold;  // Information leakage
+}
+```
+
+**Mitigation**: Use commitment schemes to hide the value while proving properties:
+
+```compact
+export circuit proveBalanceSufficient(
+  balance: Uint<64>,
+  nonce: Bytes<32>,
+  threshold: Uint<64>
+): [] {
+  // Verify commitment without revealing balance
+  const commitment = persistentCommit(balance, nonce);
+  assert(commitment == storedCommitment, "Invalid proof");
+  assert(balance >= threshold, "Insufficient balance");
+}
+```
+
+## Testing and validation
+
+Thorough testing is essential for identifying security vulnerabilities before deployment. For comprehensive testing strategies, debugging techniques, and test examples, see the [Testing and debugging guide](./testing).
+
+## Next steps
+
+* Review the [explicit disclosure guide](./reference/explicit-disclosure) for advanced privacy patterns
+* Test your contracts on the [Preview network](../nodes/node-endpoints) before production deployment
