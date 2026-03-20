@@ -28,7 +28,8 @@ kinds of program elements:
 - declarations of the data that the contract stores in the public ledger,
 - declarations of *witnesses*, which are callback functions supplied by the TypeScript runner,
 - definitions of *circuits*, which are functions serving as the operational core of a smart contract, and
-- the definition of at most one *constructor*, which is a function used to initialize the public ledger.
+- the definition of at most one *constructor*, which is a function called when a contract
+  is created and can be used to initialize public and private state.
 
 Compact is similar to TypeScript: it has a syntax similar to that of JavaScript,
 and it layers a type system over the JavaScript syntax.
@@ -719,7 +720,7 @@ i.e., any value of type *T* can be used where a value of type *S* is expected wi
 the need for an explicit cast.
 For example, a circuit or witness can be called with argument expressions whose
 types are subtypes of the corresponding parameter type annotations, and
-a constant binding statement with a type annotation can be initialized with an
+a `const` binding statement with a type annotation can be given a value with an
 expression whose type is a subtype of the type annotation.
 
 Subtyping is exclusively defined by the following rules:
@@ -828,7 +829,7 @@ Here is a similar example that destructures a struct instead of a tuple:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumStruct({x, y}: S): Field {
+circuit sumStruct({x, y}: S): Uint<64> {
   return x + y;
 }
 ```
@@ -841,7 +842,7 @@ even though the order of the pattern elements has been swapped:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumStruct({y, x}: S): Field {
+circuit sumStruct({y, x}: S): Uint<64> {
   return x + y;
 }
 ```
@@ -853,7 +854,7 @@ for the structure elements:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumStruct({x: a, y}: S): Field {
+circuit sumStruct({x: a, y}: S): Uint<64> {
   return a + y;
 }
 ```
@@ -866,7 +867,7 @@ Patterns can be arbitrarily nested, e.g.:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumTupleStruct([{x: a1, y: b1}, {x: a2, y: b2}]: [S, S]): Field {
+circuit sumTupleStruct([{x: a1, y: b1}, {x: a2, y: b2}]: [S, S]): Uint<64> {
   return a1 + b1 + a2 + b2;
 }
 ```
@@ -876,7 +877,7 @@ or struct.
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumSomeYs([{y: b1}, , {y: b3}]: [S, S, S]): Field {
+circuit sumSomeYs([{y: b1}, , {y: b3}]: [S, S, S]): Uint<64> {
   return b1 + b3;
 }
 ```
@@ -892,7 +893,7 @@ For example:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumStruct({x, y}: [Field, Field]): Field {
+circuit sumStruct({x, y}: [Uint<16>, Uint<32>]): Uint<64> {
   return x + y;
 }
 ```
@@ -901,7 +902,7 @@ fails because it tries to treat a tuple as a struct, while:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumSomeYs([{y: b1}, , , {y: b3}]: [S, S, S]): Field {
+circuit sumSomeYs([{y: b1}, , , {y: b3}]: [S, S, S]): Uint<64> {
   return b1 + b3;
 }
 ```
@@ -911,7 +912,7 @@ two skipped elements) when it actually has only three, and:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumSomeYs([{y: b1}, , {z: b3}]: [S, S, S]): Field {
+circuit sumSomeYs([{y: b1}, , {z: b3}]: [S, S, S]): Uint<64> {
   return b1 + b3;
 }
 ```
@@ -923,7 +924,7 @@ input and are ignored:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumSomeYs([{y: b1,}, , {y: b3,},]: [S, S, S]): Field {
+circuit sumSomeYs([{y: b1,}, , {y: b3,},]: [S, S, S]): Uint<64> {
   return b1 + b3;
 }
 ```
@@ -1368,6 +1369,11 @@ sealed ledger u8list: List<Uint<8>>;
 export sealed ledger mapping: Map<Boolean, Field>;
 ```
 
+All ledger fields are initialized to the
+[default values of their ledger-state types](#default-values-of-a-type).
+The contract constructor, if any, runs after the default values are
+established, allowing the constructor to override the defaults.
+
 ### Ledger-state types
 
 The following *ledger-state types* are supported.
@@ -1380,6 +1386,8 @@ The following *ledger-state types* are supported.
 - `List<`*T*`>`, for any Compact type *T*
 - `MerkleTree<`*n*, *T*`>`, for any *n*, 1 \< *n* ≤ 32, and any Compact type *T*
 - `HistoricMerkleTree<`*n*, *T*`>`, for any *n*, 1 \< *n* ≤ 32, and any Compact type *T*
+- `Kernel`, a special type that yields access to ledger operations that do not depend
+  on a specific ledger state
 
 Each ledger type supports a set of operations, which can be invoked with
 
@@ -1437,13 +1445,10 @@ export circuit getF(): Uint<64> {
 }
 ```
 
-The ledger-state types are designed to minimize the extent to which a circuit
-proof depends upon the exact value of a ledger-state field as of when a transaction
-is created in order to minimize the chance of the transaction being rejected when
-the proof is checked on chain.
-For example, `Counter` increment and decrement do not commit to the current value
-of the counter.
-While the preceding example could be written using a `Cell` instead:
+The selection of an appropriate ledger-state type can reduce a transaction's
+dependency on the exact contents of the ledger state and thus reduce the chance
+of a transaction being rejected when the proof is checked on chain.
+For example, the preceding example could be written using a `Cell` instead:
 
 ```compact
 ledger F: Uint<64>;
@@ -1458,21 +1463,29 @@ export circuit getF(): Uint<64> {
 }
 ```
 
-a call to `incrF` or `decrF` involves an explicit read of `F`, and if `F` does
-not have the same value when the proof is checked as when the transaction is
-created, the proof fails and the transaction is rejected.
+`incrF` and `decrF` read the value of `F` before operating on it and writing
+it back to `F`.
+This read commits the transaction to the current value of the field.
+If `F` has the value, say, 27 when the transaction is created, `F` must still
+have the value 27 when the proof is checked on chain.
+The `Counter` versions, however, do not read the value but merely request
+that the current value be incremented or decremented; thus, it does not have
+any such constraint.
 
 A comprehensive description of ledger-state types and operations can be found in
 the Compact [ledger data type documentation](ledger-adt).
 
 ### Nested state types in the `Map` type
 
-The only ledger-state type in which values of other state types may be held is
-`Map`.
-The key values in a `Map` must be regular Compact types, but the mapped values
-may be counters, sets, lists, other maps, and so on.
+In most cases, legder-state types cannot be nested within other ledger-state types.
+However, while `Map` keys must have regular Compact types, `Map` values can have
+either regular Compact types or ledger-state types (except `Kernel`).
 
-Here is a small example:
+Attempting to nest a ledger-state type anywhere but within a `Map` value is a
+static error.
+Attempting to nest the `Kernel` type within a `Map` value is also a static error.
+
+Here is a small example showing two levels of nesting:
 
 ```compact
 import CompactStandardLibrary;
@@ -1515,14 +1528,14 @@ In this example,
 
 Notes:
 
-- Nesting is permitted only within `Map` values.  That is, nesting is not permitted in
-  `Map` keys or within any ledger-state type other than `Map`.
-- Nested values must be initialized before first use.  The syntax `default<`*T*`>`
-  is used to create default ledger-state type values, just as it can be used to
-  create default Compact type values.
+- Nested ledger-state values must be initialized before first use.
+  The syntax `default<`*T*`>` can be used to create default ledger-state type
+  values, just as it can be used to create default Compact type values.
+  Attempting to operate on a nested ledger-state value without first initializing
+  it is a dynamic error.
 - Ledger state type values are not first-class objects, so when
   accessing a nested value, the entire indirection chain must be
-  used.  For example, the following results in a compiler error:
+  used.  For example, the following is a static error:
 
   ```compact
   export circuit incrementNestedCounter(b: Boolean, n: Field, k: Uint<16>): [] {
@@ -1617,7 +1630,7 @@ constructor(v: Field) {
 }
 ```
 
-Each constructor parameter must be explicitly typed.
+Each constructor parameter must have an explicit type annotation.
 The type of each variable binding arising from the binding of identifiers in
 each parameter pattern to the corresponding pieces of the input is the type of
 the corresponding part of the declared type's structure.
@@ -1665,7 +1678,7 @@ In the simplest case, a pattern is just an identifier and is bound to the argume
 value as a whole.
 The bindings established by the parameters are visible within (and only within)
 the *block* that constitutes the body of the circuit.
-Each parameter must be explicitly typed, and at the point of every call to the
+Each parameter must have an explicit type annotation, and at the point of every call to the
 circuit, the type of the corresponding argument expression must be a subtype of
 that type.
 The type of each variable binding arising from the binding of identifiers in
@@ -1675,7 +1688,7 @@ For example, in the body of `sumStruct` below:
 
 ```compact
 struct S { x: Uint<16>, y: Uint<32> }
-circuit sumStruct({x, y}: S): Field {
+circuit sumStruct({x, y}: S): Uint<64> {
   return x + y;
 }
 ```
@@ -1913,7 +1926,7 @@ This restriction is motivated by the need for the compiler to generate
 finite proving circuits.
 
 Compact supports two kinds of `for` statements.
-The first iterates over vectors, tuples, and byte-vectors and takes the
+The first iterates over vectors, tuples, and byte vectors and takes the
 following form:
 
 `for (const` *x* `of` *expr*`)` *stmt*
@@ -2052,7 +2065,7 @@ The syntax of Compact expressions is summarized by the following grammar snippet
 Every Compact expression must be well-typed (free from static type errors).
 If any expression within a program contains a static type error, it is a static
 error: the Compact compiler reports the error and does not produce any target code
-(TypeScript or Zkir) for the program.
+(TypeScript or zkir) for the program.
 The static type of a well-typed expression is either a Compact type or a
 ledger-state type.
 
@@ -2120,7 +2133,7 @@ to make the default order of operations explicit.
 
 For example, `x + y * z` computes the product of `y` and `z` and adds `x` to the
 result, because `*` has higher precedence than `+`.
-`x + (y * z)` computes the same thing but more makes the order of operations more
+`x + (y * z)` computes the same thing but makes the order of operations more
 clear, while `(x + y) * z` computes the sum of `x` and `y` and multiplies it by `z`.
 
 The type of a parenthesized expression is the type of the embedded expression
@@ -2215,8 +2228,8 @@ The static type of a string literal of length *n* is `Bytes<`*n*`>`, and its
 value is a byte vector containing its UTF-8 encoding.
 
 A `pad` expression `pad(`*n*`,` *s*`)` is also a string literal, where `pad` is a reserved
-word, *n* is a natural number literal, and *s* is a simple string literal whose
-length must be less than or equal to *n*.
+word, *n* is a natural number literal, and *s* is a simple string literal.
+The length of *s* must be less than or equal to *n*; otherwise, it is a static error.
 The static type of a padded string literal `pad(`*n*`,` *s*`)` is `Bytes<`*n*`>`, and its
 value is a byte vector containing the UTF-8 encoding of *s* followed by `0`
 bytes up to the padded length *n*.
@@ -2247,9 +2260,8 @@ has static type *T* and evaluates to the default value of that type as follows:
 - `MerkleTree<`*n*`, `*T*`>`: an empty Merkle tree
 - `HistoricMerkleTree<`*n*`, `*T*`>`: an empty historic Merkle tree
 
-Default values are not defined for contract types or the `CompactStandardLibrary`
-`Kernel` type, so it is a static error if *T* in `default<`*T*`>` is one of
-these types.
+Default values are not defined for contract types or the `Kernel` ledger-state type,
+so it is a static error if *T* in `default<`*T*`>` is one of these types.
 
 ### Variable references
 
@@ -2306,9 +2318,11 @@ Equals and not equals require the types of *e<sub>1</sub>* and *e<sub>2</sub>*
 to be related.
 That is, the type of *e<sub>1</sub>* must be a subtype of the type of *e<sub>2</sub>*,
 or the type of *e<sub>2</sub>* must be a subtype of the type of *e<sub>1</sub>*.
+Otherwise, it is a static error.
 
 Less than, greater than, less than or equals, and greater than or equals require
 the types of *e<sub>1</sub>* and *e<sub>2</sub>* to be unsigned integer types.
+Otherwise, it is a static error.
 (Values of type `Field` cannot be compared with these operators.)
 
 The type of the result is `Boolean`.
@@ -2320,25 +2334,25 @@ comparing the resulting values as described below.
 **Equals and not equals**
 
 Equality depends on the types of the operands according to the following rules.
-The rules need not and therefore do not cover cases where one operand is not a subtype of
-the other.
+The rules need not and therefore do not cover cases where one operand is not
+a subtype of the other, as required by typing rules above.
 For example, if one operand has type `Boolean`, so does the other; if one
 operand has a `Bytes` type of length *n*, so does the other; and if one
 has a specific structure type, so does the other.
 
-- **`Boolean` == `Boolean`:**
+- **`Boolean`:**
   the values are equal if both are `true` or both are `false`.
-- **`Uint` or `Field` == `Uint` or `Field`:**
+- **`Field` and `Uint` types:**
   the values are equal if the integer values are equal.
 - **`Bytes`:**
   the values are equal if the corresponding bytes at each index are equal.
-- **`Tuple` and `Vector`:**
+- **`Vector` and tuple types:**
   the values are equal if the corresponding values at each index are equal.
 - **Structure types:**
   the values are equal if the values of the corresponding fields are equal.
 - **Enumeration types:**
   the values are equal if they are the same enumeration member.
-- **`Opaque types:`**
+- **`Opaque` types:**
   the values are equal if the runtime values are equal according to JavaScript's
   strict equality (`===`) operator.
 
@@ -2440,7 +2454,7 @@ type `Field`) and `Uint` operations (both operands have a `Uint` type):
 - `Uint` addition and multiplication cannot overflow: the static type of the
   result is always large enough to hold the result value.
 - `Uint` subtraction results in a dynamic error if the resulting value would
-  be negative, i.e., if the value of *e<sub>2</sub>* is greater the the value
+  be negative, i.e., if the value of *e<sub>2</sub>* is greater the value
   of *e<sub>1</sub>*.
 
 If the type of either operand is a structural type alias for a `Field` or
@@ -2484,12 +2498,12 @@ Otherwise, it is a static error.
 
 If *T* is a tuple type `[`*U<sub>1</sub>*, ⋯, *U<sub>n</sub>*`]`, the
 spread contributes *n* new elements of types *U<sub>1</sub>*, ⋯, *U<sub>n</sub>*
-to to the new tuple, i.e., the elements of the tuple value of *e*.
+to the new tuple, i.e., the elements of the tuple value of *e*.
 If *T* is a Vector type `Vector<`*n*, *U*`>`, the spread contributes
 *n* new elements of type *U* to the new tuple, i.e., the elements
 of the Vector value of *e*.
 If *T* is a Bytes type `Bytes<`*n*`>`, the spread contributes *n* new elements of
-type `Uint<8>` to to the new tuple, i.e., the elements of the byte-vector value
+type `Uint<8>` to the new tuple, i.e., the elements of the byte-vector value
 of *e*.
 
 The type of a tuple-creation expression is the tuple type whose elements are
@@ -2507,7 +2521,7 @@ New byte vectors are created with expressions of the form
 `Bytes [`*tuple-arg*, ⋯, *tuple-arg*`]`.
 Bytes creation is essentially the same as [tuple creation](#tuple-creation)
 except that the types of the contributed elements must all be subtypes of `Uint<8>`
-(if not, it is static error), and the result is a new byte vector of type
+(if not, it is a static error), and the result is a new byte vector of type
 `Bytes<`*n*`>` where *n* is the number of contributed elements.
 
 ### Tuple, vector, and byte-vector references
@@ -2569,6 +2583,7 @@ the fixed size of the slice, *e* is an expression, and *index* is a numeric
 literal, a generic natural-number parameter reference, or an expression that can be
 reduced to a numeric constant at compile time as described above in the section on
 [sequence references](#tuple-vector-and-byte-vector-references).
+It is a static error if *index* + *k* exceeds the length of the sequence value.
 
 The type of a byte-vector slice is `Bytes<`*k*`>`.
 The type of a vector slice where the vector has element type *T* is
@@ -2724,26 +2739,26 @@ The value of any structure field access *e*`.`*id* is the result of evaluating t
 subexpression *e* and extracting the value of the resulting structure's *id* field.
 
 Some expressions of the form *e*`.`*id* can also be
-[enumeration member accesses](#enumeration-member-access) or
+[enumeration member selection](#enumeration-member-selection) or
 [ledger-state operations](#ledger-state-operations).
 *e*`.`*id* is recognized as a structure field access only when the
 type of *e* is a structure type.
 
-### Enumeration member access
+### Enumeration member selection
 
 An expression of the form *E*`.`*id* where *E* is the name of an enumeration
-type and *id* is an identifier is an enumeration member access.
+type and *id* is an identifier is an enumeration member selection.
 It is a static error if *E* does not have a member named *id*.
 
-The type of any enumeration member access *E*`.`*id* is *E*.
+The type of any enumeration member selection *E*`.`*id* is *E*.
 
 *E*`.`*id* is a constant.
-That is, the value of any enumeration member access *E*`.`*id* is *E*`.`*id*.
+That is, the value of any enumeration member selection *E*`.`*id* is *E*`.`*id*.
 
 Some expressions of the form *E*`.`*id* can also be
 [structure field accesses](#structure-field-access) or
 [ledger-state operations](#ledger-state-operations).
-*E*`.`*id* is recognized as an enumeration member access only when the
+*E*`.`*id* is recognized as an enumeration member selection only when the
 type of *e* is an enumeration type.
 
 ### Circuit and witness calls
@@ -2858,18 +2873,16 @@ Compact supports expressions that perform the higher-order operations _map_ and
 and byte vectors.
 
 Map expressions have the form `map(`*fun*, *e*, ⋯¹, *e*`)` where `map` is a
-keyword, *fun* is a circuit or witness taking at least one argument, and each *e*
-is an expression.
-A circuit or witness taking *n* arguments can be mapped over *n* sequence values
-(vectors, tuples that have vector types, or byte-vectors) by providing *n*
-sequence-value subexpressions to the `map`.
+keyword, *fun* is a circuit or witness, and each *e* is an expression.
+The `map` operator creates a vector containing the results of applying *fun*
+to the corresponding elements of the sequence values of the expressions.
 
 Fold expressions have the form `fold(`*fun*, *init*, *e*, ⋯¹, *e*`)` where
-`fold` is a keyword, *fun* is a circuit or witness taking at least two arguments,
-*init* is an expression, and each *e* is an expression.
-A circuit or witness taking *n*+1 arguments can be folded over an initial value
-*init* and *n* sequence values by providing *n* sequence-value subexpressions to
-the `fold`.
+`fold` is a keyword, *fun* is a circuit or witness, *init* is an expression,
+and each *e* is an expression.
+The `fold` operator accumulates a value starting with the value of *init* and
+updating it by applying *fun* to the current value and the corresponding elements of
+the sequence values of the expressions in turn.
 
 A detailed description of the circuit or witness *fun* is given in
 [Circuit and witness calls](#circuit-and-witness-calls) above.
@@ -2887,7 +2900,7 @@ subexpression must have the vector type `Vector<`*n*, *S*`>` where *S* is a subt
 of *T*.
 The type of the `map` expression is `Vector<`*n*, *R*`>`; `map` produces a vector
 regardless of whether the input sequence-value subexpressions are vectors, tuples,
-byte-vectors, or some combination.
+byte vectors, or some combination.
 
 A fold expression is type-checked by checking the type of the witness or circuit
 *fun* to find its parameter types and its return type *R*.
@@ -2948,7 +2961,7 @@ If a check fails, a dynamic error is reported.
 TypeScript casts of the form `<`*T*`>`*e* are not supported in Compact.
 
 The following rules govern when casts are allowed, when casts might cause dynamic
-errors, and casts might require run-time conversions.
+errors, and when casts might require run-time conversions.
 Any cast not covered by one of the rules is not allowed.
 
 #### Upcasts
@@ -2976,7 +2989,7 @@ Any cast not covered by one of the rules is not allowed.
     of each *S*, a cast from the vector type to the tuple type is allowed but not
     required.
     For example, values of type `Vector<2, Uint<8>>` can be used where
-    values of type `[Uint<16>, Uint<16>]` are required.
+    values of type `[Uint<8>, Uint<16>]` are required.
 
 #### Downcasts of `Field` and `Uint` types
 
@@ -2987,7 +3000,7 @@ Any cast not covered by one of the rules is not allowed.
    (If the maximum value of the `Uint` type exceeds the maximum `Field` value, the
    behavior of the compiler is currently unspecified.)
 
-#### Casts of `Boolean` to and from `Field` and `Uint`:
+#### Casts of `Boolean` to and from `Field` and `Uint`
 
 - Any cast from `Boolean` to `Field` or any `Uint` type is allowed, sometimes
   requires a run-time check, and requires a run-time conversion (of `false` to `0`
@@ -2997,7 +3010,7 @@ Any cast not covered by one of the rules is not allowed.
   result in a dynamic error, and requires a simple run-time conversion (of `0` to
   `false` and any other value to `true`).
 
-#### Casts of Enum types to and from `Field` and `Uint`:
+#### Casts of Enum types to and from `Field` and `Uint`
 
 - Any cast from an enum type to `Field` or any `Uint` type is allowed,
   sometimes requires a run-time check, and might require a run-time
@@ -3010,7 +3023,7 @@ Any cast not covered by one of the rules is not allowed.
   For an enum type with *n* elements, a run-type check is required for casts
   from `Uint<0..`*m*`>`, *m* > *n*.
 
-#### Casts of `Bytes` to and from `Field` and `Uint`:
+#### Casts of `Bytes` to and from `Field` and `Uint`
 
 - Any cast from `Bytes<`*m*`>`, *m* != 0, to `Field` or any `Uint` type is allowed,
   requires a run-time check, and requires a run-time conversion.
@@ -3026,7 +3039,7 @@ Any cast not covered by one of the rules is not allowed.
   byte of the integer.
   A dynamic error occurs if the result does not fit in *m* bytes.
 
-#### Casts of `Bytes` to and from `Vector` and tuple types:
+#### Casts of `Bytes` to and from `Vector` and tuple types
 
 - Any cast from `Bytes<`*m*`>` to `Vector<`*m*, `Field>` or
   `Vector<`*m*, `Uint<0..`*k*`>>`, *k* ≥ 256 is allowed, cannot
@@ -3053,7 +3066,7 @@ state.  They can be invoked by expressions of the form *id*`.`*op*`(`*e*, ⋯, *
 *op* is the name of a builtin kernel operation, and
 *e*, ⋯, *e* is a comma separated sequence of zero or more argument expressions.
 The `CompactStandardLibrary` predefines the ledger field name `kernel` to have
-ledger type `Kernel`, so for example, the built-in `self` operation can be called
+ledger-state type `Kernel`, so for example, the built-in `self` operation can be called
 from a circuit as follows:
 
 ```compact
@@ -3075,12 +3088,10 @@ __Ledger-state operations__ are operations on the contract's declared public led
 In its simplest form, a ledger-state operation is an expression
 *F*`.`*op*`(`*e*, ⋯, *e*`)`, where *F* is a ledger field name
 [declared via a `ledger` field declaration](#declaring-and-maintaining-public-state),
-*op* is the name of a ledger-state operator, and each *e* is an expression.
+*op* is the name of a ledger-state operator, and each *e* is an argument expression.
 *F* can also be another ledger-state operation, allowing ledger-state operations
 to be chained when the result of a ledger-state operation might itself have a
 ledger-state type.
-(Kernel operations cannot be chained, because the kernel is not a ledger-state
-type and is not returned by any operation.)
 Compact also supports shorthands for certain ledger-state operations; these are
 described below in [Ledger-state-operation shorthands](#ledger-state-operation-shorthands).
 
@@ -3102,7 +3113,7 @@ values on the portion of the public ledger state identified by *F*.
 Compact supports several shorthands for common ledger-state operations.
 
 The simplest of these is a shorthand for the ledger-state operation
-*F*`.read()` where *F* is a ledger-state field name or itself a another
+*F*`.read()` where *F* is a ledger-state field name or itself another
 ledger-state operation.
 If the type of *F* is a ledger-state type that supports the `read`
 operation, *F*`.read()` can be abbreviated, simply, to *F*.
@@ -3147,7 +3158,7 @@ private data, if any, should be disclosed in the transcripts and public state
 of the contract, and how that private data should be encoded.
 
 Compact itself has no information about the nature of any private data and whether
-and how it is necessary to disclose it, the decision to to so rests with the
+and how it is necessary to disclose it, the decision to do so rests with the
 contract developer.
 Compact does, however, require that such disclosure be explicitly declared to
 prevent unintentional disclosure, so that privacy is the default and disclosure
@@ -3158,7 +3169,7 @@ data (exported circuit arguments, witness return values, and anything derived fr
 private data) must be acknowledged by wrapping an expression whose value contains
 private data in a `disclose()` wrapper before storing it in the public state, returning
 it from an exported circuit, or using it in conditional expressions that might
-affect what is stored in the public state or or returned from an exported circuit.
+affect what is stored in the public state or returned from an exported circuit.
 
 For example, the following contract attempts to disclose private data without
 explicitly declaring the disclosure when it stores the value of the exported
@@ -3370,7 +3381,7 @@ This value is dictated by the scalar field size of the ZK proving system.
 452312848583266388373324160190187140051835877600158453279131187530910662655.
 This value is 256<sup>k</sup>-1 where *k* is the number of bytes (31) that fits in
 a `Field`.
-- The maximum length of a vector or byte-vector is 16777216.
+- The maximum length of a vector or byte vector is 16777216.
 This value is chosen as a reasonable upper bound that helps prevent the compiler
 from looping indefinitely on programs that operate on excessively large vector
 and byte-vector types.
