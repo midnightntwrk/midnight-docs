@@ -7,6 +7,9 @@ sidebar_position: 10
 tags: [node]
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Set up Cardano-db-sync
 
 As a [Partner Chain](https://github.com/input-output-hk/partner-chains), Midnight nodes require a persistent connection to the Cardano blockchain to track on-chain governance, cNIGHT token registrations, and permissioned candidate registrations. The Cardano-db-sync tool follows the Cardano chain, extracting information from both the blockchain and an internally maintained ledger state. This data is then inserted into a PostgreSQL database, enabling Midnight nodes to query Cardano state through SQL.
@@ -108,53 +111,103 @@ The official [Cardano-db-sync](https://github.com/IntersectMBO/cardano-db-sync) 
 Create a `docker-compose.yml` file with the following configuration (adjust for your target network):
 
 ```yaml
-version: "3.8"
+name: cardano-db-sync
+version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17.2-alpine
     environment:
-      POSTGRES_DB: cexplorer
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      - POSTGRES_LOGGING=true
+      - POSTGRES_DB=cexplorer
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - postgres
     ports:
-      - "5432:5432"
+      - 5432:5432
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
+      - postgres:/var/lib/postgresql/data
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - max_parallel_maintenance_workers=4
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
 
   cardano-node:
-    image: ghcr.io/intersectmbo/cardano-node:9.2.1
+    image: ghcr.io/intersectmbo/cardano-node:10.6.1
+    platform: linux/amd64
     environment:
-      NETWORK: ${CARDANO_NETWORK:-preview}
+      - NETWORK=${NETWORK:-preview}
+    networks:
+      - cardano-node
     volumes:
-      - cardano-node-data:/data
-      - cardano-node-ipc:/ipc
-    restart: unless-stopped
+      - node-db:/data/db
+      - node-ipc:/ipc
+    restart: on-failure
+    healthcheck:
+      # Ping the EKG port to see if it responds.
+      # Assuming if EKG isn't up then the rest of cardano-node isn't either.
+      test: ["CMD-SHELL", "curl -f 127.0.0.1:12788 || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
 
   cardano-db-sync:
-    image: ghcr.io/intersectmbo/cardano-db-sync:13.5.0.2
+    image: ghcr.io/intersectmbo/cardano-db-sync:13.7.0.1
+    platform: linux/amd64
     environment:
-      NETWORK: ${CARDANO_NETWORK:-preview}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: cexplorer
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      RESTORE_SNAPSHOT: ${RESTORE_SNAPSHOT:-}
-    volumes:
-      - cardano-db-sync-data:/var/lib/cexplorer
-      - cardano-node-ipc:/node-ipc
+      - NETWORK=${NETWORK:-preview}
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=cexplorer
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     depends_on:
-      - postgres
+      # Depend on both services to be healthy before starting.
+      cardano-node:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
       - cardano-node
-    restart: unless-stopped
+      - postgres
+    volumes:
+      - db-sync-data:/var/lib/cexplorer
+      - node-ipc:/node-ipc
+    restart: on-failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200k"
+        max-file: "10"
 
 volumes:
-  postgres-data:
-  cardano-node-data:
-  cardano-node-ipc:
-  cardano-db-sync-data:
+  db-sync-data:
+  postgres:
+  node-db:
+  node-ipc:
+
+networks:
+  cardano-node: {}
+  postgres: {}
+  cardano-db-sync: {}
 ```
 
 ### Create environment file
@@ -199,7 +252,8 @@ Cardano-db-sync must fully synchronize with the Cardano blockchain before starti
 
 Choose one of the following methods to query synchronization progress:
 
-**Option 1: Using psql client directly**
+<Tabs>
+<TabItem value="psql" label="PostgreSQL client">
 
 Install the PostgreSQL client:
 
@@ -212,20 +266,24 @@ Connect to the database:
 ```shell
 psql -h localhost -U postgres -d cexplorer -p 5432
 ```
-
-**Option 2: Using Docker exec**
+</TabItem>
+<TabItem value="docker" label="Docker exec">
 
 ```shell
-docker exec postgres psql -U postgres -d cexplorer
+docker compose exec postgres psql -U postgres -d cexplorer
 ```
 
-**Option 3: Remote SSH query**
+</TabItem>
+<TabItem value="ssh" label="Remote SSH query">
 
 Replace `user@x.x.x.x` with your SSH username and server IP:
 
 ```shell
 ssh user@x.x.x.x -C "psql -d cexplorer -h localhost -p 5432 -U postgres -c \"SELECT 100 * (EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) / (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) AS sync_percent FROM block;\""
 ```
+
+</TabItem>
+</Tabs>
 
 ### Run synchronization query
 
@@ -246,6 +304,10 @@ A result close to 100% indicates the database is fully synchronized with the Car
 
 :::tip
 
-Wait for Cardano-db-sync to reach 100% synchronization before starting your Midnight node. Running a Midnight node with an incomplete Cardano-db-sync connection will cause synchronization errors.
+Wait for Cardano-db-sync to reach 98% or higher before starting your Midnight node. Running a Midnight node with an incomplete Cardano-db-sync connection will cause synchronization errors.
 
 :::
+
+## Next steps
+
+With Cardano-db-sync fully synchronized, you can start your Midnight node. See the [Set up full and archive nodes](./full-node) guide for more information.
