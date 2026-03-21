@@ -1,10 +1,304 @@
 ---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Testing and debugging
+description: Learn how to test Compact smart contracts locally using testkit-js and Vitest.
 sidebar_position: 30
+sidebar_label: Testing and debugging
+tags: [testing, testkit, vitest, debugging]
+toc_max_heading_level: 3
 ---
 
 # Testing and debugging
 
-:::note
-Coming soon!
+Testing Midnight smart contracts involves verifying that your Compact circuits behave correctly, that your TypeScript witnesses integrate properly, and that the full transaction lifecycle — proof generation, submission, and ledger state update — works as expected.
+
+Midnight provides `@midnight-ntwrk/testkit-js`, a dedicated testing library that manages environment setup so you can focus on writing contract assertions.
+
+## What you can test
+
+Compact contracts have three layers, each of which benefits from testing:
+
+| Layer | What to test | How |
+|---|---|---|
+| **Circuit logic** | State transitions and `assert` guards | Integration tests via the proof server |
+| **Witness functions** | TypeScript implementations of `witness` declarations | Unit tests in TypeScript |
+| **Full DApp flow** | Deploy, call transactions, and ledger updates | Integration tests with `testkit-js` |
+
+Because every circuit execution generates a ZK proof, there is no lightweight circuit-only test runner — all circuit tests run through the proof server. Integration tests with `testkit-js` are therefore the primary testing strategy for Compact contracts.
+
+## Prerequisites
+
+Before writing tests, ensure you have:
+
+- A compiled Compact contract with prover/verifier keys in the `managed/` directory
+- [Docker](https://www.docker.com/) installed and running (required for `LocalTestEnvironment`)
+- Node.js ≥ 22 and a TypeScript project configured with ESM support
+
+## Setup
+
+Install the testing dependencies:
+
+```bash
+npm install --save-dev @midnight-ntwrk/testkit-js vitest
+```
+
+Add a test script to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  }
+}
+```
+
+Create a `vitest.config.ts` at the project root:
+
+```typescript title=vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    globals: true,
+    testTimeout: 300_000,  // proof generation can take up to 5 minutes
+    hookTimeout: 120_000,
+  },
+});
+```
+
+:::tip Long timeouts are expected
+ZK proof generation takes time, particularly on first run when prover keys are loaded into memory. Set your test timeout to at least 5 minutes (`300_000` ms).
 :::
+
+## Testing the counter contract
+
+This walkthrough tests the counter contract built in the [Counter contract](../tutorials/counter/smart-contract) tutorial. The contract exposes a single circuit:
+
+```compact title=counter.compact
+pragma language_version 0.21;
+
+import CompactStandardLibrary;
+
+export ledger round: Counter;
+
+export circuit increment(): [] {
+  round.increment(1);
+}
+```
+
+### Project structure
+
+Add a `test/` directory inside the contract package:
+
+```
+example-counter/
+└── contract/
+    └── src/
+        ├── counter.compact
+        ├── witnesses.ts
+        ├── index.ts
+        └── test/
+            └── counter.test.ts    ← new
+```
+
+### Writing the test file
+
+```typescript title=contract/src/test/counter.test.ts
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import {
+  createDefaultTestLogger,
+  getTestEnvironment,
+  initializeMidnightProviders,
+  inMemoryPrivateStateProvider,
+  expectSuccessfulDeployTx,
+  expectSuccessfulCallTx,
+  type TestEnvironment,
+  type EnvironmentConfiguration,
+  type MidnightWalletProvider,
+} from '@midnight-ntwrk/testkit-js';
+import * as Counter from '../managed/counter/contract/index.js';
+import { witnesses, type CounterPrivateState } from '../witnesses.js';
+
+// Contract configuration — points to the compiled output directory.
+const CONTRACT_CONFIG = {
+  privateStateStoreName: 'counter-private-state',
+  zkConfigPath: new URL('../managed/counter', import.meta.url).pathname,
+};
+
+const logger = createDefaultTestLogger();
+
+let testEnvironment: TestEnvironment;
+let envConfig: EnvironmentConfiguration;
+let walletProvider: MidnightWalletProvider;
+
+// Start the local Docker environment once before all tests in this file.
+beforeAll(async () => {
+  testEnvironment = getTestEnvironment(logger);
+  envConfig = await testEnvironment.start();
+  walletProvider = await testEnvironment.getMidnightWalletProvider();
+}, 120_000);
+
+// Tear down the Docker environment after all tests complete.
+afterAll(async () => {
+  await testEnvironment.shutdown();
+});
+
+// Helper: assembles all six Midnight providers required to interact with the contract.
+function buildProviders() {
+  return initializeMidnightProviders<'increment', CounterPrivateState>(
+    walletProvider,
+    envConfig,
+    CONTRACT_CONFIG,
+  );
+}
+
+describe('Counter contract', () => {
+  it('deploys successfully', async () => {
+    const providers = buildProviders();
+    const contract = new Counter.Contract(witnesses);
+
+    const deployTx = await contract.initialState(providers);
+
+    await expectSuccessfulDeployTx(providers, deployTx);
+  });
+
+  it('increments the counter once', async () => {
+    const providers = buildProviders();
+    const contract = new Counter.Contract(witnesses);
+
+    // Deploy and confirm.
+    const deployTx = await contract.initialState(providers);
+    await expectSuccessfulDeployTx(providers, deployTx);
+
+    // Verify the initial ledger state is zero.
+    const initial = await providers.publicDataProvider
+      .queryContractState(deployTx.public.contractAddress);
+    expect(initial?.round).toBe(0n);
+
+    // Call the increment circuit.
+    const callTx = await deployTx.deployed.circuits.increment(providers.context);
+    await expectSuccessfulCallTx(providers, callTx);
+
+    // Verify the counter advanced by 1.
+    const updated = await providers.publicDataProvider
+      .queryContractState(deployTx.public.contractAddress);
+    expect(updated?.round).toBe(1n);
+  });
+
+  it('increments the counter multiple times', async () => {
+    const providers = buildProviders();
+    const contract = new Counter.Contract(witnesses);
+
+    const deployTx = await contract.initialState(providers);
+    await expectSuccessfulDeployTx(providers, deployTx);
+
+    const { circuits } = deployTx.deployed;
+
+    // Increment three times in sequence.
+    for (let i = 0; i < 3; i++) {
+      const callTx = await circuits.increment(providers.context);
+      await expectSuccessfulCallTx(providers, callTx);
+    }
+
+    const final = await providers.publicDataProvider
+      .queryContractState(deployTx.public.contractAddress);
+    expect(final?.round).toBe(3n);
+  });
+});
+```
+
+### Running the tests
+
+By default, `getTestEnvironment` starts a local Docker environment (`undeployed` mode). Make sure Docker is running, then:
+
+```bash
+cd contract && npm test
+```
+
+On first run, Docker pulls the Midnight node, indexer, and proof server images. Subsequent runs are significantly faster because the images are cached.
+
+## Choosing a test environment
+
+Control which environment `getTestEnvironment` targets with the `MN_TEST_ENVIRONMENT` variable:
+
+| Value | Description |
+|---|---|
+| `undeployed` (default) | Starts a local Docker compose stack |
+| `testnet` | Connects to Testnet 2 |
+| `devnet` | Connects to a DevNet instance |
+| `env-var-remote` | Reads all endpoints from `MN_TEST_*` env vars |
+
+```bash
+# Run against the public testnet
+MN_TEST_ENVIRONMENT=testnet npm test
+```
+
+For `env-var-remote`, supply each endpoint individually:
+
+```bash
+MN_TEST_ENVIRONMENT=env-var-remote \
+MN_TEST_NETWORK_ID=preprod \
+MN_TEST_INDEXER=https://indexer.preprod.midnight.network/api/v3/graphql \
+MN_TEST_INDEXER_WS=wss://indexer.preprod.midnight.network/api/v3/graphql/ws \
+MN_TEST_NODE=https://rpc.preprod.midnight.network \
+npm test
+```
+
+### Using a funded wallet on live networks
+
+When targeting a live network, you need a wallet with tDUST. Set your seed phrase:
+
+```bash
+MN_TEST_WALLET_SEED="your twelve word seed phrase here" npm test
+```
+
+For local Docker environments, `testkit-js` uses a genesis-minted wallet automatically — no seed phrase is required.
+
+## Using the in-memory private state provider
+
+For tests that verify private state isolation between users, replace the default LevelDB provider with the in-memory variant:
+
+```typescript
+import { inMemoryPrivateStateProvider, initializeMidnightProviders } from '@midnight-ntwrk/testkit-js';
+
+const providers = {
+  ...initializeMidnightProviders(walletProvider, envConfig, CONTRACT_CONFIG),
+  // Swap in an ephemeral store — no data persists between test runs.
+  privateStateProvider: inMemoryPrivateStateProvider<
+    typeof CONTRACT_CONFIG.privateStateStoreName,
+    CounterPrivateState
+  >(),
+};
+```
+
+The in-memory provider ensures each test starts with clean private state, avoiding cross-test interference.
+
+## Debugging failed transactions
+
+When a transaction fails, `expectSuccessfulCallTx` and `expectSuccessfulDeployTx` throw with a detailed error message. For lower-level inspection, use the individual helpers:
+
+```typescript
+import { expectSuccessfulTxData, NodeClient, createDefaultTestLogger } from '@midnight-ntwrk/testkit-js';
+
+// Inspect finalized transaction data directly.
+const callTx = await circuits.increment(providers.context);
+console.log('Tx hash:', callTx.public.txHash);
+expectSuccessfulTxData(callTx.public);
+
+// Query on-chain contract state via the node's JSON-RPC API.
+const nodeClient = new NodeClient(envConfig.node, createDefaultTestLogger());
+const onChainState = await nodeClient.contractState(deployTx.public.contractAddress);
+console.log('On-chain state:', onChainState);
+```
+
+## Common issues
+
+| Problem | Likely cause | Fix |
+|---|---|---|
+| Test times out | Docker is not running or images are being pulled | Run `docker ps` to confirm containers started; allow extra time on first run |
+| `ECONNREFUSED` on proof server port | Proof server container not ready | Check container logs: `docker compose logs proof-server` |
+| Wallet has no tDUST | Wallet not synced or faucet not called | Local environments fund wallets automatically; for remote networks set `MN_TEST_WALLET_SEED` |
+| `inMemoryPrivateStateProvider` is not a function | Older version of `testkit-js` | Update to `@midnight-ntwrk/testkit-js` version ≥ 3.1.0 |
+| Keys not found | Contract was not compiled | Run `npm run build` to compile the contract before testing |
