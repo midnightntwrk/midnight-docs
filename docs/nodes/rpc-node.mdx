@@ -19,25 +19,89 @@ An **RPC node** is a specialized type of node that exposes an HTTP or WebSocket-
 
 Before setting up your Midnight RPC node, ensure you have the following:
 
-* [Docker](https://docs.docker.com/engine/install/) installed and configured.
 * [Cardano-db-sync instance set up](./cardano-db-sync) with accessible PostgreSQL port.
 * Sufficient resources (CPU, memory, and storage).
+* Either a precompiled binary or Rust toolchain (for building from source).
 
 ## Setting Up an RPC Node
 
-### Step 1: Configure PostgreSQL Database
+### Option 1: Using Binary Distribution (Recommended)
 
-Set up a Cardano-db-sync/ PostgreSQL instance with the following parameters:
+The binary distribution method is the recommended approach for most users.
 
-* **Host:** PostgreSQL server address.
-* **Port:** Default 5432.
-* *Username:** Database user.
-* **Password:** Database password.
-* **Database Name:** Name of the database (e.g., cexplorer).
+#### Step 1: Download the Binary
 
-### Step 2: Run the Docker Command for an RPC Node
+Download the latest Midnight node binary from the [GitHub releases page](https://github.com/midnight-network/node/releases).
 
-Use the following Docker command to set up your RPC node:
+```bash
+# Example for Linux x86_64
+wget https://github.com/midnight-network/node/releases/download/v<VERSION>/midnight-node-x86_64-linux
+chmod +x midnight-node-x86_64-linux
+```
+
+Replace `<VERSION>` with the required version according to the [release compatibility matrix](../../relnotes/support-matrix).
+
+#### Step 2: Run the RPC Node
+
+To start an RPC node for the preview network:
+
+```bash
+./midnight-node-x86_64-linux \
+  --chain preview \
+  --base-path ./chain-data \
+  --rpc-methods Safe \
+  --rpc-cors all \
+  --rpc-port 9944 \
+  --rpc-external \
+  --ws-external
+```
+
+Or for the preprod network:
+
+```bash
+./midnight-node-x86_64-linux \
+  --chain preprod \
+  --base-path ./chain-data \
+  --rpc-methods Safe \
+  --rpc-cors all \
+  --rpc-port 9944 \
+  --rpc-external \
+  --ws-external
+```
+
+### Option 2: Building from Source
+
+For users who prefer to build from source:
+
+#### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/midnight-network/node.git
+cd node
+```
+
+#### Step 2: Build the Binary
+
+```bash
+cargo build --release
+```
+
+#### Step 3: Run the RPC Node
+
+```bash
+./target/release/midnight-node \
+  --chain preview \
+  --base-path ./chain-data \
+  --rpc-methods Safe \
+  --rpc-cors all \
+  --rpc-port 9944 \
+  --rpc-external \
+  --ws-external
+```
+
+### Option 3: Docker (Alternative)
+
+If you prefer containerized deployment:
 
 ```bash
 docker run \
@@ -46,44 +110,55 @@ docker run \
   -p 9944:9944 \
   -p 30333:30333 \
   -v midnight-data:/node \
-  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:<VERSION>" \
   -e BASE_PATH="./node/chain/" \
-  -e CFG_PRESET="testnet-02" \
   midnightnetwork/midnight-node:<VERSION> \
-  --chain=/res/testnet-02/testnetRaw.json \
+  --chain=preview \
   --rpc-methods=Safe \
   --rpc-cors=all \
   --rpc-external \
   --ws-external
 ```
 
-Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/support-matrix).
+## Available Networks
 
+Use one of the following values for the `--chain` parameter:
+
+* `preview` - Development preview network with frequent updates
+* `preprod` - Pre-production network for testing
+* `mainnet` - Production Midnight network
 
 ## Verifying the Node
 
 ### Check Logs
 
-Monitor the node's logs to ensure it syncs with the network:
+Monitor the node's output to ensure it syncs with the network:
 
 ```bash
+# Binary output logs to stdout
+# For Docker:
 docker logs -f <node-name>
 ```
 
-### Test Connectivity
+### Test P2P Connectivity
 
 Ensure the node's P2P port (default: `30333`) is open and reachable for network communication. Use tools like `telnet`, `netcat`, or `nmap` to verify the port status and ensure the node is properly connected to the network.
 
-Additionally, to preview the available RPC methods, run the following curl command, which lists all endpoints exposed by the node:
+### Test RPC Connectivity
+
+To preview the available RPC methods, run the following curl command:
 
 ```bash
-curl -H "Content-Type: application/json" \
-     -X POST \
-     -d '{
-           "jsonrpc":"2.0",
-           "id":1,
-           "method":"rpc_methods",
-           "params":[]
-         }' \
-     http://127.0.0.1:9944
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"rpc_methods","params":[],"id":1}' \
+  http://127.0.0.1:9944
+```
+
+Test a basic RPC call:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"system_chain","params":[],"id":1}' \
+  http://127.0.0.1:9944
 ```

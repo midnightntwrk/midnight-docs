@@ -17,30 +17,86 @@ A **Full Node** syncs with the blockchain, validates transactions, and provides 
 
 An **Archive Node** maintains the entire history of the blockchain, including all blocks and states. While this comprehensive storage consumes substantial disk space, it is essential for use cases requiring access to historical data, such as building block explorers, conducting in-depth debugging, or querying past events. Setting up an archive node involves specific configurations, such as using the --pruning archive parameter.
 
-
 ## Prerequisites
 
 Before setting up your Midnight full node, ensure you have the following:
 
-* [Docker](https://docs.docker.com/engine/install/) installed and configured.
 * [Cardano-db-sync instance set up](./cardano-db-sync) with accessible PostgreSQL port.
 * Sufficient resources (CPU, memory, and storage).
+* Either a precompiled binary or Rust toolchain (for building from source).
 
 ## Setting Up a Full Node
 
-### Step 1: Configure PostgreSQL Database
+### Option 1: Using Binary Distribution (Recommended)
 
-Set up a PostgreSQL instance with the following parameters:
+The binary distribution method is the recommended approach for most users as it requires no compilation.
 
-* **Host:** PostgreSQL server address.
-* **Port:** Default 5432.
-* *Username:** Database user.
-* **Password:** Database password.
-* **Database Name:** Name of the database (e.g., cexplorer).
+#### Step 1: Download the Binary
 
-### Step 2: Run the Docker Command for a Full Node
+Download the latest Midnight node binary from the [GitHub releases page](https://github.com/midnight-network/node/releases). Choose the binary appropriate for your operating system and architecture.
 
-Use the following Docker command to set up your full node:
+```bash
+# Example for Linux x86_64
+wget https://github.com/midnight-network/node/releases/download/v<VERSION>/midnight-node-x86_64-linux
+chmod +x midnight-node-x86_64-linux
+```
+
+Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/support-matrix).
+
+#### Step 2: Run the Full Node
+
+To start a full node against a network of your choice (preview, preprod, or mainnet):
+
+```bash
+./midnight-node-x86_64-linux \
+  --chain preprod \
+  --base-path ./chain-data \
+  --rpc-max-connections 1000 \
+  --database auto
+```
+
+Or for preview network:
+
+```bash
+./midnight-node-x86_64-linux \
+  --chain preview \
+  --base-path ./chain-data \
+  --rpc-max-connections 1000 \
+  --database auto
+```
+
+### Option 2: Building from Source
+
+For users who prefer to build from source or require custom compilation:
+
+#### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/midnight-network/node.git
+cd node
+```
+
+#### Step 2: Build the Binary
+
+```bash
+cargo build --release
+```
+
+The compiled binary will be available at `target/release/midnight-node`.
+
+#### Step 3: Run the Full Node
+
+```bash
+./target/release/midnight-node \
+  --chain preview \
+  --base-path ./chain-data \
+  --rpc-max-connections 1000 \
+  --database auto
+```
+
+### Option 3: Docker (Alternative)
+
+If you prefer containerized deployment, Docker is still available as an alternative:
 
 ```bash
 docker run \
@@ -48,38 +104,42 @@ docker run \
   --platform linux/amd64 \
   -p 30333:30333 \
   -v midnight-data:/node \
-  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:<VERSION>" \
   -e POSTGRES_HOST="postgres" \
   -e POSTGRES_PORT="5432" \
   -e POSTGRES_USER="postgres" \
   -e POSTGRES_PASSWORD="password123" \
   -e POSTGRES_DB="cexplorer" \
-  -e DB_SYNC_POSTGRES_CONNECTION_STRING="psql://postgres:password123@x.x.x.x:5432/cexplorer" \
   -e BASE_PATH="./node/chain/" \
-  -e CFG_PRESET="testnet-02" \
   midnightnetwork/midnight-node:<VERSION> \
-  --chain=/res/testnet-02/testnetRaw.json \
+  --chain=preview \
   --no-private-ip
 ```
 
-Replace `<VERSION>` with the required version of the node according to the [release compatibility matrix](../../relnotes/support-matrix).
-
-
 ## Setting Up an Archive Node
 
-### Step 1: Configure PostgreSQL Database
+Archive nodes require the same setup as full nodes, with the addition of the `--pruning archive` flag:
 
-Set up a PostgreSQL instance with the following parameters:
+### Using Binary
 
-* **Host:** PostgreSQL server address.
-* **Port:** Default 5432.
-* *Username:** Database user.
-* **Password:** Database password.
-* **Database Name:** Name of the database (e.g., cexplorer).
+```bash
+./midnight-node-x86_64-linux \
+  --chain preview \
+  --base-path ./chain-data \
+  --pruning archive \
+  --database auto
+```
 
-### Step 2: Run the Docker Command for an Archive Node
+### Building from Source
 
-To set up an archive node, modify the `--pruning` parameter to store all historical states:
+```bash
+./target/release/midnight-node \
+  --chain preview \
+  --base-path ./chain-data \
+  --pruning archive \
+  --database auto
+```
+
+### Using Docker
 
 ```bash
 docker run \
@@ -87,32 +147,44 @@ docker run \
   --platform linux/amd64 \
   -p 30333:30333 \
   -v midnight-data:/node \
-  -e MIDNIGHT_NODE_IMAGE="midnightnetwork/midnight-node:0.6.6-6288973b" \
-  -e POSTGRES_HOST="postgres" \
-  -e POSTGRES_PORT="5432" \
-  -e POSTGRES_USER="postgres" \
-  -e POSTGRES_PASSWORD="password123" \
-  -e POSTGRES_DB="cexplorer" \
-  -e DB_SYNC_POSTGRES_CONNECTION_STRING="psql://postgres:password123@x.x.x.x:5432/cexplorer" \
   -e BASE_PATH="./node/chain/" \
-  -e CFG_PRESET="testnet-02" \
-  midnightnetwork/midnight-node:0.6.6-6288973b \
-  --chain=/res/testnet-02/testnetRaw.json \
+  midnightnetwork/midnight-node:<VERSION> \
+  --chain=preview \
   --pruning archive \
   --no-private-ip
 ```
 
+## Available Networks
+
+Use one of the following values for the `--chain` parameter:
+
+* `preview` - Development preview network with frequent updates
+* `preprod` - Pre-production network for testing
+* `mainnet` - Production Midnight network
 
 ## Verifying the Node
 
 ### Check Logs
 
-Monitor the node's logs to ensure it syncs with the network:
+Monitor the node's output to ensure it syncs with the network:
 
 ```bash
+# Binary output logs to stdout
+# For Docker:
 docker logs -f <node-name>
 ```
 
 ### Test Connectivity
 
 Ensure the node's P2P port (default: `30333`) is open and reachable for network communication. Use tools like `telnet`, `netcat`, or `nmap` to verify the port status and ensure the node is properly connected to the network.
+
+### Test RPC Connectivity (Optional)
+
+If you've enabled RPC endpoints, you can test them:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "system_chain", "params": [], "id": 1}' \
+  http://127.0.0.1:9944
+```
