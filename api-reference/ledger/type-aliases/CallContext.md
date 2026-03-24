@@ -1,4 +1,4 @@
-[**@midnight/ledger v7.0.0**](../README.md)
+[**@midnight/ledger v8.0.2**](../README.md)
 
 ***
 
@@ -11,6 +11,7 @@ type CallContext = {
   balance: Map<TokenType, bigint>;
   caller?: PublicAddress;
   comIndices: Map<CoinCommitment, number>;
+  lastBlockTime: bigint;
   ownAddress: ContractAddress;
   parentBlockHash: string;
   secondsSinceEpoch: bigint;
@@ -49,6 +50,16 @@ comIndices: Map<CoinCommitment, number>;
 ```
 
 The commitment indices map accessible to the contract.
+
+***
+
+### lastBlockTime
+
+```ts
+lastBlockTime: bigint;
+```
+
+The [secondsSinceEpoch](#secondssinceepoch) of the previous block
 
 ***
 
