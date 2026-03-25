@@ -1,6 +1,6 @@
 # Testkit JS API
 
-**@midnight-ntwrk/testkit-js v3.1.0**
+**@midnight-ntwrk/testkit-js v4.0.2**
 
 ***
 
@@ -26,6 +26,7 @@ The software provided herein is licensed under the [Apache License V2.0](http://
 3. [Features](#Features)
 4. [Limitations](#Limitations)
 5. [Examples of Usage](#Examples-of-Usage)
+6. [Containers Configuration](#8-containers-configuration)
 
 ---
 
@@ -76,13 +77,14 @@ Set of functions that simplify testing of DApps in Midnight
 ### Environment selection:
 - MN_TEST_ENVIRONMENT controls the environment to be used for testing. It can take one of these values:
    - undeployed
-   - devnet
-   - testnet
+   - qanet
+   - preview
+   - preprod
    - env-var-remote
 
 If **MN_TEST_ENVIRONMENT** is not set, the default value will be `undeployed`.
 If **MN_TEST_ENVIRONMENT** is set to `undeployed`, the testing environment will be deployed locally using Docker.
-If **MN_TEST_ENVIRONMENT** is set to `devnet`,`testnet, env-var-remote` the testing environment will the corresponding live network, with proof server setup using predefined NETWORK_ID.
+If **MN_TEST_ENVIRONMENT** is set to `qanet`, `preview`, `preprod`, or `env-var-remote` the testing environment will be the corresponding live network, with proof server setup using predefined NETWORK_ID.
 If **MN_TEST_ENVIRONMENT** is set to `env-var-remote`, below environment variables must be set:
   - *MN_TEST_NETWORK_ID* - Proof server NETWORK_ID
   - *MN_TEST_INDEXER* - Indexer URL
@@ -114,10 +116,10 @@ environmentConfiguration = await testEnvironment.start();
 
 ```shell
 # Example: Set the environment variable before initializing the test environment
-MN_TEST_ENVIRONMENT='devnet'; yarn test
+MN_TEST_ENVIRONMENT='preview'; yarn test
 ```
 
-This allows you to easily switch between predefined environments like `devnet`, `testnet`, and others.
+This allows you to easily switch between predefined environments like `qanet`, `preview`, `preprod`, and others.
 Default (undefined) value is `undeployed` which will deploy the testing environment locally using Docker.
 
 ---
@@ -222,8 +224,8 @@ This demonstrates how to handle cases where the wallet limit is exceeded.
 Here's an example of integrating with the proof server:
 
 ```typescript
-// Example: Start a proof server with networkd ID = testnet and ID = 123
-const proofServer = await DynamicProofServerContainer.start(logger, '123', 'testnet');
+// Example: Start a proof server with network ID = preview and ID = 123
+const proofServer = await DynamicProofServerContainer.start(logger, '123', 'preview');
 
 //stop the proof server
 await proofServer.stop();
@@ -237,8 +239,9 @@ This shows how to integrate with and customize the proof server for testing.
 
 Library is provided with set of predefined environment configurations i.e.:
 
-- LocalTestEnvironment 
-- Testnet2TestEnvironment
+- LocalTestEnvironment
+- PreviewTestEnvironment
+- PreprodTestEnvironment
 
 By using `getTestEnvironment(logger);` based on environment variable MN_TEST_ENVIRONMENT test environment configuration is provided.
 However, you can either create your own class defining the environment endpoints or use below enviroment variables.
@@ -257,6 +260,151 @@ yarn test
 
 ---
 
-### 8. System health check before tests
+### 8. Containers Configuration
 
-For the remote test environemnts (testnet-02, ...) simple health check is performed for each of the components to check their state before test.
+The testkit uses a centralized `ContainersConfiguration` object that controls proof server, standalone containers, and logging. Two predefined configurations are available:
+
+- `defaultContainersConfiguration` — uses `proof-server.yml` and `compose.yml`
+- `latestContainersConfiguration` — uses `proof-server-latest.yml` and `compose-latest.yml`
+
+You can read and modify the active configuration at any time using `getContainersConfiguration()` and `setContainersConfiguration()`.
+
+#### Configuration structure
+
+```typescript
+interface ContainersConfiguration {
+  proofServer: {
+    path: string;        // Directory with the compose file (default: cwd)
+    fileName: string;    // Compose file name (default: 'proof-server.yml')
+    container: {
+      name: string;      // Container name (default: 'proof-server')
+      port: number;      // Exposed port (default: 6300)
+      waitStrategy: WaitStrategy;
+    };
+  };
+  standalone: {
+    path: string;        // Directory with the compose file (default: cwd)
+    fileName: string;    // Compose file name (default: 'compose.yml')
+    container: {
+      proofServer: { name, port, waitStrategy };  // default: 'proof-server', 6300
+      node:        { name, port, waitStrategy };  // default: 'node', 9944
+      indexer:     { name, port, waitStrategy };  // default: 'indexer', 8088
+    };
+  };
+  log: {
+    path: string;        // Log directory (default: '<cwd>/logs/tests/')
+    fileName: string;    // Log file name (default: 'tests_<timestamp>.log')
+    level: string;       // Log level (default: 'info')
+  };
+}
+```
+
+#### Proof server configuration
+
+Controls the proof server container used in both standalone and remote environments.
+
+```typescript
+import {
+  defaultContainersConfiguration,
+  setContainersConfiguration
+} from '@midnight-ntwrk/testkit-js';
+
+setContainersConfiguration({
+  ...defaultContainersConfiguration,
+  proofServer: {
+    ...defaultContainersConfiguration.proofServer,
+    fileName: 'my-proof-server.yml',
+    container: {
+      ...defaultContainersConfiguration.proofServer.container,
+      port: 7300
+    }
+  }
+});
+```
+
+#### Standalone containers configuration
+
+Controls the full local environment (node, indexer, proof server) started via Docker Compose.
+
+```typescript
+import { Wait } from 'testcontainers';
+import {
+  defaultContainersConfiguration,
+  setContainersConfiguration
+} from '@midnight-ntwrk/testkit-js';
+
+setContainersConfiguration({
+  ...defaultContainersConfiguration,
+  standalone: {
+    ...defaultContainersConfiguration.standalone,
+    fileName: 'my-compose.yml',
+    container: {
+      ...defaultContainersConfiguration.standalone.container,
+      node: {
+        ...defaultContainersConfiguration.standalone.container.node,
+        port: 9955,
+        waitStrategy: Wait.forListeningPorts().withStartupTimeout(5 * 60_000)
+      }
+    }
+  }
+});
+```
+
+#### Logging configuration
+
+The testkit uses [pino](https://github.com/pinojs/pino) with pretty-printing. Logs are written both to the console and to a file.
+
+**Default values:**
+- **Log level**: `info`
+- **Log file**: `tests_<timestamp>.log` (e.g. `tests_2026-03-10T12_00_00.000Z.log`)
+- **Log directory**: `<cwd>/logs/tests/`
+
+**Available log levels** (from least to most verbose): `fatal`, `error`, `warn`, `info`, `debug`, `trace`
+
+```typescript
+import {
+  defaultContainersConfiguration,
+  setContainersConfiguration
+} from '@midnight-ntwrk/testkit-js';
+
+setContainersConfiguration({
+  ...defaultContainersConfiguration,
+  log: {
+    ...defaultContainersConfiguration.log,
+    level: 'debug',
+    path: '/custom/log/directory',
+    fileName: 'my-tests.log'
+  }
+});
+```
+
+**Creating custom loggers:**
+
+```typescript
+import { createLogger, createDefaultTestLogger } from '@midnight-ntwrk/testkit-js';
+
+// Logger with default configuration
+const logger = createDefaultTestLogger();
+
+// Logger writing to a specific file (within the configured log directory)
+const customLogger = createLogger('my-custom-test.log');
+
+// Logger writing to an absolute path
+const absoluteLogger = createLogger('/tmp/my-test.log');
+```
+
+#### Using the latest configuration
+
+To use the latest container images instead of the default pinned versions:
+
+```typescript
+import { latestContainersConfiguration, setContainersConfiguration } from '@midnight-ntwrk/testkit-js';
+
+setContainersConfiguration(latestContainersConfiguration);
+```
+
+---
+
+### 9. System health check before tests
+
+For the remote test environments (preview, preprod, ...) simple health check is performed for each of the components to check their state before test.
