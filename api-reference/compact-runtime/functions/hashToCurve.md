@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.15.101**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: hashToCurve()
 
 ```ts
-function hashToCurve<A>(rtType, x): NativePoint;
+function hashToCurve<A>(rtType, x): JubjubPoint;
 ```
 
 The Compact builtin `hash_to_curve` function
@@ -40,4 +40,4 @@ field-aligned binary representation.
 
 ## Returns
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)
