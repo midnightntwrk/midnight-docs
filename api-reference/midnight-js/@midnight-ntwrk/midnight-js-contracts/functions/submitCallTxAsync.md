@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: submitCallTxAsync()
 
-> **submitCallTxAsync**\<`C`, `ICK`\>(`providers`, `options`): `Promise`\<[`SubmittedCallTx`](../type-aliases/SubmittedCallTx.md)\<`C`, `ICK`\>\>
+> **submitCallTxAsync**\<`C`, `PCK`\>(`providers`, `options`): `Promise`\<[`SubmittedCallTx`](../type-aliases/SubmittedCallTx.md)\<`C`, `PCK`\>\>
 
 Creates and submits a transaction for the invocation of a circuit on a given contract,
 returning immediately after submission without waiting for finalization.
@@ -47,27 +47,27 @@ After calling this function, you must manually:
 
 `C` *extends* `Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ## Parameters
 
 ### providers
 
-`SubmitCallTxProviders`\<`C`, `ICK`\>
+`SubmitCallTxProviders`\<`C`, `PCK`\>
 
 The providers used to manage the invocation lifecycle.
 
 ### options
 
-[`CallTxOptions`](../type-aliases/CallTxOptions.md)\<`C`, `ICK`\>
+[`CallTxOptions`](../type-aliases/CallTxOptions.md)\<`C`, `PCK`\>
 
 Configuration.
 
 ## Returns
 
-`Promise`\<[`SubmittedCallTx`](../type-aliases/SubmittedCallTx.md)\<`C`, `ICK`\>\>
+`Promise`\<[`SubmittedCallTx`](../type-aliases/SubmittedCallTx.md)\<`C`, `PCK`\>\>
 
 A `Promise` that resolves with the transaction ID and call transaction data immediately after submission;
         or rejects with an error if the submission fails.

@@ -1,10 +1,10 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / TransactionContext
 
-# Interface: TransactionContext\<C, ICK\>
+# Interface: TransactionContext\<C, PCK\>
 
 Encapsulates the context for managing a scoped contract transaction.
 
@@ -14,21 +14,25 @@ Encapsulates the context for managing a scoped contract transaction.
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\> = `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\> = `Contract.ProvableCircuitId`\<`C`\>
 
 ## Properties
 
-### \[CacheStates\]()
+### \[CacheStates\]
 
-> `readonly` **\[CacheStates\]**: (`states`) => `void`
+> `readonly` **\[CacheStates\]**: (`states`, `identity`) => `void`
 
 #### Parameters
 
 ##### states
 
-[`PublicContractStates`](../type-aliases/PublicContractStates.md) | [`ContractStates`](../type-aliases/ContractStates.md)\<`PrivateState`\<`C`\>\>
+[`PublicContractStates`](../type-aliases/PublicContractStates.md) \| [`ContractStates`](../type-aliases/ContractStates.md)\<`PrivateState`\<`C`\>\>
+
+##### identity
+
+`CachedStateIdentity`
 
 #### Returns
 
@@ -36,7 +40,23 @@ Encapsulates the context for managing a scoped contract transaction.
 
 ***
 
-### \[MergeUnsubmittedCallTxData\]()
+### \[GetCurrentStatesForIdentity\]
+
+> `readonly` **\[GetCurrentStatesForIdentity\]**: (`identity`) => [`PublicContractStates`](../type-aliases/PublicContractStates.md) \| [`ContractStates`](../type-aliases/ContractStates.md)\<`PrivateState`\<`C`\>\> \| `undefined`
+
+#### Parameters
+
+##### identity
+
+`CachedStateIdentity`
+
+#### Returns
+
+[`PublicContractStates`](../type-aliases/PublicContractStates.md) \| [`ContractStates`](../type-aliases/ContractStates.md)\<`PrivateState`\<`C`\>\> \| `undefined`
+
+***
+
+### \[MergeUnsubmittedCallTxData\]
 
 > `readonly` **\[MergeUnsubmittedCallTxData\]**: (`circuitId`, `callData`, `privateStateId?`) => `void`
 
@@ -44,11 +64,11 @@ Encapsulates the context for managing a scoped contract transaction.
 
 ##### circuitId
 
-`ICK`
+`PCK`
 
 ##### callData
 
-[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>
+[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>
 
 ##### privateStateId?
 
@@ -60,13 +80,13 @@ Encapsulates the context for managing a scoped contract transaction.
 
 ***
 
-### \[Submit\]()
+### \[Submit\]
 
-> `readonly` **\[Submit\]**: () => `Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `ICK`\>\>
+> `readonly` **\[Submit\]**: () => `Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `PCK`\>\>
 
 #### Returns
 
-`Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `ICK`\>\>
+`Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `PCK`\>\>
 
 ***
 
@@ -97,13 +117,13 @@ reflecting any unsubmitted circuit calls made to the contract during the scope o
 
 ### getLastUnsubmittedCallTxDataToTransact()
 
-> **getLastUnsubmittedCallTxDataToTransact**(): \[[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>, `string`?\] \| `undefined`
+> **getLastUnsubmittedCallTxDataToTransact**(): \[[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>, `string`?\] \| `undefined`
 
 Gets the last unsubmitted call transaction data.
 
 #### Returns
 
-\[[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>, `string`?\] \| `undefined`
+\[[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>, `string`?\] \| `undefined`
 
 A tuple containing an [UnsubmittedCallTxData](../type-aliases/UnsubmittedCallTxData.md) instance, and an optional private state
 ID, or `undefined` if circuit calls are yet to be made.

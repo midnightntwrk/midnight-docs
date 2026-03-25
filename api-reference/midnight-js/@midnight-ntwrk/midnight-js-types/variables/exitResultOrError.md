@@ -1,10 +1,10 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-types](../README.md) / exitResultOrError
 
-# Variable: exitResultOrError()
+# Variable: exitResultOrError
 
 > `const` **exitResultOrError**: \<`A`, `E`\>(`exit`) => `A`
 

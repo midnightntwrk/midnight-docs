@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -14,7 +14,7 @@ Fetches the unshielded balances associated with a specific contract address.
 
 ### publicDataProvider
 
-`PublicDataProvider`
+[`PublicDataProvider`](#)
 
 The provider to use to fetch the unshielded balances from the blockchain.
 

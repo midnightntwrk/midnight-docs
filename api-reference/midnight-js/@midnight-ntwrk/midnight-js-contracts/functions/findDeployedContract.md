@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -55,7 +55,7 @@ IncompleteFindContractPrivateStateConfig If an `initialPrivateState` is given bu
 
 #### providers
 
-[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `ImpureCircuitId`\<`C`\>, `unknown`\>
+[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `ProvableCircuitId`\<`C`\>, `unknown`\>
 
 #### options
 
