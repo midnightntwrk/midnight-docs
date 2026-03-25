@@ -1,9 +1,9 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
-Test environment configuration for the Midnight testnet network.
-Provides URLs and endpoints for testnet services.
+Test environment configuration for the Midnight preview network.
+Provides URLs and endpoints for preview network services.
 
 ## Extends
 
@@ -13,7 +13,7 @@ Provides URLs and endpoints for testnet services.
 
 ### Constructor
 
-> **new Testnet2TestEnvironment**(`logger`): `Testnet2TestEnvironment`
+> **new PreviewTestEnvironment**(`logger`): `PreviewTestEnvironment`
 
 Creates a new TestEnvironment instance.
 
@@ -27,7 +27,7 @@ Logger instance for recording operations
 
 #### Returns
 
-`Testnet2TestEnvironment`
+`PreviewTestEnvironment`
 
 #### Inherited from
 
@@ -39,13 +39,13 @@ Logger instance for recording operations
 
 > **getEnvironmentConfiguration**(): [`EnvironmentConfiguration`](../interfaces/EnvironmentConfiguration.md)
 
-Returns the configuration for the testnet environment services.
+Returns the configuration for the preview environment services.
 
 #### Returns
 
 [`EnvironmentConfiguration`](../interfaces/EnvironmentConfiguration.md)
 
-Object containing URLs for testnet services:
+Object containing URLs for preview services:
 - indexer: GraphQL API endpoint for the indexer
 - indexerWS: WebSocket endpoint for the indexer
 - node: RPC endpoint for the blockchain node
@@ -161,7 +161,7 @@ Creates and starts the specified number of wallet providers.
 
 ##### seeds?
 
-`string`[] | `undefined`
+`string`[] \| `undefined`
 
 #### Returns
 
