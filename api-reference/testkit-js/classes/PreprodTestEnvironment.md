@@ -2,25 +2,18 @@
 
 ***
 
-Base class for remote test environments that connect to external network services.
-Provides functionality for managing walletProviders and a proof server container.
+Test environment configuration for the Midnight preprod network.
+Provides URLs and endpoints for preprod network services.
 
 ## Extends
 
-- [`TestEnvironment`](TestEnvironment.md)
-
-## Extended by
-
-- [`EnvVarRemoteTestEnvironment`](EnvVarRemoteTestEnvironment.md)
-- [`PreprodTestEnvironment`](PreprodTestEnvironment.md)
-- [`PreviewTestEnvironment`](PreviewTestEnvironment.md)
-- [`QanetTestEnvironment`](QanetTestEnvironment.md)
+- [`RemoteTestEnvironment`](RemoteTestEnvironment.md)
 
 ## Constructors
 
 ### Constructor
 
-> **new RemoteTestEnvironment**(`logger`): `RemoteTestEnvironment`
+> **new PreprodTestEnvironment**(`logger`): `PreprodTestEnvironment`
 
 Creates a new TestEnvironment instance.
 
@@ -34,29 +27,34 @@ Logger instance for recording operations
 
 #### Returns
 
-`RemoteTestEnvironment`
+`PreprodTestEnvironment`
 
 #### Inherited from
 
-[`TestEnvironment`](TestEnvironment.md).[`constructor`](TestEnvironment.md#constructor)
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`constructor`](RemoteTestEnvironment.md#constructor)
 
 ## Methods
 
 ### getEnvironmentConfiguration()
 
-> `abstract` **getEnvironmentConfiguration**(): [`EnvironmentConfiguration`](../interfaces/EnvironmentConfiguration.md)
+> **getEnvironmentConfiguration**(): [`EnvironmentConfiguration`](../interfaces/EnvironmentConfiguration.md)
 
-Abstract method that must be implemented by subclasses to provide environment configuration.
+Returns the configuration for the preprod environment services.
 
 #### Returns
 
 [`EnvironmentConfiguration`](../interfaces/EnvironmentConfiguration.md)
 
-Configuration object containing service URLs and endpoints
+Object containing URLs for preprod services:
+- indexer: GraphQL API endpoint for the indexer
+- indexerWS: WebSocket endpoint for the indexer
+- node: RPC endpoint for the blockchain node
+- faucet: API endpoint for requesting test tokens
+- proofServer: URL for the proof generation server
 
 #### Overrides
 
-[`TestEnvironment`](TestEnvironment.md).[`getEnvironmentConfiguration`](TestEnvironment.md#getenvironmentconfiguration)
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`getEnvironmentConfiguration`](RemoteTestEnvironment.md#getenvironmentconfiguration)
 
 ***
 
@@ -78,7 +76,7 @@ If no wallet could be started
 
 #### Inherited from
 
-[`TestEnvironment`](TestEnvironment.md).[`getMidnightWalletProvider`](TestEnvironment.md#getmidnightwalletprovider)
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`getMidnightWalletProvider`](RemoteTestEnvironment.md#getmidnightwalletprovider)
 
 ***
 
@@ -94,6 +92,10 @@ Checks the health of the node, indexer, and optionally the faucet services.
 `Promise`\<`void`\>
 
 A promise that resolves when the health check is complete.
+
+#### Inherited from
+
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`healthCheck`](RemoteTestEnvironment.md#healthcheck)
 
 ***
 
@@ -113,9 +115,9 @@ Shuts down the test environment by closing all walletProviders and stopping the 
 
 `Promise`\<`void`\>
 
-#### Overrides
+#### Inherited from
 
-[`TestEnvironment`](TestEnvironment.md).[`shutdown`](TestEnvironment.md#shutdown)
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`shutdown`](RemoteTestEnvironment.md#shutdown)
 
 ***
 
@@ -139,9 +141,9 @@ Optional proof server container to use instead of creating a new one
 
 The environment configuration
 
-#### Overrides
+#### Inherited from
 
-[`TestEnvironment`](TestEnvironment.md).[`start`](TestEnvironment.md#start)
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`start`](RemoteTestEnvironment.md#start)
 
 ***
 
@@ -167,6 +169,6 @@ Creates and starts the specified number of wallet providers.
 
 Array of started wallet providers
 
-#### Overrides
+#### Inherited from
 
-[`TestEnvironment`](TestEnvironment.md).[`startMidnightWalletProviders`](TestEnvironment.md#startmidnightwalletproviders)
+[`RemoteTestEnvironment`](RemoteTestEnvironment.md).[`startMidnightWalletProviders`](RemoteTestEnvironment.md#startmidnightwalletproviders)
