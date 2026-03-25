@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / withContractScopedTransaction
 
-# Variable: withContractScopedTransaction()
+# Variable: withContractScopedTransaction
 
-> `const` **withContractScopedTransaction**: \<`C`, `ICK`\>(`providers`, `fn`, `options?`) => `Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `ICK`\>\>
+> `const` **withContractScopedTransaction**: \<`C`, `PCK`\>(`providers`, `fn`, `options?`) => `Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `PCK`\>\>
 
 Executes a function within the context of a contract-scoped transaction.
 
@@ -16,15 +16,15 @@ Executes a function within the context of a contract-scoped transaction.
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\> = `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\> = `Contract.ProvableCircuitId`\<`C`\>
 
 ## Parameters
 
 ### providers
 
-[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `ICK`\>
+[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `PCK`\>
 
 The contract providers to use within the transaction.
 
@@ -42,7 +42,7 @@ Optional transaction scope options.
 
 ## Returns
 
-`Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `ICK`\>\>
+`Promise`\<[`FinalizedCallTxData`](../type-aliases/FinalizedCallTxData.md)\<`C`, `PCK`\>\>
 
 A `Promise` that resolves with the finalized transaction data of the single transaction
 created for all circuit calls made within `fn`.

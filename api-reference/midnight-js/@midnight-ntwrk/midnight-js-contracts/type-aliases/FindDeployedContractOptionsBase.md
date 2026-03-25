@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -28,7 +28,7 @@ The compiled contract to use to execute circuits.
 
 ### contractAddress
 
-> `readonly` **contractAddress**: `ContractAddress`
+> `readonly` **contractAddress**: [`ContractAddress`](#)
 
 The address of a previously deployed contract.
 
@@ -36,7 +36,7 @@ The address of a previously deployed contract.
 
 ### signingKey?
 
-> `readonly` `optional` **signingKey**: `SigningKey`
+> `readonly` `optional` **signingKey?**: `SigningKey`
 
 The signing key to use to perform contract maintenance updates. If defined, the given signing
 key is stored for this contract address. This is useful when someone has already added the given signing
