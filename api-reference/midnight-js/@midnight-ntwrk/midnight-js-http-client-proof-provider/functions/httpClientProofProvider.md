@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,10 +6,10 @@
 
 # Function: httpClientProofProvider()
 
-> **httpClientProofProvider**\<`K`\>(`url`, `zkConfigProvider`, `config?`): `ProofProvider`
+> **httpClientProofProvider**\<`K`\>(`url`, `zkConfigProvider`, `config?`): [`ProofProvider`](#)
 
-Creates a high-level ProofProvider that implements transaction-level proving
-using the low-level circuit-by-circuit ProvingProvider as its foundation.
+Creates a high-level [ProofProvider](#) that implements transaction-level proving
+using the low-level circuit-by-circuit [ProvingProvider](#) as its foundation.
 
 This adapter bridges the gap between:
 - High-level ProofProvider interface (works with complete transactions)
@@ -31,7 +31,7 @@ The URL of the proof server
 
 ### zkConfigProvider
 
-`ZKConfigProvider`\<`K`\>
+[`ZKConfigProvider`](#)\<`K`\>
 
 Provider for zero-knowledge configuration artifacts
 
@@ -43,7 +43,7 @@ Optional configuration for the underlying ProvingProvider
 
 ## Returns
 
-`ProofProvider`
+[`ProofProvider`](#)
 
 A ProofProvider instance that uses ProvingProvider internally
 
