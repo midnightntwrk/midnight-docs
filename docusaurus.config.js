@@ -335,6 +335,8 @@ const config = {
       items: [
         { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
         { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
+        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
+        { to: "/blog",  label: "Dev Diaries",  position: "left",  activeBaseRegex: "^/blog(/|$)" },
         // {
         //   type: 'docsVersionDropdown',
         //   position: "right",
@@ -361,7 +363,7 @@ const config = {
           title: "Resources",
           items: [
             { label: "Midnight Foundation", href: "https://midnight.network/" },
-            { label: "Developer blog", href: "/blog" },
+            { label: "Dev Diaries", href: "/blog" },
             { label: "Glacier Drop", href: "https://www.midnight.gd/" },
             { label: "Careers", href: "https://midnight.network/careers" },
           ],

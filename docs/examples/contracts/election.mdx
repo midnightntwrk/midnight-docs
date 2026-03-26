@@ -1,0 +1,139 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Election"
+sidebar_position: 4
+title: Election Contract
+description: Example contract for private state access
+toc_max_heading_level: 2
+---
+
+This Compact contract implements an election that occurs between two candidates and a set of registered voters. It offers demonstration of the following features:
+- Committing to private state information
+- Operations on `Set` and `Map`
+- Dapp specific public key function that keeps users from being tracked outside this dapp
+
+```compact
+pragma language_version 0.22;
+import CompactStandardLibrary;
+
+export enum VotingState {
+    CLOSED,
+    OPEN
+}
+
+export enum VoteChoice {
+    BAD,
+    WORSE,
+    TIE
+}
+
+// sealed ledger values cannot be changed after constructor execution
+export sealed ledger organizer: ZswapCoinPublicKey;
+export sealed ledger candidate0: Opaque<"string">;
+export sealed ledger candidate1: Opaque<"string">;
+export ledger votingState: VotingState;
+export ledger hashedVoteMap: Map<Bytes<32>, Bytes<32>>;
+export ledger registeredVoters: Set<Bytes<32>>;
+export ledger totalVoteCount: Counter;
+export ledger candidate0VoteCounter: Counter;
+export ledger candidate1VoteCounter: Counter;
+export ledger winner: VoteChoice;
+
+witness localGetVote(): VoteChoice;
+witness localSk(): Bytes<32>;
+
+constructor(candidateA: Opaque<"string">, candidateB: Opaque<"string">) {
+    organizer = ownPublicKey();
+    candidate0 = disclose(candidateA);
+    candidate1 = disclose(candidateB);
+    votingState = VotingState.CLOSED;
+}
+
+// should be available time based
+export circuit registerToVote(): [] {
+    const _sk = localSk();
+    const dappPublicKey = getDappPublicKey(_sk);
+    assert(!registeredVoters.member(disclose(dappPublicKey)), "You are already registered to vote");
+    assert(votingState == VotingState.CLOSED, "You can only register before voting starts");
+
+    registeredVoters.insert(disclose(dappPublicKey));
+}
+
+export circuit openVoting(): [] {
+    assert(organizer == ownPublicKey(), "You are not the organizer");
+    assert(votingState == VotingState.CLOSED, "Voting has already been openend");
+    assert(!registeredVoters.isEmpty(), "There are no registered voters");
+    
+    votingState = VotingState.OPEN;
+}
+
+export circuit commitVote(): [] {
+    assert(votingState == VotingState.OPEN, "Voting has not opened yet");
+    const _sk = localSk();
+    const dappPublicKey = getDappPublicKey(_sk);
+    assert(registeredVoters.member(dappPublicKey), "You are not registered to vote.");
+    assert(!hashedVoteMap.member(dappPublicKey), "Attempt to double vote");
+    const _currentVote = localGetVote();
+    assert(_currentVote == VoteChoice.BAD || _currentVote == VoteChoice.WORSE, "Please provide a valid vote");
+
+
+    const hash = commitWithSk(_currentVote as Field as Bytes<32>, _sk);
+    hashedVoteMap.insert(dappPublicKey, hash);
+    totalVoteCount.increment(1);
+}
+
+// check privateState for original vote, if its changed then error
+export circuit revealVote(): [] {
+    assert(votingState == VotingState.CLOSED, "Voting is still open");
+
+    const _sk = localSk();
+    const dappPublicKey = getDappPublicKey(_sk);
+    // we want to check that they have already voted..
+    assert(hashedVoteMap.member(dappPublicKey), "You have not voted yet");
+    assert(registeredVoters.member(dappPublicKey), "You are not a registered voter");
+    
+    const vote = localGetVote();
+    assert(vote == VoteChoice.BAD || vote == VoteChoice.WORSE, "Please supply a valid vote");
+
+    const hashedVote = commitWithSk(vote as Field as Bytes<32>, _sk);
+    assert(hashedVoteMap.lookup(dappPublicKey) == hashedVote, "Attempt to change the vote!");
+
+    if(disclose(vote) == VoteChoice.BAD){
+        candidate0VoteCounter.increment(1);
+    } else if (disclose(vote) == VoteChoice.WORSE) {
+        candidate1VoteCounter.increment(1);
+    }
+}
+
+// should be time based
+export circuit closeVoting(): [] {
+    assert(organizer == ownPublicKey(), "You are not the organizer");
+    assert(!hashedVoteMap.isEmpty(), "You can't close the voting with no votes");
+    votingState = VotingState.CLOSED;
+}
+
+export circuit checkWinner(): [] {
+    assert(organizer == ownPublicKey(), "You are not an organizer");
+    assert(votingState == VotingState.CLOSED, "Voting is still open");
+
+    // check for a winner
+    if(candidate0VoteCounter > candidate1VoteCounter) {
+        winner = VoteChoice.BAD;
+    } else if (candidate0VoteCounter < candidate1VoteCounter) {
+        winner = VoteChoice.WORSE;
+    } else if (candidate0VoteCounter == candidate1VoteCounter) {
+        winner = VoteChoice.TIE;
+    }
+}
+
+// hashing commitment with _sk makes it impossible to brute force a simple 1 or 2
+circuit commitWithSk(_vote: Bytes<32>, _sk: Bytes<32>) : Bytes<32> {
+    return disclose(persistentHash<Vector<2, Bytes<32>>>([_vote, _sk]));
+}
+
+// hash a random "public key" that is only traceable in this dapp
+export circuit getDappPublicKey(_sk: Bytes<32>): Bytes<32> {
+  return disclose(persistentHash<Vector<2, Bytes<32>>>([pad(32, "election:pk:"), _sk]));
+}
+```
