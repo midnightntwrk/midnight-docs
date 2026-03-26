@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: assertIsHex()
 
-> **assertIsHex**(`source`, `byteLen`?): `asserts source is string`
+> **assertIsHex**(`source`, `byteLen?`): `asserts source is string`
 
 Asserts that a string represents a hex-encoded sequence of bytes.
 

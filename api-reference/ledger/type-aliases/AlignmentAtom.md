@@ -1,17 +1,20 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v8.0.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / AlignmentAtom
+[@midnight/ledger](../globals.md) / AlignmentAtom
 
-# Type alias: AlignmentAtom
+# Type Alias: AlignmentAtom
 
 ```ts
-type AlignmentAtom: {
+type AlignmentAtom = 
+  | {
   tag: "compress";
-  } | {
+}
+  | {
   tag: "field";
-  } | {
+}
+  | {
   length: number;
   tag: "bytes";
 };

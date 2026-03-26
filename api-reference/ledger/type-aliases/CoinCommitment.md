@@ -1,13 +1,13 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v8.0.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / CoinCommitment
+[@midnight/ledger](../globals.md) / CoinCommitment
 
-# Type alias: CoinCommitment
+# Type Alias: CoinCommitment
 
 ```ts
-type CoinCommitment: string;
+type CoinCommitment = string;
 ```
 
 A Zswap coin commitment, as a hex-encoded 256-bit bitstring

@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -12,31 +12,31 @@ A provider for logging functions.
 
 ### debug?
 
-> `optional` **debug**: `LogFn`
+> `optional` **debug?**: `LogFn`
 
 ***
 
 ### error?
 
-> `optional` **error**: `LogFn`
+> `optional` **error?**: `LogFn`
 
 ***
 
 ### fatal?
 
-> `optional` **fatal**: `LogFn`
+> `optional` **fatal?**: `LogFn`
 
 ***
 
 ### info?
 
-> `optional` **info**: `LogFn`
+> `optional` **info?**: `LogFn`
 
 ***
 
 ### warn?
 
-> `optional` **warn**: `LogFn`
+> `optional` **warn?**: `LogFn`
 
 ## Methods
 

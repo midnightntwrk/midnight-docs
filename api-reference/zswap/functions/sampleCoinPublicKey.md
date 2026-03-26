@@ -1,13 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / sampleCoinPublicKey
+[@midnight/zswap](../globals.md) / sampleCoinPublicKey
 
 # Function: sampleCoinPublicKey()
 
 ```ts
-sampleCoinPublicKey(): CoinPublicKey
+function sampleCoinPublicKey(): CoinPublicKey
 ```
 
 Samples a dummy user coin public key, for use in testing

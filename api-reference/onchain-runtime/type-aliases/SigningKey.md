@@ -1,10 +1,10 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / SigningKey
+[@midnight-ntwrk/onchain-runtime](../globals.md) / SigningKey
 
-# Type alias: SigningKey
+# Type Alias: SigningKey
 
 ```ts
 type SigningKey: string;

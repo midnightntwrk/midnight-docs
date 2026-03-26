@@ -1,10 +1,10 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / Nullifier
+[@midnight-ntwrk/onchain-runtime](../globals.md) / Nullifier
 
-# Type alias: Nullifier
+# Type Alias: Nullifier
 
 ```ts
 type Nullifier: string;

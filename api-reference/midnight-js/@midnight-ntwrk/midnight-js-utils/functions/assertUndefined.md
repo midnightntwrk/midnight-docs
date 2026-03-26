@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: assertUndefined()
 
-> **assertUndefined**\<`A`\>(`value`, `message`?): asserts value is undefined \| null
+> **assertUndefined**\<`A`\>(`value`, `message?`): asserts value is null \| undefined
 
 Asserts that the given value is null or undefined.
 
@@ -20,9 +20,9 @@ Asserts that the given value is null or undefined.
 
 ### value
 
-The value to test for nullability.
+`A` \| `null` \| `undefined`
 
-`undefined` | `null` | `A`
+The value to test for nullability.
 
 ### message?
 
@@ -32,7 +32,7 @@ The error message to use if an error is thrown.
 
 ## Returns
 
-asserts value is undefined \| null
+asserts value is null \| undefined
 
 ## Throws
 

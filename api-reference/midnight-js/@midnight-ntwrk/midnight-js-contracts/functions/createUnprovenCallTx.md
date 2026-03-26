@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -17,6 +17,11 @@ The providers to use to create the call transaction.
 
 Configuration.
 
+## Param
+
+Optional scoped transaction context to participate in an
+       existing transaction scope.
+
 ## Throws
 
 IncompleteCallTxPrivateStateConfig If a `privateStateId` was given but a `privateStateProvider`
@@ -25,17 +30,17 @@ IncompleteCallTxPrivateStateConfig If a `privateStateId` was given but a `privat
 
 ## Call Signature
 
-> **createUnprovenCallTx**\<`C`, `ICK`\>(`providers`, `options`): `Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>\>
+> **createUnprovenCallTx**\<`C`, `PCK`\>(`providers`, `options`, `transactionContext?`): `Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>
 
 ### Type Parameters
 
 #### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`undefined`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`undefined`\>\>
+`C` *extends* `Contract`\<`undefined`, `Witnesses`\<`undefined`\>\>
 
-#### ICK
+#### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ### Parameters
 
@@ -45,25 +50,29 @@ IncompleteCallTxPrivateStateConfig If a `privateStateId` was given but a `privat
 
 #### options
 
-[`CallOptionsWithArguments`](../type-aliases/CallOptionsWithArguments.md)\<`C`, `ICK`\>
+[`CallOptionsWithArguments`](../type-aliases/CallOptionsWithArguments.md)\<`C`, `PCK`\>
+
+#### transactionContext?
+
+[`TransactionContext`](../interfaces/TransactionContext.md)\<`C`, `PCK`\>
 
 ### Returns
 
-`Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>\>
+`Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>
 
 ## Call Signature
 
-> **createUnprovenCallTx**\<`C`, `ICK`\>(`providers`, `options`): `Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>\>
+> **createUnprovenCallTx**\<`C`, `PCK`\>(`providers`, `options`, `transactionContext?`): `Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>
 
 ### Type Parameters
 
 #### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`any`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`any`\>\>
+`C` *extends* `Any`
 
-#### ICK
+#### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ### Parameters
 
@@ -73,8 +82,12 @@ IncompleteCallTxPrivateStateConfig If a `privateStateId` was given but a `privat
 
 #### options
 
-[`CallTxOptionsWithPrivateStateId`](../type-aliases/CallTxOptionsWithPrivateStateId.md)\<`C`, `ICK`\>
+[`CallTxOptionsWithPrivateStateId`](../type-aliases/CallTxOptionsWithPrivateStateId.md)\<`C`, `PCK`\>
+
+#### transactionContext?
+
+[`TransactionContext`](../interfaces/TransactionContext.md)\<`C`, `PCK`\>
 
 ### Returns
 
-`Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>\>
+`Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>

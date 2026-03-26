@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -33,3 +33,11 @@ The initial public state of the contract to run the circuit against.
 > `readonly` **initialZswapChainState**: `ZswapChainState`
 
 The initial public Zswap state of the contract to run the circuit against.
+
+***
+
+### ledgerParameters
+
+> `readonly` **ledgerParameters**: `LedgerParameters`
+
+The ledger parameters to use when executing the circuit.

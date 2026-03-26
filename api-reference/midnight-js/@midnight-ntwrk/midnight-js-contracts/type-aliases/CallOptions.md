@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / CallOptions
 
-# Type Alias: CallOptions\<C, ICK\>
+# Type Alias: CallOptions\<C, PCK\>
 
-> **CallOptions**\<`C`, `ICK`\> = [`CallOptionsWithProviderDataDependencies`](CallOptionsWithProviderDataDependencies.md)\<`C`, `ICK`\> \| [`CallOptionsWithPrivateState`](CallOptionsWithPrivateState.md)\<`C`, `ICK`\>
+> **CallOptions**\<`C`, `PCK`\> = [`CallOptionsWithProviderDataDependencies`](CallOptionsWithProviderDataDependencies.md)\<`C`, `PCK`\> \| [`CallOptionsWithPrivateState`](CallOptionsWithPrivateState.md)\<`C`, `PCK`\>
 
 Call options for a given contract and circuit.
 
@@ -14,8 +14,8 @@ Call options for a given contract and circuit.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>

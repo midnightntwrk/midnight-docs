@@ -1,16 +1,18 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v8.0.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / GatherResult
+[@midnight/ledger](../globals.md) / GatherResult
 
-# Type alias: GatherResult
+# Type Alias: GatherResult
 
 ```ts
-type GatherResult: {
+type GatherResult = 
+  | {
   content: AlignedValue;
   tag: "read";
-  } | {
+}
+  | {
   content: EncodedStateValue;
   tag: "log";
 };

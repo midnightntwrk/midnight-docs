@@ -1,6 +1,6 @@
-# On-Chain runtime API
+# Onchain Runtime API
 
-**@midnight-ntwrk/onchain-runtime v0.2.2** • Readme \| [API](globals.md)
+**@midnight-ntwrk/onchain-runtime v3.0.0**
 
 ***
 

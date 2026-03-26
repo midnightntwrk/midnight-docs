@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / ContractProviders
 
-# Type Alias: ContractProviders\<C, ICK, PS\>
+# Type Alias: ContractProviders\<C, PCK, PS\>
 
-> **ContractProviders**\<`C`, `ICK`, `PS`\> = [`MidnightProviders`](../../midnight-js-types/interfaces/MidnightProviders.md)\<`ICK`, [`PrivateStateId`](../../midnight-js-types/type-aliases/PrivateStateId.md), `PS`\>
+> **ContractProviders**\<`C`, `PCK`, `PS`\> = `MidnightProviders`\<`PCK`, `PrivateStateId`, `PS`\>
 
 Convenience type for representing the set of providers necessary to use
 a given contract.
@@ -15,12 +15,12 @@ a given contract.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md) = [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any` = `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\> = [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\> = `Contract.ProvableCircuitId`\<`C`\>
 
 ### PS
 
-`PS` = [`PrivateState`](../../midnight-js-types/type-aliases/PrivateState.md)\<`C`\>
+`PS` = `Contract.PrivateState`\<`C`\>
