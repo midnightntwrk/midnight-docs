@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -12,7 +12,7 @@ Options for importing signing keys.
 
 ### conflictStrategy?
 
-> `readonly` `optional` **conflictStrategy**: `"error"` \| `"skip"` \| `"overwrite"`
+> `readonly` `optional` **conflictStrategy?**: `"error"` \| `"skip"` \| `"overwrite"`
 
 How to handle conflicts when a signing key already exists for an address.
 - 'skip': Keep existing key, ignore imported key
@@ -24,7 +24,7 @@ Default: 'error'
 
 ### maxKeys?
 
-> `readonly` `optional` **maxKeys**: `number`
+> `readonly` `optional` **maxKeys?**: `number`
 
 Maximum number of keys to import.
 Defaults to MAX_EXPORT_SIGNING_KEYS (10000).
@@ -34,7 +34,7 @@ Set to a lower value to limit memory usage.
 
 ### password?
 
-> `readonly` `optional` **password**: `string`
+> `readonly` `optional` **password?**: `string`
 
 Password used to decrypt the import.
 Must match the password used during export.

@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -10,7 +10,7 @@ Retrieves ZK artifacts from a remote source.
 
 ## Extends
 
-- `ZKConfigProvider`\<`K`\>
+- [`ZKConfigProvider`](#)\<`K`\>
 
 ## Type Parameters
 
@@ -74,7 +74,7 @@ The endpoint to query for ZK artifacts.
 
 > **get**(`circuitId`): `Promise`\<`ZKConfig`\<`K`\>\>
 
-Retrieves all zero-knowledge artifacts produced by `compact` compiler for the given circuit.
+Retrieves all zero-knowledge artifacts produced by `compactc` compiler for the given circuit.
 
 #### Parameters
 
@@ -98,7 +98,7 @@ The circuit ID of the artifacts to retrieve.
 
 > **getProverKey**(`circuitId`): `Promise`\<`ProverKey`\>
 
-Retrieves the prover key produced by `compact` compiler for the given circuit.
+Retrieves the prover key produced by `compactc` compiler for the given circuit.
 
 #### Parameters
 
@@ -122,7 +122,7 @@ The circuit ID of the prover key to retrieve.
 
 > **getVerifierKey**(`circuitId`): `Promise`\<`VerifierKey`\>
 
-Retrieves the verifier key produced by `compact` compiler for the given circuit.
+Retrieves the verifier key produced by `compactc` compiler for the given circuit.
 
 #### Parameters
 
@@ -146,7 +146,7 @@ The circuit ID of the verifier key to retrieve.
 
 > **getVerifierKeys**(`circuitIds`): `Promise`\<\[`K`, `VerifierKey`\][]\>
 
-Retrieves the verifier keys produced by `compact` compiler for the given circuits.
+Retrieves the verifier keys produced by `compactc` compiler for the given circuits.
 
 #### Parameters
 
@@ -170,7 +170,7 @@ The circuit IDs of the verifier keys to retrieve.
 
 > **getZKIR**(`circuitId`): `Promise`\<`ZKIR`\>
 
-Retrieves the zero-knowledge intermediate representation produced by `compact` compiler for the given circuit.
+Retrieves the zero-knowledge intermediate representation produced by `compactc` compiler for the given circuit.
 
 #### Parameters
 

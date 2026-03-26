@@ -1,18 +1,18 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-types](../README.md) / MidnightProviders
 
-# Interface: MidnightProviders\<ICK, PSI, PS\>
+# Interface: MidnightProviders\<PCK, PSI, PS\>
 
 Set of providers needed for transaction construction and submission.
 
 ## Type Parameters
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`Contract.Any`\> = `Contract.ImpureCircuitId`\<`Contract.Any`\>
+`PCK` *extends* [`AnyProvableCircuitId`](../type-aliases/AnyProvableCircuitId.md) = [`AnyProvableCircuitId`](../type-aliases/AnyProvableCircuitId.md)
 
 A union of string literal types representing the callable circuits.
 
@@ -32,7 +32,7 @@ Parameter indicating the private state type stored, sometimes a union of private
 
 ### loggerProvider?
 
-> `readonly` `optional` **loggerProvider**: [`LoggerProvider`](LoggerProvider.md)
+> `readonly` `optional` **loggerProvider?**: [`LoggerProvider`](LoggerProvider.md)
 
 An optional logger that provides utilities for logging at given levels.
 
@@ -80,6 +80,6 @@ Creates proven, balanced transactions.
 
 ### zkConfigProvider
 
-> `readonly` **zkConfigProvider**: [`ZKConfigProvider`](../classes/ZKConfigProvider.md)\<`ICK`\>
+> `readonly` **zkConfigProvider**: [`ZKConfigProvider`](../classes/ZKConfigProvider.md)\<`PCK`\>
 
 Retrieves the ZK artifacts of a contract needed to create proofs.

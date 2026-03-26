@@ -1,6 +1,6 @@
 # Midnight DApp connector API
 
-**@midnight-ntwrk/dapp-connector-api v4.0.0**
+**@midnight-ntwrk/dapp-connector-api v4.0.1**
 
 ***
 
@@ -52,7 +52,7 @@ try {
 }
 ```
 
-## Get information about the wallet before connection
+## Retrieve wallet details before connection
 
 Before establishing a connection, you can access basic wallet information such as the wallet name, icon, and API version.
 
@@ -151,7 +151,7 @@ If a DApp needs to initiate a payment, `makeTransfer` is the right method to use
 For more details, see the [InitActions type documentation](type-aliases/InitActions.md).
 
 ```ts
-import {nativeToken} from '@midnight-ntwrk/ledger'
+import {nativeToken} from '@midnight-ntwrk/ledger-v8'
 
 try {
   const connected = await window.midnight.{selectedWalletId}.connect();
@@ -233,7 +233,7 @@ async function connect(): Promise<ConnectedAPI> {
 This example demonstrates how to initiate a transfer of 10 Night tokens to a specific unshielded address. The transaction is created using `makeTransfer` and then submitted to the network.
 
 ```ts
-import { nativeToken } from '@midnight-ntwrk/ledger-v7';
+import { nativeToken } from '@midnight-ntwrk/ledger-v8';
 
 const connectedWallet = await connect();
 const tx = await connectedWallet.makeTransfer([{
@@ -252,7 +252,7 @@ This example shows a two-party swap where Party #1 creates an unbalanced transac
 
 ```ts
 // Party #1
-import { nativeToken } from '@midnight-ntwrk/ledger-v7';
+import { nativeToken } from '@midnight-ntwrk/ledger-v8';
 
 declare function getFooTokenType(): TokenType;
 
@@ -287,7 +287,7 @@ This example demonstrates how to delegate Zero Knowledge (ZK) proof generation t
 
 ```ts
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
-import { Transaction } from '@midnight-ntwrk/ledger-v7';
+import { Transaction } from '@midnight-ntwrk/ledger-v8';
 
 const keyMaterialProvider = new FetchZkConfigProvider('https://example.com');
 
