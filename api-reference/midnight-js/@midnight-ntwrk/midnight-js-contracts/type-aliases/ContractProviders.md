@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / ContractProviders
 
-# Type Alias: ContractProviders\<C, ICK, PS\>
+# Type Alias: ContractProviders\<C, PCK, PS\>
 
-> **ContractProviders**\<`C`, `ICK`, `PS`\> = `MidnightProviders`\<`ICK`, `PrivateStateId`, `PS`\>
+> **ContractProviders**\<`C`, `PCK`, `PS`\> = `MidnightProviders`\<`PCK`, `PrivateStateId`, `PS`\>
 
 Convenience type for representing the set of providers necessary to use
 a given contract.
@@ -17,9 +17,9 @@ a given contract.
 
 `C` *extends* `Contract.Any` = `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\> = `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\> = `Contract.ProvableCircuitId`\<`C`\>
 
 ### PS
 

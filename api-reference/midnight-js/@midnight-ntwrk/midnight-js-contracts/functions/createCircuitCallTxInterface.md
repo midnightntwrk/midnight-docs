@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -38,9 +38,9 @@ The ledger address of the contract.
 
 ### privateStateId
 
-The identifier of the state of the witnesses of the contract.
+`string` \| `undefined`
 
-`string` | `undefined`
+The identifier of the state of the witnesses of the contract.
 
 ## Returns
 

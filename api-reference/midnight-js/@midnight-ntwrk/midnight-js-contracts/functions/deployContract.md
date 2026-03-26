@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -36,7 +36,7 @@ DeployTxFailedError If the transaction is submitted successfully but produces an
 
 #### providers
 
-[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `ImpureCircuitId`\<`C`\>, `unknown`\>
+[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `ProvableCircuitId`\<`C`\>, `unknown`\>
 
 #### options
 
