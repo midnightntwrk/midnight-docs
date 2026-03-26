@@ -1,19 +1,17 @@
-# Midnight Indexer API v3
+# Midnight Indexer API v4
 
-The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data—blocks, transactions, contracts, DUST generation, and shielded/unshielded transaction events—indexed from the Midnight blockchain. These capabilities facilitate both historical lookups and real-time monitoring.
+The Midnight Indexer API exposes a GraphQL API that enables clients to query and subscribe to blockchain data—blocks, transactions, contracts, DUST generation, and shielded/unshielded transaction events, indexed from the Midnight blockchain. These capabilities facilitate both historical lookups and real-time monitoring.
 
 ## Version information
-- **Current API version**: v3.
-- Previous version v1 redirects to v3 automatically.
-- Version v2 was skipped during migration.
+- **Current API version**: v4.
 
 :::warning Disclaimer
-The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
+The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v4.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/4.0.1/indexer-api/graphql/schema-v4.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
 :::
 
 ## GraphQL schema
 
-The GraphQL schema is defined in [`indexer-api/graphql/schema-v3.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
+The GraphQL schema is defined in [`indexer-api/graphql/schema-v4.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/4.0.1/indexer-api/graphql/schema-v4.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
 
 ## Overview of operations
 
@@ -46,7 +44,7 @@ The Midnight Indexer API provides two types of endpoints for different use cases
 Use the HTTP endpoint for one-time queries and mutations. This endpoint supports standard GraphQL queries for fetching data and mutations for managing wallet sessions.
 
 ```shell
-POST https://<host>:<port>/api/v3/graphql
+POST https://<host>:<port>/api/v4/graphql
 Content-Type: application/json
 ```
 
@@ -55,7 +53,7 @@ Content-Type: application/json
 Use the WebSocket endpoint for real-time data streaming. This endpoint enables subscriptions to blocks, transactions, and other events as they occur on the blockchain.
 
 ```shell
-wss://<host>:<port>/api/v3/graphql/ws
+wss://<host>:<port>/api/v4/graphql/ws
 Sec-WebSocket-Protocol: graphql-transport-ws
 ```
 
@@ -545,7 +543,7 @@ mutation {
 }
 ```
 
-## Subscriptions: Real-time Updates
+## Subscriptions: Real-time updates
 
 Subscriptions use a WebSocket connection following the [GraphQL over WebSocket](https://github.com/enisdenjo/graphql-ws/blob/master/PROTOCOL.md) protocol. After connecting and sending a `connection_init` message, the client can start subscription operations.
 
@@ -754,6 +752,6 @@ This ensures the schema file stays aligned with code changes.
 
 If migrating from API v1, follow these steps:
 
-1. Update endpoint URLs from `/v1/graphql` to `/v3/graphql` (though v1 redirects automatically).
+1. Update endpoint URLs from `/v1/graphql` to `/v4/graphql` (though v1 redirects automatically).
 2. Review field name changes (for example, `chainState` → `zswapState` in contract actions).
 3. Test thoroughly, because some response structures might have changed.
