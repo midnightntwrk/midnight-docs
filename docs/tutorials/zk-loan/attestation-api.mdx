@@ -1,0 +1,530 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Attestation API"
+title: "Attestation API"
+description: "Build the attestation API and proof server for the zero-knowledge loan DApp on Midnight Network."
+sidebar_position: 20
+toc_max_heading_level: 2
+tags: [tutorials, advanced, zero-knowledge, loan, dapp]
+---
+
+# Attestation API
+
+A smart contract that nobody can talk to is just a proof of concept sitting in a compiler's output directory.
+
+In Part 1, you wrote a Compact smart contract that evaluates loan eligibility within a zero-knowledge circuit. Credit scores, income, and employment tenure remain private, while only the loan outcome lands on-chain. You also built the Schnorr signature module that prevents users from fabricating their own credit data, and the TypeScript witness that feeds private inputs to the prover.
+
+But right now, that smart contract has no way to receive signed credit data or generate zero-knowledge proofs. This part builds the two pieces of off-chain infrastructure that make the smart contract functional:
+
+1.  **Attestation API**: A REST server that signs credit data with Schnorr signatures on the Jubjub curve. It acts as the trusted data provider (a stand-in for a bank or credit bureau) whose signatures the smart contract verifies inside the zero-knowledge circuit.
+
+2.  **Proof server**: A Docker container running Midnight's proof generation service locally. Every transaction that touches the smart contract requires a zero-knowledge proof, and this service produces them.
+
+You also walk through the **attestation flow** end-to-end — how credit data moves from the attestation API into the zero-knowledge proof without ever appearing on-chain.
+
+**Prerequisites**: Make sure you have completed Part 1 and have the compiled smart contract package ready in the `contract/dist/` directory.
+
+## Building the attestation API
+
+The attestation API is a trusted service that signs credit data with Schnorr signatures. In production, this would be a bank or credit bureau's API. For this tutorial, the REST server is built with Restify.
+
+The API has three endpoints:
+
+*   `POST /attest`: Accepts credit data and a user's public key hash, returns a Schnorr signature
+
+*   `GET /provider-info`: Returns the provider's ID and public key (needed to register the provider on-chain)
+
+*   `GET /health`: Returns the server's status
+
+### Type definitions
+
+Start by defining the request and response shapes. Create a file `types.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
+
+```typescript
+export interface AttestationRequest {
+  creditScore: number;
+  monthlyIncome: number;
+  monthsAsCustomer: number;
+  userPubKeyHash: string;
+}
+
+export interface AttestationResponse {
+  signature: {
+    announcement: { x: string; y: string };
+    response: string;
+  };
+  message: {
+    creditScore: string;
+    monthlyIncome: string;
+    monthsAsCustomer: string;
+    userPubKeyHash: string;
+  };
+}
+
+export interface ProviderInfoResponse {
+  providerId: number;
+  publicKey: { x: string; y: string };
+}
+
+export interface HealthResponse {
+  status: string;
+  providerId: number;
+}
+```
+
+A few things to note about these types:
+
+*   `AttestationRequest` takes numeric credit data and a stringified `userPubKeyHash`. The hash is a `bigint` under the hood, but JSON does not support arbitrary-precision integers, so it is serialized as a string.
+
+*   `AttestationResponse` returns the Schnorr signature components (announcement point and scalar response) as strings for the same reason.
+
+*   The `message` field echoes back the signed data, allowing the caller to verify the signature.
+
+### Schnorr signing implementation
+
+This is where the cryptography happens. The signing module generates key pairs and produces Schnorr signatures that the on-chain smart contract can verify.
+
+Create a file `signing.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
+
+```typescript
+import {
+  ecMulGenerator,
+  type NativePoint,
+} from "@midnight-ntwrk/compact-runtime";
+import { ZKLoanCreditScorer } from "zkloan-credit-scorer-contract";
+const { pureCircuits } = ZKLoanCreditScorer;
+
+type SchnorrSignature = {
+  announcement: NativePoint;
+  response: bigint;
+};
+import * as crypto from "crypto";
+
+const JUBJUB_ORDER =
+  6554484396890773809930967563523245729705921265872317281365359162392183254199n;
+const TWO_248 =
+  452312848583266388373324160190187140051835877600158453279131187530910662656n;
+
+function randomScalar(): bigint {
+  const bytes = crypto.randomBytes(32);
+  let val = BigInt("0x" + bytes.toString("hex"));
+  return val % JUBJUB_ORDER;
+}
+
+export function generateKeyPair(): { sk: bigint; pk: NativePoint } {
+  const sk = randomScalar();
+  const pk = ecMulGenerator(sk);
+  return { sk, pk };
+}
+
+export function getPublicKey(sk: bigint): NativePoint {
+  return ecMulGenerator(sk);
+}
+
+export function sign(sk: bigint, msg: bigint[]): SchnorrSignature {
+  const pk = ecMulGenerator(sk);
+  const k = randomScalar();
+  const R = ecMulGenerator(k);
+  const cFull = pureCircuits.schnorrChallenge(R.x, R.y, pk.x, pk.y, msg);
+  const c = cFull % TWO_248;
+  const s = (((k + c * sk) % JUBJUB_ORDER) + JUBJUB_ORDER) % JUBJUB_ORDER;
+  return { announcement: R, response: s };
+}
+
+export function signCreditData(
+  sk: bigint,
+  creditScore: number,
+  monthlyIncome: number,
+  monthsAsCustomer: number,
+  userPubKeyHash: bigint,
+): SchnorrSignature {
+  const msg: bigint[] = [
+    BigInt(creditScore),
+    BigInt(monthlyIncome),
+    BigInt(monthsAsCustomer),
+    userPubKeyHash,
+  ];
+  return sign(sk, msg);
+}
+```
+
+#### How the signing works
+
+The signing uses the **Jubjub elliptic curve** (Midnight's native internal curve). Here is the Schnorr signing flow, step by step:
+
+1.  Generate a random nonce `k`
+
+2.  Compute the announcement `R = G * k` (where G is the curve generator)
+
+3.  Compute the challenge hash using `pureCircuits.schnorrChallenge()` — **this is the same hash function the smart contract uses**, which is critical for the signature to verify on-chain
+
+4.  Truncate the challenge to 248 bits: `c = cFull % 2^248`
+
+5.  Compute the response: `s = (k + c * sk) mod JUBJUB_ORDER`
+
+The resulting signature is `(R, s)`. The smart contract verifies it by checking: `G * s == R + publicKey * c`.
+
+The critical detail is step 3. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` that you wrote in Part 1. Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the zero-knowledge circuit. If a different hash were used, every signature would fail verification.
+
+The `signCreditData` function is a convenience wrapper. It takes the four credit data fields (credit score, monthly income, months as customer, and the user public key hash). It converts them to `bigint` and passes them to the generic `sign` function.
+
+### REST server
+
+The server exposes the three endpoints and wires them to the signing logic.
+
+Create `zkloan-credit-scorer-attestation-api/src/server.ts`:
+
+```typescript
+import restify from 'restify';
+import { signCreditData, getPublicKey } from './signing.js';
+import type {
+  AttestationRequest,
+  AttestationResponse,
+  ProviderInfoResponse,
+  HealthResponse,
+} from './types.js';
+import type { NativePoint } from '@midnight-ntwrk/compact-runtime';
+
+export function createServer(
+  providerSk: bigint,
+  providerId: number,
+): restify.Server {
+  const server = restify.createServer({ name: 'zkloan-attestation-api' });
+  server.use(restify.plugins.bodyParser());
+
+  server.pre(
+    (req: restify.Request, res: restify.Response, next: restify.Next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type');
+      if (req.method === 'OPTIONS') {
+        res.send(204);
+        return next(false);
+      }
+      return next();
+    },
+  );
+
+  const providerPk: NativePoint = getPublicKey(providerSk);
+
+  server.post(
+    '/attest',
+    (req: restify.Request, res: restify.Response, next: restify.Next) => {
+      try {
+        const body = req.body as AttestationRequest;
+
+        if (
+          body.creditScore == null ||
+          body.monthlyIncome == null ||
+          body.monthsAsCustomer == null ||
+          body.userPubKeyHash == null
+        ) {
+          res.send(400, {
+            error:
+              'Missing required fields: creditScore, monthlyIncome, monthsAsCustomer, userPubKeyHash',
+          });
+          return next();
+        }
+
+        const userPubKeyHash = BigInt(body.userPubKeyHash);
+
+        const signature = signCreditData(
+          providerSk,
+          body.creditScore,
+          body.monthlyIncome,
+          body.monthsAsCustomer,
+          userPubKeyHash,
+        );
+
+        const response: AttestationResponse = {
+          signature: {
+            announcement: {
+              x: signature.announcement.x.toString(),
+              y: signature.announcement.y.toString(),
+            },
+            response: signature.response.toString(),
+          },
+          message: {
+            creditScore: body.creditScore.toString(),
+            monthlyIncome: body.monthlyIncome.toString(),
+            monthsAsCustomer: body.monthsAsCustomer.toString(),
+            userPubKeyHash: userPubKeyHash.toString(),
+          },
+        };
+
+        res.send(200, response);
+      } catch (err: any) {
+        res.send(500, { error: err.message });
+      }
+      return next();
+    },
+  );
+
+  server.get(
+    '/provider-info',
+    (_req: restify.Request, res: restify.Response, next: restify.Next) => {
+      const response: ProviderInfoResponse = {
+        providerId,
+        publicKey: {
+          x: providerPk.x.toString(),
+          y: providerPk.y.toString(),
+        },
+      };
+      res.send(200, response);
+      return next();
+    },
+  );
+
+  server.get(
+    '/health',
+    (_req: restify.Request, res: restify.Response, next: restify.Next) => {
+      const response: HealthResponse = {
+        status: 'ok',
+        providerId,
+      };
+      res.send(200, response);
+      return next();
+    },
+  );
+
+  return server;
+}
+```
+
+Here is what each endpoint does:
+
+*   `POST /attest` is the core endpoint. It receives credit data and a user public key hash, signs the data with the provider's secret key, and returns the Schnorr signature. The `userPubKeyHash` is included in the signed message — this binds the attestation to a specific user identity, preventing one user from replaying another user's attestation.
+
+*   `GET /provider-info` returns the provider's ID and public key coordinates. The CLI uses this endpoint to get the values needed for on-chain provider registration.
+
+*   `GET /health` is a standard health check.
+
+### Entry point
+
+The entry point handles key management and starts the server.
+
+Create a file `index.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
+
+```typescript
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { createServer } from './server.js';
+import { generateKeyPair, getPublicKey } from './signing.js';
+
+setNetworkId(process.env.NETWORK_ID || 'preprod');
+
+const PORT = parseInt(process.env.PORT || '4000', 10);
+const PROVIDER_ID = parseInt(process.env.PROVIDER_ID || '1', 10);
+
+let providerSk: bigint;
+
+if (process.env.PROVIDER_SECRET_KEY) {
+  providerSk = BigInt('0x' + process.env.PROVIDER_SECRET_KEY);
+  console.log('Loaded provider secret key from environment');
+} else {
+  const keyPair = generateKeyPair();
+  providerSk = keyPair.sk;
+  console.log('Generated ephemeral provider key pair');
+}
+
+const pk = getPublicKey(providerSk);
+console.log(`Provider ID: ${PROVIDER_ID}`);
+console.log(`Provider public key:`);
+console.log(`  x: ${pk.x}`);
+console.log(`  y: ${pk.y}`);
+console.log(
+  `Register this provider on-chain with: registerProvider(${PROVIDER_ID}, {x: ${pk.x}n, y: ${pk.y}n})`,
+);
+
+const server = createServer(providerSk, PROVIDER_ID);
+server.listen(PORT, () => {
+  console.log(`Attestation API listening on port ${PORT}`);
+});
+```
+
+The entry point supports two modes:
+
+*   **Ephemeral mode** (default): Generates a fresh key pair on startup. This is useful for development and testing, but the key changes every time you restart the server. You need to re-register the provider on-chain after each restart.
+
+*   **Persistent mode**: Set the `PROVIDER_SECRET_KEY` environment variable to a hex-encoded secret key. The server loads this key on startup, so the public key stays the same across restarts.
+
+When the server starts, it prints the provider's public key coordinates and a ready-made `registerProvider` command. Copy these values — you need them in Part 3 when registering the provider through the CLI.
+
+### Package configuration
+
+Create a `package.json` file inside the root `zkloan-credit-scorer-attestation-api` folder and add the following code snippet:
+
+```json
+{
+  "name": "zkloan-credit-scorer-attestation-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "zkloan-credit-scorer-contract": "0.1.0",
+    "@midnight-ntwrk/compact-runtime": "0.14.0",
+    "@midnight-ntwrk/midnight-js-network-id": "3.0.0",
+    "restify": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/restify": "^8.5.12",
+    "tsx": "^4.19.0"
+  }
+}
+```
+
+Next, create `zkloan-credit-scorer-attestation-api/tsconfig.json` with the following code snippet:
+
+```json
+{
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "lib": ["ESNext"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}
+```
+
+## Understanding the attestation flow
+
+With the API built, here is how attestation works end-to-end across all three components:
+
+```plaintext
+┌──────────┐     ┌────────────────┐     ┌───────────────┐
+│   User   │     │ Attestation    │     │   Midnight    │
+│  (CLI)   │     │    API         │     │   Network     │
+└────┬─────┘     └───────┬────────┘     └───────┬───────┘
+     │                   │                      │
+     │  1. Admin registers provider PK on-chain │
+     │──────────────────────────────────────────>│
+     │                   │                      │
+     │  2. POST /attest  │                      │
+     │  {creditScore,    │                      │
+     │   monthlyIncome,  │                      │
+     │   monthsAsCustomer│                      │
+     │   userPubKeyHash} │                      │
+     │──────────────────>│                      │
+     │                   │                      │
+     │  3. Returns signed│                      │
+     │  Schnorr signature│                      │
+     │<──────────────────│                      │
+     │                   │                      │
+     │  4. Submit loan request with signature   │
+     │  (signature in private state, never      │
+     │   visible on-chain)                      │
+     │──────────────────────────────────────────>│
+     │                   │                      │
+     │                   │  5. ZK circuit        │
+     │                   │  verifies signature   │
+     │                   │  against registered   │
+     │                   │  PK (all in zero-     │
+     │                   │  knowledge)           │
+     │                   │                      │
+     │  6. Only loan status + amount on ledger  │
+     │<─────────────────────────────────────────│
+```
+
+Here is a walkthrough of each step:
+
+**Step 1: Register the provider.** The admin calls `registerProvider` on-chain, storing the attestation API's Jubjub public key in the smart contract's `providers` map. This is the only setup step that touches the blockchain.
+
+**Step 2: Request attestation.** The CLI sends the user's credit data and the derived public-key hash to the attestation API. The CLI computes the public key hash from the user's wallet key and secret PIN using the `publicKey` pure circuit from Part 1.
+
+**Step 3: Sign and return.** The attestation API signs all four fields (credit score, monthly income, months as a customer, and user public key hash) as a single Schnorr signature. Including the public key hash in the signed message binds the attestation to a specific user; a different user cannot reuse this signature.
+
+**Step 4: Submit the loan request.** The CLI stores the signature in the user's private state and calls `requestLoan`. The signature is sent to the proof server as part of the zero-knowledge witness. It never appears in the transaction data that reaches the blockchain.
+
+**Step 5: Verify in zero-knowledge.** Inside the circuit, `evaluateApplicant` retrieves the signature from the witness, looks up the provider's public key from the ledger, and runs `schnorrVerify`. If the signature is invalid because the data was tampered with, the wrong provider signed it, or the attestation belongs to a different user, the assertion fails, and the transaction reverts.
+
+**Step 6: Record the outcome.** Only the loan status (Approved, Proposed, or Rejected) and the authorized amount are written to the ledger via `disclose()`. The credit score, income, tenure, PIN, and attestation signature remain private.
+
+This creates a two-sided privacy guarantee:
+
+*   **The user cannot lie**: The smart contract verifies the attestation provider's signature inside the circuit, so fabricated credit data fails verification.
+
+*   **The provider cannot see the outcome**: The zero-knowledge proof treats the signed data as a private input, so the attestation API has no visibility into on-chain activity.
+
+## Setting up Docker for the proof server
+
+:::note
+If you are testing with [Midnight Local Dev](https://github.com/midnightntwrk/midnight-local-dev) instead of Preprod, skip this step. The local dev environment already includes a proof server on port `6300`.
+:::
+
+The proof server generates zero-knowledge proofs for every transaction that interacts with the smart contract. For Preprod, you run it locally via Docker while the blockchain node and indexer are remote (hosted by Midnight Network).
+
+Create `zkloan-credit-scorer-cli/proof-server.yml`:
+
+```yaml
+services:
+  proof-server:
+    image: "midnightnetwork/proof-server:4.0.0"
+    command: ["midnight-proof-server --network testnet"]
+    ports:
+      - "6300:6300"
+    environment:
+      RUST_BACKTRACE: "full"
+```
+
+:::note
+The proof server image version must match your SDK version. This tutorial uses `4.0.0`. Check the [Midnight documentation](https://docs.midnight.network) for the latest compatible version.
+:::
+
+Start the proof server:
+
+```bash
+cd zkloan-credit-scorer-cli
+docker compose -f proof-server.yml up -d
+```
+
+Verify it is running:
+
+```bash
+docker compose -f proof-server.yml ps
+```
+
+You should see the `proof-server` container running on port `6300`.
+
+The proof server is the most compute-intensive component in the stack. When you submit a transaction through the CLI in Part 3, the proof server receives the circuit definition, the public inputs (ledger state), and the private inputs (witness data). It then produces a zero-knowledge proof, which is submitted to the Midnight Network. This proof demonstrates that the computation was performed correctly without revealing the private inputs.
+
+For development, running it locally via Docker is sufficient. In production, the proof server would run on dedicated infrastructure with more compute resources.
+
+## What you built in Part 2
+
+This part covered the off-chain infrastructure that connects to the smart contract:
+
+*   **Attestation API**: A REST server with Schnorr signing on the Jubjub curve, using the same challenge hash function the smart contract uses to guarantee signature compatibility.
+
+*   **Attestation flow**: The six-step process by which credit data moves from the API into a zero-knowledge proof, with privacy guarantees for both the user and the provider.
+
+*   **Proof server**: A Docker container running Midnight's proof generation service locally on port `6300`, ready to produce zero-knowledge proofs for your transactions.
+
+The attestation API can sign credit data. The proof server can generate proofs. The smart contract from Part 1 is compiled and deployed. The missing piece is the interface that ties them all together.
+
+## Coming up in Part 3
+
+In the final part, you build the CLI and run the full end-to-end flow:
+
+*   **CLI**: An interactive command-line tool for creating wallets, deploying the smart contract, registering attestation providers, requesting loans, and inspecting on-chain state on Midnight's Preprod network.
+
+*   **End-to-end testing**: Wallet creation and funding with tNIGHT, smart contract deployment, provider registration, loan requests across different eligibility tiers, and verification that only the loan outcome appears on-chain.
