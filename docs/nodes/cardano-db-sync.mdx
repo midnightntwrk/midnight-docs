@@ -3,7 +3,7 @@ title: Set up Cardano-db-sync
 sidebar_label: Set up Cardano-db-sync
 description: A reference on setting up Cardano-db-sync for Midnight. 
 keywords: [node, db-sync]
-sidebar_position: 10
+sidebar_position: 15
 tags: [node]
 ---
 
@@ -12,301 +12,374 @@ import TabItem from '@theme/TabItem';
 
 # Set up Cardano-db-sync
 
-As a [Partner Chain](https://github.com/input-output-hk/partner-chains), Midnight nodes require a persistent connection to the Cardano blockchain to track on-chain governance, cNIGHT token registrations, and permissioned candidate registrations. The Cardano-db-sync tool follows the Cardano chain, extracting information from both the blockchain and an internally maintained ledger state. This data is then inserted into a PostgreSQL database, enabling Midnight nodes to query Cardano state through SQL.
+This guide provides step-by-step instructions for setting up Cardano-db-sync for Midnight.
+
+## Prerequisites
+
+Before setting up Cardano-db-sync, ensure you have the following:
+
+* [Cardano node set up](./cardano-node) with a running node.
+* Sufficient resources (CPU, memory, and storage).
+
+## Create PostgreSQL database
+
+`Cardano-db-sync` requires a `PostgreSQL` backend to index blockchain data into a relational schema.
+
+### Install PostgreSQL
+
+Run the following commands to install PostgreSQL:
+
+```bash
+sudo apt install curl ca-certificates -y
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -s -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+sudo apt update && sudo apt -y install postgresql-17 postgresql-server-dev-17
+```
+
+### Configure roles and database
+
+Start the PostgreSQL shell:
+
+```bash
+sudo -i -u postgres psql
+```
+
+Create the user `midnight` and ensure the `midnight` user has a known password + full privileges:
+
+```sql
+CREATE USER midnight WITH PASSWORD 'your_actual_password';
+ALTER ROLE midnight WITH SUPERUSER CREATEDB;
+CREATE DATABASE cexplorer;
+```
+
+These commands securely log into PostgreSQL as admin, create the user `midnight` and ensure the `midnight` user has a known password + full privileges, and create the empty `cexplorer` database.
+
+### Configure authentication
+
+Create a `.pgpass` file to allow Cardano-db-sync to connect without manual password entry:
+
+```bash
+# Set variable for postgres password
+export POSTGRES_PASSWORD='your_actual_password'
+
+# Set the variable to a hidden file in your home directory
+export PGPASSFILE="${HOME}/.pgpass"
+```
 
 :::important
 
-All Midnight nodes require a persistent connection to a `Cardano-db-sync` instance. Cardano-db-sync must be fully synchronized before starting your Midnight node, as the node depends on this connection to function properly.
+Ensure you replace `your_actual_password` with your actual secure password.
 
 :::
 
-## System requirements
-
-:::note Operating System Requirements
-
-Linux operating systems must be compatible with GLIBC version 2.39 or greater. Use one of the following:
-
-* Ubuntu 24.04 or later
-* Debian 13 or later
-
-Verify your GLIBC version with: `ldd --version`
-
-:::
-
-### Cardano-db-sync hardware requirements
-
-| **Requirement**      | **Cardano Mainnet**                                                                                      | **Preview/Preprod Testnet**                                          |
-| -------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| **Operating System** | 64-bit Linux (Ubuntu 24.04 LTS recommended)                                                              | 64-bit Linux (Ubuntu 24.04 LTS recommended)                          |
-| **Memory**           | 32 GB or more                                                                                            | 16 GB or more                                                        |
-| **CPU Cores**        | 4 or more                                                                                                | 4 or more                                                            |
-| **IOPS**             | 60,000 IOPS or better. Lower ratings will lead to slower sync times and/or falling behind the chain tip. | 30,000 IOPS or better. Lower ratings will lead to slower sync times. |
-| **Disk Storage**     | 320 GB NVMe SSD                                                                                          | 40 GB NVMe SSD (minimum)                                             |
-| **Network**          | Stable 100 Mbps or better                                                                                | Stable 100 Mbps or better                                            |
-
-### Combined FNO system requirements
-
-If you're running both Midnight node and Cardano-db-sync on the same instance (recommended for Federated Node Operators), use these specifications to prevent resource competition:
-
-| **Component** | **Preprod (Testnet)** | **Mainnet (Minimum)** | **Mainnet (Recommended)** |
-|---------------|----------------------|----------------------|--------------------------|
-| **CPU**       | 8-16 cores (≥2.5 GHz) | 16-24 cores (≥3.0 GHz) | 24-32 cores (≥3.0 GHz)   |
-| **RAM**       | 32-64 GB             | 128 GB               | 192-256 GB               |
-| **Storage**   | 300-500 GB NVMe SSD  | 2 TB NVMe SSD        | 4 TB NVMe SSD            |
-| **IOPS**      | ≥30,000              | ≥60,000              | ≥100,000                 |
-| **Network**   | ≥100 Mbps, stable    | 500 Mbps-1 Gbps      | 1 Gbps, high uptime      |
-
-## Installation
-
-You can install Cardano-db-sync using static binaries, Nix, building from source, or Docker. This guide uses the [Docker](https://hub.docker.com/) method.
-
-:::note
-For additional information, visit the official Cardano-db-sync repository: https://github.com/IntersectMBO/Cardano-db-sync
-:::
-
-## Install Docker
-
-Install [Docker Engine](https://docs.docker.com/engine/install/) on Linux.
-
-:::note Docker Desktop users
-Docker Desktop is a graphical app, but it cannot run commands such as `docker --version`. It only provides the background Docker engine. All Midnight commands must be run in your system terminal.
-
-Before running any commands:
-
-1. Open **Docker Desktop**  
-2. Wait until it shows **“Docker is running”**  
-3. Leave Docker Desktop open — do not try to run containers from the UI  
-4. Run all commands exactly as shown in this guide from your terminal  
-:::
-
-### Verify Docker installation
-
-- Check Docker version and installation path:
-
-```shell
-docker --version # return docker version
-which docker # returns executable path
-```
-
-- Verify Docker daemon is running:
-
-```shell
-sudo systemctl status docker
-```
-
-If Docker is running, the output may look like:
-
-```shell
-● docker.service - Docker Application Container Engine
-   Loaded: loaded (/lib/systemd/system/docker.service; enabled; vendor preset: enabled)
-   Active: active (running) since Mon 2023-10-09 15:00:00 UTC; 1h 30min ago
-```
-
-## Set up Cardano-db-sync with Docker
-
-The official [Cardano-db-sync](https://github.com/IntersectMBO/cardano-db-sync) supports Docker deployment for both Preview and Preprod networks.
-
-### Create Docker Compose configuration
-
-Create a `docker-compose.yml` file with the following configuration (adjust for your target network):
-
-```yaml
-name: cardano-db-sync
-version: '3.8'
-
-services:
-  postgres:
-    image: postgres:17.2-alpine
-    environment:
-      - POSTGRES_LOGGING=true
-      - POSTGRES_DB=cexplorer
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    networks:
-      - postgres
-    ports:
-      - 5432:5432
-    volumes:
-      - postgres:/var/lib/postgresql/data
-    restart: on-failure
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    command:
-      - -c
-      - maintenance_work_mem=1GB
-      - -c
-      - max_parallel_maintenance_workers=4
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "200k"
-        max-file: "10"
-
-  cardano-node:
-    image: ghcr.io/intersectmbo/cardano-node:10.6.1
-    platform: linux/amd64
-    environment:
-      - NETWORK=${NETWORK:-preview}
-    networks:
-      - cardano-node
-    volumes:
-      - node-db:/data/db
-      - node-ipc:/ipc
-    restart: on-failure
-    healthcheck:
-      # Ping the EKG port to see if it responds.
-      # Assuming if EKG isn't up then the rest of cardano-node isn't either.
-      test: ["CMD-SHELL", "curl -f 127.0.0.1:12788 || exit 1"]
-      interval: 60s
-      timeout: 10s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "200k"
-        max-file: "10"
-
-  cardano-db-sync:
-    image: ghcr.io/intersectmbo/cardano-db-sync:13.7.0.1
-    platform: linux/amd64
-    environment:
-      - NETWORK=${NETWORK:-preview}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=cexplorer
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    depends_on:
-      # Depend on both services to be healthy before starting.
-      cardano-node:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - cardano-node
-      - postgres
-    volumes:
-      - db-sync-data:/var/lib/cexplorer
-      - node-ipc:/node-ipc
-    restart: on-failure
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "200k"
-        max-file: "10"
-
-volumes:
-  db-sync-data:
-  postgres:
-  node-db:
-  node-ipc:
-
-networks:
-  cardano-node: {}
-  postgres: {}
-  cardano-db-sync: {}
-```
-
-### Create environment file
-
-Create a `.env` file in the same directory:
+Write the connection string to the `.pgpass` file:
 
 ```bash
-# Network: preview or preprod
-NETWORK=preview
-
-# Strong PostgreSQL password (change this!)
-POSTGRES_PASSWORD=your_secure_password_here
-
-# Optional: restore from snapshot for faster sync
-# RESTORE_SNAPSHOT=https://update-cardano-mainnet.iohk.io/cardano-db-sync/index.html
+echo "/var/run/postgresql:5432:cexplorer:midnight:$POSTGRES_PASSWORD" > "$PGPASSFILE"
 ```
 
-:::important Security configuration
+Set strict permissions for the `.pgpass` file. PostgreSQL ignores the file if it's world-readable:
 
-For production deployments:
+```bash
+chmod 0600 "$PGPASSFILE"
+```
 
-* Use a strong PostgreSQL password (minimum 16 characters with mixed case, numbers, and symbols)
-* Enable SSL/TLS for PostgreSQL connections in production
-* Restrict PostgreSQL network access to localhost or specific IP addresses using firewall rules
-* Never commit the `.env` file to version control
+Run a connection test:
+
+```bash
+psql -h /var/run/postgresql -U midnight -d cexplorer -c "SELECT current_user; SELECT now();"
+```
+
+How to interpret the results:
+
+- **Success**: If successful, then it returns a table showing `midnight` and the current timestamp without asking for a password.
+- **Password Prompt**: If it asks for a password, then the `.pgpass` file isn't being read correctly. Likely a mismatch in the host, port, or database name.
+- **Access Denied**: If you get `database "cexplorer" does not exist`, then you need to create the database first.
+
+Verify the `.pgpass` file exists including contents:
+
+```bash
+cat ~/.pgpass
+```
+
+Example output:
+
+```bash
+/var/run/postgresql:5432:cexplorer:midnight:YOUR_PASSWORD
+```
+
+The `~/.pgpass` file is a configuration file used by PostgreSQL client tools such as `psql` and `pg_dump` to automatically retrieve passwords without requiring manual entry or hard-coding them in scripts.
+
+### PostgreSQL 17 configuration tuning
+
+:::important
+
+You need to optimize PostgreSQL when targeting Mainnet or else the Midnight node takes many hours to initialize.
 
 :::
 
-### Start services
+Modify your `/etc/postgresql/17/main/postgresql.conf` file:
 
-Start Cardano-db-sync and its dependencies:
+Find and update these specific lines. Remove the `#` to uncomment them:
 
-```shell
-docker compose up -d
+| Configuration | Description |
+| --- | --- |
+| `shared_buffers = 16GB` | This allows PostgreSQL to keep much more of the Cardano ledger in active memory. |
+| `maintenance_work_mem = 4GB` | This is the most important for your current "Building Index" phase. It gives the index sorter more elbow room to work. |
+| `max_parallel_maintenance_workers = 4` | This allows 4 CPU cores to collaborate on building that single index. |
+| `effective_cache_size = 48GB` | This helps the PostgreSQL planner understand how much total RAM it can rely on for caching. |
+
+## Setup Cardano-db-sync
+
+This section covers downloading and installing Cardano-db-sync binaries and config files. 
+
+### Download Cardano-db-sync binaries
+
+Set the network to either "mainnet" or "preprod":
+
+```bash
+NETWORK="preprod"
 ```
 
-## Monitor synchronization progress
+Download the Cardano-db-sync binaries and extract them into a temporary directory:
 
-Cardano-db-sync must fully synchronize with the Cardano blockchain before starting your Midnight node. Depending on the network and hardware, initial synchronization can take several hours to days.
-
-### Check synchronization status
-
-Choose one of the following methods to query synchronization progress:
-
-<Tabs>
-<TabItem value="psql" label="PostgreSQL client">
-
-Install the PostgreSQL client:
-
-```shell
-sudo apt-get install postgresql-client
+```bash
+mkdir -p ~/tmp
+cd ~/tmp
+curl -L -O https://github.com/IntersectMBO/cardano-db-sync/releases/download/13.6.0.7/cardano-db-sync-13.6.0.7-linux.tar.gz
+tar -xzf cardano-db-sync-13.6.0.7-linux.tar.gz
 ```
 
-Connect to the database:
+Move Cardano-db-sync binaries to the local bin directory:
 
-```shell
-psql -h localhost -U postgres -d cexplorer -p 5432
-```
-</TabItem>
-<TabItem value="docker" label="Docker exec">
-
-```shell
-docker compose exec postgres psql -U postgres -d cexplorer
+```bash
+mkdir -p ~/.local/bin
+cp bin/* ~/.local/bin/
+chmod +x ~/.local/bin/cardano-db-sync*
 ```
 
-</TabItem>
-<TabItem value="ssh" label="Remote SSH query">
+Verify Cardano-db-sync installation:
 
-Replace `user@x.x.x.x` with your SSH username and server IP:
-
-```shell
-ssh user@x.x.x.x -C "psql -d cexplorer -h localhost -p 5432 -U postgres -c \"SELECT 100 * (EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) / (EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))) AS sync_percent FROM block;\""
+```bash
+cardano-db-sync --version
+which cardano-db-sync
 ```
 
-</TabItem>
-</Tabs>
+Move the downloaded `db-sync` schema into the `~/cardano-data` directory:
 
-### Run synchronization query
+```bash
+mkdir -p ~/cardano-data/
+sudo mv ~/tmp/schema ~/cardano-data/
+```
 
-Once connected to the PostgreSQL shell, run this query to check the current synchronization percentage:
+Download the Cardano-db-sync config file:
+
+```bash
+cd ~/cardano-data
+curl -O https://book.world.dev.cardano.org/environments/$NETWORK/db-sync-config.json
+```
+
+Update the Cardano-db-sync config file with the Cardano node configuration file:
+
+```bash
+sed -i "s|\"NodeConfigFile\": \"config.json\"|\"NodeConfigFile\": \"/home/midnight/.local/share/$NETWORK/config.json\"|" ~/cardano-data/db-sync-config.json
+```
+
+Verify Cardano-db-sync installation:
+
+```bash
+cardano-db-sync --version
+which cardano-db-sync
+```
+
+### Download Cardano-db-sync snapshot
+
+Cardano-db-sync can take several days to reindex the chain from scratch especially if targeting Mainnet. To speed things up, use a trusted snapshot from: [https://update-cardano-mainnet.iohk.io/cardano-db-sync/index.html#13.6/](https://update-cardano-mainnet.iohk.io/cardano-db-sync/index.html#13.6/). 
+
+Download the latest Cardano-db-sync snapshot:
+
+```bash
+sudo apt update && sudo apt install pv -y
+cd ~/tmp
+wget https://update-cardano-mainnet.iohk.io/cardano-db-sync/13.6/db-sync-snapshot-schema-13.6-block-13121647-x86_64.tgz
+```
+
+Extract the snapshot:
+
+```bash
+pv db-sync-snapshot-schema-13.6-block-13121647-x86_64.tgz | tar -xf -
+```
+
+Move the `dbsync` ledger state file into the `~/cardano-data/db-sync-state` directory:
+
+```bash
+mv ~/tmp/*.lstate.gz ~/cardano-data/db-sync-state/
+```
+
+### Restore the database
+
+Restore the database from the snapshot:
+
+```bash
+pg_restore -h /var/run/postgresql -U midnight -d cexplorer -Fd ~/tmp/db -v --no-owner --no-privileges --jobs=4
+```
+
+:::important
+
+This may take a few hours but it's better than days if syncing from scratch.
+
+:::
+
+Run `htop` or `top` to monitor the `postgres` processes. You should see 4 `postgres` processes working hard (usually near the top of the list).
+
+```bash
+htop
+```
+
+You can see the actual size of the database increasing in real-time. Run this every few minutes:
+
+```bash
+sudo -u postgres psql -c "SELECT pg_size_pretty(pg_database_size('cexplorer'));"
+```
+
+Example output:
 
 ```sql
-SELECT 100 * (
-    EXTRACT(EPOCH FROM (MAX(time) AT TIME ZONE 'UTC')) -
-    EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))
-) / (
-    EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC')) -
-    EXTRACT(EPOCH FROM (MIN(time) AT TIME ZONE 'UTC'))
-) AS sync_percent
-FROM block;
+pg_size_pretty
+----------------
+60 GB
+(1 row)
 ```
 
-A result close to 100% indicates the database is fully synchronized with the Cardano blockchain.
-
-:::tip
-
-Wait for Cardano-db-sync to reach 98% or higher before starting your Midnight node. Running a Midnight node with an incomplete Cardano-db-sync connection will cause synchronization errors.
-
+:::warning
+The snapshot is around 430+ GB in size. You need to have sufficient disk space to accommodate the snapshot.
 :::
+
+You need to wait for the snapshot to be fully imported before running Cardano-db-sync.
+
+### Run Cardano-db-sync
+
+:::important
+Make sure your [Cardano node](./cardano-node) is running. Cardano-db-sync uses the Cardano database (provided by Cardano-node) to index chain.
+:::
+
+Set the environment variable for the PostgreSQL password:
+
+```bash
+export PGPASSFILE="${HOME}/.pgpass"
+```
+
+Start Cardano-db-sync interactively in shell:
+
+```bash
+cardano-db-sync \
+    --config /home/midnight/cardano-data/db-sync-config.json \
+    --socket-path /home/midnight/cardano-data/db/node.socket \
+    --schema-dir /home/midnight/cardano-data/schema \
+    --state-dir /home/midnight/cardano-data/db-sync-state
+```
+
+:::info
+Cardano-db-sync might delay for 5-20 minutes while it initializes. This is normal and expected.
+:::
+
+Check the latest block height of the `cardano-db-sync`:
+
+```bash
+psql -d cexplorer -c "SELECT block_no, slot_no, time FROM block ORDER BY id DESC LIMIT 1;"
+```
+
+Get `cardano-db-sync` sync percentage:
+
+```bash
+psql -d cexplorer -c "
+SELECT 
+    100 * (EXTRACT(epoch FROM (MAX(time) AT TIME ZONE 'UTC')) - EXTRACT(epoch FROM (MIN(time) AT TIME ZONE 'UTC'))) 
+    / (EXTRACT(epoch FROM (NOW() AT TIME ZONE 'UTC')) - EXTRACT(epoch FROM (MIN(time) AT TIME ZONE 'UTC'))) 
+AS sync_percent 
+FROM block;" 
+```
+
+Example output:
+
+```sql
+sync_percent
+------------
+45.00
+(1 row)
+```
+
+This means that the Cardano-db-sync is 45% synced. You need to wait for the sync percentage to reach at least99% before running Cardano-db-sync.
+
+:::info
+Get more interesting SQL queries from the Cardano-db-sync repository: [https://github.com/IntersectMBO/cardano-db-sync/blob/master/doc/interesting-queries.md](https://github.com/IntersectMBO/cardano-db-sync/blob/master/doc/interesting-queries.md)
+:::
+
+### Setup Cardano-db-sync `systemd` service
+
+Create the service file for the Cardano-db-sync:
+
+```bash
+sudo vim /etc/systemd/system/cardano-db-sync.service
+```
+
+Paste the following contents into the service file:
+
+```bash
+[Unit]
+Description=Cardano DB Sync
+# Ensures db-sync doesn't start until the node is ready
+After=cardano-node.service
+Requires=cardano-node.service
+
+[Service]
+User=midnight
+Type=simple
+# Crucial: Tells the tool where to find the Postgres password
+Environment="PGPASSFILE=/home/midnight/.pgpass"
+WorkingDirectory=/home/midnight/cardano-data
+ExecStart=/home/midnight/.local/bin/cardano-db-sync \
+    --config /home/midnight/cardano-data/db-sync-config.json \
+    --socket-path /home/midnight/cardano-data/db/node.socket \
+    --schema-dir /home/midnight/cardano-data/schema \
+    --state-dir /home/midnight/cardano-data/db-sync-state
+# SIGINT is the "clean" way to shut down to prevent database corruption
+KillSignal=SIGINT
+Restart=always
+RestartSec=10
+# Increases the limit for open files (important for high-throughput DBs)
+LimitNOFILE=32768
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the Cardano-db-sync service:
+
+```bash
+# Reload systemd to recognize new files
+sudo systemctl daemon-reload
+
+# Enable services to start on boot
+sudo systemctl enable cardano-db-sync
+
+# Start the services
+sudo systemctl start cardano-db-sync 
+```
+
+View the status of the Cardano-db-sync service:
+
+```bash
+sudo systemctl status cardano-db-sync
+```
+
+View live logs:
+
+```bash
+# Follow Cardano-db-sync logs
+journalctl -u cardano-db-sync -f
+```
 
 ## Next steps
 
