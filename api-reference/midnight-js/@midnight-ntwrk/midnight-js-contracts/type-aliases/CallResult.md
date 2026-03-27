@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / CallResult
 
-# Type Alias: CallResult\<C, ICK\>
+# Type Alias: CallResult\<C, PCK\>
 
-> **CallResult**\<`C`, `ICK`\> = `object`
+> **CallResult**\<`C`, `PCK`\> = `object`
 
 Contains all information resulting from circuit execution.
 
@@ -16,15 +16,15 @@ Contains all information resulting from circuit execution.
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>
 
 ## Properties
 
 ### private
 
-> `readonly` **private**: [`CallResultPrivate`](CallResultPrivate.md)\<`C`, `ICK`\>
+> `readonly` **private**: [`CallResultPrivate`](CallResultPrivate.md)\<`C`, `PCK`\>
 
 The private/sensitive data produced by the circuit execution.
 

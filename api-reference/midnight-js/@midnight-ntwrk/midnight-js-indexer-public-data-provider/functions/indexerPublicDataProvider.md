@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,9 +6,9 @@
 
 # Function: indexerPublicDataProvider()
 
-> **indexerPublicDataProvider**(`queryURL`, `subscriptionURL`, `webSocketImpl?`): `PublicDataProvider`
+> **indexerPublicDataProvider**(`queryURL`, `subscriptionURL`, `webSocketImpl?`): [`PublicDataProvider`](#)
 
-Constructs a PublicDataProvider based on an ApolloClient.
+Constructs a [PublicDataProvider](#) based on an [ApolloClient](#).
 
 ## Parameters
 
@@ -34,4 +34,4 @@ TODO: Re-examine caching when 'ContractCall' and 'ContractDeploy' have transacti
 
 ## Returns
 
-`PublicDataProvider`
+[`PublicDataProvider`](#)

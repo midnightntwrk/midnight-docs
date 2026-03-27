@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](README.md)
 
 ***
 
@@ -14,12 +14,13 @@
 - [LocalTestEnvironment](classes/LocalTestEnvironment.md)
 - [MidnightWalletProvider](classes/MidnightWalletProvider.md)
 - [NodeClient](classes/NodeClient.md)
+- [PreprodTestEnvironment](classes/PreprodTestEnvironment.md)
+- [PreviewTestEnvironment](classes/PreviewTestEnvironment.md)
 - [ProofServerClient](classes/ProofServerClient.md)
 - [QanetTestEnvironment](classes/QanetTestEnvironment.md)
 - [RemoteTestEnvironment](classes/RemoteTestEnvironment.md)
 - [StaticProofServerContainer](classes/StaticProofServerContainer.md)
 - [TestEnvironment](classes/TestEnvironment.md)
-- [Testnet2TestEnvironment](classes/Testnet2TestEnvironment.md)
 - [WalletFactory](classes/WalletFactory.md)
 - [WalletSaveStateProvider](classes/WalletSaveStateProvider.md)
 - [WalletSeeds](classes/WalletSeeds.md)

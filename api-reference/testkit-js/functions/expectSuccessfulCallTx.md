@@ -1,8 +1,8 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
-> **expectSuccessfulCallTx**\<`C`, `ICK`\>(`providers`, `callTxData`, `callTxOptions?`, `nextPrivateState?`): `Promise`\<`void`\>
+> **expectSuccessfulCallTx**\<`C`, `PCK`\>(`providers`, `callTxData`, `callTxOptions?`, `nextPrivateState?`): `Promise`\<`void`\>
 
 ## Type Parameters
 
@@ -10,23 +10,23 @@
 
 `C` *extends* `Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ## Parameters
 
 ### providers
 
-`MidnightProviders`\<`ImpureCircuitId`\<`C`\>, `string`, `unknown`\>
+`MidnightProviders`\<`ProvableCircuitId`\<`C`\>, `string`, `unknown`\>
 
 ### callTxData
 
-`FinalizedCallTxData`\<`C`, `ICK`\>
+`FinalizedCallTxData`\<`C`, `PCK`\>
 
 ### callTxOptions?
 
-`CallTxOptions`\<`C`, `ICK`\>
+`CallTxOptions`\<`C`, `PCK`\>
 
 ### nextPrivateState?
 

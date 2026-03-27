@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: createCircuitMaintenanceTxInterface()
 
-> **createCircuitMaintenanceTxInterface**\<`C`, `ICK`\>(`providers`, `circuitId`, `compiledContract`, `contractAddress`): [`CircuitMaintenanceTxInterface`](../type-aliases/CircuitMaintenanceTxInterface.md)
+> **createCircuitMaintenanceTxInterface**\<`C`, `PCK`\>(`providers`, `circuitId`, `compiledContract`, `contractAddress`): [`CircuitMaintenanceTxInterface`](../type-aliases/CircuitMaintenanceTxInterface.md)
 
 Creates a [CircuitMaintenanceTxInterface](../type-aliases/CircuitMaintenanceTxInterface.md).
 
@@ -16,21 +16,21 @@ Creates a [CircuitMaintenanceTxInterface](../type-aliases/CircuitMaintenanceTxIn
 
 `C` *extends* `Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ## Parameters
 
 ### providers
 
-[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `ICK`\>
+[`ContractProviders`](../type-aliases/ContractProviders.md)\<`C`, `PCK`\>
 
 The providers to use to create and submit transactions.
 
 ### circuitId
 
-`ICK`
+`PCK`
 
 The circuit ID the interface is for.
 

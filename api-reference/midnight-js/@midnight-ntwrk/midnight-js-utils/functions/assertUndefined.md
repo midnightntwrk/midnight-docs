@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -20,9 +20,9 @@ Asserts that the given value is null or undefined.
 
 ### value
 
-The value to test for nullability.
+`A` \| `null` \| `undefined`
 
-`A` | `null` | `undefined`
+The value to test for nullability.
 
 ### message?
 

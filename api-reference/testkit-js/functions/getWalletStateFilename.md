@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@ Generates a filename for the wallet state file based on environment and optional
 
 ### seed
 
-`string` | `undefined`
+`string` \| `undefined`
 
 ## Returns
 

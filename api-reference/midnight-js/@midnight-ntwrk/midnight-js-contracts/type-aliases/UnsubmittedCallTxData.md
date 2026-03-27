@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / UnsubmittedCallTxData
 
-# Type Alias: UnsubmittedCallTxData\<C, ICK\>
+# Type Alias: UnsubmittedCallTxData\<C, PCK\>
 
-> **UnsubmittedCallTxData**\<`C`, `ICK`\> = [`CallResult`](CallResult.md)\<`C`, `ICK`\> & `object`
+> **UnsubmittedCallTxData**\<`C`, `PCK`\> = [`CallResult`](CallResult.md)\<`C`, `PCK`\> & `object`
 
 Data for an unsubmitted call transaction.
 
@@ -24,6 +24,6 @@ Private data relevant to this call transaction.
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>

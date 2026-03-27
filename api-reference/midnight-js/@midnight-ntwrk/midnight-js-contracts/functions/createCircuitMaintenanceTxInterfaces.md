@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -27,6 +27,8 @@ The providers to use to build transactions.
 ### compiledContract
 
 `CompiledContract`\<`C`, `any`\>
+
+The contract to use to execute circuits.
 
 ### contractAddress
 

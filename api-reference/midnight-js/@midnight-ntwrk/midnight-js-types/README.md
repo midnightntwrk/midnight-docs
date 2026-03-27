@@ -1,6 +1,6 @@
 # midnight-js-types
 
-[**Midnight.js API Reference v3.1.0**](../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../README.md)
 
 ***
 
@@ -47,6 +47,8 @@
 ## Type Aliases
 
 - [All](type-aliases/All.md)
+- [AnyPrivateState](type-aliases/AnyPrivateState.md)
+- [AnyProvableCircuitId](type-aliases/AnyProvableCircuitId.md)
 - [BlockHash](type-aliases/BlockHash.md)
 - [BlockHashConfig](type-aliases/BlockHashConfig.md)
 - [BlockHeightConfig](type-aliases/BlockHeightConfig.md)
@@ -85,6 +87,7 @@
 
 - [asContractAddress](functions/asContractAddress.md)
 - [asEffectOption](functions/asEffectOption.md)
+- [createProofProvider](functions/createProofProvider.md)
 - [createProverKey](functions/createProverKey.md)
 - [createVerifierKey](functions/createVerifierKey.md)
 - [createZKIR](functions/createZKIR.md)

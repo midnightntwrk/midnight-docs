@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
@@ -12,8 +12,9 @@ Provides functionality for managing walletProviders and a proof server container
 ## Extended by
 
 - [`EnvVarRemoteTestEnvironment`](EnvVarRemoteTestEnvironment.md)
+- [`PreprodTestEnvironment`](PreprodTestEnvironment.md)
+- [`PreviewTestEnvironment`](PreviewTestEnvironment.md)
 - [`QanetTestEnvironment`](QanetTestEnvironment.md)
-- [`Testnet2TestEnvironment`](Testnet2TestEnvironment.md)
 
 ## Constructors
 
@@ -158,7 +159,7 @@ Creates and starts the specified number of wallet providers.
 
 ##### seeds?
 
-`string`[] | `undefined`
+`string`[] \| `undefined`
 
 #### Returns
 
