@@ -141,7 +141,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema: "./static/midnight-indexer/schema-v3.graphql",
+        schema: "./static/midnight-indexer/schema-v4.graphql",
         rootPath: "api-reference", // docs will be generated under './api-reference/midnight-indexer' (rootPath/baseURL)
         baseURL: "midnight-indexer",
         loaders: {

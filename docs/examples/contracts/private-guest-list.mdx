@@ -24,36 +24,46 @@ export enum PartyState {
     READY
 }
 
-export ledger organizers: Set<ZswapCoinPublicKey>;// organizers are public
+export ledger organizers: Set<Bytes<32>>;// organizers are public
 export ledger hashedPartyGoers: Set<Bytes<32>>;// participants are hashed until they arrive
 export ledger checkedInParty: Set<Bytes<32>>;
 export ledger partyState: PartyState;
 export sealed ledger maxListSize: Uint<8>;
 
 witness localStartParty(): PartyState;
+witness localSk(): Bytes<32>;
 
 constructor(){
-    // the publicKey of the caller of this function
-    organizers.insert(ownPublicKey());
+    const _sk = localSk();
+    const pubKey = publicKey(_sk);
+    organizers.insert(disclose(pubKey));
+
     partyState = PartyState.NOT_READY;
     maxListSize = 99;
 }
 
-export circuit addOrganizer(newOrganizer: ZswapCoinPublicKey): [] {
-    assert(organizers.member(ownPublicKey()), "You are not an organizer");
-    assert(!organizers.member(disclose(newOrganizer)), "You are already in the organizer list");
+export circuit addOrganizer(_organizerSk: Bytes<32>): [] {
+    const _sk = localSk();
+    const pubKey = publicKey(_sk);
+    assert(organizers.member(disclose(pubKey)), "You are not an organizer");
+
+    const newOrgPubKey = publicKey(_organizerSk);
+    assert(!organizers.member(disclose(newOrgPubKey)), "You are already in the organizer list");
     assert(partyState == PartyState.NOT_READY, "The party has already started");
     
-    organizers.insert(disclose(newOrganizer));
+    organizers.insert(disclose(newOrgPubKey));
 }
 
-export circuit addParticipant(_participantPk: Bytes<32>, _organizerSk: Bytes<32>): [] {
+export circuit addParticipant(_participantPk: Bytes<32>): [] {
     // only organizers can add party goers
-    assert(organizers.member(ownPublicKey()), "You are not an organizer");
+    const _sk = localSk();
+    const pubKey = publicKey(_sk);
+    assert(organizers.member(disclose(pubKey)), "You are not an organizer");
+
     assert(partyState == PartyState.NOT_READY, "The party has already started");
     assert(hashedPartyGoers.size() < maxListSize, "The list is full");
 
-    const participant = commitWithSk(_participantPk, _organizerSk);
+    const participant = commitWithSk(_participantPk, _sk);
     assert(!hashedPartyGoers.member(disclose(participant)), "You are already in the list");
     hashedPartyGoers.insert(disclose(participant));
 
@@ -65,17 +75,23 @@ export circuit addParticipant(_participantPk: Bytes<32>, _organizerSk: Bytes<32>
     }
 }
 
-export circuit checkIn(participantPk: Bytes<32>, _organizerSk: Bytes<32>): [] {
-    assert(organizers.member(ownPublicKey()), "You are not an organizer");
+export circuit checkIn(participantPk: Bytes<32>): [] {
+    const _sk = localSk();
+    const pubKey = publicKey(_sk);
+    assert(organizers.member(disclose(pubKey)), "You are not an organizer");
+
     assert(partyState == PartyState.READY, "The party has not started yet");
     assert(checkedInParty.size() < hashedPartyGoers.size(), "All guests have already checked in");
-    assert(hashedPartyGoers.member(commitWithSk(participantPk, _organizerSk)), "You are not on the list");
+    assert(hashedPartyGoers.member(commitWithSk(participantPk, _sk)), "You are not on the list");
 
     checkedInParty.insert(disclose(participantPk));
 }
 
 export circuit chainStartParty(): [] {
-    assert(organizers.member(ownPublicKey()), "Only organizers can start the party");
+    const _sk = localSk();
+    const pubKey = publicKey(_sk);
+    assert(organizers.member(disclose(pubKey)), "Only organizers can start the party");
+    
     assert(partyState == PartyState.NOT_READY, "The party has already started");
 
     const localPartyState = disclose(localStartParty());
@@ -84,6 +100,13 @@ export circuit chainStartParty(): [] {
 }
 
 circuit commitWithSk(_participantPk: Bytes<32>, _sk: Bytes<32>): Bytes<32> {
-    return disclose(persistentHash<Vector<2, Bytes<32>>>([_participantPk, _sk]));
+    const hash = persistentHash<Vector<2, Bytes<32>>>([_participantPk, _sk]);
+    return disclose(hash);
 }
+
+// hash a publicKey specific to this DApp so that users cannot be tracked
+export circuit publicKey(_sk: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([pad(32, "guest-list:pk:"), _sk]);
+}
+
 ```
