@@ -1,0 +1,346 @@
+# Copy release notes from product repositories into midnight-docs (similar to apis.yml).
+# Trigger manually; pick the component and either:
+#  - provide `source_url` (recommended, supports GitHub release/tag/blob URLs), or
+#  - provide `source_path` + branch for clone-based copy.
+#
+# Extend: add a `component` option, matching `branch_*` input, clone step, and a branch in the case statement
+# in "Map component → paths" and "Update DynamicList*".
+
+name: Copy release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_merge:
+        description: 'Destination branch on midnight-docs'
+        default: 'main'
+      component:
+        description: 'Which product repo / DynamicList to update'
+        type: choice
+        options:
+          - wallet
+          - ledger
+          - compact
+          - midnight-js
+          - node
+          - midnight-indexer
+          - dapp-connector-api
+          - proof-server
+          - onchain-runtime
+          - compact-js
+      branch_wallet:
+        description: 'wallet: branch'
+        default: 'main'
+      branch_ledger:
+        description: 'ledger: branch'
+        default: 'main'
+      branch_compact:
+        description: 'compact: branch'
+        default: 'release/midnight'
+      branch_midnight_js:
+        description: 'midnight-js: branch'
+        default: 'main'
+      branch_node:
+        description: 'node: branch'
+        default: 'main'
+      branch_midnight_indexer:
+        description: 'midnight-indexer: branch'
+        default: 'main'
+      branch_dapp_connector_api:
+        description: 'dapp-connector-api: branch'
+        default: 'main'
+      branch_proof_server:
+        description: 'proof-server: branch'
+        default: 'main'
+      branch_onchain_runtime:
+        description: 'onchain-runtime: branch (often midnight-ledger repo)'
+        default: 'main'
+      branch_compact_js:
+        description: 'compact-js: branch/tag (e.g. cjs-2.5.0)'
+        default: 'cjs-2.5.0'
+      source_url:
+        description: 'Optional source URL to release notes (supports raw.githubusercontent.com and github.com release/tag/blob/tree URLs)'
+        required: false
+        default: ''
+        type: string
+      source_path:
+        description: 'Optional path to the release notes .md inside the cloned repo (used when source_url is empty)'
+        required: false
+        default: ''
+        type: string
+      version:
+        description: 'Version for DynamicList (e.g. 2.0.0 or v2.0.0)'
+        required: true
+        type: string
+      compact_language_version:
+        description: "Only when component is compact: language version (e.g. v0.22.0 or 0.22.0). Ignored for other components."
+        required: false
+        default: ''
+        type: string
+      pr_title:
+        description: 'PR title'
+        default: 'Copy release notes from product repository'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  copy_release_notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout midnight-docs
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          path: ${{ github.workspace }}
+          ref: ${{ github.event.inputs.branch_merge }}
+
+      - name: Git config
+        run: |
+          git config --global user.email "midnight-ci@users.noreply.github.com"
+          git config --global user.name "Midnight CI GitHub Action"
+          git config --global url.https://${{ secrets.GH_TOKEN }}@github.com/.insteadOf https://github.com/
+
+      - name: Clone wallet
+        if: ${{ github.event.inputs.component == 'wallet' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_wallet }} https://github.com/midnightntwrk/midnight-wallet.git
+
+      - name: Clone ledger
+        if: ${{ github.event.inputs.component == 'ledger' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_ledger }} https://github.com/midnightntwrk/midnight-ledger.git
+
+      - name: Clone compact
+        if: ${{ github.event.inputs.component == 'compact' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_compact }} https://github.com/midnightntwrk/compact.git
+
+      - name: Clone midnight-js
+        if: ${{ github.event.inputs.component == 'midnight-js' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_midnight_js }} https://github.com/midnightntwrk/midnight-js.git
+
+      - name: Clone node
+        if: ${{ github.event.inputs.component == 'node' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_node }} https://github.com/midnightntwrk/midnight-node.git
+
+      - name: Clone midnight-indexer
+        if: ${{ github.event.inputs.component == 'midnight-indexer' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_midnight_indexer }} https://github.com/midnightntwrk/midnight-indexer.git
+
+      - name: Clone dapp-connector-api
+        if: ${{ github.event.inputs.component == 'dapp-connector-api' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_dapp_connector_api }} https://github.com/midnightntwrk/midnight-dapp-connector-api.git
+
+      - name: Clone onchain-runtime (midnight-ledger)
+        if: ${{ github.event.inputs.component == 'onchain-runtime' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_onchain_runtime }} https://github.com/midnightntwrk/midnight-ledger.git
+
+      - name: Clone compact-js
+        if: ${{ github.event.inputs.component == 'compact-js' }}
+        run: |
+          mkdir -p ./temp && cd ./temp
+          git clone --branch ${{ github.event.inputs.branch_compact_js }} https://github.com/midnightntwrk/midnight-sdk.git
+
+      - name: Copy release notes into docs
+        id: copy
+        run: |
+          set -euo pipefail
+          COMPONENT="${{ github.event.inputs.component }}"
+          SRC_REL="${{ github.event.inputs.source_path }}"
+          SRC_URL="${{ github.event.inputs.source_url }}"
+          SRC=""
+
+          # Resolve source: URL (preferred) or clone path.
+          if [ -n "$SRC_URL" ]; then
+            mkdir -p temp
+            TMP_SOURCE="temp/source-release-notes.md"
+            RAW_URL="$SRC_URL"
+            case "$SRC_URL" in
+              https://raw.githubusercontent.com/*)
+                RAW_URL="$SRC_URL"
+                ;;
+              https://github.com/*/releases/tag/*)
+                # Fetch release notes body from GitHub Releases API.
+                OWNER_REPO=$(echo "$SRC_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/releases/tag/.*$|\1|')
+                TAG=$(echo "$SRC_URL" | sed -E 's|^https://github.com/[^/]+/[^/]+/releases/tag/(.*)$|\1|')
+                gh api "repos/${OWNER_REPO}/releases/tags/${TAG}" --jq '.body' > "$TMP_SOURCE"
+                ;;
+              https://github.com/*/blob/*)
+                RAW_URL=$(echo "$SRC_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/blob/([^/]+)/(.*)$|https://raw.githubusercontent.com/\1/\2/\3|')
+                ;;
+              https://github.com/*/tree/*)
+                # Used by compact-js style URLs. Build RELEASE_NOTES.md from repo/tree root.
+                TREE_RAW=$(echo "$SRC_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/tree/([^/]+)/(.*)$|https://raw.githubusercontent.com/\1/\2/\3|')
+                RAW_URL="${TREE_RAW}/RELEASE_NOTES.md"
+                ;;
+            esac
+            curl -fsSL "$RAW_URL" -o "$TMP_SOURCE"
+            SRC="$TMP_SOURCE"
+          fi
+
+          if [ -z "$SRC" ] && [ -z "$SRC_REL" ]; then
+            echo "One of source_url or source_path is required."
+            exit 1
+          fi
+
+          if [ -z "$SRC" ]; then
+            # Repo folder name after clone (must match clone URLs above)
+            case "$COMPONENT" in
+              wallet) REPO_DIR="midnight-wallet" ;;
+              ledger) REPO_DIR="midnight-ledger" ;;
+              compact) REPO_DIR="compact" ;;
+              midnight-js) REPO_DIR="midnight-js" ;;
+              node) REPO_DIR="midnight-node" ;;
+              midnight-indexer) REPO_DIR="midnight-indexer" ;;
+              dapp-connector-api) REPO_DIR="midnight-dapp-connector-api" ;;
+              proof-server) REPO_DIR="midnight-ledger" ;;
+              onchain-runtime) REPO_DIR="midnight-ledger" ;;
+              compact-js) REPO_DIR="midnight-sdk" ;;
+              *) echo "Unknown component: $COMPONENT"; exit 1 ;;
+            esac
+            SRC="temp/${REPO_DIR}/${SRC_REL}"
+          fi
+          if [ ! -f "$SRC" ]; then
+            echo "Source file not found: $SRC"
+            exit 1
+          fi
+          BASENAME_INPUT="${SRC_REL:-$SRC_URL}"
+          BASENAME=$(basename "$BASENAME_INPUT")
+          BASENAME="${BASENAME%.md}"
+          BASENAME="${BASENAME%.mdx}"
+          BASENAME="${BASENAME%/}"
+          BASENAME="${BASENAME//./-}"
+          BASENAME="${BASENAME//_/-}"
+          BASENAME=$(echo "$BASENAME" | sed -E 's/^-+//; s/-+$//')
+          if [ -z "$BASENAME" ] || [ "$BASENAME" = "source-release-notes" ] || [ "$BASENAME" = "release-notes" ] || [ "$BASENAME" = "RELEASE-NOTES" ]; then
+            BASENAME="${COMPONENT}-${{ github.event.inputs.version }}"
+            BASENAME="${BASENAME#v}"
+            BASENAME="${BASENAME//./-}"
+          fi
+          case "$COMPONENT" in
+            wallet) DEST_DIR="docs/relnotes/wallet" ;;
+            ledger) DEST_DIR="docs/relnotes/ledger" ;;
+            compact) DEST_DIR="docs/relnotes/compact" ;;
+            midnight-js) DEST_DIR="docs/relnotes/midnight-js" ;;
+            node) DEST_DIR="docs/relnotes/node" ;;
+            midnight-indexer) DEST_DIR="docs/relnotes/midnight-indexer" ;;
+            dapp-connector-api) DEST_DIR="docs/relnotes/dapp-connector-api" ;;
+            proof-server) DEST_DIR="docs/relnotes/proof-server" ;;
+            onchain-runtime) DEST_DIR="docs/relnotes/onchain-runtime" ;;
+            compact-js) DEST_DIR="docs/relnotes/compact-js" ;;
+          esac
+          mkdir -p "$DEST_DIR"
+          cp "$SRC" "${DEST_DIR}/${BASENAME}.mdx"
+          echo "relnotes_subdir=$(basename "$DEST_DIR")" >> "$GITHUB_OUTPUT"
+          echo "slug=$BASENAME" >> "$GITHUB_OUTPUT"
+          echo "Copied $SRC -> ${DEST_DIR}/${BASENAME}.mdx"
+
+      - name: Update DynamicList component file
+        run: |
+          set -euo pipefail
+          COMPONENT="${{ github.event.inputs.component }}"
+          VERSION_RAW="${{ github.event.inputs.version }}"
+          VERSION="${VERSION_RAW#v}"
+          SLUG="${{ steps.copy.outputs.slug }}"
+          SUBDIR="${{ steps.copy.outputs.relnotes_subdir }}"
+          TODAY=$(date +'%d %B %Y')
+
+          case "$COMPONENT" in
+            wallet) DYNAMIC_LIST="src/components/DynamicListWallet.js" ;;
+            ledger) DYNAMIC_LIST="src/components/DynamicListLedger.js" ;;
+            compact) DYNAMIC_LIST="src/components/DynamicListCompact.js" ;;
+            midnight-js) DYNAMIC_LIST="src/components/DynamicListMidnightJS.js" ;;
+            node) DYNAMIC_LIST="src/components/DynamicListNode.js" ;;
+            midnight-indexer) DYNAMIC_LIST="src/components/DynamicListMidnightIndexer.js" ;;
+            dapp-connector-api) DYNAMIC_LIST="src/components/DynamicListDappConnectorAPI.js" ;;
+            proof-server) DYNAMIC_LIST="src/components/DynamicListProofServer.js" ;;
+            onchain-runtime) DYNAMIC_LIST="src/components/DynamicListOnchain.js" ;;
+            compact-js) DYNAMIC_LIST="src/components/DynamicListCompactJS.js" ;;
+            *) echo "Unknown component"; exit 1 ;;
+          esac
+
+          sed -i "s/status: 'LATEST'/status: 'UNSUPPORTED'/" "$DYNAMIC_LIST"
+
+          if [ "$COMPONENT" = "compact" ]; then
+            LANG_RAW="${{ github.event.inputs.compact_language_version }}"
+            if [ -z "$LANG_RAW" ]; then
+              echo "compact_language_version is required when component is compact"
+              exit 1
+            fi
+            COMPACT_VER="${LANG_RAW#v}"
+            NEW_ENTRY="  {\n\
+            version: '${VERSION}',\n\
+            compactVersion: '${COMPACT_VER}',\n\
+            status: 'LATEST',\n\
+            date: '${TODAY}',\n\
+            summary: 'Summary of Release ${VERSION}',\n\
+            details: [],\n\
+            artifacts: [],\n\
+            link: '/relnotes/${SUBDIR}/${SLUG}',\n\
+          },"
+          else
+            NEW_ENTRY="  {\n\
+            version: '${VERSION}',\n\
+            status: 'LATEST',\n\
+            date: '${TODAY}',\n\
+            summary: 'Summary of Release ${VERSION}',\n\
+            details: [],\n\
+            artifacts: [],\n\
+            link: '/relnotes/${SUBDIR}/${SLUG}',\n\
+          },"
+          fi
+
+          sed -i "/^const releases = \[$/a\\${NEW_ENTRY}" "$DYNAMIC_LIST"
+          echo "Updated $DYNAMIC_LIST"
+
+      - name: Prepare branch
+        id: prep
+        run: |
+          rm -rf ./temp
+          BRANCH="relnotes/$(date +'%Y-%m-%dT%H%M%S')-${{ github.event.inputs.component }}"
+          git checkout -b "$BRANCH"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes (unexpected)"
+            exit 1
+          fi
+          echo "NEW_BRANCH=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "UPDATE=true" >> "$GITHUB_OUTPUT"
+          git add -A
+          git push -u origin "$BRANCH"
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - uses: planetscale/ghcommit-action@25309d8005ac7c3bcd61d3fe19b69e0fe47dbdde # v0.2.20
+        if: ${{ steps.prep.outputs.UPDATE == 'true' }}
+        with:
+          commit_message: "Copy release notes for ${{ github.event.inputs.component }}"
+          repo: ${{ github.repository }}
+          branch: ${{ steps.prep.outputs.NEW_BRANCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Create PR
+        if: ${{ steps.prep.outputs.UPDATE == 'true' }}
+        run: |
+          gh pr create \
+            --base "${{ github.event.inputs.branch_merge }}" \
+            --head "${{ steps.prep.outputs.NEW_BRANCH }}" \
+            --title "$PR_TITLE" \
+            --body "Automated release notes copy — component: \`${{ github.event.inputs.component }}\`, source_url: \`${{ github.event.inputs.source_url }}\`, source_path: \`${{ github.event.inputs.source_path }}\`, version: \`${{ github.event.inputs.version }}\`."
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          PR_TITLE: ${{ github.event.inputs.pr_title }}
