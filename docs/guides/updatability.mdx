@@ -8,123 +8,171 @@ sidebar_position: 40
 
 # DApp updatability
 
-Updating code in a decentralized environment is challenging, because producing
-an update is typically a centralized process, and this can be employed
-maliciously. It is however often necessary to have some path to changing
-deployed contracts and DApps, and Midnight provides this through *Contract
+This guide explains updatability in the Midnight Network and shows how to update a deployed contract's maintenance authority.
+
+## Overview
+
+Updating code in a decentralized environment is challenging because producing
+an update typically requires a centralized process, which attackers can exploit
+maliciously. However, DApp developers often need ways to change
+deployed contracts, and Midnight provides this through *Contract
 Maintenance Authorities* (CMAs).
 
-By default, as has been the case through this tutorial, a maintenance authority
-is empty, meaning no user is able to perform an update to the corresponding
-contract. At deploy-time, the deployer can instead nominate a set of public
-keys, and specify a threshold for how many of these public keys need to come together to
-sign an update, to allow updatability of this contract. This can be used to
-decentralize the power to update to a group, which needs to agree and sign off
-on updates jointly, or simply to have a single owner control a contract.
+By default, an empty maintenance authority prevents any user from updating the contract. 
+At deploy time, the deployer can nominate public keys and set a signature threshold 
+that determines how many keys must sign an update to enable contract updatability.
+
+:::note
+Currently, only single-key authorities with a threshold of 1 are supported. Multi-key threshold authorities are a planned feature.
+:::
+
+This mechanism lets you decentralize update authority to a group requiring joint 
+approval, or grant control to a single owner.
 
 :::warning
 
-While Midnight does not require a deployed contract to nominate a CMA, we
-strongly advise DApp authors to be aware of the trade-offs involved before
+While Midnight does not require you to nominate a CMA for your deployed contract, we
+strongly advise DApp authors to understand the trade-offs before
 making this decision.
 
 :::
 
 ## Why should you care?
 
-Even if your are familiar with updatability in other blockchain ecosystems,
-there is an important difference for Midnight that may affect what you think is
-right for your DApp. In most ecosystems, a deployed contract is guaranteed to
-run as deployed indefinitely, and this lessens the need for updatability. In
-Midnight, as contracts *are* in part zero-knowledge proofs, any breaking update
-to our proof system – including security updates – may require contracts to
-update to the new proof system. Put differently, old contracts *may be
-disabled* after system upgrades in the future.
+Even if you are familiar with updatability in other blockchain ecosystems,
+Midnight has an important difference that might affect what you choose for your DApp. 
+Most blockchains guarantee that deployed contracts run indefinitely as deployed, 
+reducing the need for updatability.
 
-This is especially true prior to mainnet, during which time we will not provide
-any support for prior versions of our proof system. At or before mainnet launch
-we will refine this support policy. Put differently: We will, with notice,
-remove support for old deployments of contracts from Midnight. Updatable
-contracts will be able to migrate, but non-upgradable ones will not, by
-definition. Refer to the [release compatibility matrix](../../../relnotes/support-matrix) for the complete versions overview.
+Midnight differs because contracts are in part zero-knowledge proofs. Breaking updates
+to the proof system – including security updates – may require contracts to
+update to the new proof system. This means the system might disable old contracts
+after upgrades.
+
+This is especially true before mainnet launch. During this period, there is no support for
+older proof system versions. There will be a support policy at or before mainnet launch.
+
+With appropriate notice, support will be removed for old contract deployments. 
+Updatable contracts can migrate to new versions, but non-upgradable contracts cannot. 
+For the complete version overview, refer to the [release compatibility matrix](../relnotes/support-matrix).
 
 
 :::danger
-
-Non-upgradable contracts should plan to allow users to withdraw their funds in
-a timely manner (in less than a week) to prevent loss of user funds. Upgradable
-contracts should make a commitment to upgrade timelines, or similarly provide a
-path to withdraw funds in case the contract is not upgraded.
-
+Non-upgradable contracts should provide a way for users to withdraw their funds before support for old proof system versions is removed. Check the [compatibility matrix](../relnotes/support-matrix) for current version support. Upgradable contracts should commit to upgrade timelines or provide a path to withdraw funds if the contract is not upgraded.
 :::
 
-At this time, Midnight's APIs are tooled only towards one-user authorities,
-although the underlying system can cope with arbitrary party configurations.
+:::note
+Currently, Midnight's APIs support only single-key authorities with a threshold of 1. Multi-key and arbitrary party configurations are planned for a future release.
+:::
 
 ## Capabilities of a maintenance authority
 
-A contract maintenance authority (CMA) is able to perform various privileged actions
-to change a contract after deployment. These make use of a 'verifier key
-version', a combined version of proving system and the onchain runtime. A
-contract can have multiple active verifier key versions at the same time, and
-can have keys registered for each of them. This allows supporting transitions
-between versions, and in the future may be used to provide long-term support
-for some verifier key versions. A contract maintenance authority can perform
-the following privileged actions:
+A Contract Maintenance Authority (CMA) performs various privileged actions
+to change a contract after deployment. These actions use a 'verifier key
+version', which combines the proving system version and the onchain runtime version. 
+Contracts support multiple active verifier key versions simultaneously, with
+keys registered for each version. This enables transitions
+between versions and may provide long-term support
+for some verifier key versions in the future. 
 
-- Change the CMA associated with this contract – this CMA then succeeds the
-  current one; this can be used to relinquish control.
-- Remove a verifier key (of a specific version) from the contract – this will
-  reject future transactions that attempt to use this operation with this
-  specific verifier key version. The key removed must exist.
-- Add a new verifier key of a specific version – this adds new functionality to
-  a contract, or re-exports existing functionality with a new verifier key
-  version. A key may not already exist to insert it, it must first be removed.
+A CMA can perform the following privileged actions:
+
+- **Change the CMA** associated with this contract. The new CMA succeeds the
+  current one, letting you relinquish control.
+- **Remove a verifier key** (of a specific version) from the contract. The contract
+  rejects future transactions that attempt to use this operation with the
+  removed verifier key version. The key with that version must exist before removal.
+- **Add a new verifier key** of a specific version. This adds new functionality to
+  a contract or re-exports existing functionality with a new verifier key
+  version. A key with that version must not already exist; if it does, remove it first.
+
+The current verifier key version is `v3`. When the proof system or on-chain runtime upgrades to a new major version, a new verifier key version will be required — which is the primary reason CMA updatability exists.
 
 :::info
 
-Removing and re-adding a verifier key can be used to change the implementation
-of a circuit, modifying its behaviour. Be aware that this is a very powerful
+Removing and re-adding a verifier key lets you change the implementation
+of a circuit, modifying its behavior. Be aware that this is a very powerful
 capability!
 
 :::
 
-Maintenance authorities can make changes by signing a sequence of the above
-'single updates' into a combined 'maintenance update'. Currently, maintenance
-updates take effect immediately, although this functionality may be refined
-over time.
+Maintenance authorities make changes by signing a sequence of these
+single updates into a combined maintenance update.
 
-## How to operate a maintenance authority
+:::note
+Currently, maintenance updates take effect immediately. Update delays (such as a minimum waiting period before changes take effect) are a planned feature for a future release.
+:::
 
-Maintaining a maintenance authority introduces three new things for a DApp developer to manage:
+## Operate a maintenance authority
 
-1. They need to generate and store key pairs for the authority
-2. They need to modify deployment to add the authority
-3. They need to provide an interface for the authority to produce and sign updates
+Operating a maintenance authority requires a DApp developer to:
 
-The initial contract authority of a contract being deployed can be specified by providing a value for 
-[`signingKey`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions)
-in
-[`DeployContractOptions`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions).
-The initial signing key can be sampled with
-[`sampleSigningKey`](/develop/reference/midnight-api/compact-runtime/functions/sampleSigningKey).
-Note that the same CMA can be used in multiple contracts by specifying the same
+- Generate and store key pairs for the authority.
+- Modify deployment to add the authority.
+- Provide an interface for the authority to produce and sign updates.
+
+You can specify the initial contract authority by providing a value for 
+[`signingKey`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions)
+in the
+[`DeployContractOptions`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions).
+Generate the initial signing key using
+[`sampleSigningKey`](/api-reference/compact-runtime/functions/sampleSigningKey).
+You can reuse the same CMA across multiple contracts by specifying the same
 signing key for different deployments.
 
-A deployed contract's circuits can be updated using the
-[`DeployedContract`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract)
+:::warning
+Store the signing key securely after deployment. If you lose the signing key, you **permanently lose the ability to update the contract** — there is no recovery mechanism. Do not hardcode signing keys in source code or commit them to version control.
+:::
+
+You can update a deployed contract's circuits using the
+[`DeployedContract`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract)
 object's
-[`circuitMaintenanceTx`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract#circuitmaintenancetx)
+[`circuitMaintenanceTx`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract#circuitmaintenancetx)
 property, which contains one 
-[`CircuitMaintenanceTxInterface`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface)
-for each circuit defined on the contract. This allows inserting new verifier keys and removing existing verifier keys with
-[`insertVerifierKey`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface#insertverifierkey)
-and
-[`removeVerifierKey`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface#removeverifierkey)
-respectively.
-Similarly, a deployed contract's maintenance authority can be updated using the
-[`DeployedContract`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract)'s
-[`contractMaintenanceTx`](/develop/reference/midnight-api/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract#contractmaintenancetx)
-property. For example, `deployedContract.foo.insertVerifierKey(key)`
-inserts the verifier key `key` for the `foo` circuit in the deployed contract
-`deployedContract`.
+[`CircuitMaintenanceTxInterface`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface)
+for each circuit defined on the contract. Use
+[`insertVerifierKey`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface#insertverifierkey)
+to add new verifier keys and
+[`removeVerifierKey`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface#removeverifierkey)
+to remove existing ones.
+
+Similarly, you can update a deployed contract's maintenance authority using the
+[`DeployedContract`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract)'s
+[`contractMaintenanceTx`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract#contractmaintenancetx)
+property.
+
+## Example
+
+The following example demonstrates how to perform maintenance operations on a deployed contract. See the [deploy guide](./deploy-mn-app) for how to set up `providers` and `compiledContract`.
+
+```typescript
+import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+// providers = { publicDataProvider, proofProvider, zkConfigProvider,
+//               privateStateProvider, walletProvider, midnightProvider }
+
+const foundContract = await findDeployedContract(providers, {
+  contractAddress,
+  compiledContract,
+});
+
+// Insert a new verifier key for the 'foo' circuit
+await foundContract.circuitMaintenanceTx.foo.insertVerifierKey(newVerifierKey);
+
+// Remove a verifier key for the 'foo' circuit
+await foundContract.circuitMaintenanceTx.foo.removeVerifierKey();
+
+// Replace the contract maintenance authority
+await foundContract.contractMaintenanceTx.replaceAuthority(newSigningKey);
+```
+
+:::tip
+You can also perform maintenance operations from the CLI using the `maintainContract` and `maintainCircuit` commands in `@midnight-ntwrk/compact-js-command`. These accept a `--signing` flag for the signing key, making them a simpler alternative to programmatic access.
+:::
+
+## Next steps
+
+Now you understand how to update a deployed contract's maintenance authority. Check out the following resources to learn more about building DApps on the Midnight network:
+
+- [Deploy a contract](./deploy-mn-app)
+- [Midnight.js API reference](/api-reference/midnight-js)

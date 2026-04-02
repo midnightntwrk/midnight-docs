@@ -1,22 +1,24 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / leafHash
+[@midnight-ntwrk/onchain-runtime](../globals.md) / leafHash
 
 # Function: leafHash()
 
-`Internal`
-
 ```ts
-leafHash(value): AlignedValue
+function leafHash(value): AlignedValue
 ```
+
+**`Internal`**
 
 Internal implementation of the Merkle tree leaf hash primitive.
 
 ## Parameters
 
-• **value**: [`AlignedValue`](../type-aliases/AlignedValue.md)
+### value
+
+[`AlignedValue`](../type-aliases/AlignedValue.md)
 
 ## Returns
 

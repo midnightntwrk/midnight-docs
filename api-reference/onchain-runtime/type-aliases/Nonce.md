@@ -1,10 +1,10 @@
-**@midnight-ntwrk/onchain-runtime v0.2.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
-[@midnight-ntwrk/onchain-runtime v0.2.2](../README.md) / Nonce
+[@midnight-ntwrk/onchain-runtime](../globals.md) / Nonce
 
-# Type alias: Nonce
+# Type Alias: Nonce
 
 ```ts
 type Nonce: string;

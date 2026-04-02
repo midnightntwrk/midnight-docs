@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -11,31 +11,35 @@ unproven, unsubmitted, call transaction.
 
 ## Param
 
+## Param
+
 Configuration.
 
+## Param
+
 ## Call Signature
 
-> **createUnprovenCallTxFromInitialStates**\<`C`, `ICK`\>(`options`, `walletCoinPublicKey`, `walletEncryptionPublicKey`): [`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>
+> **createUnprovenCallTxFromInitialStates**\<`C`, `PCK`\>(`zkConfigProvider`, `options`, `walletEncryptionPublicKey`): `Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>
 
 ### Type Parameters
 
 #### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`undefined`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`undefined`\>\>
+`C` *extends* `Contract`\<`undefined`, `Witnesses`\<`undefined`\>\>
 
-#### ICK
+#### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ### Parameters
 
+#### zkConfigProvider
+
+[`ZKConfigProvider`](#)\<`string`\>
+
 #### options
 
-[`CallOptionsWithProviderDataDependencies`](../type-aliases/CallOptionsWithProviderDataDependencies.md)\<`C`, `ICK`\>
-
-#### walletCoinPublicKey
-
-`string`
+[`CallOptionsWithProviderDataDependencies`](../type-aliases/CallOptionsWithProviderDataDependencies.md)\<`C`, `PCK`\>
 
 #### walletEncryptionPublicKey
 
@@ -43,31 +47,31 @@ Configuration.
 
 ### Returns
 
-[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>
+`Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>
 
 ## Call Signature
 
-> **createUnprovenCallTxFromInitialStates**\<`C`, `ICK`\>(`options`, `walletCoinPublicKey`, `walletEncryptionPublicKey`): [`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>
+> **createUnprovenCallTxFromInitialStates**\<`C`, `PCK`\>(`zkConfigProvider`, `options`, `walletEncryptionPublicKey`): `Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>
 
 ### Type Parameters
 
 #### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)\<`any`, [`Witnesses`](../../midnight-js-types/type-aliases/Witnesses.md)\<`any`\>\>
+`C` *extends* `Any`
 
-#### ICK
+#### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ### Parameters
 
+#### zkConfigProvider
+
+[`ZKConfigProvider`](#)\<`string`\>
+
 #### options
 
-[`CallOptionsWithPrivateState`](../type-aliases/CallOptionsWithPrivateState.md)\<`C`, `ICK`\>
-
-#### walletCoinPublicKey
-
-`string`
+[`CallOptionsWithPrivateState`](../type-aliases/CallOptionsWithPrivateState.md)\<`C`, `PCK`\>
 
 #### walletEncryptionPublicKey
 
@@ -75,4 +79,4 @@ Configuration.
 
 ### Returns
 
-[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `ICK`\>
+`Promise`\<[`UnsubmittedCallTxData`](../type-aliases/UnsubmittedCallTxData.md)\<`C`, `PCK`\>\>

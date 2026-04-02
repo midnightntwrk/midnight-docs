@@ -1,8 +1,8 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v8.0.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / ContractOperationVersionedVerifierKey
+[@midnight/ledger](../globals.md) / ContractOperationVersionedVerifierKey
 
 # Class: ContractOperationVersionedVerifierKey
 
@@ -10,21 +10,25 @@ A versioned verifier key to be associated with a [ContractOperation](ContractOpe
 
 ## Constructors
 
-### new ContractOperationVersionedVerifierKey(version, rawVk)
+### Constructor
 
 ```ts
-new ContractOperationVersionedVerifierKey(version, rawVk): ContractOperationVersionedVerifierKey
+new ContractOperationVersionedVerifierKey(version, rawVk): ContractOperationVersionedVerifierKey;
 ```
 
 #### Parameters
 
-• **version**: `"v1"`
+##### version
 
-• **rawVk**: `Uint8Array`
+`"v3"`
+
+##### rawVk
+
+`Uint8Array`
 
 #### Returns
 
-[`ContractOperationVersionedVerifierKey`](ContractOperationVersionedVerifierKey.md)
+`ContractOperationVersionedVerifierKey`
 
 ## Properties
 
@@ -39,7 +43,7 @@ readonly rawVk: Uint8Array;
 ### version
 
 ```ts
-readonly version: "v1";
+readonly version: "v3";
 ```
 
 ## Methods
@@ -47,12 +51,14 @@ readonly version: "v1";
 ### toString()
 
 ```ts
-toString(compact?): string
+toString(compact?): string;
 ```
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 

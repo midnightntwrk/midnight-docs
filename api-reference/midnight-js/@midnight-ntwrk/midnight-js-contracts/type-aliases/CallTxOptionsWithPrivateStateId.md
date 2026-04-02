@@ -1,23 +1,23 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / CallTxOptionsWithPrivateStateId
 
-# Type Alias: CallTxOptionsWithPrivateStateId\<C, ICK\>
+# Type Alias: CallTxOptionsWithPrivateStateId\<C, PCK\>
 
-> **CallTxOptionsWithPrivateStateId**\<`C`, `ICK`\> = [`CallTxOptionsBase`](CallTxOptionsBase.md)\<`C`, `ICK`\> & `object`
+> **CallTxOptionsWithPrivateStateId**\<`C`, `PCK`\> = [`CallTxOptionsBase`](CallTxOptionsBase.md)\<`C`, `PCK`\> & `object`
 
 Call transaction options with the private state ID to use to store the new private
 state resulting from the circuit call. Since a private state should already be
 stored at the given private state ID, we don't need an 'initialPrivateState' like
 in [DeployTxOptionsWithPrivateState](DeployTxOptionsWithPrivateState.md).
 
-## Type declaration
+## Type Declaration
 
 ### privateStateId
 
-> `readonly` **privateStateId**: [`PrivateStateId`](../../midnight-js-types/type-aliases/PrivateStateId.md)
+> `readonly` **privateStateId**: `PrivateStateId`
 
 The identifier for the private state of the contract.
 
@@ -25,8 +25,8 @@ The identifier for the private state of the contract.
 
 ### C
 
-`C` *extends* [`Contract`](../../midnight-js-types/interfaces/Contract.md)
+`C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* [`ImpureCircuitId`](../../midnight-js-types/type-aliases/ImpureCircuitId.md)\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>

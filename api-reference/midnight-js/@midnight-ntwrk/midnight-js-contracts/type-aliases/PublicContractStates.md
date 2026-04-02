@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v2.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -17,6 +17,14 @@ Object containing the publicly visible states of a contract.
 > `readonly` **contractState**: `ContractState`
 
 The (public) ledger state of a contract.
+
+***
+
+### ledgerParameters
+
+> `readonly` **ledgerParameters**: `LedgerParameters`
+
+The ledger parameters in effect on the block associated with the contract state.
 
 ***
 

@@ -23,7 +23,6 @@ Before you begin, ensure you have the following:
 - A compiled hello world contract in `contracts/managed/hello-world/`. You'll need to complete the [build your first contract](../getting-started/hello-world) tutorial first.
 - Node.js version 20.x or higher installed. Install it using [NVM](https://github.com/nvm-sh/nvm).
 - Docker installed and running. This is required to run the [proof server](./run-proof-server) and generate Zero Knowledge (ZK) proofs.
-- Basic understanding of TypeScript and command-line operations.
 
 On your project's root directory, initialize an npm project with default settings. This creates a `package.json` file:
 
@@ -71,7 +70,7 @@ Update the `package.json` file to include the deployment dependencies and script
     "compile": "compact compile contracts/hello-world.compact contracts/managed/hello-world",
     "build": "tsc",
     "deploy": "tsx src/deploy.ts",
-    "start-proof-server": "docker run -p 6300:6300 midnightntwrk/proof-server:7.0.0 -- midnight-proof-server -v"
+    "start-proof-server": "docker run -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server -v"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -80,21 +79,21 @@ Update the `package.json` file to include the deployment dependencies and script
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-runtime": "0.14.0",
-    "@midnight-ntwrk/ledger": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-contracts": "3.0.0",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "3.0.0",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "3.0.0",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "3.0.0",
-    "@midnight-ntwrk/midnight-js-network-id": "3.0.0",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "3.0.0",
-    "@midnight-ntwrk/midnight-js-types": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "1.0.0",
-    "@midnight-ntwrk/wallet-sdk-facade": "1.0.0",
-    "@midnight-ntwrk/wallet-sdk-hd": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-shielded": "1.0.0",
-    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "1.0.0",
+    "@midnight-ntwrk/compact-runtime": "0.15.0",
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js-contracts": "4.0.2",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.2",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.2",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.2",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.2",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.2",
+    "@midnight-ntwrk/midnight-js-types": "4.0.2",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-hd": "3.1.0",
+    "@midnight-ntwrk/wallet-sdk-shielded": "2.1.0",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.1.0",
     "ws": "^8.19.0"
   }
 }
@@ -147,7 +146,7 @@ Create `tsconfig.json` in your project root:
 This configuration:
 - Targets modern JavaScript (ES2022) for better performance
 - Uses ESNext modules for compatibility with Midnight SDK packages
-- Enables strict type checking for safer code
+- Disables strict type checking for simpler examples
 - Outputs compiled JavaScript to the `dist` directory
 
 </Step>
@@ -173,7 +172,7 @@ import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-p
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
 import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import * as ledger from '@midnight-ntwrk/ledger-v7';
+import * as ledger from '@midnight-ntwrk/ledger-v8';
 import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
 import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
 import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
@@ -184,7 +183,16 @@ import { CompiledContract } from '@midnight-ntwrk/compact-js';
 // Enable WebSocket for GraphQL subscriptions
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
+```
 
+The code above imports the necessary modules for wallet management, contract deployment, and network connectivity.
+The global `WebSocket` assignment is necessary for the wallet sync to work in Node.js.
+
+Below the imports, configure the network endpoints.
+
+<Tabs>
+<TabItem value="preprod">
+```typescript
 // Set network to Preprod
 setNetworkId('preprod');
 
@@ -195,7 +203,27 @@ export const CONFIG = {
   node: 'https://rpc.preprod.midnight.network',
   proofServer: 'http://127.0.0.1:6300',
 };
+```
+</TabItem>
+<TabItem value="undeployed">
+```typescript
+// Set network to Undeployed
+setNetworkId('undeployed');
 
+// Network configuration for Undeployed
+export const CONFIG = {
+  indexer: 'http://localhost:8088/api/v3/graphql',
+  indexerWS: 'ws://localhost:8088/api/v3/graphql/ws',
+  node: 'ws://localhost:9944',
+  proofServer: 'http://localhost:6300',
+};
+```
+</TabItem>
+</Tabs>
+
+Below the network configuration, load the compiled contract and prepare it for deployment.
+
+```typescript
 // Path configuration
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const zkConfigPath = path.resolve(__dirname, '..', 'contracts', 'managed', 'hello-world');
@@ -209,11 +237,6 @@ export const compiledContract = CompiledContract.make('hello-world', HelloWorld.
   CompiledContract.withCompiledFileAssets(zkConfigPath),
 );
 ```
-
-This section sets up the foundation:
-- Configure WebSocket support for real-time blockchain updates.
-- Define network endpoints for the Preprod indexer, node, and proof server.
-- Load your compiled contract and prepare it for deployment.
 
 Add the wallet creation functions:
 
@@ -286,7 +309,7 @@ These functions handle wallet creation:
   - **Unshielded wallet**: For public transactions visible on-chain
   - **DUST wallet**: Manages Midnight's gas resource required for transaction fees
 
-Add the transaction signing and provider setup functions:
+Add the transaction signing function:
 
 ```typescript
 // Sign transaction intents with the wallet's private keys
@@ -331,7 +354,13 @@ export function signTransactionIntents(
     tx.intents.set(segment, cloned);
   }
 }
+```
 
+This function signs transaction intents with the wallet's private keys. This is required for unshielded transactions.
+
+Add the provider creation function below the transaction signing function:
+
+```typescript
 export async function createProviders(
   walletCtx: Awaited<ReturnType<typeof createWallet>>
 ) {
@@ -384,14 +413,13 @@ export async function createProviders(
 }
 ```
 
-These functions handle transaction management:
-- **signTransactionIntents**: Signs transaction intents with the wallet's private keys. This is required for unshielded transactions
-- **createProviders**: Creates all the providers needed for contract deployment:
-  - **privateStateProvider**: Manages local contract state storage
-  - **publicDataProvider**: Fetches blockchain data from the indexer
-  - **zkConfigProvider**: Loads Zero Knowledge (ZK) circuit configurations
-  - **proofProvider**: Communicates with the proof server
-  - **walletProvider**: Handles transaction balancing and signing
+This function creates all the providers needed for contract deployment:
+- **privateStateProvider**: Manages local contract state storage
+- **publicDataProvider**: Fetches blockchain data from the indexer
+- **zkConfigProvider**: Loads Zero Knowledge (ZK) circuit configurations for the contract
+- **proofProvider**: Communicates with the proof server
+- **walletProvider**: Handles transaction balancing and signing
+- **midnightProvider**: Handles transaction submission to the network
 
 </Step>
 <Step>
@@ -413,7 +441,7 @@ import { Buffer } from 'buffer';
 // Midnight.js imports
 import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-import { unshieldedToken } from '@midnight-ntwrk/ledger-v7';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
 import { generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
 
 // Shared utilities from the utils.ts file
@@ -608,6 +636,8 @@ Make sure the proof server is running:
 npm run start-proof-server
 ```
 
+This command occupies the current terminal window and should be kept open and running.
+
 Run the deployment script:
 
 ```bash
@@ -636,7 +666,7 @@ Saved to deployment.json
 
 ## Understanding the deployment artifacts
 
-After successful deployment, your project will have a new `deployment.json` file in the root directory. 
+After successful deployment, it creates a new `deployment.json` file in the root directory. 
 Here's an example of what it contains:
 
 ```json
@@ -693,7 +723,7 @@ If you see errors about connecting to the proof server, such as `Wallet.Proving:
 
 If deployment fails due to lack of DUST:
 
-- Wait longer for DUST generation. It can take several minutes to generate.
+- Wait longer for DUST generation. It can take several minutes to generate. Run the deployment script again, this time restoring from your wallet seed.
 - Ensure you have sufficient tNight tokens. DUST is generated from tNight.
 - Check that DUST registration was successful in the script output.
 

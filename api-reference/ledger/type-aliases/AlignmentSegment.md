@@ -1,16 +1,18 @@
-**@midnight-ntwrk/ledger v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/ledger v8.0.2**](../README.md)
 
 ***
 
-[@midnight-ntwrk/ledger v3.0.2](../README.md) / AlignmentSegment
+[@midnight/ledger](../globals.md) / AlignmentSegment
 
-# Type alias: AlignmentSegment
+# Type Alias: AlignmentSegment
 
 ```ts
-type AlignmentSegment: {
+type AlignmentSegment = 
+  | {
   tag: "option";
   value: Alignment[];
-  } | {
+}
+  | {
   tag: "atom";
   value: AlignmentAtom;
 };

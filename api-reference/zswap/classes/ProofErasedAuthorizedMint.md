@@ -1,25 +1,13 @@
-**@midnight/zswap v3.0.2** • [Readme](../README.md) \| [API](../globals.md)
+[**@midnight/zswap v4.0.0-rc**](../README.md)
 
 ***
 
-[@midnight/zswap v3.0.2](../README.md) / ProofErasedAuthorizedMint
+[@midnight/zswap](../globals.md) / ProofErasedAuthorizedMint
 
 # Class: ProofErasedAuthorizedMint
 
 A request to mint a coin, authorized by the mint's recipient, with the
 authorizing proof having been erased
-
-## Constructors
-
-### new ProofErasedAuthorizedMint()
-
-```ts
-private new ProofErasedAuthorizedMint(): ProofErasedAuthorizedMint
-```
-
-#### Returns
-
-[`ProofErasedAuthorizedMint`](ProofErasedAuthorizedMint.md)
 
 ## Properties
 
@@ -46,16 +34,18 @@ The recipient of this mint
 ### serialize()
 
 ```ts
-serialize(netid): Uint8Array
+serialize(netid): Uint8Array<ArrayBufferLike>
 ```
 
 #### Parameters
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 
-`Uint8Array`
+`Uint8Array`\<`ArrayBufferLike`\>
 
 ***
 
@@ -67,7 +57,9 @@ toString(compact?): string
 
 #### Parameters
 
-• **compact?**: `boolean`
+##### compact?
+
+`boolean`
 
 #### Returns
 
@@ -83,9 +75,13 @@ static deserialize(raw, netid): ProofErasedAuthorizedMint
 
 #### Parameters
 
-• **raw**: `Uint8Array`
+##### raw
 
-• **netid**: [`NetworkId`](../enumerations/NetworkId.md)
+`Uint8Array`\<`ArrayBufferLike`\>
+
+##### netid
+
+[`NetworkId`](../enumerations/NetworkId.md)
 
 #### Returns
 

@@ -1,0 +1,1049 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "CLI implementation"
+title: "Bulletin board CLI implementation"
+description: "Implement the CLI package for the bulletin board application."
+sidebar_position: 40
+toc_max_heading_level: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Bulletin board CLI implementation
+
+This tutorial shows how to implement the CLI package that provides wallet management, DUST generation, and the interactive command-line interface.
+
+## Prerequisites
+
+Before you begin, ensure that you have completed the [Bulletin board API implementation](./bboard-api-implementation) tutorial.
+
+## Create the CLI directory
+
+From the root, create the bboard-cli structure:
+
+```bash
+cd ..
+mkdir -p bboard-cli/src/launcher
+cd bboard-cli
+```
+
+## Configure the CLI package
+
+Create `bboard-cli/package.json`:
+
+```json
+{
+  "name": "@midnight-ntwrk/bboard-cli",
+  "version": "0.1.0",
+  "author": "IOG",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rm -rf dist && tsc && cp -R ../contract/src/managed dist/contract/src/managed",
+    "ci": "npm run typecheck && npm run lint && npm run build",
+    "lint": "eslint src",
+    "preprod": "node --experimental-specifier-resolution=node --loader ts-node/esm src/launcher/preprod.ts",
+    "undeployed": "node --experimental-specifier-resolution=node --loader ts-node/esm src/launcher/undeployed.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/json-schema": "^7.0.15",
+    "@types/node": "^25.2.0"
+  }
+}
+```
+
+The `preprod` script runs the CLI application and connects to the Midnight Preprod testnet, while the `undeployed` script runs the CLI application and connects to a local Midnight network running on your machine. 
+
+:::info
+For more information on setting up a local Midnight network, see the [Midnight local network](../../../guides/midnight-local-network/) documentation.
+:::
+## Configure TypeScript
+
+Create `bboard-cli/tsconfig.json`:
+
+```json
+{
+  "include": ["src/**/*.ts"],
+  "compilerOptions": {
+    "outDir": "dist",
+    "declaration": true,
+    "lib": ["ESNext"],
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "strict": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+## Network configuration
+
+The configuration module defines network-specific settings for connecting to different Midnight environments. It provides a common `Config` interface that standardizes how the CLI accesses network endpoints, manages private state storage, and configures DUST generation settings.
+
+Create `bboard-cli/src/config.ts` and start with the shared configuration interface:
+
+```typescript title="bboard-cli/src/config.ts"
+import path from 'node:path';
+import {
+  EnvironmentConfiguration,
+  getTestEnvironment,
+  RemoteTestEnvironment,
+  TestEnvironment,
+} from '@midnight-ntwrk/testkit-js';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { Logger } from 'pino';
+
+export interface Config {
+  readonly privateStateStoreName: string;
+  readonly logDir: string;
+  readonly zkConfigPath: string;
+  getEnvironment(logger: Logger): TestEnvironment;
+  readonly requestFaucetTokens: boolean;
+  readonly generateDust: boolean;
+}
+
+export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+```
+
+The CLI supports two network environments:
+
+- **Preprod**: Connects to the Midnight hosted testnet at `preprod.midnight.network`
+- **Undeployed**: Connects to a local Midnight network running on your machine.
+
+<Tabs>
+  <TabItem value="preprod">
+```typescript title="bboard-cli/src/config.ts"
+export class PreprodRemoteConfig implements Config {
+  getEnvironment(logger: Logger): TestEnvironment {
+    setNetworkId('preprod');
+    return new PreprodTestEnvironment(logger);
+  }
+  privateStateStoreName = 'bboard-private-state';
+  logDir = path.resolve(currentDir, '..', 'logs', 'preprod-remote', `${new Date().toISOString()}.log`);
+  zkConfigPath = path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'bboard');
+  requestFaucetTokens = false;
+  generateDust = true;
+}
+
+export class PreprodTestEnvironment extends RemoteTestEnvironment {
+  constructor(logger: Logger) {
+    super(logger);
+  }
+
+  private getProofServerUrl(): string {
+    const container = this.proofServerContainer as { getUrl(): string } | undefined;
+    if (!container) {
+      throw new Error('Proof server container is not available.');
+    }
+    return container.getUrl();
+  }
+
+  getEnvironmentConfiguration(): EnvironmentConfiguration {
+    return {
+      walletNetworkId: 'preprod',
+      networkId: 'preprod',
+      indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+      indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+      node: 'https://rpc.preprod.midnight.network',
+      nodeWS: 'wss://rpc.preprod.midnight.network',
+      faucet: 'https://faucet.preprod.midnight.network/api/request-tokens',
+      proofServer: this.getProofServerUrl(),
+    };
+  }
+}
+```
+</TabItem>
+<TabItem value="undeployed">
+```typescript title="bboard-cli/src/config.ts"
+export class UndeployedConfig implements Config {
+  getEnvironment(logger: Logger): TestEnvironment {
+    setNetworkId('undeployed');
+    return new UndeployedTestEnvironment(logger);
+  }
+  privateStateStoreName = 'bboard-private-state';
+  logDir = path.resolve(currentDir, '..', 'logs', 'undeployed', `${new Date().toISOString()}.log`);
+  zkConfigPath = path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'bboard');
+  requestFaucetTokens = false;
+  generateDust = true;
+}
+
+export class UndeployedTestEnvironment extends RemoteTestEnvironment {
+  constructor(logger: Logger) {
+    super(logger);
+  }
+
+  private getProofServerUrl(): string {
+    const container = this.proofServerContainer as { getUrl(): string } | undefined;
+    if (!container) {
+      throw new Error('Proof server container is not available.');
+    }
+    return container.getUrl();
+  }
+
+  getEnvironmentConfiguration(): EnvironmentConfiguration {
+    return {
+      walletNetworkId: 'undeployed',
+      networkId: 'undeployed',
+      indexer: 'http://localhost:8088/api/v4/graphql',
+      indexerWS: 'ws://localhost:8088/api/v4/graphql/ws',
+      node: 'http://localhost:9944',
+      nodeWS: 'ws://localhost:9944',
+      faucet: 'https://docs.midnight.network/midnight-local-network/#get-faucet-tokens',
+      proofServer: this.getProofServerUrl(),
+    };
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+Both configurations use a local Docker proof server for generating zero-knowledge (ZK) proofs. The local proof server provides better performance and doesn't require external network access for proof generation.
+
+## Implement logging utilities
+
+Create `bboard-cli/src/logger-utils.ts`:
+
+```typescript title="bboard-cli/src/logger-utils.ts"
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import pinoPretty from 'pino-pretty';
+import pino from 'pino';
+import { createWriteStream } from 'node:fs';
+
+export const createLogger = async (logPath: string): Promise<pino.Logger> => {
+  await fs.mkdir(path.dirname(logPath), { recursive: true });
+  const pretty: pinoPretty.PrettyStream = pinoPretty({
+    colorize: true,
+    sync: true,
+  });
+  const level =
+    process.env.DEBUG_LEVEL !== undefined && process.env.DEBUG_LEVEL !== null && process.env.DEBUG_LEVEL !== ''
+      ? process.env.DEBUG_LEVEL
+      : 'info';
+  return pino(
+    {
+      level,
+      depthLimit: 20,
+    },
+    pino.multistream([
+      { stream: pretty, level },
+      { stream: createWriteStream(logPath), level },
+    ]),
+  );
+};
+```
+
+The logger creates two output streams: a pretty-printed console stream for development and a file stream for persistent logs. The log level can be controlled through the `DEBUG_LEVEL` environment variable.
+
+## Implement wallet utilities
+
+Wallet utilities manage wallet state synchronization and funding operations. These functions ensure the wallet is properly synced with the blockchain and has sufficient funds before attempting contract interactions.
+
+Create `bboard-cli/src/wallet-utils.ts`:
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+import { UnshieldedTokenType } from '@midnight-ntwrk/ledger-v8';
+import { type FacadeState, type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import { type UnshieldedWallet, UnshieldedWalletState } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import * as Rx from 'rxjs';
+
+import { FaucetClient, type EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
+import { Logger } from 'pino';
+import { UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk-address-format';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+```
+
+### Get initial wallet state
+
+Before starting wallet synchronization, you need to access the current state to retrieve addresses and check balances. These helper functions use RxJS `firstValueFrom()` to convert the wallet's state observable into a Promise that resolves with the first emitted value.
+
+Add the initial state functions:
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+export const getInitialState = async (wallet: ShieldedWallet | UnshieldedWallet) => {
+  if (wallet instanceof ShieldedWallet) {
+    return Rx.firstValueFrom((wallet as ShieldedWallet).state);
+  } else {
+    return Rx.firstValueFrom((wallet as UnshieldedWallet).state);
+  }
+};
+
+export const getInitialShieldedState = async (logger: Logger, wallet: ShieldedWallet) => {
+  logger.info('Getting initial state of wallet...');
+  return Rx.firstValueFrom(wallet.state);
+};
+
+export const getInitialUnshieldedState = async (logger: Logger, wallet: UnshieldedWallet) => {
+  logger.info('Getting initial state of wallet...');
+  return Rx.firstValueFrom(wallet.state);
+};
+```
+
+These functions provide type-safe access to wallet state:
+- `getInitialState()`: Generic function that handles both shielded and unshielded wallets using runtime type checking
+- `getInitialShieldedState()`: Retrieves shielded wallet state and logs the operation
+- `getInitialUnshieldedState()`: Retrieves unshielded wallet state and logs the operation
+
+### Sync wallet
+
+The `syncWallet` function monitors the wallet's synchronization progress across all three components (shielded, unshielded, and DUST) and waits until they are fully synced with the blockchain. This is essential before performing any wallet operations.
+
+Add the sync wallet function:
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+const isProgressStrictlyComplete = (progress: unknown): boolean => {
+  if (!progress || typeof progress !== 'object') {
+    return false;
+  }
+  const candidate = progress as { isStrictlyComplete?: unknown };
+  if (typeof candidate.isStrictlyComplete !== 'function') {
+    return false;
+  }
+  return (candidate.isStrictlyComplete as () => boolean)();
+};
+
+export const syncWallet = (logger: Logger, wallet: WalletFacade, throttleTime = 2_000, timeout = 90_000) => {
+  logger.info('Syncing wallet...');
+
+  return Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.tap((state: FacadeState) => {
+        const shieldedSynced = isProgressStrictlyComplete(state.shielded.state.progress);
+        const unshieldedSynced = isProgressStrictlyComplete(state.unshielded.progress);
+        const dustSynced = isProgressStrictlyComplete(state.dust.state.progress);
+        logger.debug(
+          `Wallet synced state emission: { shielded=${shieldedSynced}, unshielded=${unshieldedSynced}, dust=${dustSynced} }`,
+        );
+      }),
+      Rx.throttleTime(throttleTime),
+      Rx.tap((state: FacadeState) => {
+        const shieldedSynced = isProgressStrictlyComplete(state.shielded.state.progress);
+        const unshieldedSynced = isProgressStrictlyComplete(state.unshielded.progress);
+        const dustSynced = isProgressStrictlyComplete(state.dust.state.progress);
+        const isSynced = shieldedSynced && dustSynced && unshieldedSynced;
+
+        logger.debug(
+          `Wallet synced state emission (synced=${isSynced}): { shielded=${shieldedSynced}, unshielded=${unshieldedSynced}, dust=${dustSynced} }`,
+        );
+      }),
+      Rx.filter(
+        (state: FacadeState) =>
+          isProgressStrictlyComplete(state.shielded.state.progress) &&
+          isProgressStrictlyComplete(state.dust.state.progress) &&
+          isProgressStrictlyComplete(state.unshielded.progress),
+      ),
+      Rx.tap(() => logger.info('Sync complete')),
+      Rx.tap((state: FacadeState) => {
+        const shieldedBalances = state.shielded.balances || {};
+        const unshieldedBalances = state.unshielded.balances || {};
+        const dustBalances = state.dust.walletBalance(new Date(Date.now())) || 0n;
+
+        logger.info(
+          `Wallet balances after sync - Shielded: ${JSON.stringify(shieldedBalances)}, Unshielded: ${JSON.stringify(unshieldedBalances)}, Dust: ${dustBalances}`,
+        );
+      }),
+      Rx.timeout({
+        each: timeout,
+        with: () => Rx.throwError(() => new Error(`Wallet sync timeout after ${timeout}ms`)),
+      }),
+    ),
+  );
+};
+```
+
+### Wait for unshielded funds
+
+Before deploying contracts or submitting transactions, the wallet needs unshielded tNIGHT tokens to generate DUST for paying network fees. This function ensures sufficient funds are available, optionally requesting tokens from the faucet for testing.
+
+Add the funding function:
+
+```typescript title="bboard-cli/src/wallet-utils.ts"
+export const waitForUnshieldedFunds = async (
+  logger: Logger,
+  wallet: WalletFacade,
+  env: EnvironmentConfiguration,
+  tokenType: UnshieldedTokenType,
+  fundFromFaucet = false,
+): Promise<UnshieldedWalletState> => {
+  const initialState = await getInitialUnshieldedState(logger, wallet.unshielded);
+  const unshieldedAddress = UnshieldedAddress.codec.encode(getNetworkId(), initialState.address);
+  logger.info(`Using unshielded address: ${unshieldedAddress.toString()} waiting for funds...`);
+  if (fundFromFaucet && env.faucet) {
+    logger.info('Requesting tokens from faucet...');
+    await new FaucetClient(env.faucet, logger).requestTokens(unshieldedAddress.toString());
+  }
+  const initialBalance = initialState.balances[tokenType.raw];
+  if (initialBalance === undefined || initialBalance === 0n) {
+    logger.info(`Your wallet initial balance is: 0 (not yet initialized)`);
+    logger.info(`Waiting to receive tokens...`);
+    const facadeState = await syncWallet(logger, wallet);
+    return facadeState.unshielded;
+  }
+  return initialState;
+};
+```
+
+## Implement DUST generation
+
+Create `bboard-cli/src/generate-dust.ts`:
+
+```typescript title="bboard-cli/src/generate-dust.ts"
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { UtxoWithMeta as UtxoWithMetaDust } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import { createKeystore, UnshieldedWalletState } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { Logger } from 'pino';
+import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import * as rx from 'rxjs';
+
+export const getUnshieldedSeed = (seed: string): Uint8Array<ArrayBufferLike> => {
+  const seedBuffer = Buffer.from(seed, 'hex');
+  const hdWalletResult = HDWallet.fromSeed(seedBuffer);
+
+  const { hdWallet } = hdWalletResult as {
+    type: 'seedOk';
+    hdWallet: HDWallet;
+  };
+
+  const derivationResult = hdWallet.selectAccount(0).selectRole(Roles.NightExternal).deriveKeyAt(0);
+
+  if (derivationResult.type === 'keyOutOfBounds') {
+    throw new Error('Key derivation out of bounds');
+  }
+
+  return derivationResult.key;
+};
+
+export const generateDust = async (
+  logger: Logger,
+  walletSeed: string,
+  unshieldedState: UnshieldedWalletState,
+  walletFacade: WalletFacade,
+) => {
+  const ttlIn10min = new Date(Date.now() + 10 * 60 * 1000);
+  const dustState = await walletFacade.dust.waitForSyncedState();
+  const networkId = getNetworkId();
+  const unshieldedKeystore = createKeystore(getUnshieldedSeed(walletSeed), networkId);
+  const utxos: UtxoWithMetaDust[] = unshieldedState.availableCoins
+    .filter((coin) => !coin.meta.registeredForDustGeneration)
+    .map((utxo) => ({ ...utxo.utxo, ctime: new Date(utxo.meta.ctime) }));
+
+  if (utxos.length === 0) {
+    logger.info('No unregistered UTXOs found for dust generation.');
+    return;
+  }
+
+  logger.info(`Generating dust with ${utxos.length} UTXOs...`);
+
+  const registerForDustTransaction = await walletFacade.dust.createDustGenerationTransaction(
+    new Date(),
+    ttlIn10min,
+    utxos,
+    unshieldedKeystore.getPublicKey(),
+    dustState.dustAddress,
+  );
+
+  const intent = registerForDustTransaction.intents?.get(1);
+  const intentSignatureData = intent!.signatureData(1);
+  const signature = unshieldedKeystore.signData(intentSignatureData);
+  const recipe = await walletFacade.dust.addDustGenerationSignature(registerForDustTransaction, signature);
+
+  const transaction = await walletFacade.finalizeTransaction(recipe);
+  const txId = await walletFacade.submitTransaction(transaction);
+
+  const dustBalance = await rx.firstValueFrom(
+    walletFacade.state().pipe(
+      rx.filter((s) => s.dust.walletBalance(new Date()) > 0n),
+      rx.map((s) => s.dust.walletBalance(new Date())),
+    ),
+  );
+  logger.info(`Dust generation transaction submitted with txId: ${txId}`);
+  logger.info(`Receiver dust balance after generation: ${dustBalance}`);
+
+  return txId;
+};
+```
+
+DUST generation designates tNIGHT tokens to automatically produce DUST for transaction fees. 
+The `getUnshieldedSeed` function derives an unshielded wallet key from the HD wallet seed using the `NightExternal` role. 
+
+The `generateDust` function:
+1. Filters unregistered UTXOs
+2. Creates a DUST generation transaction
+3. Signs it with the unshielded keystore
+4. Submits it to the network
+5. Waits for the DUST balance to update
+
+## Implement wallet provider
+
+The wallet provider bridges the Wallet SDK to the Midnight.js contracts API, implementing the interfaces required by the contract deployment and transaction system. It manages cryptographic keys, transaction balancing, and wallet lifecycle operations.
+
+Create `bboard-cli/src/midnight-wallet-provider.ts` and add the following imports and class definition:
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+import {
+  type CoinPublicKey,
+  DustSecretKey,
+  type EncPublicKey,
+  type FinalizedTransaction,
+  LedgerParameters,
+  ZswapSecretKeys,
+} from '@midnight-ntwrk/ledger-v8';
+import { type MidnightProvider, UnboundTransaction, type WalletProvider } from '@midnight-ntwrk/midnight-js-types';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import type { Logger } from 'pino';
+
+import { getInitialShieldedState } from './wallet-utils';
+import { DustWalletOptions, EnvironmentConfiguration, FluentWalletBuilder } from '@midnight-ntwrk/testkit-js';
+import { NetworkId } from '@midnight-ntwrk/wallet-sdk-abstractions';
+
+export class MidnightWalletProvider implements MidnightProvider, WalletProvider {
+  logger: Logger;
+  readonly env: EnvironmentConfiguration;
+  readonly wallet: WalletFacade;
+  readonly zswapSecretKeys: ZswapSecretKeys;
+  readonly dustSecretKey: DustSecretKey;
+
+  private constructor(
+    logger: Logger,
+    environmentConfiguration: EnvironmentConfiguration,
+    wallet: WalletFacade,
+    zswapSecretKeys: ZswapSecretKeys,
+    dustSecretKey: DustSecretKey,
+  ) {
+    this.logger = logger;
+    this.env = environmentConfiguration;
+    this.wallet = wallet;
+    this.zswapSecretKeys = zswapSecretKeys;
+    this.dustSecretKey = dustSecretKey;
+  }
+```
+
+The class stores the wallet facade, cryptographic keys for both shielded and DUST operations, and environment configuration.
+
+### Implement key provider methods
+
+These methods expose the public keys needed for receiving shielded funds and decrypting transaction data:
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  getCoinPublicKey(): CoinPublicKey {
+    return this.zswapSecretKeys.coinPublicKey;
+  }
+
+  getEncryptionPublicKey(): EncPublicKey {
+    return this.zswapSecretKeys.encryptionPublicKey;
+  }
+```
+
+The `getCoinPublicKey()` method returns the address for receiving shielded tokens, while `getEncryptionPublicKey()` provides the key for decrypting shielded transaction data sent to this wallet.
+
+### Implement transaction methods
+
+These methods handle the transaction lifecycle from balancing through submission:
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  async balanceTx(tx: UnboundTransaction, ttl: Date = ttlOneHour()): Promise<FinalizedTransaction> {
+    const recipe = await this.wallet.balanceUnboundTransaction(
+      tx,
+      { shieldedSecretKeys: this.zswapSecretKeys, dustSecretKey: this.dustSecretKey },
+      { ttl },
+    );
+    return await this.wallet.finalizeRecipe(recipe);
+  }
+
+  submitTx(tx: FinalizedTransaction): Promise<string> {
+    return this.wallet.submitTransaction(tx);
+  }
+```
+
+The `balanceTx()` method takes an unbound transaction (without inputs/outputs selected) and balances it by selecting appropriate UTXOs to cover fees and adding change outputs. It uses DUST tokens to pay shielded transaction fees. The `submitTx()` method submits the finalized transaction to the network and returns the transaction hash.
+
+### Implement lifecycle methods
+
+These methods control wallet startup and shutdown:
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  async start(): Promise<void> {
+    this.logger.info('Starting wallet...');
+    await this.wallet.start(this.zswapSecretKeys, this.dustSecretKey);
+  }
+
+  async stop(): Promise<void> {
+    return this.wallet.stop();
+  }
+```
+
+The `start()` method initializes the wallet with cryptographic keys and begins syncing with the blockchain. The `stop()` method gracefully shuts down the wallet and cleans up resources. Always call `stop()` before the application exits.
+
+### Implement the build factory method
+
+The factory method creates and configures a wallet instance with proper DUST settings:
+
+```typescript title="bboard-cli/src/midnight-wallet-provider.ts"
+  static async build(logger: Logger, env: EnvironmentConfiguration, seed?: string): Promise<MidnightWalletProvider> {
+    const dustOptions: DustWalletOptions = {
+      ledgerParams: LedgerParameters.initialParameters(),
+      additionalFeeOverhead: 1_000n,
+      feeBlocksMargin: 5,
+    };
+    const builder = FluentWalletBuilder.forEnvironment(env).withDustOptions(dustOptions);
+    const buildResult = seed
+      ? await builder.withSeed(seed).buildWithoutStarting()
+      : await builder.withRandomSeed().buildWithoutStarting();
+    const { wallet, seeds } = buildResult as {
+      wallet: WalletFacade;
+      seeds: { masterSeed: string; shielded: Uint8Array; dust: Uint8Array };
+    };
+
+    const initialState = await getInitialShieldedState(logger, wallet.shielded);
+    logger.info(
+      `Your wallet seed is: ${seeds.masterSeed} and your address is: ${initialState.address.coinPublicKeyString()}`,
+    );
+
+    return new MidnightWalletProvider(
+      logger,
+      env,
+      wallet,
+      ZswapSecretKeys.fromSeed(seeds.shielded),
+      DustSecretKey.fromSeed(seeds.dust),
+    );
+  }
+}
+```
+
+The factory method configures DUST options with a low `additionalFeeOverhead` (1000n) suitable for test networks. If a seed is provided, then it restores an existing wallet. Otherwise, it generates a new random seed. 
+The method logs the seed and shielded address for user reference and creates the provider with all necessary cryptographic keys derived from the seeds.
+
+## Implement the main CLI logic
+
+The main CLI module manages the entire bulletin board application, tying together wallet setup, contract interactions, and the interactive user interface. It manages the application lifecycle from environment startup through graceful shutdown.
+
+Create `bboard-cli/src/index.ts` and add the following imports:
+
+```typescript title="bboard-cli/src/index.ts"
+import { createInterface, type Interface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import { WebSocket } from 'ws';
+import {
+  BBoardAPI,
+  type BBoardDerivedState,
+  bboardPrivateStateKey,
+  type BBoardProviders,
+  type DeployedBBoardContract,
+  type PrivateStateId,
+} from '../../api/src/index';
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { ledger, type Ledger, State } from '../../contract/src/managed/bboard/contract/index.js';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { type Logger } from 'pino';
+import { type Config } from './config.js';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { type ContractAddress } from '@midnight-ntwrk/compact-runtime';
+import { assertIsContractAddress, toHex } from '@midnight-ntwrk/midnight-js-utils';
+import { TestEnvironment } from '@midnight-ntwrk/testkit-js';
+import { MidnightWalletProvider } from './midnight-wallet-provider';
+import { randomBytes } from '../../api/src/utils';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
+import { syncWallet, waitForUnshieldedFunds } from './wallet-utils';
+import { generateDust } from './generate-dust';
+import { BBoardPrivateState } from '@midnight-ntwrk/bboard-contract';
+
+globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+```
+
+The `globalThis.WebSocket` assignment configures the Node.js WebSocket implementation for browser-compatible APIs, enabling WebSocket connections to the Indexer and Node RPC services.
+
+### Query ledger state
+
+This helper function retrieves the current public ledger state from a deployed contract:
+
+```typescript title="bboard-cli/src/index.ts"
+export const getBBoardLedgerState = async (
+  providers: BBoardProviders,
+  contractAddress: ContractAddress,
+): Promise<Ledger | null> => {
+  assertIsContractAddress(contractAddress);
+  const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+  return contractState != null ? ledger(contractState.data) : null;
+};
+```
+
+### Deploy or join contract menu
+
+This function presents a menu allowing users to deploy a new bulletin board or connect to an existing one:
+
+```typescript title="bboard-cli/src/index.ts"
+const DEPLOY_OR_JOIN_QUESTION = `
+You can do one of the following:
+  1. Deploy a new bulletin board contract
+  2. Join an existing bulletin board contract
+  3. Exit
+Which would you like to do? `;
+
+const deployOrJoin = async (providers: BBoardProviders, rli: Interface, logger: Logger): Promise<BBoardAPI | null> => {
+  let api: BBoardAPI | null = null;
+
+  while (true) {
+    const choice = await rli.question(DEPLOY_OR_JOIN_QUESTION);
+    switch (choice) {
+      case '1':
+        api = await BBoardAPI.deploy(providers, logger);
+        logger.info(`Deployed contract at address: ${api.deployedContractAddress}`);
+        return api;
+      case '2':
+        api = await BBoardAPI.join(providers, await rli.question('What is the contract address (in hex)? '), logger);
+        logger.info(`Joined contract at address: ${api.deployedContractAddress}`);
+        return api;
+      case '3':
+        logger.info('Exiting...');
+        return null;
+      default:
+        logger.error(`Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+### Display state helper functions
+
+These functions display different views of the bulletin board state. Add them to visualize public ledger state, private state, and derived state:
+
+```typescript title="bboard-cli/src/index.ts"
+const displayLedgerState = async (
+  providers: BBoardProviders,
+  deployedBBoardContract: DeployedBBoardContract,
+  logger: Logger,
+): Promise<void> => {
+  const contractAddress = deployedBBoardContract.deployTxData.public.contractAddress;
+  const ledgerState = await getBBoardLedgerState(providers, contractAddress);
+  if (ledgerState === null) {
+    logger.info(`There is no bulletin board contract deployed at ${contractAddress}`);
+  } else {
+    const boardState = ledgerState.state === State.OCCUPIED ? 'occupied' : 'vacant';
+    const latestMessage = !ledgerState.message.is_some ? 'none' : ledgerState.message.value;
+    logger.info(`Current state is: '${boardState}'`);
+    logger.info(`Current message is: '${latestMessage}'`);
+    logger.info(`Current sequence is: ${ledgerState.sequence}`);
+    logger.info(`Current owner is: '${toHex(ledgerState.owner)}'`);
+  }
+};
+
+const displayPrivateState = async (providers: BBoardProviders, logger: Logger): Promise<void> => {
+  const privateState = await providers.privateStateProvider.get(bboardPrivateStateKey);
+  if (privateState === null) {
+    logger.info(`There is no existing bulletin board private state`);
+  } else {
+    logger.info(`Current secret key is: ${toHex(privateState.secretKey)}`);
+  }
+};
+
+const displayDerivedState = (ledgerState: BBoardDerivedState | undefined, logger: Logger) => {
+  if (ledgerState === undefined) {
+    logger.info(`No bulletin board state currently available`);
+  } else {
+    const boardState = ledgerState.state === State.OCCUPIED ? 'occupied' : 'vacant';
+    const latestMessage = ledgerState.state === State.OCCUPIED ? ledgerState.message : 'none';
+    logger.info(`Current state is: '${boardState}'`);
+    logger.info(`Current message is: '${latestMessage}'`);
+    logger.info(`Current sequence is: ${ledgerState.sequence}`);
+    logger.info(`Current owner is: '${ledgerState.isOwner ? 'you' : 'not you'}'`);
+  }
+};
+```
+
+These display functions show:
+- **Ledger state**: Public on-chain data visible to all network participants
+- **Private state**: Local secret key that never appears on-chain
+- **Derived state**: Combines public and private data to compute ownership
+
+### Main interaction loop
+
+The main loop provides the interactive menu for bulletin board operations:
+
+```typescript title="bboard-cli/src/index.ts"
+const MAIN_LOOP_QUESTION = `
+You can do one of the following:
+  1. Post a message
+  2. Take down your message
+  3. Display the current ledger state (known by everyone)
+  4. Display the current private state (known only to this DApp instance)
+  5. Display the current derived state (known only to this DApp instance)
+  6. Exit
+Which would you like to do? `;
+
+const mainLoop = async (providers: BBoardProviders, rli: Interface, logger: Logger): Promise<void> => {
+  const bboardApi = await deployOrJoin(providers, rli, logger);
+  if (bboardApi === null) {
+    return;
+  }
+  let currentState: BBoardDerivedState | undefined;
+  const stateObserver = {
+    next: (state: BBoardDerivedState) => (currentState = state),
+  };
+  const subscription = bboardApi.state$.subscribe(stateObserver);
+  try {
+    while (true) {
+      const choice = await rli.question(MAIN_LOOP_QUESTION);
+      switch (choice) {
+        case '1': {
+          const message = await rli.question(`What message do you want to post? `);
+          await bboardApi.post(message);
+          break;
+        }
+        case '2':
+          await bboardApi.takeDown();
+          break;
+        case '3':
+          await displayLedgerState(providers, bboardApi.deployedContract, logger);
+          break;
+        case '4':
+          await displayPrivateState(providers, logger);
+          break;
+        case '5':
+          displayDerivedState(currentState, logger);
+          break;
+        case '6':
+          logger.info('Exiting...');
+          return;
+        default:
+          logger.error(`Invalid choice: ${choice}`);
+      }
+    }
+  } finally {
+    subscription.unsubscribe();
+  }
+};
+```
+
+The loop first calls `deployOrJoin()` to initialize the contract connection. It subscribes to the reactive state observable to automatically receive updates whenever transactions modify the contract. 
+The `finally` block ensures the subscription is cleaned up when the loop exits.
+
+### Wallet setup menu
+
+This function handles wallet seed initialization:
+
+```typescript title="bboard-cli/src/index.ts"
+const WALLET_LOOP_QUESTION = `
+You can do one of the following:
+  1. Build a fresh wallet
+  2. Build wallet from a seed
+  3. Exit
+Which would you like to do? `;
+
+const buildWallet = async (config: Config, rli: Interface, logger: Logger): Promise<string | undefined> => {
+  while (true) {
+    const choice = await rli.question(WALLET_LOOP_QUESTION);
+    switch (choice) {
+      case '1':
+        return toHex(randomBytes(32));
+      case '2':
+        return await rli.question('Enter your wallet seed: ');
+      case '3':
+        logger.info('Exiting...');
+        return undefined;
+      default:
+        logger.error(`Invalid choice: ${choice}`);
+    }
+  }
+};
+```
+
+The function provides three options: 
+- Generate a new wallet with a random seed
+- Restore your wallet from an existing seed
+- Exit the application
+
+### Run function
+
+The `run()` function coordinates the entire application lifecycle:
+
+```typescript title="bboard-cli/src/index.ts"
+export const run = async (config: Config, testEnv: TestEnvironment, logger: Logger): Promise<void> => {
+  const rli = createInterface({ input, output, terminal: true });
+  const providersToBeStopped: MidnightWalletProvider[] = [];
+  try {
+    const envConfiguration = await testEnv.start();
+    logger.info(`Environment started with configuration: ${JSON.stringify(envConfiguration)}`);
+    const seed = await buildWallet(config, rli, logger);
+    if (seed === undefined) {
+      return;
+    }
+    const walletProvider = await MidnightWalletProvider.build(logger, envConfiguration, seed);
+    providersToBeStopped.push(walletProvider);
+    const walletFacade: WalletFacade = walletProvider.wallet;
+
+    await walletProvider.start();
+
+    const unshieldedState = await waitForUnshieldedFunds(
+      logger,
+      walletFacade,
+      envConfiguration,
+      unshieldedToken(),
+      config.requestFaucetTokens,
+    );
+    const nightBalance = unshieldedState.balances[unshieldedToken().raw];
+    if (nightBalance === undefined) {
+      logger.info('No funds received, exiting...');
+      return;
+    }
+    logger.info(`Your NIGHT wallet balance is: ${nightBalance}`);
+
+    if (config.generateDust) {
+      const dustGeneration = await generateDust(logger, seed, unshieldedState, walletFacade);
+      if (dustGeneration) {
+        logger.info(`Submitted dust generation registration transaction: ${dustGeneration}`);
+        await syncWallet(logger, walletFacade);
+      }
+    }
+
+    const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>(config.zkConfigPath);
+    const providers: BBoardProviders = {
+      privateStateProvider: levelPrivateStateProvider<PrivateStateId, BBoardPrivateState>({
+        privateStateStoreName: config.privateStateStoreName,
+        signingKeyStoreName: `${config.privateStateStoreName}-signing-keys`,
+        privateStoragePasswordProvider: () => {
+          return 'key-just-for-testing-here!';
+        },
+      }),
+      publicDataProvider: indexerPublicDataProvider(envConfiguration.indexer, envConfiguration.indexerWS),
+      zkConfigProvider: zkConfigProvider,
+      proofProvider: httpClientProofProvider(envConfiguration.proofServer, zkConfigProvider),
+      walletProvider: walletProvider,
+      midnightProvider: walletProvider,
+    };
+    await mainLoop(providers, rli, logger);
+  } catch (e) {
+    logError(logger, e);
+    logger.info('Exiting...');
+  } finally {
+    try {
+      rli.close();
+      rli.removeAllListeners();
+    } catch (e) {
+      logError(logger, e);
+    } finally {
+      try {
+        for (const wallet of providersToBeStopped) {
+          logger.info('Stopping wallet...');
+          await wallet.stop();
+        }
+        if (testEnv) {
+          logger.info('Stopping test environment...');
+          await testEnv.shutdown();
+        }
+      } catch (e) {
+        logError(logger, e);
+      }
+    }
+  }
+};
+```
+
+The function executes the following workflow:
+1. **Start environment**: Retrieves endpoint configuration for the network
+2. **Build wallet**: Creates or restores a wallet from seed
+3. **Wait for funds**: Ensures the wallet has tNIGHT tokens for fees
+4. **Generate DUST**: Registers UTXOs for DUST generation (if enabled)
+5. **Configure providers**: Sets up all six required providers (private state, public data, ZK config, proof, wallet, midnight)
+6. **Enter main loop**: Starts the interactive bulletin board session
+7. **Cleanup**: Nested `finally` blocks guarantee cleanup of resources even if errors occur
+
+### Error logging utility
+
+Add a helper function for logging errors:
+
+```typescript title="bboard-cli/src/index.ts"
+function logError(logger: Logger, e: unknown) {
+  if (e instanceof Error) {
+    logger.error(`Found error '${e.message}'`);
+    logger.debug(`${e.stack}`);
+  } else {
+    logger.error(`Found error (unknown type)`);
+  }
+}
+```
+
+This function checks if the error is an `Error` instance to access the message and stack trace, ensuring errors are always logged even when they don't follow standard JavaScript error patterns.
+
+## Create the application entry point
+
+<Tabs>
+  <TabItem value="preprod">
+Create `bboard-cli/src/launcher/preprod.ts`:
+
+```typescript title="bboard-cli/src/launcher/preprod.ts"
+import { createLogger } from '../logger-utils.js';
+import { run } from '../index.js';
+import { PreprodRemoteConfig } from '../config.js';
+
+const config = new PreprodRemoteConfig();
+const logger = await createLogger(config.logDir);
+const testEnvironment = config.getEnvironment(logger);
+await run(config, testEnvironment, logger);
+```
+
+This launcher creates a `PreprodRemoteConfig` instance, initializes the logger, gets the test environment, and starts the CLI application. The launcher uses top-level await for asynchronous initialization.
+</TabItem>
+<TabItem value="undeployed">
+Create `bboard-cli/src/launcher/undeployed.ts`:
+
+```typescript title="bboard-cli/src/launcher/undeployed.ts"
+import { createLogger } from '../logger-utils.js';
+import { run } from '../index.js';
+import { UndeployedConfig } from '../config.js';
+
+const config = new UndeployedConfig();
+const logger = await createLogger(config.logDir);
+const testEnvironment = config.getEnvironment(logger);
+await run(config, testEnvironment, logger);
+```
+
+The launcher creates a `UndeployedConfig` instance, initializes the logger, gets the test environment, and starts the CLI application. The launcher uses top-level await for asynchronous initialization.
+
+:::info
+The `undeployed` launcher connects to a local Midnight network running on your machine. For more information, see [Midnight local network](../../../guides/midnight-local-network/).
+:::
+</TabItem>
+</Tabs>
+
+## Configure proof server
+
+Create `bboard-cli/proof-server.yml`:
+
+```yaml title="bboard-cli/proof-server.yml"
+services:
+  proof-server:
+    image: 'midnightntwrk/proof-server:latest'
+    container_name: "proof-server_$TESTCONTAINERS_UID"
+    ports:
+      - "0:6300"
+    environment:
+      EXTRA_ARGS: -v
+      RUST_BACKTRACE: "full"
+```
+
+:::note Credits
+The proof server used in this tutorial is a community-maintained Docker image by Brick Towers.
+:::
+
+This Docker Compose file configures the proof server. The testkit automatically manages this container's lifecycle by checking for the `proof-server.yml` file in the current directory.
+
+## Next steps
+
+You have now completed both implementation guides. Return to the [main CLI guide](./bboard-cli#run-the-cli) to run the application and explore next steps.

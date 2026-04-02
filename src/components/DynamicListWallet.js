@@ -45,7 +45,7 @@ const legacyReleases = [
   {
     id: 1,
     version: '5.0.0',
-    status: 'LATEST',
+    status: 'UNSUPPORTED',
     date: '12 May 2025',
     summary: 'Summary of 5.0.0',
     details: [
@@ -113,7 +113,8 @@ const DynamicListWithDropdownFilters = () => {
   const versionPrefix = docsVersion && docsVersion !== 'current' ? `/${docsVersion}` : '';
   
   // Show currentReleases only on /next/, otherwise show legacyReleases
-  const releases = docsVersion === 'next' ? currentReleases : legacyReleases;
+  // const releases = docsVersion === 'next' ? currentReleases : legacyReleases;
+  const releases = currentReleases;
   
   // Add version prefix to all release links
   const versionedReleases = releases.map(release => ({
