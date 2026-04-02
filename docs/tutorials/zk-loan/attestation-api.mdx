@@ -13,7 +13,7 @@ tags: [tutorials, advanced, zero-knowledge, loan, dapp]
 
 A smart contract that nobody can talk to is just a proof of concept sitting in a compiler's output directory.
 
-In [Part 1](./smart-contract), you wrote a Compact smart contract that evaluates loan eligibility within a zero-knowledge circuit. Credit scores, income, and employment tenure remain private, while only the loan outcome lands on-chain. You also built the Schnorr signature module that prevents users from fabricating their own credit data, and the TypeScript witness that feeds private inputs to the prover.
+[Part 1](./smart-contract) covered the implementation of a zero-knowledge loan-scoring smart contract using Compact. Credit scores, income, and employment tenure remain private, while only the loan outcome lands on-chain. It also covered the Schnorr signature module that prevents users from fabricating their own credit data, and the TypeScript witness that feeds private inputs to the prover.
 
 But right now, that smart contract has no way to receive signed credit data or generate zero-knowledge proofs. This part builds the two pieces of off-chain infrastructure that make the smart contract functional:
 
@@ -25,7 +25,7 @@ You also walk through the **attestation flow** end-to-end — how credit data mo
 
 **Prerequisites**: Make sure you have completed [Part 1](./smart-contract) and have the compiled smart contract package ready in the `contract/dist/` directory.
 
-## Building the attestation API
+## Build the attestation API
 
 The attestation API is a trusted service that signs credit data with Schnorr signatures. In production, this would be a bank or credit bureau's API. For this tutorial, the REST server is built with Restify.
 
@@ -83,7 +83,7 @@ A few things to note about these types:
 
 ### Schnorr signing implementation
 
-This is where the cryptography happens. The signing module generates key pairs and produces Schnorr signatures that the on-chain smart contract can verify.
+The signing module generates key pairs and produces Schnorr signatures that the on-chain smart contract can verify.
 
 Create a file `signing.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
 
@@ -101,8 +101,15 @@ type SchnorrSignature = {
 };
 import * as crypto from "crypto";
 
+// The order of the Jubjub elliptic curve subgroup used by Midnight.
+// All scalar arithmetic (nonce generation, response computation) must
+// be reduced modulo this value to produce valid curve operations.
 const JUBJUB_ORDER =
   6554484396890773809930967563523245729705921265872317281365359162392183254199n;
+// 2^248, used to truncate the challenge hash. The Jubjub curve order
+// is ~252 bits, but transientHash outputs values in BLS12-381's scalar
+// field (~255 bits). Reducing modulo 2^248 keeps the challenge within
+// a safe range for the curve. Use this exact value — it is not configurable.
 const TWO_248 =
   452312848583266388373324160190187140051835877600158453279131187530910662656n;
 
@@ -165,7 +172,7 @@ The signing uses the **Jubjub elliptic curve** (Midnight's native internal curve
 
 The resulting signature is `(R, s)`. The smart contract verifies it by checking: `G * s == R + publicKey * c`.
 
-The critical detail is step 3. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` that you wrote in [Part 1](./smart-contract). Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the zero-knowledge circuit. If a different hash were used, every signature would fail verification.
+The critical detail is step 3. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` covered in [Part 1](./smart-contract). Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the zero-knowledge circuit. If a different hash were used, every signature would fail verification.
 
 The `signCreditData` function is a convenience wrapper. It takes the four credit data fields (credit score, monthly income, months as customer, and the user public key hash). It converts them to `bigint` and passes them to the generic `sign` function.
 
@@ -465,7 +472,7 @@ This creates a two-sided privacy guarantee:
 
 *   **The provider cannot see the outcome**: The zero-knowledge proof treats the signed data as a private input, so the attestation API has no visibility into on-chain activity.
 
-## Setting up Docker for the proof server
+## Set up Docker for the proof server
 
 :::note
 If you are testing with [Midnight Local Dev](/guides/midnight-local-network) instead of Preprod, skip this step. The local dev environment already includes a proof server on port `6300`.
@@ -478,8 +485,7 @@ Create `zkloan-credit-scorer-cli/proof-server.yml`:
 ```yaml
 services:
   proof-server:
-    image: "midnightnetwork/proof-server:4.0.0"
-    command: ["midnight-proof-server --network testnet"]
+    image: "midnightntwrk/proof-server:8.0.0"
     ports:
       - "6300:6300"
     environment:
@@ -487,7 +493,7 @@ services:
 ```
 
 :::note
-The proof server image version must match your SDK version. This tutorial uses `4.0.0`. Check the [release notes](/relnotes/compact-js) for the latest compatible version.
+Make sure you are using the latest version of the proof server. Check the [compatibility matrix](/relnotes/compact-js) to verify the correct version for your SDK.
 :::
 
 Start the proof server:
