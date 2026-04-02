@@ -10,6 +10,177 @@ toc_max_heading_level: 2
 id: midnight-js
 ---
 
-:::note
-Coming soon...
+# Midnight.js
+
+Midnight.js provides tools for deploying and interacting with smart contracts, managing encrypted private state, generating zero-knowledge proofs, and submitting transactions to the Midnight network.
+
+This guide provides a comprehensive overview of the Midnight.js SDK, including its architecture, packages, and how to get started.
+
+## Packages
+
+Midnight.js uses a modular architecture, with each package providing a specific functionality.
+
+### Core
+
+The core packages provide the foundational functionality for the SDK.
+
+| Package | Purpose |
+|---------|---------|
+| `@midnight-ntwrk/midnight-js-types` | Shared types, interfaces, and provider contracts |
+| `@midnight-ntwrk/midnight-js-contracts` | Contract deployment, circuit calls, and transaction submission |
+| `@midnight-ntwrk/midnight-js-network-id` | Network identifier configuration for runtime and ledger WASM APIs |
+| `@midnight-ntwrk/midnight-js-utils` | Shared utilities (hex encoding, bech32m, assertions) |
+
+### Providers
+
+The provider packages includes functionality for interacting with the Midnight network.
+
+| Package | Purpose |
+|---------|---------|
+| `@midnight-ntwrk/midnight-js-indexer-public-data-provider` | GraphQL-based blockchain data provider (queries and subscriptions) |
+| `@midnight-ntwrk/midnight-js-level-private-state-provider` | AES-256-GCM encrypted persistent state storage via [LevelDB](https://github.com/Level/level) |
+| `@midnight-ntwrk/midnight-js-http-client-proof-provider` | HTTP client for the Midnight proof server |
+| `@midnight-ntwrk/midnight-js-fetch-zk-config-provider` | Browser-compatible zero-knowledge artifact provider using the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) |
+| `@midnight-ntwrk/midnight-js-node-zk-config-provider` | Node.js filesystem-based ZK artifact provider |
+| `@midnight-ntwrk/midnight-js-logger-provider` | Application-specific [Pino](https://github.com/pinojs/pino) logger configuration |
+
+### Tooling
+
+The tooling packages provide tools for compiling Compact smart contracts.
+
+| Package | Purpose |
+|---------|---------|
+| `@midnight-ntwrk/midnight-js-compact` | Compact compiler manager for contract compilation |
+
+## Installation
+
+To install the barrel package that provides a single entry point for the SDK.
+
+```bash
+npm install @midnight-ntwrk/midnight-js
+```
+
+To install the individual packages:
+
+```bash
+npm install @midnight-ntwrk/midnight-js-types
+npm install @midnight-ntwrk/midnight-js-contracts
+npm install @midnight-ntwrk/midnight-js-network-id
+npm install @midnight-ntwrk/midnight-js-utils
+npm install @midnight-ntwrk/midnight-js-indexer-public-data-provider
+npm install @midnight-ntwrk/midnight-js-level-private-state-provider
+npm install @midnight-ntwrk/midnight-js-http-client-proof-provider
+npm install @midnight-ntwrk/midnight-js-fetch-zk-config-provider
+npm install @midnight-ntwrk/midnight-js-node-zk-config-provider
+npm install @midnight-ntwrk/midnight-js-logger-provider
+```
+
+:::important
+
+Always refers to the [Compatibility matrix](./support-matrix) to know which version of the SDK works with other components of the Midnight network.
+
 :::
+
+## Quickstart
+
+### Configure the network
+
+The network ID sets the network identifier for the SDK. To perform operations on the Midnight network, you need to set the appropriate network ID. Other Midnight.js libraries and components will use the same network ID to interact with the network.
+
+```typescript
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('preprod');
+```
+
+### Configure providers
+
+
+
+```typescript
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+
+const zkConfigProvider = new FetchZkConfigProvider(zkArtifactsUrl);
+
+const providers: MidnightProviders = {
+  privateStateProvider: levelPrivateStateProvider({
+    privateStoragePasswordProvider: () => password,
+    accountId: walletAddress,
+  }),
+  publicDataProvider: indexerPublicDataProvider(queryUrl, subscriptionUrl),
+  zkConfigProvider,
+  proofProvider: httpClientProofProvider(proofServerUrl, zkConfigProvider),
+  walletProvider,    // from @midnight-ntwrk/wallet-sdk-facade
+  midnightProvider,  // from @midnight-ntwrk/wallet-sdk-facade
+};
+```
+
+### 3. Deploy and interact with a contract
+
+```typescript
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+const deployed = await deployContract(providers, {
+  compiledContract,
+  privateStateId: 'my-state',
+  initialPrivateState: { counter: 0n },
+});
+
+const result = await deployed.callTx.increment();
+```
+
+### 4. Query state
+
+```typescript
+import { getStates, getPublicStates } from '@midnight-ntwrk/midnight-js-contracts';
+
+const states = await getStates(providers, contractAddress, privateStateId);
+const publicStates = await getPublicStates(providers, contractAddress);
+```
+
+## Key Concepts
+
+### Contract Model
+
+| Term | Description |
+|------|-------------|
+| **Circuit** | Smart contract function that executes locally and generates a zero-knowledge proof |
+| **Witness** | Private computation that runs on the end-user's device |
+| **Private state** | User-local state updated by circuits — never stored on-chain |
+| **Ledger state** | On-chain public contract state |
+
+### ZK Artifacts
+
+| Artifact | Role |
+|----------|------|
+| **Prover key** | Binary used to create zero-knowledge proofs |
+| **Verifier key** | Binary used for on-chain proof verification |
+| **ZKIR** | Zero-Knowledge Intermediate Representation of compiled contracts |
+
+### Transaction Flow
+
+```
+1. Execute circuit locally  →  Unproven transaction
+2. Generate ZK proofs       →  ProofProvider
+3. Balance transaction       →  WalletProvider
+4. Submit to network         →  MidnightProvider
+5. Wait for finalization     →  PublicDataProvider
+```
+
+### Transaction Status
+
+| Status | Meaning |
+|--------|---------|
+| `SucceedEntirely` | All transaction segments succeeded |
+| `FailFallible` | Guaranteed portion succeeded, fallible portion failed |
+| `FailEntirely` | Transaction is invalid |
+
+## Private State Security
+
+- **Encryption**: AES-256-GCM at rest
+- **Key derivation**: PBKDF2-SHA256 (600,000 iterations)
+- **Isolation**: Account-scoped storage keyed by SHA-256 hash of wallet address
+- **No built-in recovery**: Production deployments require a backup strategy
