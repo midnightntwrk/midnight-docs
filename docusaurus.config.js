@@ -141,7 +141,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema: "./static/midnight-indexer/schema-v3.graphql",
+        schema: "./static/midnight-indexer/schema-v4.graphql",
         rootPath: "api-reference", // docs will be generated under './api-reference/midnight-indexer' (rootPath/baseURL)
         baseURL: "midnight-indexer",
         loaders: {
@@ -335,6 +335,8 @@ const config = {
       items: [
         { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
         { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
+        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
+        { to: "/blog",  label: "Dev Diaries",  position: "left",  activeBaseRegex: "^/blog(/|$)" },
         // {
         //   type: 'docsVersionDropdown',
         //   position: "right",
@@ -361,7 +363,7 @@ const config = {
           title: "Resources",
           items: [
             { label: "Midnight Foundation", href: "https://midnight.network/" },
-            { label: "Developer blog", href: "/blog" },
+            { label: "Dev Diaries", href: "/blog" },
             { label: "Glacier Drop", href: "https://www.midnight.gd/" },
             { label: "Careers", href: "https://midnight.network/careers" },
           ],
