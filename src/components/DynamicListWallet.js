@@ -17,9 +17,8 @@ import { useLocation } from '@docusaurus/router';
 
 
 // CURRENT releases (shown on Canary/next and future versions)
-const currentReleases = [
+const releases = [
   {
-    id: 1,
     version: '1.0.0',
     status: 'LATEST',
     date: '28 January 2026',
@@ -38,63 +37,11 @@ const currentReleases = [
     ],
     link: '/relnotes/wallet/wallet-1-0-0',
   },
-  // Future releases will go here (1.0.1, 1.1.0, etc.)
 ];
 
-const legacyReleases = [
-  {
-    id: 1,
-    version: '5.0.0',
-    status: 'UNSUPPORTED',
-    date: '12 May 2025',
-    summary: 'Summary of 5.0.0',
-    details: [
-      "BLS Support.",
-      "New sync progress API.",
-      "Bech32m viewing key support only."
-    ],
-    artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/5.0.0' },
-    ],
-    link: '/relnotes/wallet/wallet-5-0-0',
-  },
-  {
-    id: 2,
-    version: '4.0.0',
-    status: 'DEPRECATED',
-    date: '2 April 2025',
-    summary: 'Summary of 4.0.0',
-    details: [
-      "Secret Keys separated from state.",
-      "Bech32m address format.",
-      "HD Wallet.",
-      "Midnight Indexer API support.",
-      "New transaction balancer.",
-      "Indexer URL full path required.",
-      "Proving retries.",
-      "Ledger key derivation."
-    ],
-    artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/4.0.0' },
-    ],
-    link: '/relnotes/wallet/wallet-4-0-0',
-  },
-  {
-    id: 3,
-    version: '3.7.5',
-    status: 'DEPRECATED',
-    date: '3 February 2025',
-    summary: 'Summary of 3.7.5',
-    details: [
-      "Zswap 3.0.6 support.",
-      "Bug fixes & improvements."
-    ],
-    artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/3.7.5' },
-    ],
-    link: '/relnotes/wallet/wallet-3-7-5',
-  },
-];
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Helper to determine which release set to use
 function getVersionPrefix(pathname) {
@@ -114,7 +61,6 @@ const DynamicListWithDropdownFilters = () => {
   
   // Show currentReleases only on /next/, otherwise show legacyReleases
   // const releases = docsVersion === 'next' ? currentReleases : legacyReleases;
-  const releases = currentReleases;
   
   // Add version prefix to all release links
   const versionedReleases = releases.map(release => ({

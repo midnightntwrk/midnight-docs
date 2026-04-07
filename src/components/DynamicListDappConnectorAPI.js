@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '4.0.0',
     status: 'LATEST',
     date: '28 January 2026',
@@ -39,7 +38,6 @@ const releases = [
     link: '/relnotes/dapp-connector-api/dapp-connector-api-4-0-0',
   },
   {
-    id: 2,
     version: '3.0.0',
     status: 'DEPRECATED',
     date: '12 May 2025',
@@ -53,7 +51,6 @@ const releases = [
     link: '/relnotes/dapp-connector-api/dapp-connector-api-3-0-0',
   },
   {
-    id: 3,
     version: '2.0.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -67,7 +64,6 @@ const releases = [
     link: '/relnotes/dapp-connector-api/dapp-connector-api-2-0-0',
   },
   {
-    id: 4,
     version: '1.2.3',
     status: 'DEPRECATED',
     date: '10 January 2025',
@@ -81,6 +77,10 @@ const releases = [
     link: '/relnotes/dapp-connector-api/dapp-connector-api-1-2-3',
   },
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Helper to determine which release set to use
 function getVersionPrefix(pathname) {
