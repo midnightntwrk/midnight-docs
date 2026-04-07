@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '3.0.0',
     status: 'LATEST',
     date: '17 December 2025',
@@ -41,7 +40,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-3-0-0',
   },
   {
-    id: 2,
     version: '2.1.0',
     status: 'UNSUPPORTED',
     date: '1 October 2025',
@@ -64,7 +62,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-1-0',
   },
   {
-    id: 3,
     version: '2.0.2',
     status: 'UNSUPPORTED',
     date: '11 June 2025',
@@ -79,7 +76,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-2',
   },
   {
-    id: 4,
     version: '2.0.1',
     status: 'UNSUPPORTED',
     date: '30 May 2025',
@@ -94,7 +90,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-1',
   },
   {
-    id: 5,
     version: '2.0.0',
     status: 'UNSUPPORTED',
     date: '12 May 2025',
@@ -131,7 +126,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-0',
   },
   {
-    id: 6,
     version: '1.0.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -150,7 +144,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-1-0-0',
   },
   {
-    id: 7,
     version: '0.2.5',
     status: 'DEPRECATED',
     date: '3 February 2025',
@@ -168,6 +161,10 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-0-2-5',
   }
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases

@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '0.11.2',
     status: 'LATEST',
     date: '28 January 2026',
@@ -34,7 +33,6 @@ const releases = [
     link: '/relnotes/faucet/faucet-0-11-2',
   },
   {
-    id: 2,
     version: '0.11.0',
     status: 'UNSUPPORTED',
     date: '12 May 2025',
@@ -49,7 +47,6 @@ const releases = [
     link: '/relnotes/faucet/faucet-0-10-2',
   },
   {
-    id: 3,
     version: '0.9.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -63,7 +60,6 @@ const releases = [
     link: '/relnotes/faucet/faucet-0-9-0',
   },
   {
-    id: 4,
     version: '0.8.5',
     status: 'DEPRECATED',
     date: '3 February 2025',
@@ -77,6 +73,10 @@ const releases = [
     link: '/relnotes/faucet/faucet-0-8-5',
   }
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Sort versions (latest first)
 const sortedVersions = releases
