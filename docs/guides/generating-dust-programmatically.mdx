@@ -1,0 +1,1186 @@
+---
+title: How to generate DUST programmatically on Preprod
+description: Guide on generating DUST programmatically on the Midnight Preprod environment using the Midnight wallet SDK.
+sidebar_position: 20
+sidebar_label: How to generate DUST programmatically on Preprod
+tags: [deployment, Dust, Night, JavaScript]
+toc_max_heading_level: 2
+---
+
+# How to generate DUST programmatically on Preprod
+
+This tutorial walks you through the entire process from scratch: setting up a blank project, creating or restoring a wallet, funding it with tNIGHT, and registering your tokens for DUST generation. By the end, you'll have a working TypeScript script that sets up a wallet and starts generating DUST.
+
+## Prerequisites
+
+Midnight development is supported on **macOS, Linux, and Windows via WSL**.
+
+Make sure you have the following installed:
+
+- [Node.js](https://nodejs.org/) (v18 or later)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — needed to run the proof server
+
+Verify your installations:
+
+```bash
+node --version    # should print v18.x.x or higher
+npm --version     # should print 9.x.x or higher
+docker --version  # should print Docker version 2x.x.x or higher
+```
+
+### Why Docker?
+
+Midnight uses zero-knowledge proofs to keep your data private. The proof server is the service that generates these proofs, and it runs locally on your machine. This ensures your private data never leaves your computer. Docker makes running the proof server simple: one command pulls the image and starts it.
+
+## Step 1: create the project
+
+Start by creating an empty directory for the project. All the files we'll create in this tutorial will live inside it.
+
+```bash
+mkdir midnight-dust-tutorial
+cd midnight-dust-tutorial
+```
+
+## Step 2: create package.json and install dependencies
+
+Every Node.js project needs a `package.json` file to declare its dependencies and scripts. Create the file, then open it and paste in the contents below.
+
+```bash
+touch package.json
+```
+
+```json
+{
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/ledger-v8": "^8.0.0",
+    "@midnight-ntwrk/midnight-js-network-id": "^4.0.0",
+    "@midnight-ntwrk/midnight-js-utils": "^4.0.0",
+    "@midnight-ntwrk/wallet-sdk-address-format": "^3.0.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "^3.0.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "^3.0.0",
+    "@midnight-ntwrk/wallet-sdk-hd": "^3.0.0",
+    "@midnight-ntwrk/wallet-sdk-shielded": "^2.0.0",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "^2.0.0",
+    "rxjs": "^7.8.1",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.0"
+  }
+}
+```
+
+Here's what each piece does:
+
+- `"type": "module"` — tells Node.js to use modern ES module imports (`import`/`export`)
+- `"scripts" > "start"` — defines what `npm start` does: it runs `tsx src/index.ts`, which compiles and executes your TypeScript file in one step
+- `"dependencies"` — the Midnight wallet SDK packages your script imports at runtime
+- `"devDependencies"` — `tsx` runs TypeScript files directly without a separate compile step, and `@types/ws` provides type definitions for the WebSocket library
+
+Midnight wallet SDK packages must be version-matched based on the [compatibility matrix](https://docs.midnight.network/relnotes/support-matrix).
+
+Now install everything:
+
+```bash
+npm install
+```
+
+This downloads the Midnight SDK packages and their dependencies.
+
+### Step 3: create the proof server config
+
+The proof server runs in Docker. We'll define how to run it in a small Compose file so we can start it later with a single command.
+
+```bash
+touch proof-server.yml
+```
+
+Open `proof-server.yml` and paste in the following:
+
+```yaml
+services:
+  proof-server:
+    image: 'midnightntwrk/proof-server:8.0.3'
+    command: ['midnight-proof-server -v']
+    ports:
+      - '6300:6300'
+    environment:
+      RUST_BACKTRACE: 'full'
+```
+
+This tells Docker how to run the proof server. It downloads the official Midnight proof server image and exposes it on port 6300 so your script can send proof requests to `http://localhost:6300`.
+
+## Step 4: create src/index.ts
+
+All the script logic lives in `src/index.ts`. Create the directory and file now — we'll fill it in section by section in the rest of this step.
+
+```bash
+mkdir src
+touch src/index.ts
+```
+
+Open `src/index.ts` and paste all the code blocks below or scroll to the bottom for the [full script](#full-script). Every section is commented to explain what it does:
+
+### Imports
+
+The script needs a handful of packages: a WebSocket polyfill (since Node.js doesn't ship with one), the Midnight wallet SDK packages for shielded, unshielded, and dust wallets, the HD key derivation library, and address formatting utilities. The first thing we do is install a global WebSocket so the wallet SDK can connect to the indexer.
+
+```typescript
+// The Midnight wallet SDK communicates with the indexer over WebSockets.
+// Node.js doesn't have a built-in WebSocket like browsers do, so we import
+// one and set it globally before any wallet code runs.
+import { WebSocket } from 'ws';
+(globalThis as any).WebSocket = WebSocket;
+
+// Buffer: converts hex strings to/from binary data (used for seeds and keys)
+// readline: reads user input from the terminal (for the wallet create/restore prompt)
+// rxjs: reactive streams library — the wallet SDK emits state updates as observables
+import { Buffer } from 'buffer';
+import * as readline from 'readline';
+import * as Rx from 'rxjs';
+
+// HD wallet — derives multiple key pairs from a single seed phrase
+import { HDWallet, Roles, generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
+
+// Utility to convert binary data to hex strings
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+
+// Ledger types — defines tokens, keys, and on-chain parameters
+import * as ledger from '@midnight-ntwrk/ledger-v8';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
+
+// WalletFacade — combines the three sub-wallets into a single interface
+import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+
+// ShieldedWallet — handles private (zero-knowledge) transactions
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+
+// DustWallet — generates and spends DUST for transaction fees
+import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+
+// UnshieldedWallet — handles transparent (public) transactions like receiving tNight
+import {
+  createKeystore,
+  InMemoryTransactionHistoryStorage,
+  PublicKey,
+  UnshieldedWallet,
+} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import type { UnshieldedKeystore } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+
+// Network ID — tells the SDK which network to connect to (preprod, preview, etc.)
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+// Address formatting — encodes wallet keys into human-readable bech32m addresses
+import {
+  DustAddress,
+  MidnightBech32m,
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
+} from '@midnight-ntwrk/wallet-sdk-address-format';
+```
+
+### Configuration
+
+Next we define the network endpoints in one place.
+
+```typescript
+// Preprod network endpoints. The indexer and RPC node are public services hosted
+// by Midnight. The proof server runs locally on your machine (via Docker) so that
+// your private data never leaves your computer.
+
+const CONFIG = {
+  networkId: 'preprod' as const,
+  indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v3/graphql',
+  indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  proofServer: 'http://localhost:6300',
+  faucetUrl: 'https://faucet.preprod.midnight.network',
+};
+```
+
+### Format raw balances
+
+Midnight token balances are stored as `bigint` values in their atomic units. To display them in a human-readable form, we need two small helpers, one for NIGHT and one for DUST, that convert the raw integer into a decimal string.
+
+```typescript
+// NIGHT is divided into 10^6 STAR. A raw value of 1,000,000,000 equals 1,000.000000 tNight.
+// DUST is divided into 10^15 SPECK, so it uses a more granular decimal representation.
+
+const formatNight = (raw: bigint): string => {
+  const whole = raw / 1_000_000n;
+  const fraction = (raw % 1_000_000n).toString().padStart(6, '0');
+  return `${whole.toLocaleString()}.${fraction}`;
+};
+
+const formatDust = (raw: bigint): string => {
+  const whole = raw / 1_000_000_000_000_000n;
+  const fraction = (raw % 1_000_000_000_000_000n).toString().padStart(15, '0');
+  return `${whole.toLocaleString()}.${fraction}`;
+};
+```
+
+### Clock spinner
+
+Several of the operations in this script — building the wallet, syncing with the network, and registering NIGHT take a few seconds to complete. To give the user visual feedback, we wrap each long-running operation in a small helper that animates a spinner while it runs.
+
+```typescript
+// Shows a rotating clock animation in the terminal while an async operation runs.
+
+const withStatus = async <T>(message: string, fn: () => Promise<T>): Promise<T> => {
+  const clocks = ['🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛'];
+  let i = 0;
+  const interval = setInterval(() => {
+    process.stdout.write(`\r  ${clocks[i++ % clocks.length]} ${message}`);
+  }, 150);
+  try {
+    const result = await fn();
+    clearInterval(interval);
+    process.stdout.write(`\r  ✅ ${message}\n`);
+    return result;
+  } catch (e) {
+    clearInterval(interval);
+    process.stdout.write(`\r  ❌ ${message}\n`);
+    throw e;
+  }
+};
+```
+
+### Prompt for user input
+
+The script needs to ask the user a few questions interactively (whether to create or restore a wallet, what dust address to designate). Here's a small `prompt` helper that wraps Node's built-in `readline` module in a Promise so we can `await` user input.
+
+```typescript
+const prompt = (question: string): Promise<string> => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+};
+```
+
+### Validate and prompt for a dust address
+
+When the user designates a dust address for DUST generation, we want to make sure they pasted a valid one, not a shielded or unshielded address by mistake. This helper validates the bech32m format and loops until the user provides something valid (or presses Enter to use their own dust address).
+
+```typescript
+// Dust addresses use the bech32m prefix "mn_dust_". This validates that the
+// user hasn't accidentally pasted a shielded or unshielded address.
+
+const isValidDustAddress = (addr: string): boolean => {
+  if (!addr.startsWith('mn_dust_')) return false;
+  try {
+    MidnightBech32m.parse(addr).decode(DustAddress, getNetworkId());
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const promptForDustAddress = async (ownDustAddress: string): Promise<string> => {
+  while (true) {
+    const input = await prompt(`  Paste your Dust address to designate (Enter for this wallet's): `);
+    const target = input || ownDustAddress;
+
+    if (isValidDustAddress(target)) {
+      if (target !== ownDustAddress) {
+        console.log(`\n  Using external dust address: ${target}\n`);
+      } else {
+        console.log('');
+      }
+      return target;
+    }
+
+    console.log('  ❌ Invalid dust address. Dust addresses start with "mn_dust_" followed by the network.');
+    console.log('     Make sure you\'re not pasting a shielded or unshielded address.\n');
+  }
+};
+```
+
+### Create or restore a wallet seed
+
+Every Midnight wallet is derived from a 32-byte seed. This function asks the user whether they want to create a new wallet (which generates a fresh random seed) or restore an existing one (which prompts for an existing seed). Either way it returns the seed as a hex string for the rest of the script to use.
+
+```typescript
+const getOrCreateSeed = async (): Promise<string> => {
+  const choice = await prompt('  Create a new wallet or restore an existing one? (n/r): ');
+
+  if (choice.toLowerCase() === 'r') {
+    const seed = await prompt('  Enter your seed: ');
+    if (!seed || seed.length < 32) {
+      throw new Error('Invalid seed. The seed should be a 64-character hex string.');
+    }
+    console.log('  Restoring wallet from seed...\n');
+    return seed;
+  }
+
+  // Generate a brand new seed
+  const seed = toHex(Buffer.from(generateRandomSeed()));
+  console.log('\n  Created new wallet.');
+  console.log('  ⚠️  Save this seed — it is the ONLY way to restore your wallet:\n');
+  console.log(`  ${seed}\n`);
+  return seed;
+};
+```
+
+### Derive keys from the seed
+
+A single seed produces three sets of keys via hierarchical deterministic (HD) derivation, one for shielded transactions, one for unshielded transactions, and one for DUST. This function asks the HD wallet library to derive all three at once and clears the sensitive material from memory afterward.
+
+```typescript
+// The HD wallet derives three sets of keys from a single seed:
+//   - Zswap:         for shielded (private) transactions
+//   - NightExternal: for unshielded (transparent) transactions
+//   - Dust:          for DUST fee management
+
+const deriveKeys = (seed: string) => {
+  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+  if (hdWallet.type !== 'seedOk') {
+    throw new Error('Failed to initialize HDWallet from seed. Is the seed a valid hex string?');
+  }
+
+  const derivationResult = hdWallet.hdWallet
+    .selectAccount(0)
+    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+    .deriveKeysAt(0);
+
+  if (derivationResult.type !== 'keysDerived') {
+    throw new Error('Failed to derive keys from seed.');
+  }
+
+  // Clear sensitive key material from memory
+  hdWallet.hdWallet.clear();
+
+  return derivationResult.keys;
+};
+```
+
+### Build the wallet
+
+This is where the three sub-wallets come together. We construct each one with its own configuration, then pass them all into `WalletFacade.init()` to get a single unified interface. The facade is what the rest of the script interacts with, it abstracts away the fact that there are really three wallets working together under the hood.
+
+```typescript
+// Midnight uses three sub-wallets, each handling a different type of transaction.
+// The WalletFacade ties them together into a single interface.
+
+const buildWallet = async (keys: ReturnType<typeof deriveKeys>) => {
+  setNetworkId(CONFIG.networkId);
+
+  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+  const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+  const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+
+  // Build the three sub-wallet configs. WalletFacade.init() takes a single
+  // configuration object — we spread the per-wallet configs into one and let
+  // the factory functions receive the relevant subset.
+  const shieldedConfig = {
+    networkId: getNetworkId(),
+    indexerClientConnection: {
+      indexerHttpUrl: CONFIG.indexerHttpUrl,
+      indexerWsUrl: CONFIG.indexerWsUrl,
+    },
+    provingServerUrl: new URL(CONFIG.proofServer),
+    relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+  };
+
+  const unshieldedConfig = {
+    networkId: getNetworkId(),
+    indexerClientConnection: {
+      indexerHttpUrl: CONFIG.indexerHttpUrl,
+      indexerWsUrl: CONFIG.indexerWsUrl,
+    },
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  };
+
+  const dustConfig = {
+    ...shieldedConfig,
+    costParameters: {
+      additionalFeeOverhead: 300_000_000_000_000n,
+      feeBlocksMargin: 5,
+    },
+  };
+
+  // ── Create and start the unified facade via static factory ──
+  const wallet = await WalletFacade.init({
+    configuration: { ...shieldedConfig, ...unshieldedConfig, ...dustConfig },
+    shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+    unshielded: (cfg) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+    dust: (cfg) =>
+      DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+  });
+  await wallet.start(shieldedSecretKeys, dustSecretKey);
+
+  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
+};
+```
+
+### Wait for the wallet to sync
+
+Once the wallet is built, it needs to catch up with the network before we can use it. The wallet emits state updates as an RxJS observable, so we wait for the first state where `isSynced` is true.
+
+```typescript
+const waitForSync = (wallet: WalletFacade) =>
+  Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.throttleTime(5_000),
+      Rx.filter((state) => state.isSynced),
+    ),
+  );
+```
+
+### Wait for incoming funds
+
+After the user requests tNight from the faucet, we need to wait for it to arrive. Same pattern as `waitForSync`, but this time we filter for the unshielded NIGHT balance becoming non-zero.
+
+```typescript
+const waitForFunds = (wallet: WalletFacade): Promise<bigint> =>
+  Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.throttleTime(10_000),
+      Rx.filter((state) => state.isSynced),
+      Rx.map((s) => s.unshielded.balances[unshieldedToken().raw] ?? 0n),
+      Rx.filter((balance) => balance > 0n),
+    ),
+  );
+```
+
+### Register NIGHT tokens for DUST generation
+
+This is the heart of the script. NIGHT tokens don't automatically produce DUST, they have to be explicitly registered for it via an on-chain transaction. This function finds any NIGHT UTXOs that haven't been registered yet, builds the registration transaction, signs it with the unshielded keystore, and submits it. The optional `targetDustAddress` parameter lets you direct the generated DUST to a different wallet (otherwise it goes to the script's own dust address).
+
+```typescript
+// Your NIGHT tokens don't produce DUST until you explicitly register them via an
+// on-chain transaction. The targetDustAddress parameter specifies which dust
+// address will receive the generated DUST.
+
+const registerForDustGeneration = async (
+  wallet: WalletFacade,
+  unshieldedKeystore: UnshieldedKeystore,
+  targetDustAddress: string,
+  isExternalAddress: boolean = false,
+): Promise<void> => {
+  const state = await Rx.firstValueFrom(
+    wallet.state().pipe(Rx.filter((s) => s.isSynced)),
+  );
+
+  // Check: Do we already have DUST from a previous session?
+  if (state.dust.availableCoins.length > 0) {
+    const dustBalance = state.dust.balance(new Date());
+    console.log(`  DUST already available: ${formatDust(dustBalance)}\n`);
+    return;
+  }
+
+  // Find NIGHT UTXOs that haven't been registered yet
+  const unregisteredCoins = state.unshielded.availableCoins.filter(
+    (coin: any) => coin.meta?.registeredForDustGeneration !== true,
+  );
+
+  if (unregisteredCoins.length === 0) {
+    console.log('  All NIGHT already registered. Waiting for DUST to generate...');
+  } else {
+    // Decode the bech32m dust address string into a DustAddress object
+    const dustReceiver = MidnightBech32m.parse(targetDustAddress).decode(DustAddress, getNetworkId());
+
+    // Submit the registration transaction
+    await withStatus(
+      `Registering NIGHT for dust generation → ${targetDustAddress}`,
+      async () => {
+        const recipe = await wallet.registerNightUtxosForDustGeneration(
+          unregisteredCoins,
+          unshieldedKeystore.getPublicKey(),
+          (payload) => unshieldedKeystore.signData(payload),
+          dustReceiver,
+        );
+        const finalized = await wallet.finalizeRecipe(recipe);
+        await wallet.submitTransaction(finalized);
+      },
+    );
+  }
+
+  // Wait for DUST balance to become non-zero (only if DUST is going to this wallet)
+  if (!isExternalAddress) {
+    await withStatus('Waiting for DUST to generate (this may take 1–2 minutes)', () =>
+      Rx.firstValueFrom(
+        wallet.state().pipe(
+          Rx.throttleTime(5_000),
+          Rx.filter((s) => s.isSynced),
+          Rx.filter((s) => s.dust.balance(new Date()) > 0n),
+        ),
+      ),
+    );
+  }
+};
+```
+
+### Check DUST balance
+
+DUST accrues continuously over time, so we'll want to check the current balance on demand. This small helper grabs the latest synced state and returns the dust balance at the current moment.
+
+```typescript
+// DUST generates continuously over time. This function checks the current balance.
+
+const checkDustBalance = async (wallet: WalletFacade): Promise<bigint> => {
+  const state = await Rx.firstValueFrom(
+    wallet.state().pipe(Rx.filter((s) => s.isSynced)),
+  );
+  return state.dust.balance(new Date());
+};
+```
+
+### Main script
+
+Finally, the `main` function ties everything together. It walks through the full flow: get a seed, derive keys, build and sync the wallet, display the addresses, wait for funding if needed, prompt for a dust address, register NIGHT for DUST generation, and then enter a loop where the user can re-check their DUST balance or quit.
+
+```typescript
+const main = async () => {
+  // 1. Get or create a wallet seed
+  console.log('');
+  const seed = await getOrCreateSeed();
+
+  // 2. Derive HD keys
+  const keys = deriveKeys(seed);
+
+  // 3. Build the wallet
+  const { wallet, unshieldedKeystore } = await withStatus('Building wallet', () => buildWallet(keys));
+
+  // 4. Display all wallet addresses immediately (derived from keys, available before sync)
+  const initialState = await Rx.firstValueFrom(wallet.state());
+  const networkId = getNetworkId();
+
+  const coinPubKey = ShieldedCoinPublicKey.fromHexString(initialState.shielded.coinPublicKey.toHexString());
+  const encPubKey = ShieldedEncryptionPublicKey.fromHexString(initialState.shielded.encryptionPublicKey.toHexString());
+  const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
+  const unshieldedAddress = unshieldedKeystore.getBech32Address();
+  const dustAddress = MidnightBech32m.encode(networkId, initialState.dust.address).toString();
+
+  console.log('');
+  console.log('  Wallet Addresses:');
+  console.log(`    Shielded:    ${shieldedAddress}`);
+  console.log(`    Unshielded:  ${unshieldedAddress}  ← send tNight here`);
+  console.log(`    Dust:        ${dustAddress}`);
+  console.log('');
+  console.log(`  Faucet: ${CONFIG.faucetUrl}`);
+  console.log('');
+
+  // 5. Sync with the network
+  await withStatus('Syncing wallet with network', () => waitForSync(wallet));
+
+  const state = await Rx.firstValueFrom(wallet.state());
+  const nightBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
+  const dustBalance = state.dust.balance(new Date());
+
+  // 6. Handle three scenarios based on current balances
+  let usedExternalAddress = false;
+
+  if (nightBalance > 0n && dustBalance > 0n) {
+    // Scenario 3: Has both NIGHT and DUST — show balances and go to monitor
+    console.log(`  tNight Balance: ${formatNight(nightBalance)}`);
+    console.log(`  DUST Balance:   ${formatDust(dustBalance)}\n`);
+    console.log('  Your wallet is already generating DUST. No action needed.');
+  } else if (nightBalance > 0n && dustBalance === 0n) {
+    // Scenario 2: Has NIGHT but no DUST — register for DUST generation
+    console.log(`  tNight Balance: ${formatNight(nightBalance)}`);
+    console.log('  DUST Balance:   0\n');
+    console.log('  You have tNight but no DUST yet. Let\'s register for DUST generation.\n');
+
+    const targetDustAddress = await promptForDustAddress(dustAddress);
+    usedExternalAddress = targetDustAddress !== dustAddress;
+    await registerForDustGeneration(wallet, unshieldedKeystore, targetDustAddress, usedExternalAddress);
+  } else {
+    // Scenario 1: No NIGHT (and therefore no DUST) — wait for faucet funds
+    console.log('  Waiting for tNight — copy the unshielded address above and paste it into the faucet.');
+    console.log('  ⚠️  Make sure you copy only the address with no extra spaces.\n');
+    const balance = await withStatus('Waiting for incoming tNight', () => waitForFunds(wallet));
+    console.log(`  tNight Balance: ${formatNight(balance)}\n`);
+
+    const targetDustAddress = await promptForDustAddress(dustAddress);
+    usedExternalAddress = targetDustAddress !== dustAddress;
+    await registerForDustGeneration(wallet, unshieldedKeystore, targetDustAddress, usedExternalAddress);
+  }
+
+  // 7. Show DUST balance and enter monitor loop
+  if (usedExternalAddress) {
+    console.log('');
+    console.log('  DUST is being generated to the external address you designated.');
+    console.log('  Because DUST is a shielded token, only the wallet holding that dust');
+    console.log('  secret key can see the balance. Check the receiving wallet to verify');
+    console.log('  DUST is accruing.');
+  } else {
+    const currentDust = await checkDustBalance(wallet);
+    console.log('');
+    console.log(`  DUST Balance: ${formatDust(currentDust)}`);
+    console.log('  DUST generates continuously over time.');
+    console.log('  Press Enter to re-check, or type "q" to quit.\n');
+
+    // 8. Let the user check the balance repeatedly
+    let running = true;
+    while (running) {
+      const answer = await prompt('  > ');
+      if (answer.toLowerCase() === 'q' || answer.toLowerCase() === 'quit' || answer.toLowerCase() === 'exit') {
+        running = false;
+      } else {
+        const updated = await checkDustBalance(wallet);
+        const time = new Date().toLocaleTimeString();
+        console.log(`  [${time}] DUST Balance: ${formatDust(updated)}\n`);
+      }
+    }
+  }
+
+  console.log('');
+  console.log('  To restore this wallet later, run the script again and choose "r".');
+  console.log('');
+
+  await wallet.stop();
+  process.exit(0);
+};
+
+// Run
+main().catch((err) => {
+  console.error('\n  ❌ Error:', err.message || err);
+  process.exit(1);
+});
+```
+
+## Full script
+
+If you'd rather copy the entire script at once instead of pasting each section individually, expand the block below for the full `src/index.ts`.
+
+<details>
+<summary>Click to expand the complete src/index.ts</summary>
+
+```typescript
+// This file is part of midnight-dust-generator.
+// Copyright (C) 2025 Midnight Foundation
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0 (the "License");
+// You may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * Midnight DUST Generation Tutorial
+ *
+ * This script:
+ *   1. Creates a new wallet or restores an existing one
+ *   2. Displays all wallet addresses (shielded, unshielded, dust)
+ *   3. Waits for you to send tNight from the faucet
+ *   4. Registers your NIGHT tokens for DUST generation
+ *   5. Monitors your DUST balance as it accrues
+ */
+
+// ─── Imports ───────────────────────────────────────────────────────────────────
+
+import { WebSocket } from 'ws';
+(globalThis as any).WebSocket = WebSocket;
+
+import { Buffer } from 'buffer';
+import * as readline from 'readline';
+import * as Rx from 'rxjs';
+
+import { HDWallet, Roles, generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+import * as ledger from '@midnight-ntwrk/ledger-v8';
+import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
+import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
+import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+import {
+  createKeystore,
+  InMemoryTransactionHistoryStorage,
+  PublicKey,
+  UnshieldedWallet,
+} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import type { UnshieldedKeystore } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import {
+  DustAddress,
+  MidnightBech32m,
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
+} from '@midnight-ntwrk/wallet-sdk-address-format';
+
+
+// ─── Configuration ─────────────────────────────────────────────────────────────
+
+const CONFIG = {
+  networkId: 'preprod' as const,
+  indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v3/graphql',
+  indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v3/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  proofServer: 'http://localhost:6300',
+  faucetUrl: 'https://faucet.preprod.midnight.network',
+};
+
+
+// ─── Helpers: Format raw balances to human-readable ────────────────────────────
+// NIGHT is divided into 10^6 STAR. DUST is divided into 10^15 SPECK.
+
+const formatNight = (raw: bigint): string => {
+  const whole = raw / 1_000_000n;
+  const fraction = (raw % 1_000_000n).toString().padStart(6, '0');
+  return `${whole.toLocaleString()}.${fraction}`;
+};
+
+const formatDust = (raw: bigint): string => {
+  const whole = raw / 1_000_000_000_000_000n;
+  const fraction = (raw % 1_000_000_000_000_000n).toString().padStart(15, '0');
+  return `${whole.toLocaleString()}.${fraction}`;
+};
+
+
+// ─── Helper: Clock Spinner ─────────────────────────────────────────────────────
+
+const withStatus = async <T>(message: string, fn: () => Promise<T>): Promise<T> => {
+  const clocks = ['🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛'];
+  let i = 0;
+  const interval = setInterval(() => {
+    process.stdout.write(`\r  ${clocks[i++ % clocks.length]} ${message}`);
+  }, 150);
+  try {
+    const result = await fn();
+    clearInterval(interval);
+    process.stdout.write(`\r  ✅ ${message}\n`);
+    return result;
+  } catch (e) {
+    clearInterval(interval);
+    process.stdout.write(`\r  ❌ ${message}\n`);
+    throw e;
+  }
+};
+
+
+// ─── Helper: Prompt for user input ─────────────────────────────────────────────
+
+const prompt = (question: string): Promise<string> => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+};
+
+
+// ─── Prompt for a valid Dust address ────────────────────────────────────────────
+
+const isValidDustAddress = (addr: string): boolean => {
+  if (!addr.startsWith('mn_dust_')) return false;
+  try {
+    MidnightBech32m.parse(addr).decode(DustAddress, getNetworkId());
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const promptForDustAddress = async (ownDustAddress: string): Promise<string> => {
+  while (true) {
+    const input = await prompt(`  Paste your Dust address to designate (Enter for this wallet's): `);
+    const target = input || ownDustAddress;
+
+    if (isValidDustAddress(target)) {
+      if (target !== ownDustAddress) {
+        console.log(`\n  Using external dust address: ${target}\n`);
+      } else {
+        console.log('');
+      }
+      return target;
+    }
+
+    console.log('  ❌ Invalid dust address. Dust addresses start with "mn_dust_" followed by the network.');
+    console.log('     Make sure you\'re not pasting a shielded or unshielded address.\n');
+  }
+};
+
+
+// ─── Create or Restore a Wallet Seed ───────────────────────────────────────────
+
+const getOrCreateSeed = async (): Promise<string> => {
+  const choice = await prompt('  Create a new wallet or restore an existing one? (n/r): ');
+  if (choice.toLowerCase() === 'r') {
+    const seed = await prompt('  Enter your seed: ');
+    if (!seed || seed.length < 32) {
+      throw new Error('Invalid seed. The seed should be a 64-character hex string.');
+    }
+    console.log('  Restoring wallet from seed...\n');
+    return seed;
+  }
+  const seed = toHex(Buffer.from(generateRandomSeed()));
+  console.log('\n  Created new wallet.');
+  console.log('  ⚠️  Save this seed — it is the ONLY way to restore your wallet:\n');
+  console.log(`  ${seed}\n`);
+  return seed;
+};
+
+
+// ─── Derive Keys from the Seed ─────────────────────────────────────────────────
+
+const deriveKeys = (seed: string) => {
+  const hdWallet = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+  if (hdWallet.type !== 'seedOk') {
+    throw new Error('Failed to initialize HDWallet from seed. Is the seed a valid hex string?');
+  }
+  const derivationResult = hdWallet.hdWallet
+    .selectAccount(0)
+    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+    .deriveKeysAt(0);
+  if (derivationResult.type !== 'keysDerived') {
+    throw new Error('Failed to derive keys from seed.');
+  }
+  hdWallet.hdWallet.clear();
+  return derivationResult.keys;
+};
+
+
+// ─── Build the Wallet ──────────────────────────────────────────────────────────
+
+const buildWallet = async (keys: ReturnType<typeof deriveKeys>) => {
+  setNetworkId(CONFIG.networkId);
+  const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+  const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+  const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+  const shieldedConfig = {
+    networkId: getNetworkId(),
+    indexerClientConnection: {
+      indexerHttpUrl: CONFIG.indexerHttpUrl,
+      indexerWsUrl: CONFIG.indexerWsUrl,
+    },
+    provingServerUrl: new URL(CONFIG.proofServer),
+    relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+  };
+  const unshieldedConfig = {
+    networkId: getNetworkId(),
+    indexerClientConnection: {
+      indexerHttpUrl: CONFIG.indexerHttpUrl,
+      indexerWsUrl: CONFIG.indexerWsUrl,
+    },
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  };
+  const dustConfig = {
+    ...shieldedConfig,
+    costParameters: {
+      additionalFeeOverhead: 300_000_000_000_000n,
+      feeBlocksMargin: 5,
+    },
+  };
+  const wallet = await WalletFacade.init({
+    configuration: { ...shieldedConfig, ...unshieldedConfig, ...dustConfig },
+    shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+    unshielded: (cfg) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+    dust: (cfg) =>
+      DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+  });
+  await wallet.start(shieldedSecretKeys, dustSecretKey);
+  return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
+};
+
+
+// ─── Wait for the Wallet to Sync ───────────────────────────────────────────────
+
+const waitForSync = (wallet: WalletFacade) =>
+  Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.throttleTime(5_000),
+      Rx.filter((state) => state.isSynced),
+    ),
+  );
+
+
+// ─── Wait for Incoming Funds ───────────────────────────────────────────────────
+
+const waitForFunds = (wallet: WalletFacade): Promise<bigint> =>
+  Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.throttleTime(10_000),
+      Rx.filter((state) => state.isSynced),
+      Rx.map((s) => s.unshielded.balances[unshieldedToken().raw] ?? 0n),
+      Rx.filter((balance) => balance > 0n),
+    ),
+  );
+
+
+// ─── Register NIGHT Tokens for DUST Generation ─────────────────────────────────
+
+const registerForDustGeneration = async (
+  wallet: WalletFacade,
+  unshieldedKeystore: UnshieldedKeystore,
+  targetDustAddress: string,
+  isExternalAddress: boolean = false,
+): Promise<void> => {
+  const state = await Rx.firstValueFrom(
+    wallet.state().pipe(Rx.filter((s) => s.isSynced)),
+  );
+  if (state.dust.availableCoins.length > 0) {
+    const dustBalance = state.dust.balance(new Date());
+    console.log(`  DUST already available: ${formatDust(dustBalance)}\n`);
+    return;
+  }
+  const unregisteredCoins = state.unshielded.availableCoins.filter(
+    (coin: any) => coin.meta?.registeredForDustGeneration !== true,
+  );
+  if (unregisteredCoins.length === 0) {
+    console.log('  All NIGHT already registered. Waiting for DUST to generate...');
+  } else {
+    const dustReceiver = MidnightBech32m.parse(targetDustAddress).decode(DustAddress, getNetworkId());
+    await withStatus(
+      `Registering NIGHT for dust generation → ${targetDustAddress}`,
+      async () => {
+        const recipe = await wallet.registerNightUtxosForDustGeneration(
+          unregisteredCoins,
+          unshieldedKeystore.getPublicKey(),
+          (payload) => unshieldedKeystore.signData(payload),
+          dustReceiver,
+        );
+        const finalized = await wallet.finalizeRecipe(recipe);
+        await wallet.submitTransaction(finalized);
+      },
+    );
+  }
+  if (!isExternalAddress) {
+    await withStatus('Waiting for DUST to generate (this may take 1–2 minutes)', () =>
+      Rx.firstValueFrom(
+        wallet.state().pipe(
+          Rx.throttleTime(5_000),
+          Rx.filter((s) => s.isSynced),
+          Rx.filter((s) => s.dust.balance(new Date()) > 0n),
+        ),
+      ),
+    );
+  }
+};
+
+
+// ─── Check DUST Balance ────────────────────────────────────────────────────────
+
+const checkDustBalance = async (wallet: WalletFacade): Promise<bigint> => {
+  const state = await Rx.firstValueFrom(
+    wallet.state().pipe(Rx.filter((s) => s.isSynced)),
+  );
+  return state.dust.balance(new Date());
+};
+
+
+// ─── Main ──────────────────────────────────────────────────────────────────────
+
+const main = async () => {
+  console.log('');
+  const seed = await getOrCreateSeed();
+  const keys = deriveKeys(seed);
+  const { wallet, unshieldedKeystore } = await withStatus('Building wallet', () => buildWallet(keys));
+
+  const initialState = await Rx.firstValueFrom(wallet.state());
+  const networkId = getNetworkId();
+  const coinPubKey = ShieldedCoinPublicKey.fromHexString(initialState.shielded.coinPublicKey.toHexString());
+  const encPubKey = ShieldedEncryptionPublicKey.fromHexString(initialState.shielded.encryptionPublicKey.toHexString());
+  const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
+  const unshieldedAddress = unshieldedKeystore.getBech32Address();
+  const dustAddress = MidnightBech32m.encode(networkId, initialState.dust.address).toString();
+
+  console.log('');
+  console.log('  Wallet Addresses:');
+  console.log(`    Shielded:    ${shieldedAddress}`);
+  console.log(`    Unshielded:  ${unshieldedAddress}  ← send tNight here`);
+  console.log(`    Dust:        ${dustAddress}`);
+  console.log('');
+  console.log(`  Faucet: ${CONFIG.faucetUrl}`);
+  console.log('');
+
+  await withStatus('Syncing wallet with network', () => waitForSync(wallet));
+
+  const state = await Rx.firstValueFrom(wallet.state());
+  const nightBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
+  const dustBalance = state.dust.balance(new Date());
+
+  let usedExternalAddress = false;
+
+  if (nightBalance > 0n && dustBalance > 0n) {
+    console.log(`  tNight Balance: ${formatNight(nightBalance)}`);
+    console.log(`  DUST Balance:   ${formatDust(dustBalance)}\n`);
+    console.log('  Your wallet is already generating DUST. No action needed.');
+  } else if (nightBalance > 0n && dustBalance === 0n) {
+    console.log(`  tNight Balance: ${formatNight(nightBalance)}`);
+    console.log('  DUST Balance:   0\n');
+    console.log('  You have tNight but no DUST yet. Let\'s register for DUST generation.\n');
+    const targetDustAddress = await promptForDustAddress(dustAddress);
+    usedExternalAddress = targetDustAddress !== dustAddress;
+    await registerForDustGeneration(wallet, unshieldedKeystore, targetDustAddress, usedExternalAddress);
+  } else {
+    console.log('  Waiting for tNight — copy the unshielded address above and paste it into the faucet.');
+    console.log('  ⚠️  Make sure you copy only the address with no extra spaces.\n');
+    const balance = await withStatus('Waiting for incoming tNight', () => waitForFunds(wallet));
+    console.log(`  tNight Balance: ${formatNight(balance)}\n`);
+    const targetDustAddress = await promptForDustAddress(dustAddress);
+    usedExternalAddress = targetDustAddress !== dustAddress;
+    await registerForDustGeneration(wallet, unshieldedKeystore, targetDustAddress, usedExternalAddress);
+  }
+
+  if (usedExternalAddress) {
+    console.log('');
+    console.log('  DUST is being generated to the external address you designated.');
+    console.log('  Because DUST is a shielded token, only the wallet holding that dust');
+    console.log('  secret key can see the balance. Check the receiving wallet to verify');
+    console.log('  DUST is accruing.');
+  } else {
+    const currentDust = await checkDustBalance(wallet);
+    console.log('');
+    console.log(`  DUST Balance: ${formatDust(currentDust)}`);
+    console.log('  DUST generates continuously over time.');
+    console.log('  Press Enter to re-check, or type "q" to quit.\n');
+    let running = true;
+    while (running) {
+      const answer = await prompt('  > ');
+      if (answer.toLowerCase() === 'q' || answer.toLowerCase() === 'quit' || answer.toLowerCase() === 'exit') {
+        running = false;
+      } else {
+        const updated = await checkDustBalance(wallet);
+        const time = new Date().toLocaleTimeString();
+        console.log(`  [${time}] DUST Balance: ${formatDust(updated)}\n`);
+      }
+    }
+  }
+
+  console.log('');
+  console.log('  To restore this wallet later, run the script again and choose "r".');
+  console.log('');
+  await wallet.stop();
+  process.exit(0);
+};
+
+main().catch((err) => {
+  console.error('\n  ❌ Error:', err.message || err);
+  process.exit(1);
+});
+```
+
+</details>
+
+## Step 5: start the proof server
+
+With the script in place, we now need to start the proof server so it's ready to handle the zero-knowledge proofs the script will request. Make sure Docker Desktop is open and running on your machine. Then open a second terminal window, navigate to your project folder, and start the proof server:
+
+```bash
+cd midnight-dust-tutorial
+docker compose -f proof-server.yml up
+```
+
+The first time you run this, Docker downloads the proof server image (~2 GB). Once you see `listening on: 0.0.0.0:6300` in the output, the proof server is ready.
+
+Leave this terminal running and switch back to your first terminal.
+
+## Step 6: run the script
+
+With the proof server running and your code in place, you can now run the tutorial script.
+
+```bash
+npm start
+```
+
+The script will ask whether you want to create a new wallet or restore an existing one:
+
+```
+Create a new wallet or restore an existing one? (n/r):
+```
+
+Type `n` to create a new wallet, or `r` to restore one from a saved seed.
+
+If you create a new wallet, the script displays your seed. Save it somewhere safe — it's the only way to restore your wallet later. Next it shows all three wallet addresses:
+
+```
+  Created new wallet.
+  ⚠️  Save this seed — it is the ONLY way to restore your wallet:
+
+  a1b2c3d4e5f6...  (your unique 64-character hex seed)
+
+  ✅ Building wallet
+
+  Wallet Addresses:
+    Shielded:    mn_shield-addr_preprod1q...
+    Unshielded:  mn_addr_preprod1q...  ← send tNight here
+    Dust:        mn_dust_preprod1w...
+
+  Faucet: https://faucet.preprod.midnight.network
+
+  🕐 Syncing wallet with network
+```
+
+You can copy the unshielded address and start funding from the faucet while the wallet syncs.
+
+Now fund the wallet:
+
+1. Copy the unshielded address (marked with `← send tNight here`). Make sure you copy only the address with no extra spaces before or after it, or the faucet will reject it.
+2. Open the faucet link in your browser: [https://faucet.preprod.midnight.network](https://faucet.preprod.midnight.network)
+3. Paste your address into the faucet and request tNight tokens.
+4. Wait, the script automatically detects the incoming funds.
+
+Once funds arrive, the script prompts you to designate a dust address. Press Enter to use this wallet's own dust address, or paste another wallet's dust address (starting with `mn_dust_`) to generate DUST there instead:
+
+```
+  tNight Balance: 1,000.000000
+
+  Paste your Dust address to designate (Enter for this wallet's):
+```
+
+After designation, the script registers your NIGHT tokens and waits for DUST to start accruing:
+
+```
+  ✅ Registering NIGHT for dust generation → mn_dust_preprod1w...
+  ✅ Waiting for DUST to generate (this may take 1–2 minutes)
+
+  DUST Balance: 0.000405083000000
+  DUST generates continuously over time.
+  Press Enter to re-check, or type "q" to quit.
+```
+
+Press Enter at any time to see your updated DUST balance. DUST accrues continuously, so the number will grow each time you check.
+
+If you designated an external dust address, the script will confirm the registration and exit because DUST is a shielded token, only the wallet holding that dust secret key can see the balance.
+
+## Final project structure
+
+After following all the steps above, your project directory should look like this:
+
+```
+midnight-dust-tutorial/
+├── node_modules/           ← created by npm install
+├── src/
+│   └── index.ts            ← main script (Step 4)
+├── package.json            ← dependencies and start script (Step 2)
+└── proof-server.yml        ← Docker config for proof server (Step 3)
+```
+
+## Troubleshooting
+
+**"Cannot find module" errors when running `npm start`:** Make sure you ran `npm install` first. If you still see errors, delete `node_modules` and `package-lock.json`, then run `npm install` again.
+
+**Connection refused on port 6300:** The proof server isn't running. Make sure `docker compose -f proof-server.yml up` is running in another terminal and shows `listening on: 0.0.0.0:6300`.
+
+**Proof server won't start or hangs:** Make sure Docker Desktop is open and running first.
+
+**Faucet says the address is invalid:** Make sure you copied only the address characters with no extra spaces before or after. The address should start with `mn_addr_preprod1` and contain no whitespace.
+
+**Wallet shows zero balance after using the faucet:** Give it 30–60 seconds. The wallet polls the network periodically. If it still shows zero after a couple of minutes, double-check that you pasted the correct address into the faucet.
+
+**DUST balance stays at zero after registration:** Initial DUST generation can take 1–2 minutes. If it takes longer, make sure the proof server is running and accessible at `http://localhost:6300`.
+
+**Invalid dust address error:** Dust addresses start with `mn_dust_` followed by the network (e.g. `mn_dust_preprod1...`). Make sure you're not pasting a shielded (`mn_shield-addr_...`) or unshielded (`mn_addr_...`) address.
+
+## Next steps
+
+With DUST generation active, your wallet is ready to pay transaction fees. From here you can explore deploying [Compact smart contracts](https://docs.midnight.network/compact), building a full dApp, or integrating DUST generation into your own application's wallet setup flow. Check out [example projects on GitHub](https://github.com/midnightntwrk) and the [Midnight documentation](https://docs.midnight.network/) to keep building.
