@@ -17,8 +17,78 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '3.0.0',
+    version: '4.0.4',
     status: 'LATEST',
+    date: '1 April 2026',
+    summary: 'Summary of Release 4.0.4',
+    details: [
+      'Introduced `@midnight-ntwrk/midnight-js` barrel package',
+      'Added `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider`',
+      'Per-recipient encryption key resolution for `zswapStateToOffer`',
+      'Browser fallback for `timingSafeEqual` in non-Node runtimes',
+      'Exposed `additionalCoinEncPublicKeyMappings` in high-level APIs',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-4',
+  },
+  {
+    version: '4.0.2',
+    status: 'SUPPORTED',
+    date: '24 March 2026',
+    summary: 'Summary of Release 4.0.2',
+    details: [
+      'Added custom header support in `httpClientProvingProvider`',
+      'Introduced `isEffectContractError` type guard',
+      'Reverted v4.0.1 `addCalls` migration in `createUnprovenLedgerCallTx`',
+      'Fixed Merkle tree rehash handling before spend validation',
+      'Improved fallible transaction error reporting and propagation',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-2',
+  },
+  {
+    version: '4.0.1',
+    status: 'SUPPORTED',
+    date: '20 March 2026',
+    summary: 'Summary of Release 4.0.1',
+    details: [
+      'Migrated to ledger v8 and provable-circuit naming',
+      'Extended `queryZSwapAndContractState` with `LedgerParameters`',
+      'Required `ledgerParameters` in `CallOptionsProviderDataDependencies`',
+      'Refactored internal call transaction construction for v4',
+      'Added `createProofProvider` helper factory',
+      'Improved binary query-context handling in unproven call flows',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-1',
+  },
+  {
+    version: '3.2.0',
+    status: 'UNSUPPORTED',
+    date: '5 March 2026',
+    summary: 'Summary of Release 3.2.0',
+    details: [
+      'Security hardening for private state encryption',
+      '`accountId` required for scoped storage isolation',
+      'Export/import APIs for signing keys and private states',
+      'Password rotation APIs for private state and signing keys',
+      'Enhanced testkit environment support for preview and preprod',
+      'Runtime and tooling fixes across storage and transaction handling',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-3-2-0',
+  },
+  {
+    version: '3.0.0',
+    status: 'UNSUPPORTED',
     date: '17 December 2025',
     summary: 'Summary of Release 3.0.0',
     details: [
