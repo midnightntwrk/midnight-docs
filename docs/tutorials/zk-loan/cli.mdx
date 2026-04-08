@@ -100,7 +100,7 @@ export class LocalDevConfig implements Config {
 }
 ```
 
-This is configured for **Preprod and Local**. The indexer and node point to Midnight's remote infrastructure. The proof server points to the local Docker container you started in [Part 2](./attestation-api).
+This is configured for Preprod and Local Dev. The indexer and node point to Midnight's remote infrastructure. The proof server points to the local Docker container you started in [Part 2](./attestation-api).
 
 Key details:
 
@@ -326,6 +326,8 @@ Create `zkloan-credit-scorer-cli/src/api.ts` and add the following sections in o
 
 #### Imports and global setup
 
+This block imports the Midnight SDK modules, wallet libraries, and project-specific types. It also patches the global `WebSocket` constructor for Node.js compatibility with the SDK's GraphQL subscriptions:
+
 ```typescript
 import 'dotenv/config';
 import {
@@ -395,6 +397,8 @@ The `WebSocket` assignment is required because the Midnight SDK's GraphQL subscr
 
 #### Wallet context and ledger state
 
+The `WalletContext` interface and `getZKLoanLedgerState` function define how the CLI interacts with wallet state and reads on-chain contract data:
+
 ```typescript
 export interface WalletContext {
   wallet: WalletFacade;
@@ -420,11 +424,17 @@ export const getZKLoanLedgerState = async (
 };
 ```
 
-`WalletContext` bundles the four wallet components: the facade (which coordinates shielded, unshielded, and dust wallets), the shielded secret key (for zero-knowledge transactions), the dust secret key (for paying fees), and the unshielded keystore (for transparent operations such as dust registration).
+`WalletContext` bundles the four wallet components:
+- `wallet` — the facade that coordinates shielded, unshielded, and dust wallets.
+- `shieldedSecretKeys` — used for zero-knowledge transactions.
+- `dustSecretKey` — used for paying transaction fees.
+- `unshieldedKeystore` — used for transparent operations such as dust registration.
 
 `getZKLoanLedgerState` queries the indexer for the current on-chain state of the smart contract. The `ZKLoanCreditScorer.ledger()` function deserializes the raw contract state into the typed `Ledger` object with fields like `admin`, `loans`, `providers`, and `blacklist`.
 
 #### Compiled smart contract and deploy/join
+
+This section combines the compiled contract artifacts with the witness implementations, then provides functions to deploy a new contract or join an existing one:
 
 ```typescript
 export const zkLoanCompiledContract =
@@ -469,6 +479,8 @@ export const deploy = async (
 };
 ```
 
+The code above defines three key exports:
+
 *   `zkLoanCompiledContract` combines three things: the generated TypeScript smart contract interface, the witness implementations from [Part 1](./smart-contract), and the compiled circuit assets (proving keys and ZKIR files).
 
 *   `deploy` creates a new instance of the smart contract on Preprod. This triggers a deployment transaction that includes a zero-knowledge proof — the proof server generates this, which takes about a minute.
@@ -476,6 +488,8 @@ export const deploy = async (
 *   `joinContract` connects to an existing deployed smart contract by address. This is how a second user (or the same user in a new session) interacts with a smart contract deployed by someone else.
 
 #### Attestation and loan request logic
+
+This section handles the core loan flow: computing the user's public key hash, fetching a Schnorr attestation from the API, storing it in private state, and submitting the loan request transaction:
 
 ```typescript
 const bytes32Type = new CompactTypeBytes(32);
@@ -899,6 +913,7 @@ The wallet infrastructure handles three concerns:
 This section derives three key roles (Zswap, NightExternal, Dust) from a single BIP-39 mnemonic, initializes the corresponding wallets, and waits for synchronization and funding before returning a ready-to-use wallet context.
 
 ```typescript
+// Validate a BIP-39 mnemonic and convert it to a seed buffer
 export const mnemonicToSeed = async (
   mnemonic: string,
 ): Promise<Buffer> => {
@@ -910,6 +925,7 @@ export const mnemonicToSeed = async (
   return Buffer.from(seed);
 };
 
+// Derive wallet keys from a seed and initialize all three wallet types
 export const initWalletWithSeed = async (
   seed: Buffer,
   config: Config,
@@ -931,6 +947,7 @@ export const initWalletWithSeed = async (
 
   hdWallet.hdWallet.clear();
 
+  // Create secret keys for each wallet role
   const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(
     derivationResult.keys[Roles.Zswap],
   );
@@ -977,6 +994,7 @@ export const initWalletWithSeed = async (
     relayURL,
   };
 
+  // Initialize and start all three wallet types
   const shieldedWallet =
     ShieldedWallet(shieldedConfig).startWithSecretKeys(shieldedSecretKeys);
   const unshieldedWallet =
@@ -988,6 +1006,7 @@ export const initWalletWithSeed = async (
     ledger.LedgerParameters.initialParameters().dust,
   );
 
+  // Combine into a single facade that coordinates all wallet operations
   const facade: WalletFacade = new WalletFacade(
     shieldedWallet,
     unshieldedWallet,
@@ -1003,6 +1022,7 @@ export const initWalletWithSeed = async (
   };
 };
 
+// High-level: create wallet from mnemonic, sync, wait for funds, register dust
 export const buildWalletAndWaitForFunds = async (
   config: Config,
   mnemonic: string,
@@ -1032,6 +1052,7 @@ export const buildWalletAndWaitForFunds = async (
   return walletContext;
 };
 
+// Generate a new BIP-39 mnemonic and build a wallet from it
 export const buildFreshWallet = async (
   config: Config,
 ): Promise<WalletContext> => {
@@ -1121,6 +1142,8 @@ Create `zkloan-credit-scorer-cli/src/cli.ts` and add the following sections in o
 
 #### Imports and menu prompts
 
+The imports pull in the API module, type definitions, and Node's readline for interactive terminal input. The two menu prompt strings define the choices shown to the user at each stage:
+
 ```typescript
 import { stdin as input, stdout as output } from "node:process";
 import { createInterface, type Interface } from "node:readline/promises";
@@ -1137,6 +1160,7 @@ import "dotenv/config";
 
 let logger: Logger;
 
+// Menu prompt shown after wallet setup
 const DEPLOY_OR_JOIN_QUESTION = `
 You can do one of the following:
   1. Deploy a new ZKLoan Credit Scorer contract
@@ -1144,6 +1168,7 @@ You can do one of the following:
   3. Exit
 Which would you like to do? `;
 
+// Menu prompt shown after contract deploy/join
 const MAIN_LOOP_QUESTION = `
 You can do one of the following:
   1. Request a loan
@@ -1161,7 +1186,10 @@ Which would you like to do? `;
 
 #### Deploy or join helpers
 
+These functions prompt the user to deploy a new contract or connect to an existing one by address:
+
 ```typescript
+// Connect to an existing deployed contract by address
 const join = async (
   providers: ZKLoanCreditScorerProviders,
   rli: Interface,
@@ -1172,6 +1200,7 @@ const join = async (
   return await api.joinContract(providers, contractAddress);
 };
 
+// Present the deploy/join/exit menu and handle the user's choice
 const deployOrJoin = async (
   providers: ZKLoanCreditScorerProviders,
   rli: Interface,
@@ -1195,7 +1224,10 @@ const deployOrJoin = async (
 
 #### Loan and PIN flow functions
 
+These functions handle the two user-facing operations: requesting a loan (which involves fetching an attestation) and changing a PIN (which triggers batched loan migration):
+
 ```typescript
+// Prompt for amount and PIN, fetch attestation, and submit loan request
 const requestLoan = async (
   contract: DeployedZKLoanCreditScorerContract,
   providers: ZKLoanCreditScorerProviders,
@@ -1225,6 +1257,7 @@ const requestLoan = async (
   logger.info("Loan request submitted successfully!");
 };
 
+// Prompt for old and new PIN, then submit the PIN change transaction
 const changePinFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
@@ -1242,7 +1275,10 @@ const changePinFlow = async (
 
 #### Admin flow functions
 
+Each admin function prompts for the required input and delegates to the corresponding API wrapper. Only the deployer (admin) can execute these operations:
+
 ```typescript
+// Add a wallet to the blocklist by Zswap public key
 const blacklistUserFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
@@ -1254,6 +1290,7 @@ const blacklistUserFlow = async (
   logger.info("User added to blocklist successfully!");
 };
 
+// Remove a wallet from the blocklist
 const removeBlacklistUserFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
@@ -1265,6 +1302,7 @@ const removeBlacklistUserFlow = async (
   logger.info("User removed from blocklist successfully!");
 };
 
+// Transfer admin role to another wallet
 const transferAdminFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
@@ -1276,6 +1314,7 @@ const transferAdminFlow = async (
   logger.info("Admin role transferred successfully!");
 };
 
+// Register an attestation provider's public key on-chain
 const registerProviderFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
@@ -1295,6 +1334,7 @@ const registerProviderFlow = async (
   logger.info("Attestation provider registered successfully!");
 };
 
+// Remove an attestation provider by ID
 const removeProviderFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
@@ -1309,7 +1349,10 @@ const removeProviderFlow = async (
 
 #### Main loop and wallet selection
 
+The main loop presents the ten-option menu and routes each choice to the corresponding flow function. The wallet selection prompts the user to create or restore a wallet before entering the main loop:
+
 ```typescript
+// Main interaction loop — routes menu choices to flow functions
 const mainLoop = async (
   providers: ZKLoanCreditScorerProviders,
   walletContext: WalletContext,
@@ -1365,6 +1408,7 @@ const mainLoop = async (
   }
 };
 
+// Wallet creation/restore menu
 const WALLET_LOOP_QUESTION = `
 You can do one of the following:
   1. Build a fresh wallet
@@ -1373,6 +1417,7 @@ You can do one of the following:
   4. Exit
 Which would you like to do? `;
 
+// Present wallet options and return the initialized wallet context
 const buildWallet = async (
   config: Config,
   rli: Interface,
@@ -1407,6 +1452,7 @@ const buildWallet = async (
   }
 };
 
+// Entry point — build wallet, configure providers, enter main loop
 export const run = async (config: Config, _logger: Logger): Promise<void> => {
   logger = _logger;
   api.setLogger(_logger);
@@ -1447,9 +1493,9 @@ export const run = async (config: Config, _logger: Logger): Promise<void> => {
 ```
 
 The CLI has three layers of interaction:
-- *Wallet selection*: Generate a fresh wallet, restore from a mnemonic, or load from the `.env` file
-- *Deploy or join*: Deploy a new smart contract or connect to an existing one by address
-- *Main loop*: The ten-option menu for loan requests, admin operations, and state inspection
+- **Wallet selection**: Generate a fresh wallet, restore from a mnemonic, or load from the `.env` file.
+- **Deploy or join**: Deploy a new smart contract or connect to an existing one by address.
+- **Main loop**: The ten-option menu for loan requests, admin operations, and state inspection.
 
 Each menu option maps to a flow function that prompts for input and calls the corresponding API function. Errors are caught and logged without crashing the CLI, so you can retry operations.
 
@@ -1540,13 +1586,13 @@ ATTESTATION_API_URL=http://localhost:4000
 EOF
 ```
 
-Leave `WALLET_MNEMONIC` empty for now. After you generate or fund a wallet in the testing step, paste your mnemonic here so you can restore the same wallet in future sessions using option *3* in the CLI menu.
+Leave `WALLET_MNEMONIC` empty for now. After you generate or fund a wallet in the testing step, paste your mnemonic here so you can restore the same wallet in future sessions using option 3 in the CLI menu.
 
 ## Run the CLI
 
 The final part brings everything together by testing the complete flow using [Midnight Local Dev](/guides/midnight-local-network), a standalone Docker environment that runs the Midnight node, indexer, and proof server locally. It handles wallet funding and dust registration automatically, enabling focused DApp testing.
 
-You need *three terminal windows*.
+You need three terminal windows.
 
 ### Install dependencies
 
@@ -1569,7 +1615,7 @@ cd ..
 
 ### Start Midnight Local Dev
 
-In your **first terminal**, clone and start the local development environment:
+In your first terminal, clone and start the local development environment:
 
 ```bash
 git clone https://github.com/midnightntwrk/midnight-local-dev.git
@@ -1587,7 +1633,7 @@ You should see the node, indexer, and proof server all running. The proof server
 
 ### Start the attestation API
 
-In your **second terminal**, from the project root:
+In your second terminal, from the project root:
 
 ```bash
 cd zkloan-credit-scorer-attestation-api
@@ -1606,33 +1652,33 @@ Register this provider on-chain with: registerProvider(1, {x: 1234...n, y: 9876.
 Attestation API listening on port 4000
 ```
 
-**Copy the provider public key coordinates** — you need them in the next step.
+Copy the provider public key coordinates — you need them in the next step.
 
 ### Run the CLI
 
-In your **third terminal**, from the project root:
+In your third terminal, from the project root:
 
 ```bash
 cd zkloan-credit-scorer-cli
 NETWORK=localdev npm run local
 ```
 
-The CLI prompts you to create or restore a wallet. For local dev, select option **1** (Build a fresh wallet). The local environment automatically funds new wallets.
+The CLI prompts you to create or restore a wallet. For local dev, select option 1 (Build a fresh wallet). The local environment automatically funds new wallets.
 
-Once the wallet is synced and funded, deploy the smart contract by selecting option **1** (Deploy). This takes about a minute while the proof server generates the deployment proof.
+Once the wallet is synced and funded, deploy the smart contract by selecting option 1 (Deploy). This takes about a minute while the proof server generates the deployment proof.
 
 After deployment, register the attestation provider:
 
-1.  Select option **8** (Register attestation provider)
-2.  Enter provider ID: `1`
-3.  Enter the X and Y coordinates from the attestation API output
+1.  Select option 8 (Register attestation provider).
+2.  Enter provider ID: `1`.
+3.  Enter the X and Y coordinates from the attestation API output.
 
 Now request a loan:
 
-1.  Select option **1** (Request a loan)
-2.  Enter a loan amount (for example, `5000`)
-3.  Enter a secret PIN (for example, `1234`)
+1.  Select option 1 (Request a loan).
+2.  Enter a loan amount (for example, `5000`).
+3.  Enter a secret PIN (for example, `1234`).
 
 The CLI fetches an attestation, submits the loan request, and waits for the proof server to generate the zero-knowledge proof. After about a minute, you should see the transaction confirmed.
 
-Inspect the result by selecting option **3** (Display contract state). You will see the loan record on-chain with the status and authorized amount, but no credit score, income, or employment data. That information stayed private throughout the entire process.
+Inspect the result by selecting option 3 (Display contract state). You will see the loan record on-chain with the status and authorized amount, but no credit score, income, or employment data. That information stayed private throughout the entire process.

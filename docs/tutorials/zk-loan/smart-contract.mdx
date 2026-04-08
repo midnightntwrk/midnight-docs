@@ -19,15 +19,17 @@ So, what if a borrower could prove they qualify for a loan without ever revealin
 
 [Midnight Network](/concepts/network-architecture/onchain-logic) makes this practical. It is a blockchain purpose-built for [data protection](/concepts/how-midnight-works/keeping-data-private), where smart contracts can process private inputs and commit only the results on-chain. The sensitive data never leaves the user's machine.
 
-In this tutorial, you build a zero-knowledge loan application from scratch on Midnight Network. The app privately evaluates a user's credit data (credit score, income, and employment tenure) using zero-knowledge proofs and records only the loan outcome on-chain. The sensitive financial data never leaves your machine.
+This tutorial builds a zero-knowledge loan application from scratch on Midnight Network. The app privately evaluates a user's credit data (credit score, income, and employment tenure) using zero-knowledge proofs and records only the loan outcome on-chain. The sensitive financial data never leaves your machine.
 
-You build three things:
+The tutorial is split into three parts:
 
 1.  **Smart contract**: Written in [Compact](/compact) (Midnight's zero-knowledge language). It defines the loan logic, eligibility tiers, and on-chain state.
-2. **Attestation API**: A server that signs credit data with [Schnorr signatures](https://en.wikipedia.org/wiki/Schnorr_signature) so the smart contract can verify the data came from a trusted source.
-3. **CLI**: A command-line tool to deploy the smart contract, register the attestation provider, request loans, and interact with the system — all pointing at Midnight's local network.
+2.  **Attestation API**: A server that signs credit data with [Schnorr signatures](https://en.wikipedia.org/wiki/Schnorr_signature) so the smart contract can verify the data came from a trusted source.
+3.  **CLI**: A command-line tool to deploy the smart contract, register the attestation provider, request loans, and interact with the system — all pointing at Midnight's local network.
 
 ## Project setup
+
+This section covers the tools and directory structure needed before writing any code.
 
 ### Install prerequisites
 
@@ -50,6 +52,8 @@ compact compile --version
 Also, Docker is required to run the Midnight proof server, which generates the zero-knowledge proofs for your transactions locally. Install it from [docker.com/get-docker](https://www.docker.com/get-docker) if you have not already, and make sure the Docker daemon is running.
 
 ### Create the project structure
+
+Create the root project directory and initialize the monorepo configuration:
 
 ```shell
 mkdir zkloan-credit-scorer
@@ -246,6 +250,8 @@ Create `zkloan-credit-scorer.compact` inside the `contract/src/` folder.
 
 ### The header, types, ledger state, and constructor
 
+This first block declares the language version, imports, data types, ledger state, and the constructor that sets the deployer as admin:
+
 ```compact
 pragma language_version 0.21;
 
@@ -424,9 +430,9 @@ Also, `evaluateApplicant` is an internal circuit (not exported, cannot be called
 | Rejected | < 580 | any | any | $0 |
 
 `createLoan` handles the status logic. Three outcomes are possible:
-- *Approved*: The user asked for less than or equal to their max eligible amount. They get exactly what they asked for.
-- *Proposed*: The user asked for more than they qualify for. The smart contract offers the max eligible amount and waits for the user to accept or decline.
-- *Rejected*: The credit score is too low. Amount = 0.
+- **Approved**: The user asked for less than or equal to their max eligible amount. They get exactly what they asked for.
+- **Proposed**: The user asked for more than they qualify for. The smart contract offers the max eligible amount and waits for the user to accept or decline.
+- **Rejected**: The credit score is too low. Amount = 0.
 
 `respondToLoan` lets users accept or decline a *Proposed* loan. If they accept, the status changes to Approved. If they decline, it changes to NotAccepted and the authorized amount is zeroed out.
 
@@ -497,11 +503,11 @@ It hashes a domain separator (`"zk-credit-scorer:pk"`), the hashed PIN, and the 
 
 `changePin` is the most complex circuit. When a user changes their PIN, they get a new on-chain identity. But their existing loans are tied to the old identity. All loans need to migrate from the old public key to the new one.
 
-The catch: *zero-knowledge circuits cannot loop over variable-length data*. If a user has 12 loans, you cannot write `for i in 0..loans.size()`. The loop bound must be known at compile time. The solution is *batched migration*:
-- Process exactly *5 loans per transaction* (fixed at compile time with `for (const i of 0..5)`)
-- Track progress in `onGoingPinMigration` — it stores how far the migration has gotten
-- The user calls `changePin` *repeatedly* until all loans are migrated
-- Once done, the migration state is cleaned up
+The catch: zero-knowledge circuits cannot loop over variable-length data. If a user has 12 loans, you cannot write `for i in 0..loans.size()`. The loop bound must be known at compile time. The solution is batched migration:
+- Process exactly 5 loans per transaction (fixed at compile time with `for (const i of 0..5)`).
+- Track progress in `onGoingPinMigration` — it stores how far the migration has gotten.
+- The user calls `changePin` repeatedly until all loans are migrated.
+- Once done, the migration state is cleaned up.
 
 For a user with 12 loans:
 
@@ -588,12 +594,12 @@ Your smart contract file is now complete. Before moving on, here is a summary of
 
 | **Data** | **Visibility** | **Why** |
 | --- | --- | --- |
-| Credit score, income, and tenure | *Private* (witness only) | Never leaves the user's machine |
-| Secret PIN | *Private* (circuit input) | Hashed into identity, never stored |
-| Attestation signature | *Private* (zero-knowledge proof input) | Verified inside the circuit |
-| Derived user public key | *Public* (ledger) | Cannot be linked to wallet without PIN |
-| Loan status and amount | *Public* (ledger) | The on-chain outcome |
-| Admin address, blocklist | *Public* (ledger) | Smart contract governance |
+| Credit score, income, and tenure | Private (witness only) | Never leaves the user's machine |
+| Secret PIN | Private (circuit input) | Hashed into identity, never stored |
+| Attestation signature | Private (zero-knowledge proof input) | Verified inside the circuit |
+| Derived user public key | Public (ledger) | Cannot be linked to wallet without PIN |
+| Loan status and amount | Public (ledger) | The on-chain outcome |
+| Admin address, blocklist | Public (ledger) | Smart contract governance |
 
 ## Create the witness function (private data provider)
 
@@ -789,10 +795,10 @@ At this point, the smart contract package is compiled and ready to be consumed b
 
 This part covered the foundation of the zero-knowledge loan application:
 
-*   *Schnorr signature module*: A Compact module that verifies cryptographic signatures inside a zero-knowledge circuit, ensuring credit data comes from a trusted source.
-*   *Loan smart contract*: The full Compact smart contract with loan request logic, tiered eligibility evaluation, admin controls, PIN-based identity derivation, and batched PIN migration.
-*   *Witness implementation*: TypeScript code that feeds private credit data into the zero-knowledge circuit at proving time, without exposing it on-chain.
-*   *TypeScript exports and compilation*: Package configuration, compiler output, and the generated zero-knowledge circuits, keys, and bindings.
+*   **Schnorr signature module**: A Compact module that verifies cryptographic signatures inside a zero-knowledge circuit, ensuring credit data comes from a trusted source.
+*   **Loan smart contract**: The full Compact smart contract with loan request logic, tiered eligibility evaluation, admin controls, PIN-based identity derivation, and batched PIN migration.
+*   **Witness implementation**: TypeScript code that feeds private credit data into the zero-knowledge circuit at proving time, without exposing it on-chain.
+*   **TypeScript exports and compilation**: Package configuration, compiler output, and the generated zero-knowledge circuits, keys, and bindings.
 
 The smart contract has been compiled and is ready. No credit data touches the blockchain; only the loan outcome does.
 
@@ -800,6 +806,6 @@ The smart contract has been compiled and is ready. No credit data touches the bl
 
 The next part builds the off-chain infrastructure that makes the smart contract functional:
 
-*   *[Attestation API](./attestation-api)*: A REST server that signs credit data with Schnorr signatures, acting as the trusted data provider that the smart contract verifies against.
-*   *Attestation flow*: A walkthrough of how the user, attestation API, and Midnight Network interact end-to-end.
-*   *Docker setup for the proof server*: Configuring the local proof server that generates zero-knowledge proofs for your transactions.
+*   [Attestation API](./attestation-api): A REST server that signs credit data with Schnorr signatures, acting as the trusted data provider that the smart contract verifies against.
+*   **Attestation flow**: A walkthrough of how the user, attestation API, and Midnight Network interact end-to-end.
+*   **Docker setup for the proof server**: Configuring the local proof server that generates zero-knowledge proofs for your transactions.
