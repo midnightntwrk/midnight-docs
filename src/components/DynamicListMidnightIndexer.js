@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '3.0.0',
     status: 'LATEST',
     date: '28 January 2026',
@@ -33,7 +32,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-3-0-0',
   },
   {
-    id: 2,
     version: '2.1.4',
     status: 'UNSUPPORTED',
     date: '30 June 2025',
@@ -49,7 +47,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-3',
   },
   {
-    id: 3,
     version: '2.1.3',
     status: 'UNSUPPORTED',
     date: '11 June 2025',
@@ -64,7 +61,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-3',
   },
   {
-    id: 4,
     version: '2.1.2',
     status: 'DEPRECATED',
     date: '27 May 2025',
@@ -78,7 +74,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-2',
   },
   {
-    id: 5,
     version: '2.1.1',
     status: 'DEPRECATED',
     date: '19 May 2025',
@@ -92,7 +87,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-1',
   },
   {
-    id: 6,
     version: '2.1.0',
     status: 'DEPRECATED',
     date: '9 May 2025',
@@ -109,7 +103,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-1-0',
   },
   {
-    id: 7,
     version: '2.0.0',
     status: 'DEPRECATED',
     date: '9 May 2025',
@@ -144,7 +137,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-2-0-0',
   },  
   {
-    id: 8,
     version: '1.0.1',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -159,7 +151,6 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-1-0-1',
   },
   {
-    id: 9,
     version: '1.0.0',
     status: 'DEPRECATED',
     date: '24 March 2025',
@@ -174,6 +165,10 @@ const releases = [
     link: '/relnotes/midnight-indexer/midnight-indexer-1-0-0',
   },
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases
