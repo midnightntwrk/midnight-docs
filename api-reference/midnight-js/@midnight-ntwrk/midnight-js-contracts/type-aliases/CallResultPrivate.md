@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / CallResultPrivate
 
-# Type Alias: CallResultPrivate\<C, ICK\>
+# Type Alias: CallResultPrivate\<C, PCK\>
 
-> **CallResultPrivate**\<`C`, `ICK`\> = `object`
+> **CallResultPrivate**\<`C`, `PCK`\> = `object`
 
 The private (sensitive) portions of the call result.
 
@@ -16,9 +16,9 @@ The private (sensitive) portions of the call result.
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>
 
 ## Properties
 
@@ -64,6 +64,6 @@ ZK representation of the circuit witness call results.
 
 ### result
 
-> `readonly` **result**: `Contract.CircuitReturnType`\<`C`, `ICK`\>
+> `readonly` **result**: `Contract.CircuitReturnType`\<`C`, `PCK`\>
 
 The JS representation of the input to the circuit.

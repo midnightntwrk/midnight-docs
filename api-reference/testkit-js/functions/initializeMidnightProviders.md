@@ -1,16 +1,16 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
-> **initializeMidnightProviders**\<`ICK`, `PS`\>(`midnightWalletProvider`, `environmentConfiguration`, `contractConfiguration`): `MidnightProviders`\<`ICK`, `string`, `PS`\>
+> **initializeMidnightProviders**\<`PCK`, `PS`\>(`midnightWalletProvider`, `environmentConfiguration`, `contractConfiguration`): `MidnightProviders`\<`PCK`, `string`, `PS`\>
 
 Configures and returns the required providers for a Midnight contract.
 
 ## Type Parameters
 
-### ICK
+### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 Type parameter for the input circuit key string
 
@@ -42,7 +42,7 @@ Configuration specific to the contract including storage names and ZK config pat
 
 ## Returns
 
-`MidnightProviders`\<`ICK`, `string`, `PS`\>
+`MidnightProviders`\<`PCK`, `string`, `PS`\>
 
 An object containing all configured providers:
   - privateStateProvider: For managing private contract state

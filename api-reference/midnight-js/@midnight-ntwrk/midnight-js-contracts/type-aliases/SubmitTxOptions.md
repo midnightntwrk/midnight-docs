@@ -1,26 +1,26 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / SubmitTxOptions
 
-# Type Alias: SubmitTxOptions\<ICK\>
+# Type Alias: SubmitTxOptions\<PCK\>
 
-> **SubmitTxOptions**\<`ICK`\> = `object`
+> **SubmitTxOptions**\<`PCK`\> = `object`
 
 Configuration for [submitTx](../functions/submitTx.md).
 
 ## Type Parameters
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`Contract.Any`\>
+`PCK` *extends* `AnyProvableCircuitId`
 
 ## Properties
 
 ### circuitId?
 
-> `readonly` `optional` **circuitId**: `ICK` \| `ICK`[]
+> `readonly` `optional` **circuitId?**: `PCK` \| `PCK`[]
 
 A circuit identifier to use to fetch the ZK artifacts needed to prove the
 transaction. Only defined if a call transaction is being submitted.

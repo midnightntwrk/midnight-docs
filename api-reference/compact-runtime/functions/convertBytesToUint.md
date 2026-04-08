@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
 
 ***
 
@@ -22,7 +22,7 @@ Compiler internal for typecasts
 
 ### maxval
 
-`number`
+`bigint`
 
 ### n
 
