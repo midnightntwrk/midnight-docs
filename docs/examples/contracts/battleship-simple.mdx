@@ -15,8 +15,10 @@ This Compact contract implements a simple version of the game Battleship. Ships 
 - Operations on a `List`
 - Intermediate witness functionality
 
+For the full DApp example with complete frontend test suite, see [example-battleship](https://github.com/midnightntwrk/example-battleship).
+
 ```compact
-pragma language_version 0.22;
+pragma language_version >= 0.22;
 import CompactStandardLibrary;
 
 export enum BoardState { UNSET, SET }
@@ -33,7 +35,7 @@ export enum WinState {
     PLAYER_2_WINS
 }
 
-export sealed ledger player1: Bytes<32>;
+export ledger player1: Bytes<32>;
 export ledger player2: Bytes<32>;
 export ledger turn: TurnState;
 export ledger board1: Set<Bytes<32>>;// linear board shape
@@ -48,15 +50,17 @@ export ledger winState: WinState;
 export ledger board1HitCount: Counter;
 export ledger board2HitCount: Counter;
 
-witness localSetBoard(_x1: Uint<8>, _x2: Uint<8>) : BoardState;
-witness localCheckBoard(x: Uint<8>) : ShotState;
+witness localSetBoard(_x1: Uint<8>, _x2: Uint<8>): BoardState;
+witness localCheckBoard(x: Uint<8>): ShotState;
 witness localSk(): Bytes<32>;
 
-constructor(_x1: Uint<8>, _x2: Uint<8>, _sk: Bytes<32>) {
+constructor(_x1: Uint<8>, _x2: Uint<8>) {
+    // input verification checks
     assert(_x1 != _x2, "Cannot use the same number twice");
     assert(_x1 > 0 && _x2 > 0, "No zero index, board starts at 1");
     assert(_x1 <= 20 && _x2 <= 20, "Out of bounds, please keep ships on the board");
     
+    // user id and assignment
     const _sk = localSk();
     const pubKey = getDappPubKey(_sk);
     player1 = disclose(pubKey);
@@ -73,19 +77,26 @@ constructor(_x1: Uint<8>, _x2: Uint<8>, _sk: Bytes<32>) {
     assert(localBoardState == BoardState.SET, "Please update the state of board1 to SET");
     board1State = disclose(localBoardState);
 
+    // setting initial states
     board2State = BoardState.UNSET;
     winState = WinState.CONTINUE_PLAY;
 }
 
-export circuit acceptGame(_x1: Uint<8>, _x2: Uint<8>) : [] {
+export circuit acceptGame(_x1: Uint<8>, _x2: Uint<8>): [] {
+    // caller verification checks
     const _sk = localSk();
     const pubKey = getDappPubKey(_sk);
     assert(player1 != disclose(pubKey), "You cannot play against yourself");
+
+    // state verification check
     assert(board2State == BoardState.UNSET, "There is already a player2");
+
+    // input verification checks
     assert(_x1 != _x2, "Cannot use the same number twice");
     assert(_x1 > 0 && _x2 > 0, "No zero index, please keep ships on the board");
     assert(_x1 <= 20 && _x2 <= 20, "Out of bounds, please keep ships on the board");
 
+    // user assignment
     player2 = disclose(pubKey);
 
     // hash inputs and store them to the ledger for comparison later
@@ -94,64 +105,87 @@ export circuit acceptGame(_x1: Uint<8>, _x2: Uint<8>) : [] {
     const hash2 = commitBoardSpace(_x2 as Bytes<32>, _sk);
     board2.insert(hash2);
 
+    // setting the state locally and verifying
     const localBoardState = localSetBoard(_x1, _x2);
     assert(localBoardState == BoardState.SET, "Please update the state of your board to SET");
+    
+    // setting on-chain state
     board2State = disclose(localBoardState);
     
+    // updating on-chain state
     turn = TurnState.PLAYER_1_SHOOT;
 }
 
 export circuit player1Shoot (x: Uint<8>): [] {
+    // caller verification check
     const _sk = localSk();
     const pubKey = getDappPubKey(_sk);
     assert(player1 == disclose(pubKey), "You are not player1");
+
+    // state verification checks
     assert(board2State == BoardState.SET, "Player 2 has not yet set their board");
     assert(turn == TurnState.PLAYER_1_SHOOT, "It is not player1 turn to shoot");
     assert(winState == WinState.CONTINUE_PLAY, "A winner has already been declared");
+
+    // input validation
     assert(x > 0 && x <= 20, "Shot out of bounds, please shoot on the board");
 
     // shots are public knowledge
     const currentShot = disclose(x);
     assert(!board2Hits.member(currentShot), "Cheat Detected: Player1: Attempt to repeat a previous HIT");
 
+    // on-chain state updates
     player1Shot.pushFront(currentShot);
     turn = TurnState.PLAYER_2_CHECK;
 }
 
 export circuit player2Shoot(x: Uint<8>): [] {
+    // caller verification checks
     const _sk = localSk();
     const pubKey = getDappPubKey(_sk);
     assert(player2 == disclose(pubKey), "You are not player2");
+
+    // state verification checks
     assert(turn == TurnState.PLAYER_2_SHOOT, "It is not player2 turn to shoot");
     assert(winState == WinState.CONTINUE_PLAY, "A winner has already been declared");
+
+    // input validation
     assert(x > 0 && x <= 20, "Shot out of bounds, please shoot on the board");
 
     // shots are public knowledge
     const currentShot = disclose(x);
     assert(!board1Hits.member(currentShot), "Cheat Detected: Player2: Attempt to repeat a previous HIT");
 
+    // on-chain state updates
     player2Shot.pushFront(currentShot);
     turn = TurnState.PLAYER_1_CHECK;
 }
 
-export circuit checkBoard1 () : [] {
+export circuit checkBoard1(): [] {
+
+    // caller verification check
     const _sk = localSk();
     const pubKey = getDappPubKey(_sk);
     assert(player1 == disclose(pubKey), "You are not player1");
+
+    // state verification checks
     assert(winState == WinState.CONTINUE_PLAY, "A winner has already been declared");
     assert(turn == TurnState.PLAYER_1_CHECK, "It is not Player 1 turn to CHECK");
     assert(!player2Shot.isEmpty(), "No shot to check");
 
+    // shot processing
     const currentShot = player2Shot.head().value;
     assert(!board1Hits.member(currentShot), "Cheat Detected: Player2: Attempt to repeat a previous HIT");
     player2Shot.popFront();
 
+    // hash for comparision with on-chain hash
     const honestyCheckHash = commitBoardSpace(currentShot as Bytes<32>, _sk);
 
     // currentShot has already been exposed, but we need to satisfy the compiler here too
     const shotState = disclose(localCheckBoard(currentShot));
     assert(shotState == ShotState.HIT || shotState == ShotState.MISS, "Please provide a valid state");
 
+    // conditional handling
     if(shotState == ShotState.MISS){
         // don't trust, verify
         assert(!board1.member(honestyCheckHash), "Cheat Detected: Player 1: claimed a MISS, when it was in fact a HIT");
@@ -160,7 +194,7 @@ export circuit checkBoard1 () : [] {
     } else {
 
         // don't trust, verify
-        assert(board1.member(honestyCheckHash), "Cheat Detected: Player 2: claimed a HIT, when it was in fact a MISS. Why would they do that?");
+        assert(board1.member(honestyCheckHash), "Cheat Detected: Player 1: claimed a HIT, when is was in fact a MISS. Why would they do that?");
         board1HitCount.increment(1);
         board1Hits.insert(currentShot);
         turn = TurnState.PLAYER_1_SHOOT;
@@ -170,32 +204,40 @@ export circuit checkBoard1 () : [] {
     }
 }
 
-export circuit checkBoard2 () : [] {
+export circuit checkBoard2(): [] {
+    // caller verification
     const _sk = localSk();
     const pubKey = getDappPubKey(_sk);
     assert(player2 == disclose(pubKey), "You are not player2");
+
+    // state verification
     assert(board2State == BoardState.SET, "Player 2 has not set the board yet");
     assert(winState == WinState.CONTINUE_PLAY, "A winner has already been declared");
     assert(turn == TurnState.PLAYER_2_CHECK, "It is not Player 2 turn to CHECK");
     assert(!player1Shot.isEmpty(), "No shot to check");
 
+    // shot processing
     const currentShot = player1Shot.head().value;
     assert(!board2Hits.member(currentShot), "Cheat Detected: Player 1: Attempt to repeat a previous HIT");
     player1Shot.popFront();
 
+    // on-chain board comparison hash
     const honestyCheckHash = commitBoardSpace(currentShot as Bytes<32>, _sk);
 
+    // state return verification
     const shotState = disclose(localCheckBoard(currentShot));
     assert(shotState == ShotState.HIT || shotState == ShotState.MISS, "Please provide a valid state");
 
+    // conditional handling
     if(shotState == ShotState.MISS){
         // don't trust, verify
         assert(!board2.member(honestyCheckHash), "Cheat Detected: Player 2: claimed a MISS, when it was in fact a HIT");
         turn = TurnState.PLAYER_2_SHOOT;
 
     } else {
+        
         // dont trust, verify
-        assert(board2.member(honestyCheckHash), "Cheat Detected: Player 2: claimed a HIT, when is was in fact a MISS. Why would they do that?");
+        assert(board2.member(honestyCheckHash), "Cheat Detected: Player 2: claimed a HIT, when it was in fact a MISS. Why would they do that?");
         board2HitCount.increment(1);
         board2Hits.insert(currentShot);
         turn = TurnState.PLAYER_2_SHOOT;
@@ -205,11 +247,13 @@ export circuit checkBoard2 () : [] {
     }
 }
 
-circuit commitBoardSpace(_x: Bytes<32>, _sk: Bytes<32>) : Bytes<32> {
+// hashing a commitment to a board space
+circuit commitBoardSpace(_x: Bytes<32>, _sk: Bytes<32>): Bytes<32> {
     const hash = persistentHash<Vector<2, Bytes<32>>>([_x, _sk]);
     return disclose(hash);
 }
 
+// hashing a Dapp specific public key to track user interaction (only within this dapp)
 export circuit getDappPubKey(_sk: Bytes<32>): Bytes<32> {
     return persistentHash<Vector<2, Bytes<32>>>([pad(32, "battleship:pk:"), _sk]);
 }
