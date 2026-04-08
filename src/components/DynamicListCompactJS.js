@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '2.4.0',
     status: 'LATEST',
     date: '28 January 2026',
@@ -32,6 +31,10 @@ const releases = [
     link: '/relnotes/compact-js/compact-js-2-4-0',
   }
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases
