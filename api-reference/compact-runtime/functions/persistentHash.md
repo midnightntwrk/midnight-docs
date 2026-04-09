@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.15.101**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function persistentHash<A>(rtType, value): Uint8Array;
 ```
 
-The Compact builtin `persistent_hash` function
+The Compact builtin `persistentHash` function
 
 This function is a non-circuit-optimised hash function for mostly arbitrary
 data. It is guaranteed to persist between upgrades, with the exception of

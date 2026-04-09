@@ -1,0 +1,97 @@
+Compact Formatter Manual Page
+============================
+
+NAME
+====
+
+format-compact
+
+OVERVIEW
+========
+
+The Compact formatter takes as input a Compact source program in a specified
+source file, reformats it, and writes the reformatted program to a specified
+file.  If such a file is not specified, it writes the reformatted program to
+standard output.
+
+SYNOPSIS
+========
+
+**format-compact** _flag_ **...** _sourcepath_ _targetpath_
+ 
+DESCRIPTION
+===========
+
+The flags _flag_ **...** are optional.  They are described under FLAGS later in
+this document.
+
+_sourcepath_ should specify a file containing a Compact source program, and
+_targetpath_ should specify a target file in which the reformatted program is
+to be written.  _targetpath_ may be an existing file, in which case the file
+will be replaced with the formatted program.  _targetpath_ may be the same as
+_sourcepath_, in which case the source program is replaced with the reformatted
+equivalent.
+
+FLAGS
+=====
+
+The following flags, if present, affect the formatter's behavior as follows:
+ 
+**--help**
+
+prints help text and exits.
+
+**--version**
+
+prints the compiler version and exits.
+
+**--language-version**
+
+prints the language version and exits.
+
+**--vscode**
+
+causes error messages to be printed on a single line so they are
+rendered properly within the VS Code extension for Compact.
+
+**--line-length _n_** 
+
+sets the target line length to _n_ (default 100).
+
+EXAMPLES
+========
+
+Assuming **src/test.compact** contains a well-formed Compact program
+
+```
+format-compact src/test.compact
+```
+
+prints the formatted program of **src/test.compact** to standard output.
+
+Assuming that **formatted** is an existing directory
+
+```
+format-compact src/test.compact formatted/test.compact
+```
+
+writes the formatted program to **formatted/test.compact**.  If the
+**formatted** directory does not exist the formatter complains that it cannot
+create the output file.
+
+Alternatively, 
+
+```
+format-compact src/test.compact src/test.compact
+```
+
+rewrites the formatted program to **src/test.compact**.
+
+Assuming **src/test.compact** contains an ill-formed Compact program
+
+```
+format-compact src/test.compact
+```
+
+exits with an error message describing the problem that prevents the
+Compact program in **src/test.compact** from compiling.
