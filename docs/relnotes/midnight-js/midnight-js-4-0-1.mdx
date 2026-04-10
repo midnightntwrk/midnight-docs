@@ -1,0 +1,213 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight.js v4.0.1 release notes
+description: Midnight.js is a client library designed to facilitate the development of decentralized applications on the Midnight blockchain.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v4.0.1  
+* **Date**: March 20, 2026  
+* **Node.js requirement**: >=22   
+
+---
+
+## High-level summary
+
+This release introduces the v4 generation of Midnight.js, including ledger v8 support and key contract execution updates. It also includes important API adjustments required for call option construction and state queries.
+
+## Audience
+
+This release note is critical for developers who:
+
+- Migrate from v3.2.0 to v4.0.x.
+- Integrate directly with ledger types and circuit identifiers.
+- Build custom call options for contract execution.
+- Maintain transaction construction logic for unproven calls.
+
+## Summary of updates
+
+- Migrated from ledger v7 to ledger v8 with provable-circuit naming updates.
+- Added `LedgerParameters` to `queryZSwapAndContractState` responses.
+- Made `ledgerParameters` mandatory in `CallOptionsProviderDataDependencies`.
+- Refactored internal call transaction construction (`addCalls` path in v4.0.1).
+- Added `createProofProvider` helper and improved binary query-context handling.
+
+---
+
+## New features
+
+This release expands v4 capabilities around ledger-parameter flow and proof-provider composition.
+
+### LedgerParameters flow through circuit execution
+Ledger parameters are now automatically fetched alongside contract state from the indexer and passed through to circuit execution. This ensures circuits have access to the correct ledger parameters for the block they are executing against.
+
+The `PublicDataProvider` and `IndexerPublicDataProvider` now fetch `ledgerParameters` from the block associated with the contract state. When ledger parameters are not available from the indexer (e.g., for older blocks), `LedgerParameters.initialParameters()` is used as a fallback.
+
+```typescript
+// LedgerParameters are automatically included when using createUnprovenCallTx
+const result = await createUnprovenCallTx(providers, options);
+
+// Or when using createUnprovenCallTxFromInitialStates directly,
+// include ledgerParameters in the options
+const result = await createUnprovenCallTxFromInitialStates(
+  zkConfigProvider,
+  {
+    compiledContract,
+    contractAddress,
+    circuitId,
+    coinPublicKey,
+    initialContractState,
+    initialZswapChainState,
+    ledgerParameters // Required
+  },
+  walletEncryptionPublicKey
+);
+```
+
+### Ledger v8 support
+The framework now targets ledger v8, bringing support for provable circuits (renamed from impure circuits) and updated indexer v4 compatibility. All contract compilation outputs have been regenerated for ledger v8 compatibility.
+
+### `createProofProvider` factory function
+A new `createProofProvider` utility is exported from `@midnight-ntwrk/midnight-js-types` that creates a `ProofProvider` from a `ProvingProvider`. This simplifies proof provider setup by wrapping the underlying proving provider with an optional cost model.
+
+```typescript
+import { createProofProvider } from '@midnight-ntwrk/midnight-js-types';
+
+// Uses initial cost model by default
+const proofProvider = createProofProvider(provingProvider);
+
+// Or with a custom cost model
+const proofProvider = createProofProvider(provingProvider, customCostModel);
+```
+
+---
+
+## Breaking changes
+
+The following changes are critical and may break existing integrations.
+
+### Ledger v7 to v8 migration
+
+**What changed**: Ledger imports were upgraded from `@midnight-ntwrk/ledger-v7` to `@midnight-ntwrk/ledger-v8`, and "impure circuits" were renamed to "provable circuits".
+
+**What breaks**: Any code importing ledger-v7 types or referencing `ImpureCircuitId`.
+
+**Required actions**:
+- Replace all ledger-v7 imports with ledger-v8 equivalents.
+- Update circuit-id typings from `ImpureCircuitId` to `ProvableCircuitId`.
+
+```typescript
+// v3.2.0
+import { type ContractAddress } from '@midnight-ntwrk/ledger-v7';
+type CircuitId = Contract.ImpureCircuitId<MyContract>;
+
+// v4.0.1
+import { type ContractAddress } from '@midnight-ntwrk/ledger-v8';
+type CircuitId = Contract.ProvableCircuitId<MyContract>;
+```
+
+### `queryZSwapAndContractState` returns `LedgerParameters`
+
+**What changed**: The return type now includes `LedgerParameters` as a third tuple element.
+
+**What breaks**: Existing tuple destructuring that expects only two values.
+
+**Required actions**:
+- Update destructuring to include `ledgerParameters`.
+- Pass the additional value through downstream call-construction logic where needed.
+
+```typescript
+// v3.2.0
+const result = await provider.queryZSwapAndContractState(address);
+const [zswapState, contractState] = result;
+
+// v4.0.1
+const result = await provider.queryZSwapAndContractState(address);
+const [zswapState, contractState, ledgerParameters] = result;
+```
+
+### `CallOptionsProviderDataDependencies` requires `ledgerParameters`
+
+**What changed**: `ledgerParameters` is now required when constructing call options for circuit execution.
+
+**What breaks**: Call option builders that omit `ledgerParameters`.
+
+**Required actions**:
+- Add `ledgerParameters` to all `CallOptionsProviderDataDependencies` objects.
+- Ensure values come from the same queried block context as contract and Zswap state.
+
+```typescript
+// v4.0.1
+const callOptions: CallOptionsProviderDataDependencies = {
+  coinPublicKey,
+  initialContractState,
+  initialZswapChainState,
+  ledgerParameters // NEW - required
+};
+```
+
+### Transaction building refactored to use `addCalls` API
+
+**What changed**: Internal transaction construction in `createUnprovenLedgerCallTx` moved to the ledger v8 `addCalls` API with `PrePartitionContractCall`.
+
+**What breaks**: Integrations relying on earlier transaction-builder signatures and helpers.
+
+**Required actions**:
+- Update integrations to the `publicTranscript`-based API shape.
+- Remove usages of `extractUserAddressedOutputs`.
+- Remove `coinPublicKey` from call sites using this path.
+
+- `createUnprovenLedgerCallTx` signature now requires `ledgerParameters` parameter
+- `extractUserAddressedOutputs` has been removed
+- `partitionedTranscript` parameter replaced with `publicTranscript` (`Op<AlignedValue>[]`)
+- `coinPublicKey` parameter removed (QueryContext is now constructed using lossless binary serialization path instead of `createCircuitContext`)
+
+## Bug fixes
+
+These fixes improve correctness in call-transaction construction and unshielded offer handling.
+
+### Lossless binary path for QueryContext in `createUnprovenLedgerCallTx`
+Fixed a lossy encode/decode cycle through `toLedgerQueryContext` that caused "expected a cell, received null" errors for contracts with non-trivial ledger state (bounded Merkle trees, complex cells). Replaced with the binary serialization path (`toLedgerContractState` + `LedgerQueryContext` constructor) which is proven lossless throughout the codebase. This also removed the `coinPublicKey` parameter from `createUnprovenLedgerCallTx`.
+
+### Unshielded offers for user-addressed claim unshielded spends
+Fixed an issue where unshielded offers were not correctly attached for user-addressed claim unshielded spends. The `extractUserAddressedOutputs` function in ledger-utils was updated to properly handle the matching of unshielded outputs, ensuring correct transaction construction for claim operations. This function was later removed in #648 as unshielded offer handling is now managed by the ledger's `addCalls` API.
+
+## Testing
+
+Regression coverage was expanded to validate wallet transfer behavior on unshielded flows.
+
+### Night wallet transfer tests
+Added integration tests for night wallet unshielded transfers, including `balanceUnboundTransaction` usage validation.
+
+## Dependencies
+
+Dependency updates align runtime and infrastructure with the ledger v8 rollout.
+
+### Runtime dependencies updated
+- `@midnight-ntwrk/ledger-v7` replaced with `@midnight-ntwrk/ledger-v8` 8.0.2
+- `@midnight-ntwrk/wallet-sdk-facade`: Updated to 3.0.0-rc.0
+- `@midnight-ntwrk/compact-js`: Updated to 2.5.0-rc.3
+- `@midnight-ntwrk/compact-runtime`: Updated to 0.15.0
+- `@midnight-ntwrk/platform-js`: Updated to 2.2.4
+- `compactc`: Updated to 0.30.0
+
+### Security patches
+- Patched `immutable` and `diff` packages
+- Security dependencies update
+
+### Infrastructure updated
+- Indexer updated to v4
+- Proof server images updated for ledger v8
+- Docker compose images updated to latest versions
+
+## Known issues
+
+Some transaction-building details documented in v4.0.1 were later revised in v4.0.2. If you are upgrading now, review the v4.0.2 notes for the corrected guidance around `createUnprovenLedgerCallTx`.
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight.js repository](https://github.com/midnightntwrk/midnight-js)
+- **API reference**: [Midnight.js API documentation](/api-reference/midnight-js/packages)
