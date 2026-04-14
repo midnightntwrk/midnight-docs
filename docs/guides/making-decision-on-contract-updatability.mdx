@@ -1,0 +1,159 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Making decision on contract updatability"
+description: Learn about Compact contracts updatability
+sidebar_position: 40
+---
+
+# Making decision on contract updatability
+
+This guide explains how contract updatability is enabled in the Midnight network and why every DApp
+developer has to understand its importance for uninterruptible and long-term contract operation.
+
+## Importance of the updatability feature
+
+Every blockchain has its own set of factors that affect backward compatibility of smart contracts and
+how long they can run without active maintenance. In practice, updates are more often driven by
+developers themselves — to patch security vulnerabilities, fix logic bugs, or extend functionality —
+than by protocol requirements. On platforms like Ethereum, many contracts can run indefinitely, but
+some may become impractical as the contracts they interact with become deprecated, and in rare cases
+due to changes in runtime semantics for EVM execution primitives. On Solana, programs are mutable by
+default and the ecosystem encourages active maintenance. While the onchain runtime maintains backward
+compatibility across minor and patch releases, periodic major version upgrades can introduce breaking
+changes that may require program updates.
+
+Midnight introduces a different paradigm altogether.
+
+As Midnight is a privacy-focused, zero-knowledge proof-based blockchain, its smart contracts are
+inherently tied to the underlying cryptographic infrastructure — the proof system and the circuit
+compilation pipeline. As the protocol evolves, elements of this stack — proving schemes,
+circuit intermediate representations (ZKIR), or verifier key formats — may be updated.
+When this happens, previously deployed circuits can become incompatible with
+evolving proof generation and verification rules. A contract may become unusable because its proofs
+can no longer be generated or verified.
+
+To address this, Midnight provides contract updatability via a Contract Maintenance Authority that can
+add or remove verifier keys for a contract's circuits. Since each circuit in a Midnight contract is
+represented onchain by a cryptographic verifier key, inserting or removing these keys is how circuit
+behavior gets updated after deployment.
+
+Although the primary purpose of the updatability mechanism is to ensure that contracts can remain
+functional across proof system updates, developers can also leverage it to maintain flexibility for
+evolving business logic or fixing bugs and security concerns.
+
+In Midnight, deciding whether and how to support contract updates is a critical step in DApp
+architecture design, not an afterthought. Developers should assume that some elements of the proof
+infrastructure can change at any time. It is especially important for contracts that hold critical
+long-term states and specifics of their business logic make migrating to new contracts impractical
+without sacrificing safety or decentralization — such as token vesting, onchain derivative trading
+order books, or identity systems.
+
+Developers are also responsible for monitoring changes in the proof system and updating their contracts
+in a timely manner to avoid disrupting user experience. Where updatability is not enabled, they must
+instead design and execute safe migration strategies to new contracts before incompatibilities arise.
+Track proof system changes via [release compatibility matrix](../relnotes/support-matrix) and plan
+circuit updates in advance whenever an upcoming release affects your contracts.
+
+## How updatability works
+
+Contract updatability is achieved through insertion and removal of verifier keys — the cryptographic
+keys generated from compiled circuits that the ledger uses to validate zero-knowledge proofs. Each
+contract entry point compiles to a zero-knowledge circuit, and each circuit is mapped to a verifier
+key per proof system version. Only a Contract Maintenance Authority (CMA) can insert or remove these
+keys.
+
+Updatability is not enabled by default — it must be explicitly enabled during contract deployment.
+By default, a newly deployed contract has an empty maintenance committee with a threshold of 1,
+creating a condition that can never be satisfied. This makes the contract permanently non-upgradable
+unless the deployer explicitly sets a Contract Maintenance Authority (CMA) — a multisignature
+committee of public keys and a threshold determining how many must co-sign any maintenance update.
+
+A CMA can perform the following privileged actions:
+
+- **Replace the CMA** associated with the contract. The new authority succeeds the current one,
+  enabling transfer of maintenance control — or relinquishing it entirely by setting an empty committee.
+- **Remove a verifier key** of a specific version from a contract operation. The contract will reject
+  future transactions that attempt to use the removed version.
+- **Insert a new verifier key** of a specific version for a contract operation. This adds new
+  functionality or re-enables existing functionality under a new proof system version. A key with
+  that version must not already exist; if it does, remove it first.
+
+The mechanism described above allows replacing circuit implementations, modifying their proving
+behavior while preserving the contract's address, states, and balance.
+
+## Operate a maintenance authority
+
+Operating a maintenance authority requires:
+
+- Configuring the CMA during contract deployment (a set of the committee public keys and a signature
+  threshold).
+- Ensuring secure storage of the committee members' private keys.
+- Using tooling to construct, sign, and submit maintenance transactions.
+
+:::warning
+Compromised private keys that control DApp upgrades are among the most common attack vectors in
+blockchain protocols. Follow best practices for decentralization and safety such as distribution of
+the control across independent
+parties and avoidance of single entity controls.
+:::
+
+The Midnight SDK (`@midnight-ntwrk/midnight-js-contracts`) provides support for managing
+contract maintenance authorities and performing contract updates. It exposes interfaces for
+inserting and removing verifier keys, as well as replacing the maintenance authority — all through
+TypeScript APIs that handle transaction construction and submission.
+
+You can specify the initial contract authority by providing a value for
+[`signingKey`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions)
+in the
+[`DeployContractOptions`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions).
+
+Generate the initial signing key using
+[`sampleSigningKey`](/api-reference/compact-runtime/functions/sampleSigningKey).
+You can reuse the same CMA across multiple contracts by specifying the same set of
+signing key for different deployments.
+
+Both [`DeployedContract`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract)
+(returned by `deployContract`) and
+[`FoundContract`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract)
+(returned by `findDeployedContract`) expose maintenance interfaces.
+
+You can update a deployed contract's circuits using the
+[`circuitMaintenanceTx`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract#circuitmaintenancetx)
+property, which contains one
+[`CircuitMaintenanceTxInterface`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface)
+for each circuit defined on the contract.
+
+Use [`insertVerifierKey`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface#insertverifierkey)
+to add new verifier keys and [`removeVerifierKey`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface#removeverifierkey)
+to remove existing ones.
+
+Similarly, you can update a deployed contract's maintenance authority using the
+[`contractMaintenanceTx`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract#contractmaintenancetx)
+property.
+
+## Example
+
+The following example demonstrates how to perform maintenance operations on a deployed contract.
+See the [deploy guide](./deploy-mn-app) for how to set up `providers` and `compiledContract`.
+
+```typescript
+import { findDeployedContract } from "@midnight-ntwrk/midnight-js-contracts";
+
+// providers = { publicDataProvider, proofProvider, zkConfigProvider,
+//               privateStateProvider, walletProvider, midnightProvider }
+
+const foundContract = await findDeployedContract(providers, {
+  contractAddress,
+  compiledContract
+});
+
+// Insert a new verifier key for the 'foo' circuit
+await foundContract.circuitMaintenanceTx.foo.insertVerifierKey(newVerifierKey);
+
+// Remove a verifier key for the 'foo' circuit
+await foundContract.circuitMaintenanceTx.foo.removeVerifierKey();
+
+// Replace the contract maintenance authority
+await foundContract.contractMaintenanceTx.replaceAuthority(newSigningKey);
+```
