@@ -1,0 +1,884 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Battleship tests"
+title: "Battleship tests"
+description: "Learn how to test the Battleship contract."
+sidebar_position: 20
+toc_max_heading_level: 2
+---
+
+# Battleship tests
+
+The next phase in the smart contract development lifecycle is the frontend test suite. This is where smart contract developers run many iterations of tests on different instances of the contract. The permissionless nature of a public blockchain means that all contract circuits are available essentially as public APIs for each contract instance. 
+
+Developers must test everything they assume about the interaction with their contract, both succeeding and failing calls. The failure tests are just as important as the passing tests, because they are guarding against vulnerabilities in contracts.
+
+Successful test suites are those that comprehensively cover *every possible interaction with a contract*.
+
+## Prerequisites
+
+- Completing the Battleship [smart-contract](./smart-contract.mdx) tutorial
+- Yarn 
+
+## Setup
+
+Set up the project for testing by copying the following configuration files.
+
+### package.json
+
+From the project root:
+```bash
+touch package.json
+```
+
+Populate the file:
+```json
+{
+  "name": "battleship",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "compile": "compact compile contract/battleship.compact contract/managed/battleship",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' vitest run",
+    "test:local": "MIDNIGHT_NETWORK=local yarn test",
+    "env:up": "docker compose up -d --wait",
+    "env:down": "docker compose down",
+    "validate": "yarn env:up && yarn test:local; yarn env:down"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.15.0",
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.4",
+    "@midnight-ntwrk/testkit-js": "4.0.4",
+    "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
+    "axios": "^1.13.6",
+    "pino": "^9.0.0",
+    "pino-pretty": "^13.0.0",
+    "rxjs": "^7.8.2",
+    "testcontainers": "^11.13.0",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@midnight-ntwrk/midnight-js-compact": "4.0.4",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.9",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "resolutions": {
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js": "^4.0.4",
+    "@midnight-ntwrk/compact-runtime": "0.15.0"
+  },
+  "packageManager": "yarn@1.22.22"
+}
+```
+
+Install dependencies:
+```bash
+yarn install
+```
+
+### vitest.config.ts
+
+Create the test config file:
+```bash
+touch vitest.config.ts
+```
+
+Populate it:
+```typescript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    globals: true,
+    testTimeout: 10 * 60_000,
+    hookTimeout: 15 * 60_000,
+    include: ['src/**/*.test.ts'],
+    reporters: ['default'],
+    sequence: { concurrent: false },
+    disableConsoleIntercept: true,
+  },
+});
+```
+
+### compose.yml
+
+Add the docker configuration for deploying to local devnet:
+```bash
+touch compose.yml
+```
+
+Populate it:
+```yml
+services:
+  proof-server:
+    image: 'midnightntwrk/proof-server:8.0.3'
+    command: ['midnight-proof-server -v']
+    ports:
+      - '127.0.0.1:6300:6300'
+    environment:
+      RUST_BACKTRACE: 'full'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:6300/version']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  indexer:
+    image: 'midnightntwrk/indexer-standalone:4.0.0'
+    ports:
+      - '127.0.0.1:8088:8088'
+    environment:
+      RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info'
+      APP__INFRA__NODE__URL: 'ws://node:9944'
+      APP__APPLICATION__NETWORK_ID: 'undeployed'
+      APP__INFRA__STORAGE__PASSWORD: 'indexer'
+      APP__INFRA__PUB_SUB__PASSWORD: 'indexer'
+      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: 'indexer'
+      APP__INFRA__SECRET: '303132333435363738393031323334353637383930313233343536373839303132'
+    healthcheck:
+      test: ['CMD-SHELL', 'cat /var/run/indexer-standalone/running']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      node:
+        condition: service_healthy
+
+  node:
+    image: 'midnightntwrk/midnight-node:0.22.3'
+    ports:
+      - '127.0.0.1:9944:9944'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9944/health']
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    environment:
+      CFG_PRESET: 'dev'
+      SIDECHAIN_BLOCK_BENEFICIARY: '04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e'
+```
+
+:::note
+This is a local devnet configuration *only*. Certain environment variables are present that should not be included in production applications.
+:::
+
+### Midnight setup
+
+For the Midnight specific setup:
+```bash
+mkdir src && cd src
+```
+
+Create the network config file:
+```bash
+touch config.ts
+```
+
+Populate the file:
+```typescript
+export type NetworkConfig = {
+  networkId: string;
+  indexer: string;
+  indexerWS: string;
+  node: string;
+  nodeWS: string;
+  proofServer: string;
+  faucet: string;
+};
+
+// depends on docker config in compose.yml running
+export const LOCAL_CONFIG: NetworkConfig = {
+  networkId: 'undeployed',
+  indexer: 'http://127.0.0.1:8088/api/v4/graphql',
+  indexerWS: 'ws://127.0.0.1:8088/api/v4/graphql/ws',
+  node: 'http://127.0.0.1:9944',
+  nodeWS: 'ws://127.0.0.1:9944',
+  proofServer: 'http://127.0.0.1:6300',
+  faucet: '',
+};
+
+export function getConfig(): NetworkConfig {
+  const network = process.env['MIDNIGHT_NETWORK'] ?? 'local';
+  if (network !== 'local') {
+    throw new Error(
+      `Unknown network: ${network}. This harness only supports 'local'.`,
+    );
+  }
+  return LOCAL_CONFIG;
+}
+```
+
+This config file is only setup for local devnet, but it can be extended to support other network configurations by adding to this pattern.
+
+Create the wallet class to enable creation of multiple wallets:
+```bash
+touch wallet.ts
+```
+
+Populate the file:
+```typescript
+import {
+  type CoinPublicKey,
+  DustSecretKey,
+  type EncPublicKey,
+  type FinalizedTransaction,
+  LedgerParameters,
+  ZswapSecretKeys,
+} from '@midnight-ntwrk/ledger-v8';
+import { types, utils } from '@midnight-ntwrk/midnight-js';
+import { type WalletFacade, type FacadeState } from '@midnight-ntwrk/wallet-sdk-facade';
+import {
+  type DustWalletOptions,
+  type EnvironmentConfiguration,
+  FluentWalletBuilder,
+} from '@midnight-ntwrk/testkit-js';
+import * as Rx from 'rxjs';
+import type { Logger } from 'pino';
+
+export class MidnightWalletProvider implements types.MidnightProvider, types.WalletProvider {
+  readonly wallet: WalletFacade;
+
+  private constructor(
+    private readonly logger: Logger,
+    private readonly env: EnvironmentConfiguration,
+    wallet: WalletFacade,
+    private readonly zswapSecretKeys: ZswapSecretKeys,
+    private readonly dustSecretKey: DustSecretKey,
+  ) {
+    this.wallet = wallet;
+  }
+
+  getCoinPublicKey(): CoinPublicKey {
+    return this.zswapSecretKeys.coinPublicKey;
+  }
+
+  getEncryptionPublicKey(): EncPublicKey {
+    return this.zswapSecretKeys.encryptionPublicKey;
+  }
+
+  async balanceTx(
+    tx: types.UnboundTransaction,
+    ttl: Date = utils.ttlOneHour(),
+  ): Promise<FinalizedTransaction> {
+    const recipe = await this.wallet.balanceUnboundTransaction(
+      tx,
+      {
+        shieldedSecretKeys: this.zswapSecretKeys,
+        dustSecretKey: this.dustSecretKey,
+      },
+      { ttl },
+    );
+    return await this.wallet.finalizeRecipe(recipe);
+  }
+
+  submitTx(tx: FinalizedTransaction): Promise<string> {
+    return this.wallet.submitTransaction(tx);
+  }
+
+  async start(): Promise<void> {
+    this.logger.info('Starting wallet...');
+    await this.wallet.start(this.zswapSecretKeys, this.dustSecretKey);
+  }
+
+  async stop(): Promise<void> {
+    return this.wallet.stop();
+  }
+
+  static async build(
+    logger: Logger,
+    env: EnvironmentConfiguration,
+    seed: string,
+  ): Promise<MidnightWalletProvider> {
+    const dustOptions: DustWalletOptions = {
+      ledgerParams: LedgerParameters.initialParameters(),
+      additionalFeeOverhead: 1_000n,
+      feeBlocksMargin: 5,
+    };
+
+    const builder = FluentWalletBuilder.forEnvironment(env)
+      .withDustOptions(dustOptions);
+
+    const buildResult = await builder.withSeed(seed).buildWithoutStarting();
+    const { wallet, seeds } = buildResult as {
+      wallet: WalletFacade;
+      seeds: {
+        masterSeed: string;
+        shielded: Uint8Array;
+        dust: Uint8Array;
+      };
+    };
+
+    logger.info(`Wallet built from seed: ${seeds.masterSeed.slice(0, 8)}...`);
+
+    return new MidnightWalletProvider(
+      logger,
+      env,
+      wallet,
+      ZswapSecretKeys.fromSeed(seeds.shielded),
+      DustSecretKey.fromSeed(seeds.dust),
+    );
+  }
+}
+
+function isProgressStrictlyComplete(progress: unknown): boolean {
+  if (!progress || typeof progress !== 'object') {
+    return false;
+  }
+  const candidate = progress as { isStrictlyComplete?: unknown };
+  if (typeof candidate.isStrictlyComplete !== 'function') {
+    return false;
+  }
+  return (candidate.isStrictlyComplete as () => boolean)();
+}
+
+export async function syncWallet(
+  logger: Logger,
+  wallet: WalletFacade,
+  timeout = 300_000,
+): Promise<FacadeState> {
+  logger.info('Syncing wallet...');
+  let emissionCount = 0;
+  return Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.tap((state: FacadeState) => {
+        emissionCount++;
+        const shielded = isProgressStrictlyComplete(state.shielded.state.progress);
+        const unshielded = isProgressStrictlyComplete(state.unshielded.progress);
+        const dust = isProgressStrictlyComplete(state.dust.state.progress);
+        logger.info(
+          `Wallet sync [${emissionCount}]: shielded=${shielded}, unshielded=${unshielded}, dust=${dust}`,
+        );
+        if (!shielded) {
+          logger.debug(`  shielded.progress: ${JSON.stringify(state.shielded.state.progress)}`);
+        }
+        if (!unshielded) {
+          logger.debug(`  unshielded.progress: ${JSON.stringify(state.unshielded.progress)}`);
+        }
+        if (!dust) {
+          logger.debug(`  dust.progress: ${JSON.stringify(state.dust.state.progress)}`);
+        }
+      }),
+      Rx.filter(
+        (state: FacadeState) =>
+          isProgressStrictlyComplete(state.shielded.state.progress) &&
+          isProgressStrictlyComplete(state.dust.state.progress) &&
+          isProgressStrictlyComplete(state.unshielded.progress),
+      ),
+      Rx.tap(() => logger.info(`Wallet sync complete after ${emissionCount} emissions`)),
+      Rx.timeout({
+        each: timeout,
+        with: () =>
+          Rx.throwError(
+            () => new Error(`Wallet sync timeout after ${timeout}ms (${emissionCount} emissions received)`),
+          ),
+      }),
+      Rx.catchError((err) => {
+        logger.error(`Wallet sync error: ${err}`);
+        return Rx.throwError(() => err);
+      }),
+    ),
+  );
+}
+```
+
+This wallet class can be reused across different projects, it does not change significantly with different Compact contract implementations.
+
+Create the providers file:
+```bash
+touch providers.ts
+```
+
+The providers are an important component of MidnightJS and they provide an interface for setting and retrieving data from private state, public state, wallet operations and more. This will be demonstrated in the actual test file.
+
+Populate the providers file:
+```typescript
+// Returns the providers in an object which can be created for each users individual tests
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { type MidnightWalletProvider } from './wallet.js';
+import { type NetworkConfig } from './config.js';
+
+export type BattleshipCircuits = 'acceptGame' | 'player1Shoot' | 'checkBoard1' | 'player2Shoot' | 'checkBoard2';
+
+export type BattleshipProviders = MidnightProviders<any>;
+
+export function buildProviders(
+    wallet: MidnightWalletProvider,
+    zkConfigPath: string,
+    config: NetworkConfig,
+): BattleshipProviders {
+    const zkConfigProvider = new NodeZkConfigProvider<BattleshipCircuits>(zkConfigPath);
+    return {
+        privateStateProvider: levelPrivateStateProvider({
+            privateStateStoreName: `battleship-${Date.now()}`,
+            // this password has requirements (capital/special chars >= 3)
+            privateStoragePasswordProvider: () => 'Battleship-Test-Password',
+            accountId: wallet.getCoinPublicKey(),
+        }),
+        publicDataProvider: indexerPublicDataProvider(
+            config.indexer,
+            config.indexerWS,
+        ),
+        zkConfigProvider,
+        proofProvider: httpClientProofProvider(
+            config.proofServer,
+            zkConfigProvider,
+        ),
+        walletProvider: wallet,
+        midnightProvider: wallet,
+    };
+}
+```
+
+## Tests, tests, and more tests
+
+Create the test directory and file:
+```bash
+mkdir test && cd test
+touch battle.test.ts
+```
+
+### Test imports
+
+The test file is an extremely important component of this process, so it is important to understand the concepts here. First, import necessary packages:
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomBytes } from 'node:crypto';
+import pino from 'pino';
+import { submitCallTx, deployContract } from '@midnight-ntwrk/midnight-js/contracts';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js/network-id';
+import type { ContractAddress } from '@midnight-ntwrk/compact-runtime';
+import type { EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
+import { getConfig } from '../config.js';
+import { MidnightWalletProvider, syncWallet } from '../wallet.js';
+import { buildProviders, type BattleshipProviders } from '../providers.js';
+import {
+    CompiledBattleshipContract,
+    ledger,
+    zkConfigPath,
+} from '../../contract/index.js';
+import { 
+    BoardState, 
+    ShotState, 
+    WinState,
+    TurnState,
+    Contract
+} from '../../contract/managed/battleship/contract/index.js';
+import { createBattlePrivateState } from '../../contract/witnesses.js';
+import type { DeployedContract,FinalizedCallTxData } from '@midnight-ntwrk/midnight-js/contracts';
+```
+
+### Wallet preparation
+
+Create identifiers for the players:
+```typescript
+const ALICE_SEED = '0000000000000000000000000000000000000000000000000000000000000001';
+const BOB_SEED = '0000000000000000000000000000000000000000000000000000000000000002';
+const ALICE_PRIVATE_ID = 'alicePrivateState';
+const BOB_PRIVATE_ID = 'bobPrivateState';
+
+const logger = pino({
+    level: process.env['LOG_LEVEL'] ?? 'info',
+    transport: { target: 'pino-pretty' },
+});
+```
+
+Local devnet comes with pre-funded addresses for the first 3 seed accounts. Alice is assigned to one and Bob to two. Each player also needs a string for identifying their private state.
+
+Next, setup for the main test:
+```typescript
+describe('Battleship Smart Contract via midnight-js', async () => {
+    let aliceWallet: MidnightWalletProvider;
+    let bobWallet: MidnightWalletProvider;
+    let aliceProviders: BattleshipProviders;
+    let bobProviders: BattleshipProviders;
+    let contractAddress: ContractAddress;
+
+    const config = getConfig();
+    const board1x1 = BigInt(1);
+    const board1x2 = BigInt(2);
+    const board2x1 = BigInt(10);
+    const board2x2 = BigInt(11);
+});// end of describe
+```
+
+`MidnightWalletProvider` is the type defined by the wallet class exported from `wallet.ts` and `BattleshipProviders` comes from the `providers.ts` exports. 
+
+`getConfig()` returns the network configuration from the `config.ts` file and is currently set up to operate on an `undeployed` network. The `const` assignments that follow are for placing each player's ship locations uniquely. These are assigned here for programmatic testing, but in the production version of this application these values would be presented by the user in some UI component.
+
+### Ledger queries
+
+Write a helper function for querying the ledger:
+```typescript
+    async function queryLedger(providers: BattleshipProviders) {
+        const state = await providers.publicDataProvider.queryContractState(contractAddress);
+        expect(state).not.toBeNull();
+        return ledger(state!.data);
+    }
+})// end of describe
+```
+
+This function starts to demonstrate the use of `providers` for each player. A particular player's provider object can be passed in to operate on the `publicDataProvider` and return the contract state as it exists currently on the blockchain. This function will be put to use soon.
+
+### beforeAll
+
+Now, perform `beforeAll` test operations:
+```typescript
+    // setup before tests
+    beforeAll(async () => {
+        setNetworkId(config.networkId);
+
+        const envConfig: EnvironmentConfiguration = {
+            walletNetworkId: config.networkId,
+            networkId: config.networkId,
+            indexer: config.indexer,
+            indexerWS: config.indexerWS,
+            node: config.node,
+            nodeWS: config.nodeWS,
+            faucet: config.faucet,
+            proofServer: config.proofServer,
+        };
+
+        aliceWallet = await MidnightWalletProvider.build(logger, envConfig, ALICE_SEED);
+        await aliceWallet.start();
+        await syncWallet(logger, aliceWallet.wallet, 600_000);
+
+        bobWallet = await MidnightWalletProvider.build(logger, envConfig, BOB_SEED);
+        await bobWallet.start();
+        await syncWallet(logger, bobWallet.wallet, 600_000);
+
+        aliceProviders = buildProviders(aliceWallet, zkConfigPath, config);
+        bobProviders = buildProviders(bobWallet, zkConfigPath, config);
+
+        logger.info('Providers initialized, ready to test.');
+    });// end of beforeAll
+})// end of describe
+```
+
+`setNetworkId()` is a necessary call through MidnightJS to identify which network it needs to interact with for things like address formatting.
+
+Each user then calls `build()` from the wallet class to prepare a wallet. That wallet is then started and synced with the network by calling other functions of the wallet class.
+
+Finally, each user builds their providers (public, private, wallet) by calling `buildProviders()` from the exports in `providers.ts`.
+
+### afterAll
+
+After the tests complete these wallets need to be stopped, so `afterAll()`:
+```typescript
+    // tear down after tests
+    afterAll(async () => {
+        if(aliceWallet) {
+            logger.info('Stopping aliceWallet...');
+            await aliceWallet.stop();
+        }
+        if(bobWallet) {
+            logger.info('Stopping bobWallet...');
+            await bobWallet.stop();
+        }
+    });
+})// end of describe
+```
+
+The first tests are ready to be written!
+
+Each individual test should be structured as an `it()` from the Vitest package:
+```typescript
+    it('deploys the contract', async () => {
+
+    });
+});// end of describe
+```
+
+### Deploying the contract
+
+Deploying the contract is the logical first thing to do, it sends the contract code out to the network and allows access to the contract circuits via MidnightJS calls. In order to call the `deployContract` function of MidnightJS an initial private state needs to be created for *Alice the Deployer(TM)*:
+```typescript
+    it('deploys the contract', async () => {
+        const aliceSk = randomBytes(32);
+        const alicePrivateState = createBattlePrivateState(
+            board1x1,// x1 ship location
+            board1x2,// x2
+            BoardState.UNSET,
+            ShotState.MISS,
+            aliceSk,
+        );
+    });
+});// end of describe
+```
+
+`aliceSk` is a collection of random bytes signifying a DApp specific secret key. This is the key that will be hashed to publish a DApp specific public key for each player. With this pattern, players can be tracked in this DApp, but not outside of it.
+
+`alicePrivateState` is the return value of calling the `createBattlePrivateState` function exported from `witnesses.ts`. This creates a properly typed object that matches the expectations of the compiled contract accessed through MidnightJS.
+
+Deploy the contract to the blockchain:
+```typescript
+        const deployed: DeployedContract<Contract> = 
+            await (deployContract<Contract>)(aliceProviders, {
+                compiledContract: CompiledBattleshipContract,
+                privateStateId: ALICE_PRIVATE_ID,
+                initialPrivateState: alicePrivateState,
+                args: [alicePrivateState.x1, alicePrivateState.x2]
+            });
+    });// end of it('deploys the contract')
+});// end of describe
+```
+
+`deployContract` is the MidnightJS function to deploy the contract to the blockchain. It takes the following arguments:
+- `aliceProviders` the providers object of the user making the call
+- `compiledContract` is the compiled Battleship contract from the `index.ts` file
+- `privateStateId` is the unique identifier to the private state of the caller
+- `initialPrivateState` is the starting private state for the caller, the return value of the `createBattlePrivateState` function
+- `args` are any constructor arguments required by the contract
+
+When this call finalizes, it returns a value of the `DeployedContract` type that can be inspected and verified itself.
+
+Now that the contract is deployed, set the global `contractAddress` and private state for Alice:
+```typescript
+        contractAddress = deployed.deployTxData.public.contractAddress;      
+        aliceProviders.privateStateProvider.setContractAddress(contractAddress);
+        await aliceProviders.privateStateProvider.set(ALICE_PRIVATE_ID, alicePrivateState);
+
+        logger.info(`Contract deployed at: ${contractAddress}`);
+        expect(contractAddress).toBeDefined();
+        expect(contractAddress.length).toBeGreaterThan(0);
+    });// end of it('deploys the contract')
+});// end of describe
+```
+
+Failing to call `setContractAddress()` before accessing `aliceProviders.privateStateProvider` will cause an error. Always assign the contract address as soon as it is available.
+
+It is important to note that simply creating an object of the private state for Alice through `createBattlePrivateState` is not enough. This needs to be passed in to `privateStateProvider.set()` to initialize the MidnightJS provider for private state, this is where private state will be accessed in future tests.
+
+Because the contract is deployed it should have an initial state on the blockchain that reflects successful constructor execution. Use the `queryLedger()` function to check that the state is as expected:
+```typescript
+        const state = await queryLedger(aliceProviders);
+        expect(state.board1State).toEqual(BoardState.SET);
+        expect(state.board2State).toEqual(BoardState.UNSET);
+        expect(state.winState).toEqual(WinState.CONTINUE_PLAY);
+    });// end of it('deploys the contract')
+});// end of describe
+```
+
+If you flip back to the `.compact` file and inspect the contructor, it will give you a good indication of expected states and what should be tested.
+
+Now that the first test is complete, run it and see if it passes. Be sure the docker engine is running and start the local devnet:
+```bash
+yarn env:up
+```
+
+Local devnet requires a Node, Indexer and Proof server running locally, so be sure to leave these services running for the duration of these tests and check the status of the container before moving on to the next step.
+
+In a *seperate terminal*, execute the test script on local devnet:
+```bash
+yarn test:local
+```
+
+The test should start by syncing player wallets and initializing their providers. After that it should display a successful deployment of the contract!
+```
+[20:32:05.816] INFO (11363): Wallet sync complete after 104 emissions
+[20:32:05.824] INFO (11363): Providers initialized, ready to test.
+ ✓ src/test/battleship.test.ts (1 test) 29035ms
+   ✓ Battleship Smart Contract via midnight-js > deploys the contract  21282ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+```
+
+It is good practice to run each test after writing them, so that you can verify proper execution before moving on to the next step.
+
+### Bob accepts the game
+
+Bob is ready to accept the game:
+```typescript
+    });// end of it('deploys the contract')
+    it('Allows Bob to acceptGame', async () => {
+        
+        const bobSk = randomBytes(32);
+        const bobInitialPrivateState = createBattlePrivateState(
+            board2x1,
+            board2x2,
+            BoardState.UNSET,
+            ShotState.MISS,
+            bobSk
+        );
+
+        bobProviders.privateStateProvider.setContractAddress(contractAddress);
+        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, bobInitialPrivateState);
+        const bobPrivateState = await bobProviders.privateStateProvider.get(BOB_PRIVATE_ID);
+
+        logger.info(`Bob is accepting the game...`);
+        const txData: FinalizedCallTxData<Contract, 'acceptGame'> = 
+            await (submitCallTx<Contract, 'acceptGame'>)(bobProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'acceptGame',
+                args: [bobPrivateState.x1, bobPrivateState.x2]
+        });
+        logger.info(`Bob successfully joined the game!`);
+
+        const state = await queryLedger(bobProviders);
+        expect(state.board2State).toEqual(BoardState.SET);
+        expect(state.board2.size()).toEqual(2n);
+        expect(state.turn).toEqual(TurnState.PLAYER_1_SHOOT);
+    });
+});// end of describe
+```
+
+Bob's private state is set up in the same way as Alice, though this time the shape of the MidnightJS function has changed slightly. `submitCallTx` is the function to execute for basic contract calls and it has similar requirements to `deployContract`. Inspect it closely to check for differences. `submitCallTx` is what will be used to interact with the contract now that it is deployed.
+
+:::note
+The return value of `submitCallTx` is captured in `txData` for demonstration. It is not being used here, but holds useful information for inspecting circuit return data (status, txId, txHash, block info, fees, unshielded outputs, etc..).
+:::
+
+### Alice takes the first shot
+
+Now that the contract is deployed and Bob has joined the game, the `turn` value recorded on the ledger means that it is Alice's turn to shoot. Write that test:
+```typescript
+    it('Allows Alice to take the first shot(MISS)', async () => {
+        const shot = BigInt(5);// miss
+
+        logger.info(`Alice shoots (MISS) at Bobs board...`);
+        const txData: FinalizedCallTxData<Contract, 'player1Shoot'> = 
+            await (submitCallTx<Contract, 'player1Shoot'>)(aliceProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: ALICE_PRIVATE_ID,
+                circuitId: 'player1Shoot',
+                args: [shot]
+        });
+        logger.info(`Alice shot successfully!`);
+
+        const state = await queryLedger(aliceProviders);
+        expect(state.board2HitCount).toEqual(0n);
+        expect(state.player1Shot.head().is_some).toBeTruthy();
+        expect(state.player1Shot.head().value).toEqual(shot);
+        expect(state.turn).toEqual(TurnState.PLAYER_2_CHECK);
+    });
+});// end of describe
+```
+
+This pattern should start to look familiar and continue to be used for most of the remaining tests. But what about the pattern for failed transaction calls? After all, testing for expected failures is just as important as testing the successful calls. Add a cheat attempt by Bob to this test to simulate attempting to shoot out of turn:
+```typescript
+    it('Allows Alice to take the first shot(MISS)', async () => {
+        const shot = BigInt(5);// miss
+
+        // new
+        logger.info(`Bob tries to shoot out of turn...`);
+        await expect(async () => {
+            await (submitCallTx<Contract, 'player2Shoot'>)(bobProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'player2Shoot',
+                args: [BigInt(1)]// arbitrary
+            });
+        }).rejects.toThrow();// .rejects.toThrow() for calls expecting to fail
+        logger.info(`Bobs shot (out of turn) was rejected!`);
+        // end new
+
+        logger.info(`Alice shoots (MISS) at Bobs board...`);
+        const txData: FinalizedCallTxData<Contract, 'player1Shoot'> = 
+            await (submitCallTx<Contract, 'player1Shoot'>)(aliceProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: ALICE_PRIVATE_ID,
+                circuitId: 'player1Shoot',
+                args: [shot]
+        });
+        logger.info(`Alice shot successfully!`);
+
+        const state = await queryLedger(aliceProviders);
+        expect(state.board2HitCount).toEqual(0n);
+        expect(state.player1Shot.head().is_some).toBeTruthy();
+        expect(state.player1Shot.head().value).toEqual(shot);
+        expect(state.turn).toEqual(TurnState.PLAYER_2_CHECK);
+    });
+});// end of describe
+```
+
+This is a test of the Compact explicit state management. If the `assert` statements are implemented correctly with the custom `TurnState`, the contract will not allow Bob to cheat here. Run these tests to find out:
+```bash
+yarn test:local
+```
+
+```
+Bobs shot (out of turn) was rejected!
+```
+
+No cheating Bob.
+
+### Test yourself
+
+Now that you've seen the pattern for successful and failing calls, write some tests yourself that progress the interaction of the contract. Look back at the `.compact` code to verify the state after a certain circuit executes and check these through `queryLedger()` at the end of each test. (hint: `submitCallTx` calls to circuits with no arguments should omit the `args` field.)
+
+For a challenge, work with the returned `txData` from `submitCallTx` to inspect and operate on the return values there.
+
+To view the entire test suite for reference see `battleship.test.ts` in [example-battleship](https://github.com/midnightntwrk/example-battleship/blob/main/src/test/battleship.test.ts). The linear progression of this tutorial has reached its end. Using the test file in the link above should provide the needed code for completing these tests. 
+
+### Further cheating attempts
+
+The next interesting thing to consider are the other guards against cheating. A lot of emphasis was put on the protection implemented in the Compact contract, but this should be tested explicitly.
+
+To simulate Bob(or Alice) attempting to maliciously change their private state, create a new private state object and set the private state provider:
+```typescript
+        logger.info(`Bob realizes it is going to be a HIT and tries to cheat...`);
+        const bobPrivateState = await bobProviders.privateStateProvider.get(BOB_PRIVATE_ID);
+        const cheatBobPrivateState = createBattlePrivateState(
+            BigInt(15),
+            BigInt(16),
+            BoardState.SET,
+            ShotState.MISS,
+            bobPrivateState.sk,
+        );
+        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, cheatBobPrivateState);
+        await expect(async () => {
+            await (submitCallTx<Contract, 'checkBoard2'>)(bobProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'checkBoard2',
+            });
+        }).rejects.toThrow();
+        logger.info(`Bobs cheating attempt was rejected!`);
+
+        logger.info(`Bob is resetting his board to the original private state...`);
+        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, bobPrivateState);
+        logger.info(`Bob successfully reverted his private state to the original!`);
+```
+
+- `bobProviders.privateStateProvider.get(BOB_PRIVATE_ID)` retrieves the current private state
+- `createBattlePrivateState` creates a new private state object with different locations for Bob's ships
+- `bobProviders.privateStateProvider.set()` sets the private state for Bob to the new object
+- Then run the call for `submitCallTx` as expecting `.rejects.toThrow()` and watch Bob get rejected!
+- Be sure to reset Bob's private state to the original ship locations so that future calls succeed when expected to do so
+
+## Conclusion
+
+This concludes the Battleship tutorial. Some important lessons have been covered:
+- Private state management (setting, getting and changing it) in MidnightJS
+- Explicit state management in our Compact code
+- Calling in to our contract through MidnightJS
+- Successful and failing contract calls and tests
+- Defensive programming
+
+Thanks for following along. Shout out in the Discord dev-chat that you've become a Battleship master or share any feedback on this tutorial or if you mustache us any questions. To inspect the full Battleship repository, see [example-battleship](https://github.com/midnightntwrk/example-battleship).
