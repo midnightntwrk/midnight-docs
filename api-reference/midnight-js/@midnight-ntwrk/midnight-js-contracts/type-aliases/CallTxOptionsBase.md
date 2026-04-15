@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / CallTxOptionsBase
 
-# Type Alias: CallTxOptionsBase\<C, ICK\>
+# Type Alias: CallTxOptionsBase\<C, PCK\>
 
-> **CallTxOptionsBase**\<`C`, `ICK`\> = [`CallOptionsWithArguments`](CallOptionsWithArguments.md)\<`C`, `ICK`\>
+> **CallTxOptionsBase**\<`C`, `PCK`\> = [`CallOptionsWithArguments`](CallOptionsWithArguments.md)\<`C`, `PCK`\>
 
 Base type for configuration for a call transaction; identical to [CallOptionsWithArguments](CallOptionsWithArguments.md).
 
@@ -16,6 +16,6 @@ Base type for configuration for a call transaction; identical to [CallOptionsWit
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>

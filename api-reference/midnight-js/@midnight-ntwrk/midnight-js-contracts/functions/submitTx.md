@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Function: submitTx()
 
-> **submitTx**\<`C`, `ICK`\>(`providers`, `options`): `Promise`\<`FinalizedTxData`\>
+> **submitTx**\<`C`, `PCK`\>(`providers`, `options`): `Promise`\<`FinalizedTxData`\>
 
 Proves, balances, and submits an unproven deployment or call transaction using
 the given providers, according to the given options.
@@ -45,21 +45,21 @@ finalization handling and timeout control.
 
 `C` *extends* `Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `string`
+`PCK` *extends* `string`
 
 ## Parameters
 
 ### providers
 
-[`SubmitTxProviders`](../type-aliases/SubmitTxProviders.md)\<`C`, `ICK`\>
+[`SubmitTxProviders`](../type-aliases/SubmitTxProviders.md)\<`C`, `PCK`\>
 
 The providers used to manage the transaction lifecycle.
 
 ### options
 
-[`SubmitTxOptions`](../type-aliases/SubmitTxOptions.md)\<`ICK`\>
+[`SubmitTxOptions`](../type-aliases/SubmitTxOptions.md)\<`PCK`\>
 
 Configuration.
 

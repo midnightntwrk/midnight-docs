@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
@@ -14,7 +14,7 @@
 
 ### providers
 
-`MidnightProviders`\<`ImpureCircuitId`\<`C`\>, `string`, `unknown`\>
+`MidnightProviders`\<`ProvableCircuitId`\<`C`\>, `string`, `unknown`\>
 
 ### deployTxData
 
@@ -22,7 +22,7 @@
 
 ### deployTxOptions?
 
-`DeployContractOptions`\<`C`\> | `DeployTxOptions`\<`C`\>
+`DeployContractOptions`\<`C`\> \| `DeployTxOptions`\<`C`\>
 
 ## Returns
 

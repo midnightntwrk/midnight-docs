@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -36,7 +36,7 @@ An error indicating that a contract maintenance authority replacement transactio
 
 ### circuitId?
 
-> `readonly` `optional` **circuitId**: `string` \| `string`[]
+> `readonly` `optional` **circuitId?**: `string` \| `string`[]
 
 The name of the circuit that was called to create the call
                  transaction that failed. Only defined if a call transaction

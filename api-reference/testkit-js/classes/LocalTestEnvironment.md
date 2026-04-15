@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.2**](../README.md)
 
 ***
 
@@ -164,7 +164,7 @@ Creates and starts the specified number of wallet providers
 
 ##### seeds?
 
-`string`[] | `undefined`
+`string`[] \| `undefined`
 
 #### Returns
 

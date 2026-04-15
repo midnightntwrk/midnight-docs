@@ -141,7 +141,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema: "./static/midnight-indexer/schema-v3.graphql",
+        schema: "./static/midnight-indexer/schema-v4.graphql",
         rootPath: "api-reference", // docs will be generated under './api-reference/midnight-indexer' (rootPath/baseURL)
         baseURL: "midnight-indexer",
         loaders: {
@@ -317,8 +317,8 @@ const config = {
     ],
 
     algolia: {
-      appId: "Q7T3VYHX3K",
-      apiKey: "cf362041369546fdffdf1894511fc0d5",
+      appId: process.env.ALGOLIA_APP_ID,
+      apiKey: process.env.ALGOLIA_SEARCH_KEY,
       indexName: "Midnight Docs",
       contextualSearch: true,
       searchPagePath: "search",
@@ -335,6 +335,8 @@ const config = {
       items: [
         { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
         { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
+        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
+        { to: "/blog",  label: "Dev Diaries",  position: "left",  activeBaseRegex: "^/blog(/|$)" },
         // {
         //   type: 'docsVersionDropdown',
         //   position: "right",
@@ -361,7 +363,7 @@ const config = {
           title: "Resources",
           items: [
             { label: "Midnight Foundation", href: "https://midnight.network/" },
-            { label: "Developer blog", href: "/blog" },
+            { label: "Dev Diaries", href: "/blog" },
             { label: "Glacier Drop", href: "https://www.midnight.gd/" },
             { label: "Careers", href: "https://midnight.network/careers" },
           ],

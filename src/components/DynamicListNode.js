@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '0.12.1',
     status: 'UNSUPPORTED',
     date: '11 June 2025',
@@ -36,7 +35,6 @@ const releases = [
     link: '/relnotes/node/node-0-12-1',
   },
   {
-    id: 2,
     version: '0.12.0',
     status: 'DEPRECATED',
     date: '12 May 2025',
@@ -78,7 +76,6 @@ const releases = [
     link: '/relnotes/node/node-0-12',
   },
   {
-    id: 3,
     version: '0.8.0',
     status: 'DEPRECATED',
     date: '24 January 2025',
@@ -103,6 +100,10 @@ const releases = [
     link: '/relnotes/node/node-0-8-0',
   },
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases

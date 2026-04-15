@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -6,11 +6,11 @@
 
 # Class: NodeZkConfigProvider\<K\>
 
-Implementation of ZKConfigProvider that reads the keys and zkIR from the local filesystem.
+Implementation of [ZKConfigProvider](#) that reads the keys and zkIR from the local filesystem.
 
 ## Extends
 
-- `ZKConfigProvider`\<`K`\>
+- [`ZKConfigProvider`](#)\<`K`\>
 
 ## Type Parameters
 
@@ -70,7 +70,7 @@ The path to the base directory containing the key and ZKIR subdirectories.
 
 > **get**(`circuitId`): `Promise`\<`ZKConfig`\<`K`\>\>
 
-Retrieves all zero-knowledge artifacts produced by `compact` compiler for the given circuit.
+Retrieves all zero-knowledge artifacts produced by `compactc` compiler for the given circuit.
 
 #### Parameters
 
@@ -94,7 +94,7 @@ The circuit ID of the artifacts to retrieve.
 
 > **getProverKey**(`circuitId`): `Promise`\<`ProverKey`\>
 
-ZKConfigProvider.getProverKey
+[ZKConfigProvider.getProverKey](#)
 
 #### Parameters
 
@@ -116,7 +116,7 @@ ZKConfigProvider.getProverKey
 
 > **getVerifierKey**(`circuitId`): `Promise`\<`VerifierKey`\>
 
-ZKConfigProvider.getVerifierKey
+[ZKConfigProvider.getVerifierKey](#)
 
 #### Parameters
 
@@ -138,7 +138,7 @@ ZKConfigProvider.getVerifierKey
 
 > **getVerifierKeys**(`circuitIds`): `Promise`\<\[`K`, `VerifierKey`\][]\>
 
-Retrieves the verifier keys produced by `compact` compiler for the given circuits.
+Retrieves the verifier keys produced by `compactc` compiler for the given circuits.
 
 #### Parameters
 
@@ -162,7 +162,7 @@ The circuit IDs of the verifier keys to retrieve.
 
 > **getZKIR**(`circuitId`): `Promise`\<`ZKIR`\>
 
-ZKConfigProvider.getZKIR
+[ZKConfigProvider.getZKIR](#)
 
 #### Parameters
 
