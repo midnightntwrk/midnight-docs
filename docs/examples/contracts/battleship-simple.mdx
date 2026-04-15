@@ -18,6 +18,12 @@ This Compact contract implements a simple version of the game Battleship. Ships 
 For the full DApp example with complete frontend test suite, see [example-battleship](https://github.com/midnightntwrk/example-battleship).
 
 ```compact
+// Battleship: Two-player ZK game. Player 1 deploys (sets ships).
+// Player 2 joins via acceptGame(). Turn order:
+//   PLAYER_1_SHOOT → PLAYER_2_CHECK → PLAYER_2_SHOOT → PLAYER_1_CHECK → repeat
+// Ship locations are committed via persistentHash; ZK proves honest hit/miss reports.
+// Win condition: 2 hits on the opponent's ships.
+
 pragma language_version >= 0.22;
 import CompactStandardLibrary;
 
@@ -50,9 +56,9 @@ export ledger winState: WinState;
 export ledger board1HitCount: Counter;
 export ledger board2HitCount: Counter;
 
+witness localSk(): Bytes<32>;
 witness localSetBoard(_x1: Uint<8>, _x2: Uint<8>): BoardState;
 witness localCheckBoard(x: Uint<8>): ShotState;
-witness localSk(): Bytes<32>;
 
 constructor(_x1: Uint<8>, _x2: Uint<8>) {
     // input verification checks
@@ -71,7 +77,7 @@ constructor(_x1: Uint<8>, _x2: Uint<8>) {
     const hash2 = commitBoardSpace(_x2 as Bytes<32>, _sk);
     board1.insert(hash2);
 
-    // best practice example -- don't disclose(localSetBoard1(_x1, _x2)), 
+    // best practice example -- don't disclose(localSetBoard(_x1, _x2)), 
     // disclose only what you need (localBoardState);
     const localBoardState = localSetBoard(_x1, _x2);
     assert(localBoardState == BoardState.SET, "Please update the state of board1 to SET");
@@ -178,7 +184,7 @@ export circuit checkBoard1(): [] {
     assert(!board1Hits.member(currentShot), "Cheat Detected: Player2: Attempt to repeat a previous HIT");
     player2Shot.popFront();
 
-    // hash for comparision with on-chain hash
+    // hash for comparison with on-chain hash
     const honestyCheckHash = commitBoardSpace(currentShot as Bytes<32>, _sk);
 
     // currentShot has already been exposed, but we need to satisfy the compiler here too
@@ -236,7 +242,7 @@ export circuit checkBoard2(): [] {
 
     } else {
         
-        // dont trust, verify
+        // don't trust, verify
         assert(board2.member(honestyCheckHash), "Cheat Detected: Player 2: claimed a HIT, when it was in fact a MISS. Why would they do that?");
         board2HitCount.increment(1);
         board2Hits.insert(currentShot);
@@ -254,7 +260,8 @@ circuit commitBoardSpace(_x: Bytes<32>, _sk: Bytes<32>): Bytes<32> {
 }
 
 // hashing a Dapp specific public key to track user interaction (only within this dapp)
-export circuit getDappPubKey(_sk: Bytes<32>): Bytes<32> {
+circuit getDappPubKey(_sk: Bytes<32>): Bytes<32> {
     return persistentHash<Vector<2, Bytes<32>>>([pad(32, "battleship:pk:"), _sk]);
 }
+
 ```

@@ -201,45 +201,86 @@ const config = {
     ],
 
     // LLMS TXT GENERATOR
+    // [
+    //   "docusaurus-plugin-llms",
+    //   {
+    //     generateLLMsTxt: true,
+    //     generateLLMsFullTxt: true,
+    //     docsDir: 'docs',
+    //     title: 'Midnight Network Documentation',
+    //     description: 'Complete developer documentation for Midnight Network',
+    //     // includeBlog: true,
+    //     pathTransformation: {
+    //       // Paths to ignore when constructing URLs (will be removed if found)
+    //       ignorePaths: ['docs'],
+    //     },
+    //     // Control documentation order
+    //     includeOrder: [
+    //       'overview/*',
+    //       'getting-started/*',
+    //       'examples/*',
+    //       'tutorials/*',
+    //       'concepts/*',
+    //       'guides/*',
+    //       'compact/*',
+    //       'nodes/*',
+    //       'relnotes/*',
+    //       'glossary/*',
+    //       'troubleshoot/*',
+    //     ],
+    //     ignoreFiles: [
+    //       '_architecture/*', 
+    //       '_contribute/*', 
+    //       '_learn/*', 
+    //       '_legal/*', 
+    //       '_develop/*', 
+    //       '_operate/*', 
+    //       '_other/*', 
+    //       '_validate/*', 
+    //       'relnotes/*/**' 
+    //     ]
+    //   },
+    // ],
+
     [
-      "docusaurus-plugin-llms",
+      '@signalwire/docusaurus-plugin-llms-txt',
       {
-        generateLLMsTxt: true,
-        generateLLMsFullTxt: true,
-        docsDir: 'docs',
-        title: 'Midnight Network Documentation',
-        description: 'Complete developer documentation for Midnight Network',
-        // includeBlog: true,
-        pathTransformation: {
-          // Paths to ignore when constructing URLs (will be removed if found)
-          ignorePaths: ['docs'],
+        siteTitle: 'Midnight Docs',
+        siteDescription: 'Comprehensive documentation for building on Midnight.',
+        depth: 2,
+        content: {
+          enableLlmsFullTxt: true,
+          includeVersionedDocs: false,
+          enableMarkdownFiles: true,
+          excludeRoutes: [
+                  '_architecture/*', 
+                  '_contribute/*', 
+                  '_learn/*', 
+                  '_legal/*', 
+                  '_develop/*', 
+                  '_operate/*', 
+                  '_other/*', 
+                  '_validate/*', 
+                  'relnotes/*/**' ,
+                  '/tags/**',
+                  '/archive/**'
+                ],
         },
-        // Control documentation order
         includeOrder: [
-          'overview/*',
-          'getting-started/*',
-          'examples/*',
-          'tutorials/*',
-          'concepts/*',
-          'guides/*',
-          'compact/*',
-          'nodes/*',
-          'relnotes/*',
-          'glossary/*',
-          'troubleshoot/*',
-        ],
-        ignoreFiles: [
-          '_architecture/*', 
-          '_contribute/*', 
-          '_learn/*', 
-          '_legal/*', 
-          '_develop/*', 
-          '_operate/*', 
-          '_other/*', 
-          '_validate/*', 
-          'relnotes/*/**' 
-        ]
-      },
+              'overview/*',
+              'what-is-midnight.mdx',
+              'getting-started/*',
+              'examples/*',
+              'tutorials/*',
+              'concepts/*',
+              'guides/*',
+              'compact/*',
+              'nodes/*',
+              'relnotes/*',
+              'glossary.mdx',
+              'troubleshoot/*',
+          ],
+      }
     ],
 
     require.resolve("./plugins/webpack-yaml-loader"),
