@@ -17,9 +17,78 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
-    version: '3.0.0',
+    version: '4.0.4',
     status: 'LATEST',
+    date: '1 April 2026',
+    summary: 'Summary of Release 4.0.4',
+    details: [
+      'Introduced `@midnight-ntwrk/midnight-js` barrel package',
+      'Added `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider`',
+      'Per-recipient encryption key resolution for `zswapStateToOffer`',
+      'Browser fallback for `timingSafeEqual` in non-Node runtimes',
+      'Exposed `additionalCoinEncPublicKeyMappings` in high-level APIs',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-4',
+  },
+  {
+    version: '4.0.2',
+    status: 'SUPPORTED',
+    date: '24 March 2026',
+    summary: 'Summary of Release 4.0.2',
+    details: [
+      'Added custom header support in `httpClientProvingProvider`',
+      'Introduced `isEffectContractError` type guard',
+      'Reverted v4.0.1 `addCalls` migration in `createUnprovenLedgerCallTx`',
+      'Fixed Merkle tree rehash handling before spend validation',
+      'Improved fallible transaction error reporting and propagation',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-2',
+  },
+  {
+    version: '4.0.1',
+    status: 'SUPPORTED',
+    date: '20 March 2026',
+    summary: 'Summary of Release 4.0.1',
+    details: [
+      'Migrated to ledger v8 and provable-circuit naming',
+      'Extended `queryZSwapAndContractState` with `LedgerParameters`',
+      'Required `ledgerParameters` in `CallOptionsProviderDataDependencies`',
+      'Refactored internal call transaction construction for v4',
+      'Added `createProofProvider` helper factory',
+      'Improved binary query-context handling in unproven call flows',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-1',
+  },
+  {
+    version: '3.2.0',
+    status: 'UNSUPPORTED',
+    date: '5 March 2026',
+    summary: 'Summary of Release 3.2.0',
+    details: [
+      'Security hardening for private state encryption',
+      '`accountId` required for scoped storage isolation',
+      'Export/import APIs for signing keys and private states',
+      'Password rotation APIs for private state and signing keys',
+      'Enhanced testkit environment support for preview and preprod',
+      'Runtime and tooling fixes across storage and transaction handling',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-3-2-0',
+  },
+  {
+    version: '3.0.0',
+    status: 'UNSUPPORTED',
     date: '17 December 2025',
     summary: 'Summary of Release 3.0.0',
     details: [
@@ -41,7 +110,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-3-0-0',
   },
   {
-    id: 2,
     version: '2.1.0',
     status: 'UNSUPPORTED',
     date: '1 October 2025',
@@ -64,7 +132,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-1-0',
   },
   {
-    id: 3,
     version: '2.0.2',
     status: 'UNSUPPORTED',
     date: '11 June 2025',
@@ -79,7 +146,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-2',
   },
   {
-    id: 4,
     version: '2.0.1',
     status: 'UNSUPPORTED',
     date: '30 May 2025',
@@ -94,7 +160,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-1',
   },
   {
-    id: 5,
     version: '2.0.0',
     status: 'UNSUPPORTED',
     date: '12 May 2025',
@@ -131,7 +196,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-2-0-0',
   },
   {
-    id: 6,
     version: '1.0.0',
     status: 'DEPRECATED',
     date: '2 April 2025',
@@ -150,7 +214,6 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-1-0-0',
   },
   {
-    id: 7,
     version: '0.2.5',
     status: 'DEPRECATED',
     date: '3 February 2025',
@@ -168,6 +231,10 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-0-2-5',
   }
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases
