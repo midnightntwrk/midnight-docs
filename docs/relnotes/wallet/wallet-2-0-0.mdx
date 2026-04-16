@@ -15,7 +15,7 @@ description: Release notes for the Midnight Wallet SDK 2.0.0
 ## High-level summary
 
 This release focuses on architectural decoupling in the Wallet SDK. Proving, submission, and pending-transaction tracking are now standalone services owned by `WalletFacade`. 
-Wallet APIs are standardized across shielded, unshielded, and dust wallets, and `WalletFacade` now automatically reverts transactions when proving or submission fails.
+Wallet APIs are standardized across shielded, unshielded, and DUST wallets, and `WalletFacade` now automatically reverts transactions when proving or submission fails.
 The release also introduces WASM-based proving as an alternative to HTTP prover server mode.
 
 ---
@@ -38,7 +38,7 @@ This release is relevant for developers who:
 - New `PendingTransactionsService` monitors TTL/status and automatically reverts failed transactions
 - `WalletFacade` initialization changed to static async `WalletFacade.init()`
 - `WalletFacade` reverts transactions automatically on proving or submission failure
-- Wallet APIs standardized across shielded, unshielded, and dust wallets (renames and new methods)
+- Wallet APIs standardized across shielded, unshielded, and DUST wallets (renames and new methods)
 - `SyncProgress` moved to `wallet-sdk-abstractions` for shared use across wallet types
 - Unshielded transaction history now includes created and spent UTXOs per entry
 - Optional `keepAlive` config added to `IndexerClientConnection`
@@ -105,8 +105,7 @@ The following update is required to configure the wallet to use the new architec
 
 `WalletFacade.init()` now expects a `ProvingService`, either explicitly or through `DefaultConfiguration`.
 
-**Required updates**:
-- Pass a `ProvingService` when calling `WalletFacade.init()`, or rely on `DefaultConfiguration` which includes `DefaultProvingConfiguration` (requires `provingServerUrl` in config).
+**Required updates**: Pass a `ProvingService` when calling `WalletFacade.init()`, or rely on `DefaultConfiguration` which includes `DefaultProvingConfiguration` (requires `provingServerUrl` in config).
 
 **Impact**: `WalletFacade` no longer accepts wallet builders that carry their own proving service. Proving is now a facade-level concern. The `provingServerUrl` field in `DefaultConfiguration` continues to work for the default HTTP proving mode.
 
@@ -116,11 +115,11 @@ The following update is required to configure the wallet to use the new architec
 
 This release also includes quality-of-life and reliability improvements across SDK components.
 
-- `WalletFacade.init()` static async initializer accepts a configuration object, enabling non-breaking future initialization changes
-- Optional `keepAlive` parameter on `IndexerClientConnection` and `SubscriptionClient.ServerConfig` (defaults to 15 000 ms), forwarded to the underlying `graphql-ws` client
-- Node client (`@midnight-ntwrk/wallet-sdk-node-client`) connects WebSocket on-demand and disconnects after each operation, preventing `@polkadot/api` health-check timers from keeping service workers alive
-- `CoreWallet` in the dust wallet refactored from a class to a plain object type + namespace, improving composability
-- `WalletError` type added to the DUST wallet for structured error handling
+- `WalletFacade.init()` now accepts a configuration object, which supports future initialization changes without breaking existing integrations.
+- `IndexerClientConnection` and `SubscriptionClient.ServerConfig` now include an optional `keepAlive` parameter (default: 15,000 ms), which is forwarded to the underlying `graphql-ws` client.
+- Node client (`@midnight-ntwrk/wallet-sdk-node-client`) now connects WebSocket on demand and disconnects after each operation, which prevents `@polkadot/api` health-check timers from keeping service workers alive.
+- `CoreWallet` in the DUST wallet is refactored from a class to a plain object type plus namespace, which improves composability.
+- DUST wallet now includes a `WalletError` type for structured error handling.
 
 ---
 
@@ -187,9 +186,9 @@ wallet.transferTransaction([{ type: 'shielded', outputs: [{ receiverAddress: add
 
 This section lists known issues with this release of the Wallet SDK.
 
-### Transaction history not implemented for shielded and dust wallets
+### Transaction history not implemented for shielded and DUST wallets
 
-The shielded and dust wallets do not track transaction history. The shielded wallet transaction history getter throws "not yet implemented". Only the unshielded wallet maintains transaction records.
+The shielded and DUST wallets do not track transaction history. The shielded wallet transaction history getter throws "not yet implemented". Only the unshielded wallet maintains transaction records.
 
 ### Pending coins not cleared after failed shielded transaction submission
 
@@ -203,11 +202,11 @@ When shielded transaction submission fails, coins marked as pending in the shiel
 
 | Package                                        | Version | Description                                                                                                                                       |
 | ---------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@midnight-ntwrk/wallet-sdk-facade`            | 2.0.0   | Unified API orchestrating shielded, unshielded, and dust wallets. Owns proving, submission, and pending transaction tracking. Reverts on failure. |
+| `@midnight-ntwrk/wallet-sdk-facade`            | 2.0.0   | Unified API orchestrating shielded, unshielded, and DUST wallets. Owns proving, submission, and pending transaction tracking. Reverts on failure. |
 | `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | 2.0.0   | Manages NIGHT and other unshielded tokens. Transaction history now includes created and spent UTXOs per entry.                                  |
 | `@midnight-ntwrk/wallet-sdk-shielded`          | 2.0.0   | Manages privacy-preserving shielded tokens. Proving is decoupled from the wallet builder.                                                       |
-| `@midnight-ntwrk/wallet-sdk-dust-wallet`       | 2.0.0   | Manages Dust for transaction fees. Includes standardized APIs, deregistration support, and fee-payment options for registration.                |
-| `@midnight-ntwrk/wallet-sdk-capabilities`      | 3.1.0   | Shared wallet features. Includes standalone ProvingService, SubmissionService, and PendingTransactionsService.                                  |
+| `@midnight-ntwrk/wallet-sdk-dust-wallet`       | 2.0.0   | Manages DUST for transaction fees. Includes standardized APIs, deregistration support, and fee-payment options for registration.                |
+| `@midnight-ntwrk/wallet-sdk-capabilities`      | 2.0.0   | Shared wallet features. Includes standalone ProvingService, SubmissionService, and PendingTransactionsService.                                  |
 | `@midnight-ntwrk/wallet-sdk-abstractions`      | 2.0.0   | Core interfaces and domain types. Includes shared SyncProgress and SerializedTransaction.                                                       |
 | `@midnight-ntwrk/wallet-sdk-prover-client`     | 1.1.0   | Interfaces with the prover service. Supports WASM proving via Web Worker and exposes proving providers for custom integrations.                 |
 | `@midnight-ntwrk/wallet-sdk-indexer-client`    | 1.1.0   | Queries the Midnight indexer via GraphQL. Adds QueryRunner utility and keepAlive configuration.                                                 |
@@ -226,8 +225,8 @@ This release includes the following defect fixes:
 - `rollbackSpendByUtxo` no longer throws on missing UTXOs, resolving a race condition between sync and revert operations; the function now returns state unchanged when a UTXO is not found
 - `addSignature` now preserves the input transaction type via a generic parameter (previously always returned `UnprovenTransaction`)
 - Intent cloning via serialization/deserialization removed from `addSignature`
-- Pending dust accumulation fixed across multiple coin spends
-- Intent spend time (not pending spend ctime) is now used when processing TTLs during dust wallet reversion
+- Pending DUST accumulation fixed across multiple coin spends
+- Intent spend time (not pending spend ctime) is now used when processing TTLs during DUST wallet reversion
 - `fromStream` no longer leaves a dangling hub subscriber on early unsubscribe
 
 ---
