@@ -1,0 +1,194 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Wallet SDK v3.0.0 release notes
+displayed_sidebar: sidebar
+description: Release notes for the Midnight Wallet SDK 3.0.0
+---
+
+* **Version**: v3.0.0
+* **Date**: 20 March, 2026
+* **Environment**: mainnet, preprod, preview
+
+---
+
+## High-level summary
+
+This release focuses on accurate fee estimation and developer ergonomics. Fee calculation is now split into a context-free `calculateFee` and a wallet-aware `estimateFee` that accounts for available coins and balancing transaction cost. The SDK is updated to ledger v8. It also introduces `fetchTermsAndConditions` for retrieving network Terms and Conditions before initialization, and a promise-based `QueryRunner` for developers not using Effect.
+
+---
+
+## Audience
+
+This release is relevant for developers who:
+
+- Build wallets for the Midnight network
+- Integrate Midnight token transfers into their DApps
+- Need to manage shielded (private) and unshielded token balances
+- Implement atomic swaps between parties
+
+---
+
+## What changed (Summary of updates)
+
+- Fee calculation split into `calculateFee` (transaction-only) and `estimateFee` (wallet-aware, includes balancing cost)
+- Updated to ledger v8 across the SDK
+- New `WalletFacade.fetchTermsAndConditions()` static method for retrieving network Terms and Conditions
+- New `QueryRunner.runPromise()` utility for executing GraphQL queries as plain Promises
+- `SecretKeysResource` in shielded and dust wallets now clears keys from memory after use
+- Shielded wallet now clears pending coins on transaction failure
+- Improved error messages for invalid transaction submission and balancing failures
+
+---
+
+## New features
+
+Below is a detailed breakdown of the new features added in this release.
+
+### Terms and conditions retrieval
+
+This release adds static method `WalletFacade.fetchTermsAndConditions(configuration)`, which retrieves the current Terms and Conditions (URL and SHA-256 hash) from the network indexer. You can call it before or independently of wallet initialization. It accepts any configuration that includes `indexerClientConnection.indexerHttpUrl`, so shared wallet configuration can be passed directly.
+
+### Promise-based query runner
+
+This release introduces `QueryRunner.runPromise()` in `@midnight-ntwrk/wallet-sdk-indexer-client`, which executes GraphQL queries as plain Promises without Effect boilerplate. It takes a query, variables, and server config, and returns a `Promise<R>`.
+
+---
+
+## New features requiring configuration updates
+
+No configuration updates are required to access the new features in this release.
+
+---
+
+## Improvements
+
+This release also includes quality and reliability improvements across wallet components.
+
+- Node client (`@midnight-ntwrk/wallet-sdk-node-client`) now returns clearer error messages when transaction submission fails due to an invalid transaction
+- Dust wallet reports more descriptive error messages when balancing fails
+- `SecretKeysResource` in shielded and dust wallets securely clears cryptographic keys from memory after use, instead of only nullifying the reference
+
+---
+
+## Deprecations
+
+No deprecations are introduced in this release.
+
+---
+
+## Breaking changes or required actions for developers
+
+This release includes several API and behavior changes that require migration.
+
+### Ledger v8
+
+The SDK is updated to ledger v8 across all packages. Developers must update their ledger dependency to v8.
+
+### Dynamic fee calculation (`@midnight-ntwrk/wallet-sdk-facade`, `@midnight-ntwrk/wallet-sdk-dust-wallet`)
+
+The previous `calculateFee` method attempted to estimate total wallet fee, but could not account for wallet coin availability or balancing transaction cost. In v3.0.0, fee computation is split into two methods:
+
+- `calculateFee`: Computes fee for a transaction in isolation. It does not consider wallet coin set or balancing transaction cost.
+- `estimateFee`: Computes the realistic total fee the current wallet would pay, including coin availability and balancing transaction cost. This method requires secret key and wallet state, and throws `InsufficientFundsError` when the wallet cannot cover the fee.
+
+Wallet facade migration:
+
+```typescript
+// Before (v2.0.0) - single method
+const fee = await wallet.calculateTransactionFee(tx);
+
+// After (v3.0.0) - two methods
+
+// Fee for the transaction only (no balancing costs, no wallet context):
+const txFee = await wallet.calculateTransactionFee(tx);
+
+// Total fee the wallet would actually pay (includes balancing tx, wallet-aware):
+const totalFee = await wallet.estimateTransactionFee(tx, secretKey, {
+  ttl: new Date(/* ... */), // optional
+  currentTime: new Date(), // optional
+});
+```
+
+Dust wallet API migration:
+
+```typescript
+// Before - single calculateFee
+const fee = await dustWallet.calculateFee(transactions);
+
+// After
+// Transaction fee only (context-free):
+const txOnlyFee = await dustWallet.calculateFee(transactions);
+
+// Total fee the wallet would pay (wallet-aware, may throw InsufficientFundsError):
+const totalFee = await dustWallet.estimateFee(secretKey, transactions, ttl, currentTime);
+```
+
+### `CoinSelection` type change (`@midnight-ntwrk/wallet-sdk-dust-wallet`)
+
+```typescript
+// Before - returned multiple coins summed to a target
+type CoinSelection<T> = (coins: readonly CoinWithValue<T>[], target: bigint) => CoinWithValue<T>[];
+
+// After - returns a single coin (smallest available) or undefined
+type CoinSelection<T> = (coins: readonly CoinWithValue<T>[]) => CoinWithValue<T> | undefined;
+```
+
+### `InsufficientFundsError` (`@midnight-ntwrk/wallet-sdk-dust-wallet`)
+
+This release adds a new error type thrown by `estimateFee` when the wallet cannot cover fee requirements. It includes `message` and `tokenType` fields.
+
+```typescript
+import { InsufficientFundsError } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+```
+
+---
+
+## Known issues
+
+This section lists known issues with this release of the Wallet SDK.
+
+### Transaction history not implemented for shielded and dust wallets
+
+The shielded and dust wallets do not track transaction history. The shielded wallet transaction history getter throws "not yet implemented". Only the unshielded wallet maintains transaction records.
+
+---
+
+## Packages
+
+| Package                                        | Version | Description                                                                                                                                   |
+| ---------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@midnight-ntwrk/wallet-sdk-facade`            | 3.0.0   | Unified API orchestrating shielded, unshielded, and dust wallets. Fee calculation split into `calculateFee` and `estimateFee`. Terms and Conditions retrieval added. |
+| `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | 2.1.0   | Manages NIGHT and other unshielded tokens. Updated to ledger v8.                                                                              |
+| `@midnight-ntwrk/wallet-sdk-shielded`          | 2.1.0   | Manages privacy-preserving shielded tokens. Updated to ledger v8. Securely clears secret keys from memory.                                   |
+| `@midnight-ntwrk/wallet-sdk-dust-wallet`       | 3.0.0   | Manages Dust for transaction fees. Dynamic fee calculation, `InsufficientFundsError`, and improved balancing error messages.                 |
+| `@midnight-ntwrk/wallet-sdk-capabilities`      | 3.2.0   | Shared wallet features including ProvingService, SubmissionService, and PendingTransactionsService. Updated to ledger v8.                    |
+| `@midnight-ntwrk/wallet-sdk-abstractions`      | 2.0.0   | Core interfaces and domain types. Includes shared SyncProgress and SerializedTransaction.                                                     |
+| `@midnight-ntwrk/wallet-sdk-prover-client`     | 1.2.0   | Interfaces with the prover service. Updated to ledger v8.                                                                                     |
+| `@midnight-ntwrk/wallet-sdk-indexer-client`    | 1.2.0   | Queries the Midnight indexer via GraphQL. Adds Terms and Conditions query, `QueryRunner.runPromise()`, and ledger v8 updates.               |
+| `@midnight-ntwrk/wallet-sdk-address-format`    | 3.1.0   | Encodes and decodes Midnight addresses using Bech32m format. Updated to ledger v8.                                                           |
+| `@midnight-ntwrk/wallet-sdk-hd`                | 3.0.1   | Derives cryptographic keys from a seed following BIP-32/BIP-44/CIP-1852.                                                                     |
+| `@midnight-ntwrk/wallet-sdk-node-client`       | 1.1.0   | Communicates with Midnight nodes. Improved invalid transaction error messages and ledger v8 support.                                          |
+| `@midnight-ntwrk/wallet-sdk-utilities`         | 1.1.0   | Common utilities. Dev-only dependencies cleaned up and ledger v8 support added.                                                              |
+| `@midnight-ntwrk/wallet-sdk-runtime`           | 1.0.2   | Orchestrates wallet lifecycle and state management.                                                                                           |
+
+---
+
+## Fixed defect list
+
+This release includes the following defect fixes:
+
+- Shielded wallet now correctly clears pending coins when a transaction fails; previously, pending coins were not released on failure, which could reduce available balances until restart
+- `SecretKeysResource` in shielded and dust wallets now securely clears cryptographic keys from memory after use, instead of only nullifying the reference
+- Node client returns clearer error messages when transaction submission fails due to an invalid transaction
+- Dust wallet reports more descriptive error messages when balancing fails
+- Dev-only dependencies moved out of production dependencies in `@midnight-ntwrk/wallet-sdk-utilities`
+
+---
+
+## Links and references
+
+- **SDK documentation**: [Wallet developer guide](/sdks/official/wallet-developer-guide)
+- **Examples**: [SDK example snippets](https://github.com/midnightntwrk/midnight-wallet/tree/main/packages/docs-snippets/src/snippets)
+- **GitHub repository**: [midnightntwrk/midnight-wallet](https://github.com/midnightntwrk/midnight-wallet)
+- **DApp Connector API**: [midnightntwrk/midnight-dapp-connector-api](/api-reference/dapp-connector-api)
