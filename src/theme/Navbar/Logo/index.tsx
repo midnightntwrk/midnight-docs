@@ -4,21 +4,29 @@ import {useLocation} from '@docusaurus/router';
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import {useColorMode} from '@docusaurus/theme-common';
 
+const VERSION_PREFIX = '(?:(?:next|\\d+\\.\\d+\\.\\d+)\\/)?';
+const COMPACT_ROUTE_PATTERNS: RegExp[] = [
+  // /compact, /compact/... and versioned equivalents.
+  new RegExp(`^\\/${VERSION_PREFIX}compact(?:\\/|$)`),
+
+  // Compact Runtime API reference
+  new RegExp(`^\\/${VERSION_PREFIX}api-reference\\/compact-runtime(?:\\/|$)`),
+
+  // Guides that should use the Compact logo.
+  new RegExp(`^\\/${VERSION_PREFIX}guides\\/compact-javascript-runtime(?:\\/|$)`),
+  new RegExp(`^\\/${VERSION_PREFIX}guides\\/use-compact-javascript-implementation(?:\\/|$)`),
+  // Compact category pages at root and versioned paths.
+  new RegExp(
+    `^\\/${VERSION_PREFIX}category\\/(?:reference|compilation-and-tooling|data-types|standard-library)(?:\\/|$)`
+  ),
+];
+
 function isCompactRoute(pathname: string, baseUrl: string): boolean {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const withoutBase = pathname.startsWith(normalizedBase)
     ? pathname.slice(normalizedBase.length - 1)
     : pathname;
-
-  // Match /compact, /compact/... and versioned /next/compact or /x.y.z/compact.
-  if (/^\/(?:(?:next|\d+\.\d+\.\d+)\/)?compact(?:\/|$)/.test(withoutBase)) {
-    return true;
-  }
-
-  // Match compact category pages at root and versioned paths.
-  return /^\/(?:(?:next|\d+\.\d+\.\d+)\/)?category\/(?:reference|compilation-and-tooling|data-types|standard-library)(?:\/|$)/.test(
-    withoutBase
-  );
+  return COMPACT_ROUTE_PATTERNS.some((pattern) => pattern.test(withoutBase));
 }
 
 export default function NavbarLogo(): React.JSX.Element {
