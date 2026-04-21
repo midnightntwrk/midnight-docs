@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.2**](../README.md)
+[**@midnight/ledger v8.0.3**](../README.md)
 
 ***
 

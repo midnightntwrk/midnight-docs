@@ -201,47 +201,6 @@ const config = {
     ],
 
     // LLMS TXT GENERATOR
-    // [
-    //   "docusaurus-plugin-llms",
-    //   {
-    //     generateLLMsTxt: true,
-    //     generateLLMsFullTxt: true,
-    //     docsDir: 'docs',
-    //     title: 'Midnight Network Documentation',
-    //     description: 'Complete developer documentation for Midnight Network',
-    //     // includeBlog: true,
-    //     pathTransformation: {
-    //       // Paths to ignore when constructing URLs (will be removed if found)
-    //       ignorePaths: ['docs'],
-    //     },
-    //     // Control documentation order
-    //     includeOrder: [
-    //       'overview/*',
-    //       'getting-started/*',
-    //       'examples/*',
-    //       'tutorials/*',
-    //       'concepts/*',
-    //       'guides/*',
-    //       'compact/*',
-    //       'nodes/*',
-    //       'relnotes/*',
-    //       'glossary/*',
-    //       'troubleshoot/*',
-    //     ],
-    //     ignoreFiles: [
-    //       '_architecture/*', 
-    //       '_contribute/*', 
-    //       '_learn/*', 
-    //       '_legal/*', 
-    //       '_develop/*', 
-    //       '_operate/*', 
-    //       '_other/*', 
-    //       '_validate/*', 
-    //       'relnotes/*/**' 
-    //     ]
-    //   },
-    // ],
-
     [
       '@signalwire/docusaurus-plugin-llms-txt',
       {
@@ -252,6 +211,7 @@ const config = {
           enableLlmsFullTxt: true,
           includeVersionedDocs: false,
           enableMarkdownFiles: true,
+          includeGeneratedIndex: false,
           excludeRoutes: [
                   '_architecture/*', 
                   '_contribute/*', 
@@ -261,7 +221,7 @@ const config = {
                   '_operate/*', 
                   '_other/*', 
                   '_validate/*', 
-                  'relnotes/*/**' ,
+                  '/relnotes/*/**',
                   '/tags/**',
                   '/archive/**'
                 ],
@@ -334,7 +294,13 @@ const config = {
     [
       "classic",
       {
-        sitemap: { changefreq: "weekly", priority: 0.5, filename: "sitemap.xml" },
+        sitemap: { 
+          changefreq: "weekly", 
+          lastmod: 'date', // date of last modification of the page
+          priority: 0.5, 
+          filename: "sitemap.xml",
+          ignorePatterns: ['/tags/**', '/archive/**', '/0.0.0/**', '/next/**'],
+        },
         gtag: process.env.GOOGLE_TAG_MANAGER_ID
           ? { trackingID: process.env.GOOGLE_TAG_MANAGER_ID }
           : undefined,
