@@ -17,10 +17,50 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '7.0.0',
+    version: '8.0.3',
     status: 'LATEST',
+    date: '20 March 2026',
+    summary: 'Summary of v8.0.3',
+    details: [
+      'Fixed transcript partitioning issues in transaction construction.',
+      'Corrected accounting of unshielded inputs and outputs so they are not incorrectly treated as gas usage.',
+      'Accounted for proof verification time in processing budget calculations.',
+      'Used the smaller possible proof size as the budget baseline.',
+      'Fixed malformed Zswap input/output construction in certain `addCalls` flows.',
+      'No node or indexer-side processing changes.'
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger-v8' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnight-ntwrk/onchain-runtime-v3' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server/' }
+    ],
+    link: '/relnotes/ledger/ledger-8-0-3',
+  },
+  {
+    version: '8.0.2',
+    status: 'SUPPORTED',
+    date: '12 March 2026',
+    summary: 'Summary of v8.0.2',
+    details: [
+      'Fixed DUST change computation for DUST spent during registration.',
+      'Fixed Merkle tree canonicity behavior.',
+      'Added last block time context variable.',
+      'Added `LedgerState::with_genesis_settings` constructor for explicit genesis parameterization.',
+      'Added native Arm proof server build support.',
+      'Resolved sequencing-check iteration non-determinism and changed divide-by-zero in `dust.rs` from panic to error.'
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger-v8' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnight-ntwrk/onchain-runtime-v3' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server/' }
+    ],
+    link: '/relnotes/ledger/ledger-8-0-2',
+  },
+  {
+    version: '7.0.0',
+    status: 'UNSUPPORTED',
     date: '27 January 2026',
-    summary: 'Summary of Release 7.0.0',
+    summary: 'Summary of v7.0.0',
     details: [
       'Switched to Midnight SRS and midnight-zk 1.0.',
       'Introduced `addCalls` endpoint for transcript partitioning with Zswap components.',
