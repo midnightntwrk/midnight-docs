@@ -17,10 +17,30 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '3.0.0',
+    version: '4.0.0',
     status: 'LATEST',
+    date: '17 March 2026',
+    summary: 'Indexer API v4 release with Node 0.22 and Ledger 8 support.',
+    details: [
+      'Upgraded Indexer API from v3 to v4.',
+      'Added temporary `/api/v3` alias to `/api/v4` for migration support.',
+      'Added support for Node 0.22 and Ledger 8.',
+      'Replaced deterministic session IDs with random per-session tokens (`indexer-api`).',
+      'Added lazy loading for ledger state deserialization to avoid recursion depth limits.'
+    ],
+    artifacts: [
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-0-0',
+  },
+  {
+    version: '3.0.0',
+    status: 'UNSUPPORTED',
     date: '28 January 2026',
-    summary: 'Summary of Release 3.0.0',
+    summary: 'Indexer API v3 release with Ledger v7 and Node v0.20 support.',
     details: [
       'Updated Indexer API to v3 only',
       'Support for Ledger v7 and Node v0.20 only',
