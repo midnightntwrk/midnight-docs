@@ -19,8 +19,46 @@ import { useLocation } from '@docusaurus/router';
 // CURRENT releases (shown on Canary/next and future versions)
 const releases = [
   {
-    version: '1.0.0',
+    version: '3.0.0',
     status: 'LATEST',
+    date: '20 March 2026',
+    summary: 'Summary of v3.0.0',
+    details: [
+      "Fee calculation split into `calculateFee` (transaction-only) and `estimateFee` (wallet-aware, includes balancing cost)",
+      "Updated to ledger v8 across the SDK",
+      "New `WalletFacade.fetchTermsAndConditions()` static method for retrieving network Terms and Conditions",
+      "New `QueryRunner.runPromise()` utility for executing GraphQL queries as plain Promises",
+      "`SecretKeysResource` in shielded and dust wallets now clears keys from memory after use",
+      "Shielded wallet now clears pending coins on transaction failure",
+      "Improved error messages for invalid transaction submission and balancing failures"
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk-facade/v/3.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-3-0-0',
+  },
+  {
+    version: '2.0.0',
+    status: 'UNSUPPORTED',
+    date: '10 March 2026',
+    summary: 'Summary of v2.0.0',
+    details: [
+      "Proving extracted into standalone `ProvingService` supporting server (HTTP), WASM, and simulator modes",
+      "Transaction submission extracted into standalone `SubmissionService`",
+      "New `PendingTransactionsService` monitors TTL/status and automatically reverts failed transactions",
+      "`WalletFacade` initialization changed to static async `WalletFacade.init()`",
+      "Wallet APIs standardized across shielded, unshielded, and dust wallets (renames and new methods)",
+      "`SyncProgress` moved to `wallet-sdk-abstractions` for shared use across wallet types",
+      "WASM proving provider available via Web Worker"
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk-facade/v/2.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-2-0-0',
+  },
+  {
+    version: '1.0.0',
+    status: 'UNSUPPORTED',
     date: '28 January 2026',
     summary: 'Summary of v1.0.0',
     details: [
