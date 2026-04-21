@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -15,3 +15,7 @@ Retrieves the currently set global network identifier.
 `string`
 
 The currently set [NetworkId](../type-aliases/NetworkId.md).
+
+## Throws
+
+If [setNetworkId](setNetworkId.md) has not been called.

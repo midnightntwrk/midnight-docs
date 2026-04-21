@@ -1,12 +1,12 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
 [Midnight.js API Reference](../../../packages.md) / [@midnight-ntwrk/midnight-js-contracts](../README.md) / CallTxOptionsWithPrivateStateId
 
-# Type Alias: CallTxOptionsWithPrivateStateId\<C, ICK\>
+# Type Alias: CallTxOptionsWithPrivateStateId\<C, PCK\>
 
-> **CallTxOptionsWithPrivateStateId**\<`C`, `ICK`\> = [`CallTxOptionsBase`](CallTxOptionsBase.md)\<`C`, `ICK`\> & `object`
+> **CallTxOptionsWithPrivateStateId**\<`C`, `PCK`\> = [`CallTxOptionsBase`](CallTxOptionsBase.md)\<`C`, `PCK`\> & `object`
 
 Call transaction options with the private state ID to use to store the new private
 state resulting from the circuit call. Since a private state should already be
@@ -27,6 +27,6 @@ The identifier for the private state of the contract.
 
 `C` *extends* `Contract.Any`
 
-### ICK
+### PCK
 
-`ICK` *extends* `Contract.ImpureCircuitId`\<`C`\>
+`PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>

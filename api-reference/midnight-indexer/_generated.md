@@ -17,5 +17,5 @@ Use the docs in the sidebar to find out how to use the schema:
 - **Schema-defined types**: scalars, objects, enums, interfaces, unions, and input objects.
 
 <small>
-  <i>Generated on 2/26/2026, 6:06:48 PM.</i>
+  <i>Generated on 3/26/2026, 7:39:44 PM.</i>
 </small>

@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v3.1.0**](../../../README.md)
+[**Midnight.js API Reference v4.0.2**](../../../README.md)
 
 ***
 
@@ -61,7 +61,7 @@ The address of the contract containing the circuit for which
 
 ### circuitId
 
-`ImpureCircuitId`\<`C`\>
+`ProvableCircuitId`\<`C`\>
 
 The circuit for which the verifier key should be inserted.
 

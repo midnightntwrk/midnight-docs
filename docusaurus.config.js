@@ -141,7 +141,7 @@ const config = {
       "@graphql-markdown/docusaurus",
       /** @type {import('@graphql-markdown/types').ConfigOptions} */
       {
-        schema: "./static/midnight-indexer/schema-v3.graphql",
+        schema: "./static/midnight-indexer/schema-v4.graphql",
         rootPath: "api-reference", // docs will be generated under './api-reference/midnight-indexer' (rootPath/baseURL)
         baseURL: "midnight-indexer",
         loaders: {
@@ -202,44 +202,45 @@ const config = {
 
     // LLMS TXT GENERATOR
     [
-      "docusaurus-plugin-llms",
+      '@signalwire/docusaurus-plugin-llms-txt',
       {
-        generateLLMsTxt: true,
-        generateLLMsFullTxt: true,
-        docsDir: 'docs',
-        title: 'Midnight Network Documentation',
-        description: 'Complete developer documentation for Midnight Network',
-        // includeBlog: true,
-        pathTransformation: {
-          // Paths to ignore when constructing URLs (will be removed if found)
-          ignorePaths: ['docs'],
+        siteTitle: 'Midnight Docs',
+        siteDescription: 'Comprehensive documentation for building on Midnight.',
+        depth: 2,
+        content: {
+          enableLlmsFullTxt: true,
+          includeVersionedDocs: false,
+          enableMarkdownFiles: true,
+          includeGeneratedIndex: false,
+          excludeRoutes: [
+                  '_architecture/*', 
+                  '_contribute/*', 
+                  '_learn/*', 
+                  '_legal/*', 
+                  '_develop/*', 
+                  '_operate/*', 
+                  '_other/*', 
+                  '_validate/*', 
+                  '/relnotes/*/**',
+                  '/tags/**',
+                  '/archive/**'
+                ],
         },
-        // Control documentation order
         includeOrder: [
-          'overview/*',
-          'getting-started/*',
-          'examples/*',
-          'tutorials/*',
-          'concepts/*',
-          'guides/*',
-          'compact/*',
-          'nodes/*',
-          'relnotes/*',
-          'glossary/*',
-          'troubleshoot/*',
-        ],
-        ignoreFiles: [
-          '_architecture/*', 
-          '_contribute/*', 
-          '_learn/*', 
-          '_legal/*', 
-          '_develop/*', 
-          '_operate/*', 
-          '_other/*', 
-          '_validate/*', 
-          'relnotes/*/**' 
-        ]
-      },
+              'overview/*',
+              'what-is-midnight.mdx',
+              'getting-started/*',
+              'examples/*',
+              'tutorials/*',
+              'concepts/*',
+              'guides/*',
+              'compact/*',
+              'nodes/*',
+              'relnotes/*',
+              'glossary.mdx',
+              'troubleshoot/*',
+          ],
+      }
     ],
 
     require.resolve("./plugins/webpack-yaml-loader"),
@@ -293,7 +294,13 @@ const config = {
     [
       "classic",
       {
-        sitemap: { changefreq: "weekly", priority: 0.5, filename: "sitemap.xml" },
+        sitemap: { 
+          changefreq: "weekly", 
+          lastmod: 'date', // date of last modification of the page
+          priority: 0.5, 
+          filename: "sitemap.xml",
+          ignorePatterns: ['/tags/**', '/archive/**', '/0.0.0/**', '/next/**'],
+        },
         gtag: process.env.GOOGLE_TAG_MANAGER_ID
           ? { trackingID: process.env.GOOGLE_TAG_MANAGER_ID }
           : undefined,
@@ -317,8 +324,8 @@ const config = {
     ],
 
     algolia: {
-      appId: "Q7T3VYHX3K",
-      apiKey: "cf362041369546fdffdf1894511fc0d5",
+      appId: process.env.ALGOLIA_APP_ID,
+      apiKey: process.env.ALGOLIA_SEARCH_KEY,
       indexName: "Midnight Docs",
       contextualSearch: true,
       searchPagePath: "search",
@@ -335,6 +342,8 @@ const config = {
       items: [
         { to: "/api-reference",  label: "API reference",  position: "left",  activeBaseRegex: "^/api-reference(/|$)" },
         { to: "/sdks",  label: "SDKs",  position: "left",  activeBaseRegex: "^/sdks(/|$)" },
+        { to: "/compact",  label: "Compact",  position: "left",  activeBaseRegex: "^/compact(/|$)" },
+        { to: "/blog",  label: "Dev Diaries",  position: "left",  activeBaseRegex: "^/blog(/|$)" },
         // {
         //   type: 'docsVersionDropdown',
         //   position: "right",
@@ -361,7 +370,7 @@ const config = {
           title: "Resources",
           items: [
             { label: "Midnight Foundation", href: "https://midnight.network/" },
-            { label: "Developer blog", href: "/blog" },
+            { label: "Dev Diaries", href: "/blog" },
             { label: "Glacier Drop", href: "https://www.midnight.gd/" },
             { label: "Careers", href: "https://midnight.network/careers" },
           ],

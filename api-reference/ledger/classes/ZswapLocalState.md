@@ -1,4 +1,4 @@
-[**@midnight/ledger v7.0.0**](../README.md)
+[**@midnight/ledger v8.0.3**](../README.md)
 
 ***
 
@@ -137,6 +137,33 @@ updates *are* included.
 
 ***
 
+### applyFailed()
+
+```ts
+applyFailed<P>(offer): ZswapLocalState;
+```
+
+Locally reverts pending outputs/spends from an offer known to have failed
+or which has been discarded.
+
+#### Type Parameters
+
+##### P
+
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
+
+#### Parameters
+
+##### offer
+
+[`ZswapOffer`](ZswapOffer.md)\<`P`\>
+
+#### Returns
+
+`ZswapLocalState`
+
+***
+
 ### clearPending()
 
 ```ts
@@ -149,6 +176,8 @@ a block.
 Note that as TTLs are *from a block perspective*, and there is some
 latency between the block and the wallet, the time passed in here should
 not be the current time, but incorporate a latency buffer.
+
+NOTE: This API endpoint is currently non-functional and works as a no-op.
 
 #### Parameters
 
@@ -209,6 +238,42 @@ and the state changes. These *must* be replayed in the same order as emitted by 
 #### Returns
 
 [`ZswapLocalStateWithChanges`](ZswapLocalStateWithChanges.md)
+
+***
+
+### revertTransaction()
+
+```ts
+revertTransaction<S, P, B>(transaction): ZswapLocalState;
+```
+
+Locally reverts all pending outputs/spends from a transaction which has been discarded.
+
+Behaves as [applyFailed](#applyfailed) for the entire transaction.
+
+#### Type Parameters
+
+##### S
+
+`S` *extends* [`Signaturish`](../type-aliases/Signaturish.md)
+
+##### P
+
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
+
+##### B
+
+`B` *extends* [`Bindingish`](../type-aliases/Bindingish.md)
+
+#### Parameters
+
+##### transaction
+
+[`Transaction`](Transaction.md)\<`S`, `P`, `B`\>
+
+#### Returns
+
+`ZswapLocalState`
 
 ***
 
