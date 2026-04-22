@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.4**](../../../README.md)
 
 ***
 
@@ -14,6 +14,14 @@ now optional, since [deployContract](../functions/deployContract.md) will genera
 in the event that `signingKey` is undefined.
 
 ## Type Declaration
+
+### additionalCoinEncPublicKeyMappings?
+
+> `readonly` `optional` **additionalCoinEncPublicKeyMappings?**: `ReadonlyMap`\<`CoinPublicKey`, `EncPublicKey`\>
+
+An optional mapping of CoinPublicKey to EncPublicKey that can be used to resolve encryption
+keys for coins created in the contract constructor. This is useful in cases where the constructor creates
+outputs to addresses that don't belong to the current user.
 
 ### signingKey?
 
