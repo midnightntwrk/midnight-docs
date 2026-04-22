@@ -20,10 +20,16 @@ Unlike standard cryptocurrencies where you have a static balance (for example, "
 
 Dust operates similarly to, but separately from, [Zswap](https://github.com/midnightntwrk/midnight-ledger/blob/main/spec/zswap.md). Dust operates as the resource credit system for Midnight. It function
 
-- **Shielded and non-transferable**: DUST is a shielded capacity resource *only* for gas. It cannot be transferred between users.
+- **Shielded and non-transferable**: DUST is a shielded capacity resource *only* for gas. You cannot transfer DUST between users.
 - **Dynamic capacity**: The available gas in a DUST UTXO is dynamically computed and derived from an associated NIGHT UTXO.
 - **Growth and decay**: The computed value grows over time to a maximum based on its NIGHT UTXO, and decays to zero after its NIGHT UTXO is spent.
-- **Non-persistent**: The system may redistribute it on hardforks. (Note: The Midnight protocol reserves the right to modify DUST allocation rules, for example, for garbage collection).
+- **Non-persistent**: The system may redistribute it on hardforks. 
+
+:::note
+
+The Midnight protocol reserves the right to modify DUST allocation rules, for example, for garbage collection.
+
+:::
 
 ## Design overview
 
@@ -43,7 +49,7 @@ It includes a zero-knowledge proof that:
 
 ### Lifecycle: NIGHT generates DUST
 
-Conceptually, DUST is generated over time by held *NIGHT* UTXOs. As long as a backing NIGHT UTXO remains unspent, the associated DUST UTXO generates value up to a cap ($\rho$). Once the backing NIGHT is spent, the DUST UTXO "decays" to zero.
+Conceptually, your NIGHT UTXOs holding DUST generate DUST over time. As long as a backing NIGHT UTXO remains unspent, the associated DUST UTXO generates value up to a cap ($\rho$). Once the backing NIGHT is spent, the DUST UTXO "decays" to zero.
 
 The following diagram illustrates this lifecycle:
 
@@ -79,13 +85,13 @@ The rate of generation depends on the amount of NIGHT held ($N$), the ratio of t
 Spending rules are as follows:
 
 * DUST may be spent multiple times; a new UTXO is always created, even if its value is zero.
-* Spending during decay is permitted and does not change the decay rate.
+* You can spend DUST during decay and it does not change the decay rate.
 * Once the backing NIGHT is spent, DUST immediately starts to decay, even if it was still in the generation phase.
-* If only a portion of backing NIGHT is spent, the change creates a new NIGHT UTXO (starting fresh DUST generation), while the old DUST UTXO decays.
+* If only a portion of your NIGHT is spent, the change creates a new NIGHT UTXO (starting fresh DUST generation), while the old DUST UTXO decays.
 
 #### Implementation note
 
-In practice, value is not processed continuously. It is calculated *at the time of spend* using metadata ("generation info"):
+In practice, the system does not process value continuously. Instead, it calculates value *at the time of spend* using metadata ("generation info"):
 
 - Creation time of the DUST UTXO.
 - Creation time of the backing NIGHT UTXO.
@@ -95,7 +101,7 @@ Since DUST and NIGHT use different keys, a **Registration Table** links NIGHT pu
 
 #### The grace period
 
-Because DUST usage is shielded, the value is computed for the time of *transaction creation*. To account for network delays, the protocol defines a *DUST Grace Period* (for example, 3 hours). A transaction is accepted if its timestamp is within this window relative to the block time.
+Because DUST usage is shielded, the system computes value for the time of *transaction creation*. To account for network delays, the protocol defines a *DUST Grace Period* (for example, 3 hours). A transaction is accepted if its timestamp is within this window relative to the block time.
 
 ## Preliminaries
 
@@ -106,7 +112,7 @@ type DustSecretKey = Fr;
 type DustPublicKey = field::Hash<DustSecretKey>;
 ```
 
-DUST UTXOs have owners, values, and **nonces**. Nonces evolve deterministically to enable wallet recovery.
+DUST UTXOs have owners, values, and *nonces*. Nonces evolve deterministically to enable wallet recovery.
 
   * **First DUST UTXO**: Nonce derived from the originating NIGHT UTXO intent hash.
   * **Subsequent DUST UTXOs**: Nonce derived from the previous sequence number and owner's secret key.
@@ -164,11 +170,11 @@ struct DustActions<S, P> {
 `DustRegistration` links a NIGHT key to a DUST key.
 
   * Registrations happen sequentially.
-  * If a registration transaction uses Night inputs that *were not yet generating Dust* (meaning that they had no previous registration), the system can "backdate" the registration to use the Dust those inputs *would have generated* to pay for the gas.
+  * If a registration transaction uses NIGHT inputs that *were not yet generating DUST* (meaning that they had no previous registration), the system can "backdate" the registration to use the DUST those inputs *would have generated* to pay for the gas.
 
 ## Generate DUST
 
-NIGHT inputs/outputs trigger updates to a *Dust Generation Tree*.
+NIGHT inputs/outputs trigger updates to a *DUST Generation Tree*.
 
   * **DustGenerationInfo**: Stores the amount of NIGHT, the owner, and the `dtime` (deletion time).
   * **Address map**: Links NIGHT Addresses -\> DUST Addresses.
@@ -191,7 +197,7 @@ The value of a DUST UTXO is calculated based on four linear time segments:
 3. **Decaying**: From NIGHT spend until value hits zero.
 4. **Constant (zero)**: Forever after.
 
-### The Spend transaction
+### The spend transaction
 
 A `DustSpend` consumes a UTXO and creates a new one with updated value minus fees.
 
@@ -290,9 +296,9 @@ flowchart TD
 
 5–6/ It determines whether it’s a receive (creation) or send (destruction) of cNIGHT → generates corresponding DUST creation or destruction event.
 
-7–9/ All events in a block are batched, wrapped into a single system transaction via LedgerApi, and executed on the Midnight ledger.
+7–9/ The system batches all events in a block, wraps them into a single system transaction via LedgerApi, and executes that transaction on the Midnight ledger.
 
-→ **Final result**: DUST supply and UTXOs are updated 1:1 with cNIGHT movements on Cardano.
+→ **Final result**: DUST supply and UTXOs update 1:1 with cNIGHT movements on Cardano.
 
 ## Next steps
 
