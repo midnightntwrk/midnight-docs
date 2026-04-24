@@ -1,6 +1,6 @@
 # midnight-js-indexer-public-data-provider
 
-[**Midnight.js API Reference v4.0.2**](../../README.md)
+[**Midnight.js API Reference v4.0.4**](../../README.md)
 
 ***
 
@@ -19,5 +19,9 @@
 ## Functions
 
 - [indexerPublicDataProvider](functions/indexerPublicDataProvider.md)
+- [isRegularTransaction](functions/isRegularTransaction.md)
+- [toSegmentStatus](functions/toSegmentStatus.md)
+- [toSegmentStatusMap](functions/toSegmentStatusMap.md)
+- [toTxStatus](functions/toTxStatus.md)
 - [toUnshieldedBalances](functions/toUnshieldedBalances.md)
 - [toUnshieldedUtxos](functions/toUnshieldedUtxos.md)
