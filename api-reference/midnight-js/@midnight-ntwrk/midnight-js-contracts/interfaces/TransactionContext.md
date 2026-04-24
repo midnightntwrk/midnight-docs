@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.4**](../../../README.md)
 
 ***
 
@@ -95,6 +95,21 @@ Encapsulates the context for managing a scoped contract transaction.
 > `readonly` **\[TypeId\]**: *typeof* `TypeId`
 
 ## Methods
+
+### getAdditionalMappings()
+
+> **getAdditionalMappings**(): `ReadonlyMap`\<`string`, `string`\> \| `undefined`
+
+Gets the additional scoped CoinPublicKey to EncPublicKey mappings.
+
+#### Returns
+
+`ReadonlyMap`\<`string`, `string`\> \| `undefined`
+
+A `ReadonlyMap<CoinPublicKey, EncPublicKey>` instance, or `undefined` if no additional
+mappings were specified for the current transaction context.
+
+***
 
 ### getCurrentStates()
 
