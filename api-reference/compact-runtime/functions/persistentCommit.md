@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**](../README.md)
 
 ***
 
@@ -13,7 +13,7 @@ function persistentCommit<A>(
    opening): Uint8Array;
 ```
 
-The Compact builtin `persistent_commit` function
+The Compact builtin `persistentCommit` function
 
 This function is a non-circuit-optimised commitment function from arbitrary
 values representable in Compact, and a 256-bit bytestring opening, to a

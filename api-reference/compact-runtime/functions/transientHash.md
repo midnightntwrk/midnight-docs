@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function transientHash<A>(rtType, value): bigint;
 ```
 
-The Compact builtin `transient_hash` function
+The Compact builtin `transientHash` function
 
 This function is a circuit-efficient compression function from arbitrary
 data to field elements, which is not guaranteed to persist between upgrades.

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function degradeToTransient(x): bigint;
 ```
 
-The Compact builtin `degrade_to_transient` function
+The Compact builtin `degradeToTransient` function
 
 This function "degrades" the output of a [persistentHash](persistentHash.md) or
 [persistentCommit](persistentCommit.md) to a field element, which can then be used in

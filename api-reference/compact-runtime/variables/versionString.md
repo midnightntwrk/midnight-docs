@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**](../README.md)
 
 ***
 
@@ -7,5 +7,5 @@
 # Variable: versionString
 
 ```ts
-const versionString: string = "0.15.101";
+const versionString: string = "0.16.0-rc.0";
 ```

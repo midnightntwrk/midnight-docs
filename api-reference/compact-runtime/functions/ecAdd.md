@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function ecAdd(a, b): JubjubPoint;
 ```
 
-The Compact builtin `ec_add` function
+The Compact builtin `ecAdd` function
 
 This function add two elliptic curve points (in multiplicative notation)
 

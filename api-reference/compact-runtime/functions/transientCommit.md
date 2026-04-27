@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**](../README.md)
 
 ***
 
@@ -13,7 +13,7 @@ function transientCommit<A>(
    opening): bigint;
 ```
 
-The Compact builtin `transient_commit` function
+The Compact builtin `transientCommit` function
 
 This function is a circuit-efficient commitment function from arbitrary
 values representable in Compact, and a field element commitment opening, to

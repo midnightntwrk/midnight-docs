@@ -1,6 +1,6 @@
 # Compact runtime API
 
-**@midnight-ntwrk/compact-runtime v0.15.0**
+**@midnight-ntwrk/compact-runtime v0.16.0-rc.0**
 
 ***
 
