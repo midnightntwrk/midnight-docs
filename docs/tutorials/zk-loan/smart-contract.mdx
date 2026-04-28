@@ -27,7 +27,7 @@ This section covers the tools and directory structure needed before writing any 
 
 ### Install prerequisites
 
-Make sure you have Node.js v22+ installed:
+Make sure you have **Node.js v22 or newer** installed:
 
 ```shell
 node --version
@@ -35,12 +35,17 @@ node --version
 # Should print v22.x.x or higher
 ```
 
+:::caution Node 20 will crash mid-sync
+This DApp uses `@midnight-ntwrk/wallet-sdk-shielded`, which calls `Map.prototype.values().map(...)` on the shielded wallet state. That requires the [Iterator helpers](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator) added in Node 22. On Node 20 the wallet appears to start, then crashes on the first sync update with `state.pendingOutputs.values.map is not a function`. If you use [nvm](https://github.com/nvm-sh/nvm), add a `.nvmrc` file containing `22` (or your preferred 22+ release) to the repo root so `nvm use` picks it up automatically.
+:::
+
 Install the Midnight Compact compiler. Follow the instructions in the [installation guide](/getting-started/installation) to install the Compact toolchain on your system.
 
-Verify it is available:
+Verify it is available (this tutorial targets Compact toolchain `0.30.0`):
 
 ```shell
 compact compile --version
+# Should print 0.30.0
 ```
 
 Also, Docker is required to run the Midnight proof server, which generates the zero-knowledge proofs for your transactions locally. Install it from [docker.com/get-docker](https://www.docker.com/get-docker) if you have not already, and make sure the Docker daemon is running.
@@ -79,24 +84,23 @@ cat > package.json << 'EOF'
     "vitest": "^4.0.15"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-js": "2.4.0",
-    "@midnight-ntwrk/compact-runtime": "0.14.0",
-    "@midnight-ntwrk/ledger-v7": "7.0.0",
-    "@midnight-ntwrk/midnight-js-contracts": "3.1.0",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "3.1.0",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "3.1.0",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "3.1.0",
-    "@midnight-ntwrk/midnight-js-network-id": "3.1.0",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "3.1.0",
-    "@midnight-ntwrk/midnight-js-types": "3.1.0",
-    "@midnight-ntwrk/midnight-js-utils": "3.1.0",
-    "@midnight-ntwrk/wallet-sdk-abstractions": "1.0.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "1.0.0",
-    "@midnight-ntwrk/wallet-sdk-facade": "1.0.0",
+    "@midnight-ntwrk/compact-js": "2.5.0",
+    "@midnight-ntwrk/compact-runtime": "0.15.0",
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js-contracts": "4.0.4",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.4",
+    "@midnight-ntwrk/midnight-js-types": "4.0.4",
+    "@midnight-ntwrk/midnight-js-utils": "4.0.4",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "3.0.0",
+    "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
     "@midnight-ntwrk/wallet-sdk-hd": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-shielded": "1.0.0",
-    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "1.0.0",
+    "@midnight-ntwrk/wallet-sdk-shielded": "2.1.0",
+    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.1.0",
     "@scure/bip39": "^2.0.1",
     "dotenv": "^17.2.3",
     "pino": "^10.1.0",
@@ -104,10 +108,16 @@ cat > package.json << 'EOF'
     "rxjs": "^7.8.1",
     "ws": "^8.18.3"
   },
+  "overrides": {
+    "smoldot": "npm:@aspect-build/empty@0.0.0",
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
+    "@midnight-ntwrk/compact-runtime": "0.15.0"
+  },
   "resolutions": {
-    "@midnight-ntwrk/ledger-v7": "7.0.0",
-    "@midnight-ntwrk/midnight-js-network-id": "3.1.0",
-    "@midnight-ntwrk/compact-runtime": "0.14.0"
+    "@midnight-ntwrk/ledger-v8": "8.0.3",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
+    "@midnight-ntwrk/compact-runtime": "0.15.0"
   }
 }
 EOF
@@ -165,7 +175,7 @@ module schnorr {
 import CompactStandardLibrary;
 
 export struct SchnorrSignature {
-    announcement: NativePoint;
+    announcement: JubjubPoint;
     response: Field;
 }
 
@@ -179,14 +189,14 @@ struct SchnorrHashInput<#n> {
 
 witness getSchnorrReduction(challengeHash: Field): [Field, Uint<248>];
 
-export circuit schnorrVerify<#n>(msg: Vector<n, Field>, signature: SchnorrSignature, pk: NativePoint): [] {
+export circuit schnorrVerify<#n>(msg: Vector<n, Field>, signature: SchnorrSignature, pk: JubjubPoint): [] {
 
     const {announcement, response} = signature;
     const cFull: Field = transientHash<SchnorrHashInput<n>>(SchnorrHashInput<n>{
-        ann_x: announcement.x,
-        ann_y: announcement.y,
-        pk_x: pk.x,
-        pk_y: pk.y,
+        ann_x: jubjubPointX(announcement),
+        ann_y: jubjubPointY(announcement),
+        pk_x: jubjubPointX(pk),
+        pk_y: jubjubPointY(pk),
         msg: msg
     });
 
@@ -196,9 +206,10 @@ export circuit schnorrVerify<#n>(msg: Vector<n, Field>, signature: SchnorrSignat
     assert(disclose(q) * TWO_248 + (disclose(cTruncated) as Field) == cFull, "Invalid challenge reduction");
 
     const c: Field = disclose(cTruncated) as Field;
-    const lhs: NativePoint = ecMulGenerator(response);
-    const rhs: NativePoint = ecAdd(announcement, ecMul(pk, c));
-    assert(lhs == rhs, "Invalid attestation signature");
+    const lhs: JubjubPoint = ecMulGenerator(response);
+    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c));
+    assert(jubjubPointX(lhs) == jubjubPointX(rhs) && jubjubPointY(lhs) == jubjubPointY(rhs),
+           "Invalid attestation signature");
 }
 
 export pure circuit schnorrChallenge(
@@ -232,6 +243,10 @@ In the Schnorr code above:
 
 *   Verifies the Schnorr equation: `G * response == announcement + publicKey * challenge`
 
+:::caution `JubjubPoint` equality
+In Compact `0.22`, two `JubjubPoint` values can no longer be compared with `==`. The compiler emits JS reference equality for struct equality, which is always `false` for freshly constructed points and would make the assertion silently impossible to satisfy. Compare the `x` and `y` coordinates explicitly with `jubjubPointX()` / `jubjubPointY()`, as shown above.
+:::
+
 The truncation uses a *witness* (`getSchnorrReduction`). The TypeScript code provides the quotient and remainder of dividing by 2^248, and the circuit verifies `q * 2^248 + r == cFull`. This is a common pattern in zero-knowledge systems: let the prover compute something expensive off-chain, then verify the result cheaply on-chain.
 
 `schnorrChallenge` is a `pure` circuit (no side effects, no ledger access). It computes the same challenge hash that `schnorrVerify` uses. It is exported so the attestation API can compute the same hash off-chain when signing.
@@ -247,7 +262,7 @@ Create `zkloan-credit-scorer.compact` inside the `contract/src/` folder.
 This first block declares the language version, imports, data types, ledger state, and the constructor that sets the deployer as admin:
 
 ```compact
-pragma language_version 0.21;
+pragma language_version 0.22;
 
 import CompactStandardLibrary;
 import "schnorr" prefix Schnorr_;
@@ -277,7 +292,7 @@ export ledger blacklist: Set<ZswapCoinPublicKey>;
 export ledger loans: Map<Bytes<32>, Map<Uint<16>, LoanApplication>>;
 export ledger onGoingPinMigration: Map<Bytes<32>, Uint<16>>;
 export ledger admin: ZswapCoinPublicKey;
-export ledger providers: Map<Uint<16>, NativePoint>;
+export ledger providers: Map<Uint<16>, JubjubPoint>;
 
 witness getAttestedScoringWitness(): [Applicant, Schnorr_SchnorrSignature, Uint<16>];
 ```
@@ -463,7 +478,7 @@ export circuit removeBlacklistUser(account: ZswapCoinPublicKey): [] {
     return [];
 }
 
-export circuit registerProvider(providerId: Uint<16>, providerPk: NativePoint): [] {
+export circuit registerProvider(providerId: Uint<16>, providerPk: JubjubPoint): [] {
     assert(ownPublicKey() == admin, "Only admin can register providers");
     providers.insert(disclose(providerId), disclose(providerPk));
     return [];

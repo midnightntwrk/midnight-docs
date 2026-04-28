@@ -19,7 +19,7 @@ You will build two things:
 
 1.  **CLI**: An interactive command-line tool that handles wallet creation, smart contract deployment, attestation provider registration, loan requests, and on-chain state inspection.
 
-2.  **End-to-end test**: A walkthrough that exercises the complete system: fund a wallet with tDUST, deploy the smart contract, register a provider, request a loan with private credit data, and verify that only the outcome appears on-chain.
+2.  **End-to-end test**: A walkthrough that exercises the complete system: fund a wallet with tNIGHT, deploy the smart contract, register a provider, request a loan with private credit data, and verify that only the outcome appears on-chain.
 
 ### Prerequisites
 
@@ -318,6 +318,48 @@ export const createLogger = async (
 
 Set `DEBUG_LEVEL=debug` in your environment for verbose output during development.
 
+### Address utilities
+
+The CLI's admin flows (blocklist, transfer admin) need to accept either a full Midnight shielded address (`mn_shield-addr_…`) or a raw 32-byte hex public key, since both are common ways for an operator to identify a wallet. This helper centralizes the parsing.
+
+Create `zkloan-credit-scorer-cli/src/address-utils.ts`:
+
+```typescript
+import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import {
+  MidnightBech32m,
+  ShieldedAddress,
+} from '@midnight-ntwrk/wallet-sdk-address-format';
+
+// Resolve a user-provided account identifier into the 32-byte Zswap coin
+// public key the contract expects. Accepts:
+//   - A Midnight shielded address (mn_shield-addr_preprod1… / mn_shield-addr_undeployed1…)
+//   - A raw 32-byte hex string (with or without a 0x prefix)
+export const resolveZswapCoinPublicKey = (input: string): Uint8Array => {
+  const trimmed = input.trim();
+
+  if (trimmed.startsWith('mn_shield-addr_')) {
+    const decoded = MidnightBech32m.parse(trimmed).decode(
+      ShieldedAddress,
+      getNetworkId(),
+    );
+    // ShieldedAddress carries both the coin public key and an encryption key;
+    // the contract only takes the coin public key.
+    return Uint8Array.from(decoded.coinPublicKey.data);
+  }
+
+  const hex = trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed;
+  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
+    throw new Error(
+      'Invalid account identifier — expected a 32-byte hex public key or an mn_shield-addr_… address',
+    );
+  }
+  return Uint8Array.from(Buffer.from(hex, 'hex'));
+};
+```
+
+The function returns a 32-byte `Uint8Array` either way, which is exactly what the contract's `ZswapCoinPublicKey` parameter takes. The shielded-address branch discards the encryption key portion — only the coin public key is used on-chain.
+
 ### Core API implementation
 
 This is the core module that connects the CLI to the Midnight SDK. It handles four responsibilities: creating and funding wallets from BIP-39 mnemonics, deploying or joining smart contracts on Preprod, fetching Schnorr attestations from the API you built in [Part 2](./attestation-api), and wrapping each smart contract circuit call (loan requests, PIN changes, admin operations) in a function the interactive CLI can invoke. Because of its size, it is presented in logical sections with explanations between each block.
@@ -340,7 +382,7 @@ import {
   type ZKLoanCreditScorerPrivateState,
   witnesses,
 } from 'zkloan-credit-scorer-contract';
-import * as ledger from '@midnight-ntwrk/ledger-v7';
+import * as ledger from '@midnight-ntwrk/ledger-v8';
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import {
   deployContract,
@@ -590,7 +632,7 @@ export const requestLoan = async (
   );
 
   logger.info(
-    `Requesting loan for amount: ${amountRequested} with PIN...`,
+    `Requesting loan for $${amountRequested} (USD) with PIN...`,
   );
   const finalizedTxData = await contract.callTx.requestLoan(
     amountRequested,
@@ -818,19 +860,26 @@ export const waitForFunds = (wallet: WalletFacade) =>
 
 export const displayWalletBalances = async (
   wallet: WalletFacade,
-): Promise<{ unshielded: bigint; shielded: bigint; total: bigint }> => {
+): Promise<{
+  unshielded: bigint;
+  shielded: bigint;
+  total: bigint;
+  dust: bigint;
+}> => {
   const state = await Rx.firstValueFrom(wallet.state());
   const unshielded =
     state.unshielded?.balances[ledger.nativeToken().raw] ?? 0n;
   const shielded =
     state.shielded?.balances[ledger.nativeToken().raw] ?? 0n;
   const total = unshielded + shielded;
+  const dust = state.dust?.balance(new Date()) ?? 0n;
 
-  logger.info(`Unshielded balance: ${unshielded} tDUST`);
-  logger.info(`Shielded balance: ${shielded} tDUST`);
-  logger.info(`Total balance: ${total} tDUST`);
+  logger.info(`Unshielded NIGHT balance: ${unshielded}`);
+  logger.info(`Shielded NIGHT balance: ${shielded}`);
+  logger.info(`Total NIGHT balance: ${total}`);
+  logger.info(`DUST balance (for fees): ${dust}`);
 
-  return { unshielded, shielded, total };
+  return { unshielded, shielded, total, dust };
 };
 
 export const registerNightForDust = async (
@@ -849,7 +898,7 @@ export const registerNightForDust = async (
     logger.info(
       'No unshielded Night UTXOs available for dust registration, or all are already registered',
     );
-    const dustBalance = state.dust?.walletBalance(new Date()) ?? 0n;
+    const dustBalance = state.dust?.balance(new Date()) ?? 0n;
     logger.info(`Current dust balance: ${dustBalance}`);
     return dustBalance > 0n;
   }
@@ -882,11 +931,11 @@ export const registerNightForDust = async (
         Rx.throttleTime(5_000),
         Rx.tap((s) => {
           const dustBalance =
-            s.dust?.walletBalance(new Date()) ?? 0n;
+            s.dust?.balance(new Date()) ?? 0n;
           logger.info(`Dust balance: ${dustBalance}`);
         }),
         Rx.filter(
-          (s) => (s.dust?.walletBalance(new Date()) ?? 0n) > 0n,
+          (s) => (s.dust?.balance(new Date()) ?? 0n) > 0n,
         ),
       ),
     );
@@ -906,7 +955,7 @@ The wallet infrastructure handles three concerns:
 
 *   **Funding**: `waitForFunds` polls every 10 seconds until the wallet has a non-zero balance (shielded + unshielded).
 
-*   **Dust registration**: `registerNightForDust` registers unshielded tNIGHT UTXOs for tDUST generation. tDUST tokens are required to pay [transaction fees](/concepts/how-midnight-works/midnight-combined-model) on Midnight Network. Without tDUST, no transactions can be submitted.
+*   **Dust registration**: `registerNightForDust` registers unshielded tNIGHT UTXOs for tDUST generation. On Midnight, **NIGHT is the user-facing token** and **DUST is the fee resource generated from registered NIGHT UTXOs** (testnet variants are tNIGHT and tDUST). DUST tokens are required to pay [transaction fees](/concepts/how-midnight-works/midnight-combined-model) on Midnight Network. Without DUST, no transactions can be submitted.
 
 #### Wallet initialization
 
@@ -994,24 +1043,26 @@ export const initWalletWithSeed = async (
     relayURL,
   };
 
-  // Initialize and start all three wallet types
-  const shieldedWallet =
-    ShieldedWallet(shieldedConfig).startWithSecretKeys(shieldedSecretKeys);
-  const unshieldedWallet =
-    UnshieldedWallet(unshieldedConfig).startWithPublicKey(
-      UnshieldedPublicKey.fromKeyStore(unshieldedKeystore),
-    );
-  const dustWallet = DustWallet(dustConfig).startWithSecretKey(
-    dustSecretKey,
-    ledger.LedgerParameters.initialParameters().dust,
-  );
+  // Combine the per-wallet configs into a single configuration the facade
+  // can use to initialize all three wallets, then build them through the
+  // unified factory. `WalletFacade`'s constructor is private in v3 — use
+  // `WalletFacade.init({ configuration, shielded, unshielded, dust })`.
+  const unifiedConfig = { ...shieldedConfig, ...unshieldedConfig, ...dustConfig };
 
-  // Combine into a single facade that coordinates all wallet operations
-  const facade: WalletFacade = new WalletFacade(
-    shieldedWallet,
-    unshieldedWallet,
-    dustWallet,
-  );
+  const facade = await WalletFacade.init({
+    configuration: unifiedConfig,
+    shielded: () =>
+      ShieldedWallet(shieldedConfig).startWithSecretKeys(shieldedSecretKeys),
+    unshielded: () =>
+      UnshieldedWallet(unshieldedConfig).startWithPublicKey(
+        UnshieldedPublicKey.fromKeyStore(unshieldedKeystore),
+      ),
+    dust: () =>
+      DustWallet(dustConfig).startWithSecretKey(
+        dustSecretKey,
+        ledger.LedgerParameters.initialParameters().dust,
+      ),
+  });
   await facade.start(shieldedSecretKeys, dustSecretKey);
 
   return {
@@ -1066,7 +1117,7 @@ The wallet initialization derives three key roles from a single BIP-39 mnemonic:
 
 *   **Zswap**: Used for shielded (private) transactions and zero-knowledge proof generation
 
-*   **NightExternal**: Used for unshielded (transparent) operations like receiving tDUST from the faucet
+*   **NightExternal**: Used for unshielded (transparent) operations like receiving tNIGHT from the faucet
 
 *   **Dust**: Used for generating dust tokens that pay transaction fees
 
@@ -1086,9 +1137,13 @@ export const configureProviders = async (
   const walletAndMidnightProvider =
     await createWalletAndMidnightProvider(walletContext);
 
-  const storagePassword =
-    process.env.MIDNIGHT_STORAGE_PASSWORD ??
-    'zkloan-credit-scorer-default-password';
+  const storagePassword = process.env.MIDNIGHT_STORAGE_PASSWORD;
+  if (!storagePassword) {
+    throw new Error(
+      'MIDNIGHT_STORAGE_PASSWORD is not set. Set it in zkloan-credit-scorer-cli/.env (see .env.example). ' +
+        'The level-private-state-provider requires it to encrypt private state on disk.',
+    );
+  }
 
   const zkConfigProvider =
     new NodeZkConfigProvider<ZKLoanCreditScorerCircuits>(
@@ -1102,6 +1157,7 @@ export const configureProviders = async (
       >({
         privateStateStoreName: contractConfig.privateStateStoreName,
         privateStoragePasswordProvider: () => storagePassword,
+        accountId: walletContext.unshieldedKeystore.getBech32Address().asString(),
       }),
     publicDataProvider: indexerPublicDataProvider(
       config.indexer,
@@ -1134,6 +1190,19 @@ export const closeWallet = async (
 
 `configureProviders` assembles all six providers the SDK requires. The private state provider stores sensitive data (credit profiles and attestation signatures) in an encrypted LevelDB database on disk. The proof provider sends proving requests to the local Docker proof server on port `6300`.
 
+:::caution Storage password is mandatory
+The `levelPrivateStateProvider` (in midnight-js `4.x`) refuses to run without a strong `MIDNIGHT_STORAGE_PASSWORD`. There is no longer a default fallback. The password must:
+
+- be at least 16 characters long
+- contain characters from at least three of: uppercase, lowercase, digits, special characters
+- avoid 4-or-more identical characters in a row (e.g. `aaaa`)
+- avoid 4-or-more sequential character codes (e.g. `abcd`, `1234`)
+
+Losing the password means losing access to the encrypted private state on disk — there is no recovery.
+
+The provider is also scoped per `accountId` (the wallet's bech32 address). If you run more than one wallet against the same store without scoping, the operations fail.
+:::
+
 ### Interactive CLI
 
 With the API module handling all the SDK interactions, the CLI module is responsible for the user-facing layer: prompting for input, routing choices to the correct API function, and handling errors without crashing. It uses Node's built-in `readline/promises` for interactive terminal input.
@@ -1156,6 +1225,7 @@ import { type Config } from "./config";
 import * as api from "./api";
 import type { WalletContext } from "./api";
 import { getUserProfile } from "./state.utils";
+import { resolveZswapCoinPublicKey } from "./address-utils";
 import "dotenv/config";
 
 let logger: Logger;
@@ -1234,7 +1304,9 @@ const requestLoan = async (
   walletContext: WalletContext,
   rli: Interface,
 ): Promise<void> => {
-  const amountStr = await rli.question("Enter the loan amount requested: ");
+  const amountStr = await rli.question(
+    "Enter the loan amount (USD, 1-65535 — the contract caps approvals at $10,000 / $7,000 / $3,000 per tier): ",
+  );
   const pinStr = await rli.question("Enter your secret PIN: ");
 
   const amount = BigInt(amountStr);
@@ -1278,15 +1350,18 @@ const changePinFlow = async (
 Each admin function prompts for the required input and delegates to the corresponding API wrapper. Only the deployer (admin) can execute these operations:
 
 ```typescript
-// Add a wallet to the blocklist by Zswap public key
+const ACCOUNT_PROMPT_HINT =
+  "(shielded address `mn_shield-addr_…` or 32-byte hex public key)";
+
+// Add a wallet to the blocklist
 const blacklistUserFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const accountHex = await rli.question(
-    "Enter the Zswap public key to add to the blocklist (hex): ",
+  const account = await rli.question(
+    `Enter the account to add to the blocklist ${ACCOUNT_PROMPT_HINT}: `,
   );
-  await api.blacklistUser(contract, Buffer.from(accountHex, "hex"));
+  await api.blacklistUser(contract, resolveZswapCoinPublicKey(account));
   logger.info("User added to blocklist successfully!");
 };
 
@@ -1295,10 +1370,10 @@ const removeBlacklistUserFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const accountHex = await rli.question(
-    "Enter the Zswap public key to remove from the blocklist (hex): ",
+  const account = await rli.question(
+    `Enter the account to remove from the blocklist ${ACCOUNT_PROMPT_HINT}: `,
   );
-  await api.removeBlacklistUser(contract, Buffer.from(accountHex, "hex"));
+  await api.removeBlacklistUser(contract, resolveZswapCoinPublicKey(account));
   logger.info("User removed from blocklist successfully!");
 };
 
@@ -1307,10 +1382,10 @@ const transferAdminFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const newAdminHex = await rli.question(
-    "Enter the new admin Zswap public key (hex): ",
+  const newAdmin = await rli.question(
+    `Enter the new admin account ${ACCOUNT_PROMPT_HINT}: `,
   );
-  await api.transferAdmin(contract, Buffer.from(newAdminHex, "hex"));
+  await api.transferAdmin(contract, resolveZswapCoinPublicKey(newAdmin));
   logger.info("Admin role transferred successfully!");
 };
 
@@ -1577,20 +1652,35 @@ Create `zkloan-credit-scorer-cli/tsconfig.build.json`:
 }
 ```
 
-The CLI uses `dotenv` to load environment variables from a `.env` file in the `zkloan-credit-scorer-cli` directory. Create this file to avoid re-entering your mnemonic on every restart:
+The CLI uses `dotenv` to load environment variables from a `.env` file in the `zkloan-credit-scorer-cli` directory. Create both a checked-in template (`.env.example`) and a local `.env`:
 
 ```bash
-cat > zkloan-credit-scorer-cli/.env << 'EOF'
+cat > zkloan-credit-scorer-cli/.env.example << 'EOF'
+# Required. Strong password used to encrypt the on-disk private state.
+# Rules (enforced by the level-private-state-provider in midnight-js 4.x):
+#   - at least 16 characters
+#   - characters from at least three of: uppercase, lowercase, digits, symbols
+#   - no 4-or-more identical characters in a row (e.g. aaaa)
+#   - no 4-or-more sequential character codes (e.g. abcd, 1234)
+# Losing this password means losing access to the encrypted state — there is no recovery.
+MIDNIGHT_STORAGE_PASSWORD=
+
+# Optional. Paste a 24-word BIP-39 mnemonic to restore the same wallet
+# across CLI sessions via menu option 3.
 WALLET_MNEMONIC=
+
+# Optional. Defaults to http://localhost:4000 if unset.
 ATTESTATION_API_URL=http://localhost:4000
 EOF
+
+cp zkloan-credit-scorer-cli/.env.example zkloan-credit-scorer-cli/.env
 ```
 
-Leave `WALLET_MNEMONIC` empty for now. After you generate or fund a wallet in the testing step, paste your mnemonic here so you can restore the same wallet in future sessions using option 3 in the CLI menu.
+Edit `zkloan-credit-scorer-cli/.env` and set `MIDNIGHT_STORAGE_PASSWORD` to a value that satisfies the rules above. Leave `WALLET_MNEMONIC` empty for now — after you generate or fund a wallet in the testing step, paste your mnemonic here so you can restore the same wallet in future sessions using option 3 in the CLI menu.
 
 ## Run the CLI
 
-The final part brings everything together by testing the complete flow using [Midnight Local Dev](/guides/midnight-local-network), a standalone Docker environment that runs the Midnight node, indexer, and proof server locally. It handles wallet funding and dust registration automatically, enabling focused DApp testing.
+The final part brings everything together by testing the complete flow using [Midnight Local Dev](/guides/midnight-local-network), a standalone Docker environment that runs the Midnight node, indexer, and proof server locally. Its `npm start` wizard can transfer NIGHT to any address you give it; the ZKLoan CLI then registers that NIGHT for DUST automatically, so the wallet is ready to submit transactions.
 
 You need three terminal windows.
 
@@ -1615,21 +1705,22 @@ cd ..
 
 ### Start Midnight Local Dev
 
-In your first terminal, clone and start the local development environment:
+In your first terminal, clone the [Midnight Local Dev](https://github.com/midnightntwrk/midnight-local-dev) repo, install its dependencies, and start the network:
 
 ```bash
 git clone https://github.com/midnightntwrk/midnight-local-dev.git
 cd midnight-local-dev
-docker compose up -d
+npm install
+npm start
 ```
 
-Wait for all services to be healthy:
+This pulls the Docker images and starts the node, indexer, and proof server on ports `9944`, `8088`, and `6300`. It then initializes a genesis master wallet and shows an interactive menu. If a network was already running you'll first be asked whether to reuse it or restart with fresh images — choose either.
 
-```bash
-docker compose ps
-```
+Leave this terminal at the main menu. You'll come back to it once the ZKLoan CLI prints a wallet address that needs funding. Closing the menu or pressing `Ctrl+C` shuts the network down.
 
-You should see the node, indexer, and proof server all running. The proof server listens on port `6300`, the indexer on `8088`, and the node on `9944`.
+:::note Containers-only alternative
+If you only want the bare containers without the funding wizard, you can use `docker compose -f standalone.yml up -d` from the same folder instead. The trade-off is that you would have to handle wallet funding and DUST registration yourself.
+:::
 
 ### Start the attestation API
 
@@ -1656,29 +1747,60 @@ Copy the provider public key coordinates — you need them in the next step.
 
 ### Run the CLI
 
-In your third terminal, from the project root:
+In your third terminal, start the CLI from the project root:
 
 ```bash
 cd zkloan-credit-scorer-cli
-NETWORK=localdev npm run local
+npm run local
 ```
 
-The CLI prompts you to create or restore a wallet. For local dev, select option 1 (Build a fresh wallet). The local environment automatically funds new wallets.
+The `local` script already exports `NETWORK=localdev` — you do not need to prefix it.
 
-Once the wallet is synced and funded, deploy the smart contract by selecting option 1 (Deploy). This takes about a minute while the proof server generates the deployment proof.
+You'll be guided through five phases: **fund the wallet**, **deploy the contract**, **register the attestation provider**, **request a loan**, and **inspect the on-chain state**.
 
-After deployment, register the attestation provider:
+#### 1. Fund the wallet
 
-1.  Select option 8 (Register attestation provider).
-2.  Enter provider ID: `1`.
-3.  Enter the X and Y coordinates from the attestation API output.
+When the wallet menu appears, pick **option 1 (Build a fresh wallet)**. The CLI generates a 24-word mnemonic, derives the wallet, and prints:
 
-Now request a loan:
+```
+Your wallet address: mn_shield-addr_undeployed1q…
+Waiting to receive tokens...
+```
 
-1.  Select option 1 (Request a loan).
-2.  Enter a loan amount (for example, `5000`).
-3.  Enter a secret PIN (for example, `1234`).
+Copy the `mn_shield-addr_undeployed1q…` address. Switch to your **first terminal** (the local-dev menu), pick **`[2] Fund accounts by public key (NIGHT transfer only)`**, and paste the address. The wizard transfers 50,000 NIGHT to it.
 
-The CLI fetches an attestation, submits the loan request, and waits for the proof server to generate the zero-knowledge proof. After about a minute, you should see the transaction confirmed.
+Switch back to the CLI terminal. Within ~10–20 seconds the "Waiting to receive tokens..." poller will see the funds and call `registerNightForDust` automatically. Once you see `Dust registration complete!`, the wallet has both NIGHT (value) and DUST (fees) and is ready to transact.
 
-Inspect the result by selecting option 3 (Display contract state). You will see the loan record on-chain with the status and authorized amount, but no credit score, income, or employment data. That information stayed private throughout the entire process.
+:::tip Reuse the same wallet across runs
+The generated mnemonic only lives in this terminal session. To restore the same funded wallet next time, copy the mnemonic into `WALLET_MNEMONIC` in `zkloan-credit-scorer-cli/.env` and pick **option 3 (Use mnemonic from .env file)** on the next start.
+:::
+
+#### 2. Deploy the contract
+
+The CLI now shows the deploy/join menu. Pick **option 1 (Deploy a new ZKLoan Credit Scorer contract)**. The proof server generates the deployment proof — this takes about a minute.
+
+When it finishes, the CLI logs `Deployed contract at address: 02…` and drops you into the main 10-option menu.
+
+#### 3. Register the attestation provider
+
+This step is one-time per contract. Without it, every loan request will revert because the circuit asserts the provider is registered.
+
+1. Pick **option 8 (Register attestation provider)**.
+2. Enter provider ID: `1`.
+3. Paste the `x` and `y` coordinates printed by the attestation API in your second terminal.
+
+The provider's public key is now in the contract's `providers` map.
+
+#### 4. Request a loan
+
+1. Pick **option 1 (Request a loan)**.
+2. Enter a loan amount in USD — for example, `5000`. Approvals are capped at $10,000 / $7,000 / $3,000 per credit tier; anything above your tier becomes a `Proposed` offer.
+3. Enter a **4-digit** secret PIN — for example, `1234`. The PIN is constrained to `Uint<16>`, so longer values would overflow the circuit.
+
+The CLI fetches an attestation from the API, stores it in the local private state, and submits the loan request. After about a minute the proof completes and the transaction is finalized.
+
+#### 5. Inspect the on-chain state
+
+Pick **option 3 (Display contract state)**. The CLI logs the contract address, admin, blocklist size, and the loan record (status + authorized amount).
+
+Notice what is **not** on-chain: your credit score, income, employment tenure, attestation signature, or PIN. The transaction proved your eligibility without revealing any of those — only the outcome was disclosed.

@@ -90,13 +90,15 @@ Create a file `signing.ts` inside the `zkloan-credit-scorer-attestation-api/src`
 ```typescript
 import {
   ecMulGenerator,
-  type NativePoint,
+  jubjubPointX,
+  jubjubPointY,
+  type JubjubPoint,
 } from "@midnight-ntwrk/compact-runtime";
 import { ZKLoanCreditScorer } from "zkloan-credit-scorer-contract";
 const { pureCircuits } = ZKLoanCreditScorer;
 
 type SchnorrSignature = {
-  announcement: NativePoint;
+  announcement: JubjubPoint;
   response: bigint;
 };
 import * as crypto from "crypto";
@@ -119,13 +121,13 @@ function randomScalar(): bigint {
   return val % JUBJUB_ORDER;
 }
 
-export function generateKeyPair(): { sk: bigint; pk: NativePoint } {
+export function generateKeyPair(): { sk: bigint; pk: JubjubPoint } {
   const sk = randomScalar();
   const pk = ecMulGenerator(sk);
   return { sk, pk };
 }
 
-export function getPublicKey(sk: bigint): NativePoint {
+export function getPublicKey(sk: bigint): JubjubPoint {
   return ecMulGenerator(sk);
 }
 
@@ -133,7 +135,13 @@ export function sign(sk: bigint, msg: bigint[]): SchnorrSignature {
   const pk = ecMulGenerator(sk);
   const k = randomScalar();
   const R = ecMulGenerator(k);
-  const cFull = pureCircuits.schnorrChallenge(R.x, R.y, pk.x, pk.y, msg);
+  const cFull = pureCircuits.schnorrChallenge(
+    jubjubPointX(R),
+    jubjubPointY(R),
+    jubjubPointX(pk),
+    jubjubPointY(pk),
+    msg,
+  );
   const c = cFull % TWO_248;
   const s = (((k + c * sk) % JUBJUB_ORDER) + JUBJUB_ORDER) % JUBJUB_ORDER;
   return { announcement: R, response: s };
@@ -187,7 +195,11 @@ import type {
   ProviderInfoResponse,
   HealthResponse,
 } from './types.js';
-import type { NativePoint } from '@midnight-ntwrk/compact-runtime';
+import {
+  jubjubPointX,
+  jubjubPointY,
+  type JubjubPoint,
+} from '@midnight-ntwrk/compact-runtime';
 
 export function createServer(
   providerSk: bigint,
@@ -209,7 +221,7 @@ export function createServer(
     },
   );
 
-  const providerPk: NativePoint = getPublicKey(providerSk);
+  const providerPk: JubjubPoint = getPublicKey(providerSk);
 
   server.post(
     '/attest',
@@ -243,8 +255,8 @@ export function createServer(
         const response: AttestationResponse = {
           signature: {
             announcement: {
-              x: signature.announcement.x.toString(),
-              y: signature.announcement.y.toString(),
+              x: jubjubPointX(signature.announcement).toString(),
+              y: jubjubPointY(signature.announcement).toString(),
             },
             response: signature.response.toString(),
           },
@@ -270,8 +282,8 @@ export function createServer(
       const response: ProviderInfoResponse = {
         providerId,
         publicKey: {
-          x: providerPk.x.toString(),
-          y: providerPk.y.toString(),
+          x: jubjubPointX(providerPk).toString(),
+          y: jubjubPointY(providerPk).toString(),
         },
       };
       res.send(200, response);
@@ -310,6 +322,10 @@ The entry point handles key management and starts the server.
 Create a file `index.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
 
 ```typescript
+import {
+  jubjubPointX,
+  jubjubPointY,
+} from '@midnight-ntwrk/compact-runtime';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { createServer } from './server.js';
 import { generateKeyPair, getPublicKey } from './signing.js';
@@ -331,12 +347,14 @@ if (process.env.PROVIDER_SECRET_KEY) {
 }
 
 const pk = getPublicKey(providerSk);
+const pkX = jubjubPointX(pk);
+const pkY = jubjubPointY(pk);
 console.log(`Provider ID: ${PROVIDER_ID}`);
 console.log(`Provider public key:`);
-console.log(`  x: ${pk.x}`);
-console.log(`  y: ${pk.y}`);
+console.log(`  x: ${pkX}`);
+console.log(`  y: ${pkY}`);
 console.log(
-  `Register this provider on-chain with: registerProvider(${PROVIDER_ID}, {x: ${pk.x}n, y: ${pk.y}n})`,
+  `Register this provider on-chain with: registerProvider(${PROVIDER_ID}, {x: ${pkX}n, y: ${pkY}n})`,
 );
 
 const server = createServer(providerSk, PROVIDER_ID);
@@ -372,8 +390,8 @@ Create a `package.json` file inside the root `zkloan-credit-scorer-attestation-a
   },
   "dependencies": {
     "zkloan-credit-scorer-contract": "0.1.0",
-    "@midnight-ntwrk/compact-runtime": "0.14.0",
-    "@midnight-ntwrk/midnight-js-network-id": "3.0.0",
+    "@midnight-ntwrk/compact-runtime": "0.15.0",
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
     "restify": "^11.1.0"
   },
   "devDependencies": {
@@ -476,7 +494,7 @@ Create `zkloan-credit-scorer-cli/proof-server.yml`:
 ```yaml
 services:
   proof-server:
-    image: "midnightntwrk/proof-server:8.0.0"
+    image: "midnightntwrk/proof-server:8.0.3"
     ports:
       - "6300:6300"
     environment:
