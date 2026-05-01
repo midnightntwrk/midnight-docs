@@ -59,10 +59,10 @@ This section explains the process of setting up the root package.
 
 From the `example-counter` root directory, create or update `package.json`:
 
-```json 
+```json title="package.json"
 {
   "name": "example-counter",
-  "version": "2.0.2",
+  "version": "2.1.1",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -71,37 +71,40 @@ From the `example-counter` root directory, create or update `package.json`:
   ],
   "devDependencies": {
     "@eslint/js": "^9.39.2",
-    "@types/node": "^25.2.0",
+    "@types/node": "^25.5.0",
     "@types/ws": "^8.18.1",
-    "@typescript-eslint/eslint-plugin": "^8.53.1",
-    "@typescript-eslint/parser": "^8.52.0",
-    "eslint": "^9.39.2",
+    "@typescript-eslint/eslint-plugin": "^8.58.1",
+    "@typescript-eslint/parser": "^8.58.1",
+    "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
-    "testcontainers": "^11.11.0",
+    "testcontainers": "^11.12.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.0"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "0.15.0",
     "@midnight-ntwrk/ledger-v8": "^8.0.0",
-    "@midnight-ntwrk/midnight-js-contracts": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-network-id": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-types": "^4.0.0",
+    "@midnight-ntwrk/midnight-js-contracts": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-network-id": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-types": "^4.0.4",
+    "@midnight-ntwrk/wallet-sdk-address-format": "^3.0.0",
+    "@midnight-ntwrk/wallet-sdk-dust-wallet": "^3.0.0",
     "@midnight-ntwrk/wallet-sdk-facade": "^3.0.0",
     "@midnight-ntwrk/wallet-sdk-hd": "^3.0.0",
     "@midnight-ntwrk/wallet-sdk-shielded": "^2.0.0",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "^3.0.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "^3.0.0",
     "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "^2.0.0",
-    "pino": "^10.3.0",
+    "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
     "ws": "^8.19.0"
+  },
+  "overrides": {
+    "smoldot": "npm:@aspect-build/empty@0.0.0"
   }
 }
 ```
@@ -135,7 +138,7 @@ cd counter-cli
 
 Create `counter-cli/package.json`:
 
-```json package.json
+```json title="counter-cli/package.json"
 {
   "name": "@midnight-ntwrk/counter-cli",
   "version": "0.1.0",
@@ -144,7 +147,7 @@ Create `counter-cli/package.json`:
   "type": "module",
   "scripts": {
     "preprod": "node --experimental-specifier-resolution=node --loader ts-node/esm src/preprod.ts",
-    "undeployed": "node --experimental-specifier-resolution=node --loader ts-node/esm src/undeployed.ts",
+    "standalone": "docker compose -f standalone.yml pull && node --no-warnings --experimental-specifier-resolution=node --loader ts-node/esm src/standalone.ts",
     "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -161,19 +164,19 @@ The package depends on `@midnight-ntwrk/counter-contract` using the wildcard ver
 
 Create `counter-cli/tsconfig.json`:
 
-```json
+```json title="counter-cli/tsconfig.json"
 {
   "compilerOptions": {
     "target": "ES2022",
     "module": "ES2022",
     "lib": ["ES2022"],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
   },
   "ts-node": {
     "esm": true,
@@ -195,44 +198,42 @@ Create `counter-cli/src/config.ts`:
 ```typescript title="counter-cli/src/config.ts"
 import path from 'node:path';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-
 export const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
 
 export const contractConfig = {
-  privateStateStoreName: 'counter-private-state',
-  zkConfigPath: path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'counter'),
+    privateStateStoreName: 'counter-private-state',
+    zkConfigPath: path.resolve(currentDir, '..', '..', 'contract', 'src', 'managed', 'counter'),
 };
 
 export interface Config {
-  readonly logDir: string;
-  readonly indexer: string;
-  readonly indexerWS: string;
-  readonly node: string;
-  readonly proofServer: string;
+    readonly logDir: string;
+    readonly indexer: string;
+    readonly indexerWS: string;
+    readonly node: string;
+    readonly proofServer: string;
 }
 
 export class PreprodConfig implements Config {
-  logDir = path.resolve(currentDir, '..', 'logs', 'preprod', `${new Date().toISOString()}.log`);
-  indexer = 'https://indexer.preprod.midnight.network/api/v4/graphql';
-  indexerWS = 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws';
-  node = 'https://rpc.preprod.midnight.network';
-  proofServer = 'http://127.0.0.1:6300';
-  
-  constructor() {
-    setNetworkId('preprod');
-  }
+    logDir = path.resolve(currentDir, '..', 'logs', 'preprod', `${new Date().toISOString()}.log`);
+    indexer = 'https://indexer.preprod.midnight.network/api/v4/graphql';
+    indexerWS = 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws';
+    node = 'https://rpc.preprod.midnight.network';
+    proofServer = 'http://127.0.0.1:6300';
+
+    constructor() {
+        setNetworkId('preprod');
+    }
 }
 
-export class UndeployedConfig implements Config {
-  logDir = path.resolve(currentDir, '..', 'logs', 'undeployed', `${new Date().toISOString()}.log`);
-  indexer = 'http://localhost:8088/api/v4/graphql';
-  indexerWS = 'ws://localhost:8088/api/v4/graphql/ws';
-  node = 'ws://localhost:9944';
-  proofServer = 'http://localhost:6300';
-  
-  constructor() {
-    setNetworkId('undeployed');
-  }
+export class StandaloneConfig implements Config {
+    logDir = path.resolve(currentDir, '..', 'logs', 'standalone', `${new Date().toISOString()}.log`);
+    indexer = 'http://127.0.0.1:8088/api/v3/graphql';
+    indexerWS = 'ws://127.0.0.1:8088/api/v3/graphql/ws';
+    node = 'http://127.0.0.1:9944';
+    proofServer = 'http://127.0.0.1:6300';
+    constructor() {
+        setNetworkId('undeployed');
+    }
 }
 ```
 
@@ -253,9 +254,9 @@ Create `counter-cli/src/common-types.ts`:
 import { Counter, type CounterPrivateState } from '@midnight-ntwrk/counter-contract';
 import type { MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
 import type { DeployedContract, FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
-import type { ImpureCircuitId } from '@midnight-ntwrk/compact-js';
+import type { ProvableCircuitId } from '@midnight-ntwrk/compact-js';
 
-export type CounterCircuits = ImpureCircuitId<Counter.Contract<CounterPrivateState>>;
+export type CounterCircuits = ProvableCircuitId<Counter.Contract<CounterPrivateState>>;
 
 export const CounterPrivateStateId = 'counterPrivateState';
 
@@ -350,8 +351,8 @@ import {
   type CounterPrivateStateId,
   type CounterProviders,
   type DeployedCounterContract,
-} from './common-types';
-import { type Config, contractConfig } from './config';
+} from './common-types.js';
+import { type Config, contractConfig, StandaloneConfig } from './config.js';
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
 import { assertIsContractAddress, toHex } from '@midnight-ntwrk/midnight-js-utils';
 import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
@@ -545,7 +546,7 @@ Below the `waitForFunds` function, create the `registerForDustGeneration` functi
 /**
  * Register unshielded NIGHT UTXOs for dust generation.
  *
- * On Preprod/Undeployed, NIGHT tokens generate DUST over time, but only after
+ * On Preprod/Standalone, NIGHT tokens generate DUST over time, but only after
  * the UTXOs have been explicitly designated for dust generation via an on-chain
  * transaction. DUST is the non-transferable network resource used by the Midnight network to process transactions.
  */
@@ -557,7 +558,7 @@ const registerForDustGeneration = async (
 
   // Check if dust is already available (for example, from a previous designation)
   if (state.dust.availableCoins.length > 0) {
-    const dustBal = state.dust.walletBalance(new Date());
+    const dustBal = state.dust.balance(new Date());
     console.log(`  ✓ Dust tokens already available (${formatBalance(dustBal)} DUST)`);
     return;
   }
@@ -574,7 +575,7 @@ const registerForDustGeneration = async (
         wallet.state().pipe(
           Rx.throttleTime(5_000),
           Rx.filter((s) => s.isSynced),
-          Rx.filter((s) => s.dust.walletBalance(new Date()) > 0n),
+          Rx.filter((s) => s.dust.balance(new Date()) > 0n),
         ),
       ),
     );
@@ -597,7 +598,7 @@ const registerForDustGeneration = async (
       wallet.state().pipe(
         Rx.throttleTime(5_000),
         Rx.filter((s) => s.isSynced),
-        Rx.filter((s) => s.dust.walletBalance(new Date()) > 0n),
+        Rx.filter((s) => s.dust.balance(new Date()) > 0n),
       ),
     ),
   );
@@ -618,35 +619,31 @@ Below the `registerForDustGeneration` function, create the `printWalletSummary` 
  * Prints a formatted wallet summary to the console, showing all three
  * wallet types (Shielded, Unshielded, Dust) with their addresses and balances.
  */
-const printWalletSummary = (seed: string, state: any, unshieldedKeystore: UnshieldedKeystore) => {
-  const networkId = getNetworkId();
-  const unshieldedBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
+const printWalletSummary = (state: any, unshieldedKeystore: UnshieldedKeystore) => {
+    const networkId = getNetworkId();
+    const unshieldedBalance = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
 
-  // Build the bech32m shielded address from coin + encryption public keys
-  const coinPubKey = ShieldedCoinPublicKey.fromHexString(state.shielded.coinPublicKey.toHexString());
-  const encPubKey = ShieldedEncryptionPublicKey.fromHexString(state.shielded.encryptionPublicKey.toHexString());
-  const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
+    // Build the bech32m shielded address from coin + encryption public keys
+    const coinPubKey = ShieldedCoinPublicKey.fromHexString(state.shielded.coinPublicKey.toHexString());
+    const encPubKey = ShieldedEncryptionPublicKey.fromHexString(state.shielded.encryptionPublicKey.toHexString());
+    const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
 
-  const DIV = '──────────────────────────────────────────────────────────────';
+    const DIV = '──────────────────────────────────────────────────────────────';
 
-  console.log(`
-${DIV}
-  Wallet Overview                            Network: ${networkId}
-${DIV}
-  Seed: ${seed}
-${DIV}
+    console.log(`
+        ${DIV}
+        Wallet Overview                            Network: ${networkId}
+        ${DIV}
 
-  Shielded (ZSwap)
-  └─ Address: ${shieldedAddress}
+        Shielded (ZSwap)
+        └─ Address: ${shieldedAddress}
 
-  Unshielded
-  ├─ Address: ${unshieldedKeystore.getBech32Address()}
-  └─ Balance: ${formatBalance(unshieldedBalance)} tNight
+        Unshielded
+        ├─ Address: ${unshieldedKeystore.getBech32Address()}
+        └─ Balance: ${formatBalance(unshieldedBalance)} tNight
 
-  Dust
-  └─ Address: ${state.dust.dustAddress}
-
-${DIV}`);
+        ${DIV}`
+    );
 };
 ```
 
@@ -664,6 +661,13 @@ Add the main wallet building function:
 /**
  * Build (or restore) a wallet from a hex seed, then wait for the wallet
  * to sync and receive funds before returning.
+ *
+ * Steps:
+ *   1. Derive HD keys (Zswap, NightExternal, Dust) from the seed.
+ *   2. Create the three sub-wallets (Shielded, Unshielded, Dust).
+ *   3. Start the WalletFacade and wait for sync.
+ *   4. Display a wallet summary with all addresses.
+ *   5. If balance is zero, then wait for incoming funds (for example, from faucet).
  */
 export const buildWalletAndWaitForFunds = async (config: Config, seed: string): Promise<WalletContext> => {
   console.log('');
@@ -677,36 +681,44 @@ export const buildWalletAndWaitForFunds = async (config: Config, seed: string): 
       const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
       const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
 
-      const shieldedWallet = ShieldedWallet(buildShieldedConfig(config)).startWithSecretKeys(shieldedSecretKeys);
-      const unshieldedWallet = UnshieldedWallet(buildUnshieldedConfig(config)).startWithPublicKey(
-        PublicKey.fromKeyStore(unshieldedKeystore),
-      );
-      const dustWallet = DustWallet(buildDustConfig(config)).startWithSecretKey(
-        dustSecretKey,
-        ledger.LedgerParameters.initialParameters().dust,
-      );
-
-      const wallet = new WalletFacade(shieldedWallet, unshieldedWallet, dustWallet);
+      // WalletFacade is initialized via a static factory that takes a unified
+      // configuration object and per-wallet factory functions for each sub-wallet
+      // (shielded, unshielded, dust). The three config builders are spread into
+      // one object to satisfy the unified configuration shape.
+      const walletConfig = {
+        ...buildShieldedConfig(config),
+        ...buildUnshieldedConfig(config),
+        ...buildDustConfig(config),
+      };
+      const wallet = await WalletFacade.init({
+        configuration: walletConfig,
+        shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+        unshielded: (cfg) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+        dust: (cfg) =>
+          DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+      });
       await wallet.start(shieldedSecretKeys, dustSecretKey);
 
       return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
     },
   );
 
-  // Show seed and unshielded address immediately so user can fund via faucet while syncing
+  // Show unshielded address immediately so user can fund via faucet while syncing
   const networkId = getNetworkId();
   const DIV = '──────────────────────────────────────────────────────────────';
   console.log(`
 ${DIV}
   Wallet Overview                            Network: ${networkId}
 ${DIV}
-  Seed: ${seed}
-
   Unshielded Address (send tNight here):
   ${unshieldedKeystore.getBech32Address()}
 
+  ${!(config instanceof StandaloneConfig)
+            ? `
   Fund your wallet with tNight from the Preprod faucet:
-  https://faucet.preprod.midnight.network/
+  https://faucet.preprod.midnight.network/`
+            : ""
+        }
 ${DIV}
 `);
 
@@ -714,7 +726,7 @@ ${DIV}
   const syncedState = await withStatus('Syncing with network', () => waitForSync(wallet));
 
   // Display the full wallet summary with all addresses and balances
-  printWalletSummary(seed, syncedState, unshieldedKeystore);
+  printWalletSummary(syncedState, unshieldedKeystore);
 
   // Check if wallet has funds; if not, wait for incoming tokens
   const balance = syncedState.unshielded.balances[unshieldedToken().raw] ?? 0n;
@@ -723,14 +735,28 @@ ${DIV}
     console.log(`    Balance: ${formatBalance(fundedBalance)} tNight\n`);
   }
 
-  // Register NIGHT UTXOs for dust generation (required for tx fees on Preprod/Undeployed)
+  // Register NIGHT UTXOs for dust generation (required for tx fees on Preprod/Standalone)
   await registerForDustGeneration(wallet, unshieldedKeystore);
 
   return { wallet, shieldedSecretKeys, dustSecretKey, unshieldedKeystore };
 };
 
-export const buildFreshWallet = async (config: Config): Promise<WalletContext> =>
-  await buildWalletAndWaitForFunds(config, toHex(Buffer.from(generateRandomSeed())));
+/**
+ * Create a fresh wallet with a randomly generated seed. The seed is displayed
+ * once so the user can save it — it will not be shown again.
+ */
+export const buildFreshWallet = async (config: Config): Promise<WalletContext> => {
+  const seed = toHex(Buffer.from(generateRandomSeed()));
+  const DIV = '──────────────────────────────────────────────────────────────';
+  console.log(`
+${DIV}
+  New Wallet Seed — save this before continuing
+${DIV}
+  ${seed}
+${DIV}
+`);
+  return await buildWalletAndWaitForFunds(config, seed);
+};
 ```
 
 The wallet building process follows these key steps:
@@ -739,7 +765,7 @@ The wallet building process follows these key steps:
 2. **Sync with network**: The `waitForSync` function monitors the wallet's synchronization progress until it catches up with the blockchain. This ensures the wallet has accurate balance information.
 3. **Display wallet summary**: After syncing, `printWalletSummary` shows all three address types (shielded, unshielded, and dust) along with their current balances.
 4. **Check and wait for funds**: The function checks if the unshielded balance is non-zero. If the balance is zero, it calls `waitForFunds` to monitor the wallet state until tokens arrive from the faucet.
-5. **Register for dust generation**: This step registers the wallet's NIGHT UTXOs with the dust generation service, which is required for transaction fees on Preprod and Undeployed networks.
+5. **Register for DUST generation**: This step registers the wallet's NIGHT UTXOs with the DUST generation service. Preprod and Standalone networks require this step for transaction fees.
 
 The function waits for both synchronization and funding before proceeding, ensuring the wallet is ready for transactions.
 
@@ -881,11 +907,16 @@ Below the provider creation function, create a `configureProviders` function to 
 export const configureProviders = async (ctx: WalletContext, config: Config) => {
   const walletAndMidnightProvider = await createWalletAndMidnightProvider(ctx);
   const zkConfigProvider = new NodeZkConfigProvider<CounterCircuits>(contractConfig.zkConfigPath);
-  
+  // accountId and privateStoragePasswordProvider are required by levelPrivateStateProvider.
+  // The coin public key is encoded as base64 for the password — base64 output covers all
+  // four character classes and avoids repeated-character runs found in raw hex strings.
+  const accountId = walletAndMidnightProvider.getCoinPublicKey();
+  const storagePassword = `${Buffer.from(accountId, 'hex').toString('base64')}!`;
   return {
     privateStateProvider: levelPrivateStateProvider<typeof CounterPrivateStateId>({
       privateStateStoreName: contractConfig.privateStateStoreName,
-      walletProvider: walletAndMidnightProvider,
+      accountId,
+      privateStoragePasswordProvider: () => storagePassword,
     }),
     publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
     zkConfigProvider,
@@ -970,7 +1001,7 @@ export const displayCounterValue = async (
 ): Promise<{ counterValue: bigint | null; contractAddress: string }> => {
   const contractAddress = counterContract.deployTxData.public.contractAddress;
   const counterValue = await getCounterLedgerState(providers, contractAddress);
-  
+
   if (counterValue === null) {
     logger.info(`There is no counter contract deployed at ${contractAddress}.`);
   } else {
@@ -1002,9 +1033,10 @@ export const getDustBalance = async (
   wallet: WalletFacade,
 ): Promise<{ available: bigint; pending: bigint; availableCoins: number; pendingCoins: number }> => {
   const state = await Rx.firstValueFrom(wallet.state().pipe(Rx.filter((s) => s.isSynced)));
-  const available = state.dust.walletBalance(new Date());
+  const available = state.dust.balance(new Date());
   const availableCoins = state.dust.availableCoins.length;
   const pendingCoins = state.dust.pendingCoins.length;
+  // Sum pending coin initial values for a rough pending balance
   const pending = state.dust.pendingCoins.reduce((sum, c) => sum + c.initialValue, 0n);
   return { available, pending, availableCoins, pendingCoins };
 };
@@ -1030,7 +1062,7 @@ export const monitorDustBalance = async (wallet: WalletFacade, stopSignal: Promi
       if (stopped) return;
 
       const now = new Date();
-      const available = state.dust.walletBalance(now);
+      const available = state.dust.balance(now);
       const availableCoins = state.dust.availableCoins.length;
       const pendingCoins = state.dust.pendingCoins.length;
 
@@ -1078,18 +1110,24 @@ The CLI provides an interactive menu system for users to interact with the count
 Create `counter-cli/src/cli.ts` and add the following code:
 
 ```typescript title="counter-cli/src/cli.ts"
-import { type WalletContext } from './api';
+import { type WalletContext } from './api.js';
 import { stdin as input, stdout as output } from 'node:process';
 import { createInterface, type Interface } from 'node:readline/promises';
 import { type Logger } from 'pino';
-import { type Config } from './config'
+import { type Config, StandaloneConfig } from './config.js';
 import { type StartedDockerComposeEnvironment, type DockerComposeEnvironment } from 'testcontainers';
-import { type CounterProviders, type DeployedCounterContract } from './common-types';
-import * as api from './api';
+import { type CounterProviders, type DeployedCounterContract } from './common-types.js';
+import * as api from './api.js';
 
 let logger: Logger;
 
+/**
+ * This seed gives access to tokens minted in the genesis block of a local development node.
+ * Only used in standalone networks to build a wallet with initial funds.
+ */
 const GENESIS_MINT_WALLET_SEED = '0000000000000000000000000000000000000000000000000000000000000001';
+
+// ─── Display Helpers ────────────────────────────────────────────────────────
 
 const BANNER = `
 ╔══════════════════════════════════════════════════════════════╗
@@ -1103,6 +1141,8 @@ const BANNER = `
 
 const DIVIDER = '──────────────────────────────────────────────────────────────';
 
+// ─── Menu helpers ──────────────────────────────────────────────────────────
+
 const WALLET_MENU = `
 ${DIVIDER}
   Wallet Setup
@@ -1113,6 +1153,7 @@ ${DIVIDER}
 ${'─'.repeat(62)}
 > `;
 
+/** Build the contract actions menu, showing current DUST balance in the header. */
 const contractMenu = (dustBalance: string) => `
 ${DIVIDER}
   Contract Actions${dustBalance ? `                    DUST: ${dustBalance}` : ''}
@@ -1124,6 +1165,7 @@ ${DIVIDER}
 ${'─'.repeat(62)}
 > `;
 
+/** Build the counter actions menu, showing current DUST balance in the header. */
 const counterMenu = (dustBalance: string) => `
 ${DIVIDER}
   Counter Actions${dustBalance ? `                     DUST: ${dustBalance}` : ''}
@@ -1143,12 +1185,24 @@ The DUST balance is displayed dynamically in menu headers, providing constant fe
 Below the menu constants, create the function for setting up the wallet:
 
 ```typescript title="counter-cli/src/cli.ts"
+// ─── Wallet setup ───────────────────────────────────────────────────────────
+
+/** Prompt the user for a seed phrase and restore a wallet from it. */
 const buildWalletFromSeed = async (config: Config, rli: Interface): Promise<WalletContext> => {
   const seed = await rli.question('Enter your wallet seed: ');
   return await api.buildWalletAndWaitForFunds(config, seed);
 };
 
+/**
+ * Wallet creation flow.
+ * - Standalone configs skip the menu and use the genesis seed automatically.
+ * - All other configs present a menu to create or restore a wallet.
+ */
 const buildWallet = async (config: Config, rli: Interface): Promise<WalletContext | null> => {
+  // Standalone mode: use the pre-funded genesis wallet
+  if (config instanceof StandaloneConfig) {
+      return await api.buildWalletAndWaitForFunds(config, GENESIS_MINT_WALLET_SEED);
+  }
 
   while (true) {
     const choice = await rli.question(WALLET_MENU);
@@ -1176,6 +1230,9 @@ The function displays an interactive menu with three options:
 Below the function for setting up the wallet, create the helper functions for displaying the DUST balance, joining a contract, and starting the DUST monitoring:
 
 ```typescript title="counter-cli/src/cli.ts"
+// ─── Contract interaction ───────────────────────────────────────────────────
+
+/** Format dust balance for menu headers. */
 const getDustLabel = async (wallet: api.WalletContext['wallet']): Promise<string> => {
   try {
     const dust = await api.getDustBalance(wallet);
@@ -1185,13 +1242,19 @@ const getDustLabel = async (wallet: api.WalletContext['wallet']): Promise<string
   }
 };
 
+/** Prompt for a contract address and join an existing deployed contract. */
 const joinContract = async (providers: CounterProviders, rli: Interface): Promise<DeployedCounterContract> => {
   const contractAddress = await rli.question('Enter the contract address (hex): ');
   return await api.joinContract(providers, contractAddress);
 };
 
+/**
+ * Start the DUST monitor. Shows a live-updating balance display
+ * that runs until the user presses Enter.
+ */
 const startDustMonitor = async (wallet: api.WalletContext['wallet'], rli: Interface): Promise<void> => {
   console.log('');
+  // Use readline question to wait for Enter — the monitor will render above this line
   const stopPromise = rli.question('  Press Enter to return to menu...\n').then(() => {});
   await api.monitorDustBalance(wallet, stopPromise);
   console.log('');
@@ -1209,6 +1272,10 @@ These helper functions simplify contract interaction:
 Below the contract interaction helpers, create the function for deploying or joining a contract:
 
 ```typescript title="counter-cli/src/cli.ts"
+/**
+ * Deploy or join flow. Returns the contract handle, or null if the user exits.
+ * Errors during deploy/join are caught and displayed — the user stays in the menu.
+ */
 const deployOrJoin = async (
   providers: CounterProviders,
   walletCtx: api.WalletContext,
@@ -1217,7 +1284,6 @@ const deployOrJoin = async (
   while (true) {
     const dustLabel = await getDustLabel(walletCtx.wallet);
     const choice = await rli.question(contractMenu(dustLabel));
-    
     switch (choice.trim()) {
       case '1':
         try {
@@ -1229,7 +1295,7 @@ const deployOrJoin = async (
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           console.log(`\n  ✗ Deploy failed: ${msg}`);
-          
+          // Log the full cause chain to help debug WASM and ledger errors
           if (e instanceof Error && e.cause) {
             let cause: unknown = e.cause;
             let depth = 0;
@@ -1243,7 +1309,7 @@ const deployOrJoin = async (
               depth++;
             }
           }
-          
+
           if (msg.toLowerCase().includes('dust') || msg.toLowerCase().includes('no dust')) {
             console.log('    Insufficient DUST for transaction fees. Use option [3] to monitor your balance.');
           }
@@ -1278,6 +1344,10 @@ DUST-related errors receive special treatment with a helpful message directing u
 Below the deployment flow, create the main interaction loop:
 
 ```typescript title="counter-cli/src/cli.ts"
+/**
+ * Main interaction loop. Once a contract is deployed/joined, the user
+ * can increment the counter or query its current value.
+ */
 const mainLoop = async (providers: CounterProviders, walletCtx: api.WalletContext, rli: Interface): Promise<void> => {
   const counterContract = await deployOrJoin(providers, walletCtx, rli);
   if (counterContract === null) {
@@ -1287,7 +1357,7 @@ const mainLoop = async (providers: CounterProviders, walletCtx: api.WalletContex
   while (true) {
     const dustLabel = await getDustLabel(walletCtx.wallet);
     const choice = await rli.question(counterMenu(dustLabel));
-    
+
     switch (choice.trim()) {
       case '1':
         try {
@@ -1312,29 +1382,74 @@ const mainLoop = async (providers: CounterProviders, walletCtx: api.WalletContex
 The main loop handles counter operations after successful contract setup. 
 Errors during increment operations are caught and displayed without terminating the loop, allowing users to retry or check their DUST balance.
 
-### Main entry point
+### Docker port mapping
 
-Below the contract deployment flow, create the `run` function as the main entry point:
+Below the main interaction loop, create the docker port mapping:
 
 ```typescript title="counter-cli/src/cli.ts"
-export const run = async (config: Config, _logger: Logger): Promise<void> => {
+// ─── Docker port mapping ────────────────────────────────────────────────────
+
+/** Map a container's first exposed port into the config URL. */
+const mapContainerPort = (env: StartedDockerComposeEnvironment, url: string, containerName: string) => {
+  const mappedUrl = new URL(url);
+  const container = env.getContainer(containerName);
+  mappedUrl.port = String(container.getFirstMappedPort());
+  return mappedUrl.toString().replace(/\/+$/, '');
+};
+```
+
+
+### Main entry point
+
+Below the docker port mapping, create the `run` function as the main entry point:
+
+```typescript title="counter-cli/src/cli.ts"
+// ─── Entry point ────────────────────────────────────────────────────────────
+
+/**
+ * Main entry point for the CLI.
+ *
+ * Flow:
+ *   1. (Optional) Start Docker containers for proof server / node / indexer.
+ *   2. Build or restore a wallet and wait for it to be funded.
+ *   3. Configure midnight-js providers (proof server, indexer, wallet, private state).
+ *   4. Enter the contract deploy/join and counter interaction loop.
+ *   5. Clean up: close wallet, readline, and docker environment.
+ */
+export const run = async (config: Config, _logger: Logger, dockerEnv?: DockerComposeEnvironment): Promise<void> => {
   logger = _logger;
   api.setLogger(_logger);
 
+  // Print the title banner
   console.log(BANNER);
 
   const rli = createInterface({ input, output, terminal: true });
+  let env: StartedDockerComposeEnvironment | undefined;
 
   try {
+    // Step 1: Start Docker environment if provided (for example, local proof server)
+    if (dockerEnv !== undefined) {
+        env = await dockerEnv.up();
+
+        // In standalone mode, remap ports to the dynamically assigned container ports
+        if (config instanceof StandaloneConfig) {
+            config.indexer = mapContainerPort(env, config.indexer, 'counter-indexer');
+            config.indexerWS = mapContainerPort(env, config.indexerWS, 'counter-indexer');
+            config.node = mapContainerPort(env, config.node, 'counter-node');
+        }
+    }
+    // Step 2: Build wallet (create new or restore from seed)
     const walletCtx = await buildWallet(config, rli);
     if (walletCtx === null) {
       return;
     }
 
     try {
+      // Step 3: Configure midnight-js providers
       const providers = await api.withStatus('Configuring providers', () => api.configureProviders(walletCtx, config));
       console.log('');
 
+      // Step 4: Enter the contract interaction loop
       await mainLoop(providers, walletCtx, rli);
     } catch (e) {
       if (e instanceof Error) {
@@ -1344,6 +1459,7 @@ export const run = async (config: Config, _logger: Logger): Promise<void> => {
         throw e;
       }
     } finally {
+      // Step 5a: Stop the wallet
       try {
         await walletCtx.wallet.stop();
       } catch (e) {
@@ -1351,8 +1467,17 @@ export const run = async (config: Config, _logger: Logger): Promise<void> => {
       }
     }
   } finally {
+    // Step 5b: Close readline and Docker environment
     rli.close();
     rli.removeAllListeners();
+
+    if (env !== undefined) {
+      try {
+        await env.down();
+      } catch (e) {
+        logger.error(`Error shutting down docker environment: ${e}`);
+      }
+    }
 
     logger.info('Goodbye.');
   }
@@ -1382,27 +1507,82 @@ await run(config, logger);
 ```
 
 </TabItem>
-<TabItem value="undeployed">
-Create `counter-cli/src/undeployed.ts`:
+<TabItem value="standalone">
+Create `counter-cli/src/standalone.ts`:
 
-```typescript title="counter-cli/src/undeployed.ts"
+```typescript title="counter-cli/src/standalone.ts"
 import { createLogger } from './logger-utils.js';
+import path from 'node:path';
 import { run } from './cli.js';
-import { UndeployedConfig } from './config.js';
+import { DockerComposeEnvironment, Wait } from 'testcontainers';
+import { currentDir, StandaloneConfig } from './config.js';
 
-const config = new UndeployedConfig();
+const config = new StandaloneConfig();
+const dockerEnv = new DockerComposeEnvironment(path.resolve(currentDir, '..'), 'standalone.yml')
+    .withWaitStrategy('counter-proof-server', Wait.forLogMessage('Actix runtime found; starting in Actix runtime', 1))
+    .withWaitStrategy('counter-indexer', Wait.forLogMessage(/starting indexing/, 1));
 const logger = await createLogger(config.logDir);
-await run(config, logger);
+await run(config, logger, dockerEnv);
 ```
 
+Create `counter-cli/standalone.yml`
+```yaml title="counter-cli/standalone.yml"
+services:
+  indexer:
+    container_name: 'counter-indexer'
+    image: 'midnightntwrk/indexer-standalone:4.0.0'
+    env_file: standalone.env.example
+    ports:
+      - "8088:8088"
+    environment:
+      RUST_LOG: 'indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info'
+      APP__APPLICATION__NETWORK_ID: 'undeployed'
+    healthcheck:
+      test: ['CMD-SHELL', 'cat /var/run/indexer-standalone/running']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    depends_on:
+      node:
+        condition: service_healthy
+
+  node:
+    image: 'midnightntwrk/midnight-node:0.22.3'
+    container_name: 'counter-node'
+    ports:
+      - "9944:9944"
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9944/health']
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    environment:
+      CFG_PRESET: 'dev'
+      SIDECHAIN_BLOCK_BENEFICIARY: '04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e'
+```
+
+Create `counter-cli/standalone.env.example`
+
+```env title="counter-cli/standalone.env.example"
+# Environment variables for the standalone indexer container.
+# These are dev defaults for local use only.
+
+APP__INFRA__NODE__URL=ws://node:9944
+APP__INFRA__STORAGE__PASSWORD=indexer
+APP__INFRA__PUB_SUB__PASSWORD=indexer
+APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD=indexer
+APP__INFRA__SECRET=303132333435363738393031323334353637383930313233343536373839303132
+```
 </TabItem>
 </Tabs>
 
 Create `counter-cli/src/index.ts`:
 
 ```typescript title="counter-cli/src/index.ts"
-export * from './api';
-export * from './cli';
+export * from './api.js';
+export * from './cli.js';
 ```
 
 The entry point initializes the logger and configuration, then launches the CLI. The index file provides a clean export interface for the package.
