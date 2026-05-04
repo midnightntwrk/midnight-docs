@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function hashToCurve<A>(rtType, x): JubjubPoint;
 ```
 
-The Compact builtin `hash_to_curve` function
+The Compact builtin `hashToCurve` function
 
 This function maps arbitrary values representable in Compact to elliptic
 curve points in the proof system's embedded curve.

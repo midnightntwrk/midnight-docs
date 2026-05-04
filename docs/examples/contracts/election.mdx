@@ -14,7 +14,7 @@ This Compact contract implements an election that occurs between two candidates 
 - Dapp specific public key function that keeps users from being tracked outside this dapp
 
 ```compact
-pragma language_version 0.22;
+pragma language_version 0.23;
 import CompactStandardLibrary;
 
 export enum VotingState {
@@ -22,6 +22,7 @@ export enum VotingState {
     OPEN
 }
 
+// are there other choices?
 export enum VoteChoice {
     BAD,
     WORSE,
@@ -29,7 +30,7 @@ export enum VoteChoice {
 }
 
 // sealed ledger values cannot be changed after constructor execution
-export sealed ledger organizer: ZswapCoinPublicKey;
+export sealed ledger organizer: Bytes<32>;
 export sealed ledger candidate0: Opaque<"string">;
 export sealed ledger candidate1: Opaque<"string">;
 export ledger votingState: VotingState;
@@ -44,24 +45,29 @@ witness localGetVote(): VoteChoice;
 witness localSk(): Bytes<32>;
 
 constructor(candidateA: Opaque<"string">, candidateB: Opaque<"string">) {
-    organizer = ownPublicKey();
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    organizer = pubKey;
     candidate0 = disclose(candidateA);
     candidate1 = disclose(candidateB);
     votingState = VotingState.CLOSED;
+    // open to register to vote
 }
 
 // should be available time based
 export circuit registerToVote(): [] {
     const _sk = localSk();
-    const dappPublicKey = getDappPublicKey(_sk);
-    assert(!registeredVoters.member(disclose(dappPublicKey)), "You are already registered to vote");
+    const pubKey = getDappPubKey(_sk);
+    assert(!registeredVoters.member(pubKey), "You are already registered to vote");
     assert(votingState == VotingState.CLOSED, "You can only register before voting starts");
 
-    registeredVoters.insert(disclose(dappPublicKey));
+    registeredVoters.insert(pubKey);
 }
 
 export circuit openVoting(): [] {
-    assert(organizer == ownPublicKey(), "You are not the organizer");
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    assert(organizer == pubKey, "You are not the organizer");
     assert(votingState == VotingState.CLOSED, "Voting has already been openend");
     assert(!registeredVoters.isEmpty(), "There are no registered voters");
     
@@ -71,15 +77,15 @@ export circuit openVoting(): [] {
 export circuit commitVote(): [] {
     assert(votingState == VotingState.OPEN, "Voting has not opened yet");
     const _sk = localSk();
-    const dappPublicKey = getDappPublicKey(_sk);
-    assert(registeredVoters.member(dappPublicKey), "You are not registered to vote.");
-    assert(!hashedVoteMap.member(dappPublicKey), "Attempt to double vote");
+    const pubKey = getDappPubKey(_sk);
+    assert(registeredVoters.member(pubKey), "You are not registered to vote.");
+    assert(!hashedVoteMap.member(pubKey), "Attempt to double vote");
     const _currentVote = localGetVote();
     assert(_currentVote == VoteChoice.BAD || _currentVote == VoteChoice.WORSE, "Please provide a valid vote");
 
 
     const hash = commitWithSk(_currentVote as Field as Bytes<32>, _sk);
-    hashedVoteMap.insert(dappPublicKey, hash);
+    hashedVoteMap.insert(pubKey, hash);
     totalVoteCount.increment(1);
 }
 
@@ -88,16 +94,17 @@ export circuit revealVote(): [] {
     assert(votingState == VotingState.CLOSED, "Voting is still open");
 
     const _sk = localSk();
-    const dappPublicKey = getDappPublicKey(_sk);
+    const pubKey = getDappPubKey(_sk);
     // we want to check that they have already voted..
-    assert(hashedVoteMap.member(dappPublicKey), "You have not voted yet");
-    assert(registeredVoters.member(dappPublicKey), "You are not a registered voter");
+    assert(hashedVoteMap.member(pubKey), "You have not voted yet");
+    assert(registeredVoters.member(pubKey), "You are not a registered voter");
     
     const vote = localGetVote();
     assert(vote == VoteChoice.BAD || vote == VoteChoice.WORSE, "Please supply a valid vote");
 
+    // here is the money
     const hashedVote = commitWithSk(vote as Field as Bytes<32>, _sk);
-    assert(hashedVoteMap.lookup(dappPublicKey) == hashedVote, "Attempt to change the vote!");
+    assert(hashedVoteMap.lookup(pubKey) == hashedVote, "Attempt to change the vote!");
 
     if(disclose(vote) == VoteChoice.BAD){
         candidate0VoteCounter.increment(1);
@@ -108,13 +115,17 @@ export circuit revealVote(): [] {
 
 // should be time based
 export circuit closeVoting(): [] {
-    assert(organizer == ownPublicKey(), "You are not the organizer");
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    assert(organizer == pubKey, "You are not the organizer");
     assert(!hashedVoteMap.isEmpty(), "You can't close the voting with no votes");
     votingState = VotingState.CLOSED;
 }
 
 export circuit checkWinner(): [] {
-    assert(organizer == ownPublicKey(), "You are not an organizer");
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    assert(organizer == pubKey, "You are not an organizer");
     assert(votingState == VotingState.CLOSED, "Voting is still open");
 
     // check for a winner
@@ -133,7 +144,7 @@ circuit commitWithSk(_vote: Bytes<32>, _sk: Bytes<32>) : Bytes<32> {
 }
 
 // hash a random "public key" that is only traceable in this dapp
-export circuit getDappPublicKey(_sk: Bytes<32>): Bytes<32> {
+circuit getDappPubKey(_sk: Bytes<32>): Bytes<32> {
   return disclose(persistentHash<Vector<2, Bytes<32>>>([pad(32, "election:pk:"), _sk]));
 }
 ```

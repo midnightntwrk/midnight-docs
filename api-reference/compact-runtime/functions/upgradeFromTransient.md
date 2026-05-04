@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
 
 ***
 
@@ -10,7 +10,7 @@
 function upgradeFromTransient(x): Uint8Array;
 ```
 
-The Compact builtin `upgrade_from_transient` function
+The Compact builtin `upgradeFromTransient` function
 
 This function "upgrades" the output of a [transientHash](transientHash.md) or
 [transientCommit](transientCommit.md) to 256-bit byte string, which can then be used in
