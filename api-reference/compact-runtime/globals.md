@@ -1,8 +1,8 @@
-[**@midnight-ntwrk/compact-runtime v0.15.0**](README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0**](README.md)
 
 ***
 
-# @midnight-ntwrk/compact-runtime v0.15.0
+# @midnight-ntwrk/compact-runtime v0.16.0
 
 ## Classes
 
