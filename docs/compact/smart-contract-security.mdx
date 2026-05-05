@@ -9,7 +9,7 @@ tags: [security]
 
 # Smart contract security
 
-Compact smart contracts on Midnight combine privacy-preserving computation with cryptographic guarantees. The compiler enforces certain rules and restrictions, but much of the responsibility for secure contract interaction is up to the developer writing the smart contract. For this reason, it is very important for smart contract developers to understand common pitfalls and adhere to security best practices.  
+Compact smart contracts on Midnight combine privacy-preserving computation with cryptographic guarantees. The compiler enforces certain rules and restrictions, but much of the responsibility for secure contract interaction is up to the developer implementing the smart contract. For this reason, it is very important for smart contract developers to understand common pitfalls and adhere to security best practices.  
 
 ## Security model overview
 
@@ -87,7 +87,17 @@ Witness implementations run outside zero-knowledge circuits and are *not* crypto
 
 :::
 
-It is best practice for DApp developers to isolate functions requiring access to private state to witnesses, but this is not enforced programatically. Due to the strong adherance to the "private by default" model, private state data can also be supplied directly to circuit inputs and still remain private.
+It is best practice for DApp developers to isolate functions requiring access to private state to witnesses, but this is not enforced programatically. Due to the strong adherance to the "private by default" model, private state data can also be supplied directly to circuit inputs(internal or exported) and still remain private.
+
+### ownPublicKey() is a witness function
+
+The built-in Compact function `ownPublicKey()` returns the Zswap coin public key of the user executing the circuit, however, it is technically a witness function. `ownPublicKey()` cannot be trusted without prior verification of the caller and especially not as a caller verification mechanism. 
+
+::: Warning
+
+Do not use `ownPublicKey()` for verification of the caller in Compact circuits! It should only be used after the caller has already been verified through another mechanism.
+
+:::
 
 ## Privacy-preserving fundamentals
 
@@ -130,24 +140,6 @@ Prefacing identifier names intended to remain private with an underscore is a be
 `disclose()` itself *does not* make a value public, it serves to notify the compiler that this value is safe to store publicly and bypass the private by default mechanism.
 :::
 
-### Best practice: Minimize disclosure
-
-Only disclose the minimum data necessary for your contract logic:
-@TODO -- update persistentCommit here to persistentHash
-```compact
-// ✅ Good: Disclose only what's needed
-export circuit vote(_choice: Uint<8>): [] {
-  const _sk = secretKey();
-  const commitment = persistentCommit(_choice, _sk);
-  votes.insert(disclose(commitment));  // Commitment disclosed, not choice
-}
-
-// ❌ Bad: Unintentional disclosure
-export circuit vote(choice: Uint<8>): [] {
-  const _sk = secretKey();
-  votes.insert(persistentCommit(_choice, _sk));  // choice and sk may be leaked
-}
-```
 
 ### Best practice: Place disclose() strategically
 
@@ -277,7 +269,7 @@ circuit nullifier(sk: Bytes<32>): Bytes<32> {
 
 ## Input validation and access control
 
-Compact contracts should validate all inputs and enforce authorization for circuit execution. *This is a very important responsibility that lies with the Compact developer.* A particular circuits access control is only as good as the developer makes it. 
+Compact contracts should validate all inputs and enforce authorization for circuit execution when required by the use case. *This is a very important responsibility that lies with the Compact developer.* A particular circuits access control is only as good as the developer makes it. 
 
 The language provides built-in mechanisms for enabling these security features.
 
@@ -382,6 +374,12 @@ export circuit authorizedOperation(newLedgerValue: Bytes<32>): [] {
 ```
 
 To break the linkability of transactions, include a round counter in the hashing function of `publicKey` that makes the public key only valid for the desired chain of calls. This requires calling `publicKey` at the start of the chain and incrementing the counter at the end, invalidating the old public key. For an example of this pattern, see [Writing a contract](./reference/writing#the-full-contract).
+
+:::warning ownPublicKey
+
+Never use `ownPublicKey()` for verification of the caller of a particular Compact circuit. `ownPublicKey()` is technically a witness function and each user frontend is capable of producing a malicious return from an `ownPublicKey()` call. Only use this function after the caller has already been verified.
+
+:::
 
 ## Testing and validation
 
