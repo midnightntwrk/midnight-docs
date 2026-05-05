@@ -1,9 +1,11 @@
-[**@midnight-ntwrk/testkit-js v4.0.2**](README.md)
+[**@midnight-ntwrk/testkit-js v4.0.4**](README.md)
 
 ***
 
 ## Classes
 
+- [DAppConnectorInitialAPI](classes/DAppConnectorInitialAPI.md)
+- [DAppConnectorWalletAdapter](classes/DAppConnectorWalletAdapter.md)
 - [DynamicProofServerContainer](classes/DynamicProofServerContainer.md)
 - [EnvVarRemoteTestEnvironment](classes/EnvVarRemoteTestEnvironment.md)
 - [FaucetClient](classes/FaucetClient.md)
@@ -54,6 +56,7 @@
 
 ## Functions
 
+- [buildUrlWithPath](functions/buildUrlWithPath.md)
 - [createDefaultTestLogger](functions/createDefaultTestLogger.md)
 - [createLogger](functions/createLogger.md)
 - [delay](functions/delay.md)
@@ -64,7 +67,6 @@
 - [expectSuccessfulCallTx](functions/expectSuccessfulCallTx.md)
 - [expectSuccessfulDeployTx](functions/expectSuccessfulDeployTx.md)
 - [expectSuccessfulTxData](functions/expectSuccessfulTxData.md)
-- [extractHostnameAndPort](functions/extractHostnameAndPort.md)
 - [getContainersConfiguration](functions/getContainersConfiguration.md)
 - [getDustSeed](functions/getDustSeed.md)
 - [getInitialShieldedState](functions/getInitialShieldedState.md)

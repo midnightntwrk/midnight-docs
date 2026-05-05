@@ -2,14 +2,18 @@
 
 ***
 
-> **getDustSeed**(`seed`): `Uint8Array`
+> **buildUrlWithPath**(`baseUrl`, `urlPath`): `string`
 
 ## Parameters
 
-### seed
+### baseUrl
+
+`string`
+
+### urlPath
 
 `string`
 
 ## Returns
 
-`Uint8Array`
+`string`
