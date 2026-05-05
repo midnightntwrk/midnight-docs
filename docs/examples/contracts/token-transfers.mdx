@@ -1,0 +1,83 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Token Transfers"
+sidebar_position: 2
+title: Shielded and Unshielded Token Transfers
+description: Token transfer examples
+toc_max_heading_level: 2
+---
+
+This Compact contract implements send, receive and mint functions for tokens in Compact. It offers demonstration of the following features:
+- Minting and receiving unshielded tokens to the contract
+- Sending unshielded tokens to a user
+- Receiving unshielded tokens
+- Night token operations
+- Shielded token operations
+
+```compact
+import CompactStandardLibrary;
+
+
+// Mint using mintUnshieldedToken() + receiveUnshielded()
+export circuit mintAndReceive(amount: Uint<64>): Bytes<32> {
+    const domain = pad(32, "simple:receive");
+
+    const color = mintUnshieldedToken(
+        disclose(domain),
+        disclose(amount),
+        left<ContractAddress, UserAddress>(kernel.self())
+    );
+
+    return color;
+}
+
+
+// Send to user address
+export circuit sendToUser(amount: Uint<64>, user_addr: UserAddress): [] {
+    const domain = pad(32, "simple:receive");
+    const color = tokenType(disclose(domain), kernel.self());
+
+    sendUnshielded(
+        color,
+        disclose(amount) as Uint<128>,
+        right<ContractAddress, UserAddress>(disclose(user_addr))
+    );
+}
+
+export circuit receiveTokens(amount: Uint<128>): [] {
+    const domain = pad(32, "simple:receive");
+    const color = tokenType(domain, kernel.self());
+    receiveUnshielded(color, disclose(amount));
+}
+
+export circuit receiveNightTokens(amount: Uint<128>): [] {
+   receiveUnshielded(default<Bytes<32>>, disclose(amount));
+}
+
+export circuit sendNightTokensToUser(amount: Uint<64>, user_addr: UserAddress): [] {
+    sendUnshielded(
+        default<Bytes<32>>,
+        disclose(amount) as Uint<128>,
+        right<ContractAddress, UserAddress>(disclose(user_addr))
+    );
+}
+
+export circuit receiveShieldedTokens(coin: ShieldedCoinInfo): [] {
+   receiveShielded(disclose(coin));
+}
+
+export circuit sendShieldedToUser(input: QualifiedShieldedCoinInfo, publicKey: ZswapCoinPublicKey, value: Uint<128>): ShieldedSendResult {
+  return sendShielded(disclose(input), left<ZswapCoinPublicKey, ContractAddress>(disclose(publicKey)), disclose(value));
+}
+
+export circuit mintShieldedToSelf(domainSep: Bytes<32>, value: Uint<64>, nonce: Bytes<32>): ShieldedCoinInfo {
+  return mintShieldedToken(disclose(domainSep), disclose(value), disclose(nonce), right<ZswapCoinPublicKey, ContractAddress>(kernel.self()));
+}
+
+export circuit mintAndSendShielded(domainSep: Bytes<32>, mintValue: Uint<64>, mintNonce: Bytes<32>, publicKey: ZswapCoinPublicKey, sendValue: Uint<128>): ShieldedSendResult {
+  const coin = mintShieldedToken(disclose(domainSep), disclose(mintValue), disclose(mintNonce), right<ZswapCoinPublicKey, ContractAddress>(kernel.self()));
+  const qualified = QualifiedShieldedCoinInfo { nonce: coin.nonce, color: coin.color, value: coin.value, mt_index: 0 as Uint<64> };
+  return sendShielded(qualified, left<ZswapCoinPublicKey, ContractAddress>(disclose(publicKey)), disclose(sendValue));
+}
+```

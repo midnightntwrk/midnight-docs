@@ -20,7 +20,7 @@ import {
   mainnet,
 } from '@midnight-ntwrk/wallet-sdk-address-format';
 import type { NetworkId } from '@midnight-ntwrk/wallet-sdk-address-format';
-import * as ledger from '@midnight-ntwrk/ledger-v7';
+import * as ledger from '@midnight-ntwrk/ledger-v8';
 
 const networkId: NetworkId = 'undeployed';
 

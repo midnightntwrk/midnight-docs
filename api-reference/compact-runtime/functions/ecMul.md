@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
 
 ***
 
@@ -7,10 +7,10 @@
 # Function: ecMul()
 
 ```ts
-function ecMul(a, b): NativePoint;
+function ecMul(a, b): JubjubPoint;
 ```
 
-The Compact builtin `ec_mul` function
+The Compact builtin `ecMul` function
 
 This function multiplies an elliptic curve point by a scalar (in
 multiplicative notation)
@@ -19,7 +19,7 @@ multiplicative notation)
 
 ### a
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)
 
 ### b
 
@@ -27,4 +27,4 @@ multiplicative notation)
 
 ## Returns
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)

@@ -34,26 +34,7 @@ function useNavbarItems() {
 }
 
 function useFilteredNavbarItems(items) {
-  // Try to get the active doc context (will be null on non-doc pages)
-  let activeDocContext = null;
-  try {
-    activeDocContext = useActiveDocContext('main'); // 'main' is your versioned plugin ID
-  } catch (e) {
-    // Not on a doc page, show all items
-  }
-  
-  const activeVersion = activeDocContext?.activeVersion?.name;
-  
-  // Filter items based on version
-  return items.filter(item => {
-    // If it's the Compact link
-    if (item.to === '/compact') {
-      // Only show on v0.0.0, hide on current (Canary)
-      return activeVersion === '0.0.0';
-    }
-    // Show all other items
-    return true;
-  });
+  return items;
 }
 
 function NavbarItems({ items }) {

@@ -17,7 +17,6 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
     version: '0.4.0',
     status: 'LATEST',
     date: '21 January 2026',
@@ -34,7 +33,6 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-4-0',
   },
   {
-    id: 2,
     version: '0.3.0',
     status: 'UNSUPPORTED',
     date: '5 December 2025',
@@ -48,7 +46,6 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-3-0',
   },
   {
-    id: 3,
     version: '0.2.0',
     status: 'UNSUPPORTED',
     date: '15 August 2025',
@@ -63,7 +60,6 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-2-0',
   },
   {
-    id: 4,
     version: '0.1.0',
     status: 'UNSUPPORTED',
     date: '31 July 2025',
@@ -77,6 +73,10 @@ const releases = [
     link: '/relnotes/compact-tools/compact-tools-0-1-0',
   },
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Sort versions (latest first)
 const sortedVersions = releases

@@ -1,7 +1,7 @@
 # <component><version> (Example: Midnight.js 3.1.0)
  
 * **Date**: YYYY-MM-DD
-* **Environment**: All public networks at time of release. For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/next/relnotes/overview).
+* **Environment**: All public networks at time of release. For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/relnotes/overview).
 
 ## High-level summary
 

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
@@ -11,6 +11,7 @@ type CallContext: {
   balance: Map<TokenType, bigint>;
   caller: PublicAddress;
   comIndices: Map<CoinCommitment, number>;
+  lastBlockTime: bigint;
   ownAddress: ContractAddress;
   parentBlockHash: string;
   secondsSinceEpoch: bigint;
@@ -45,6 +46,14 @@ comIndices: Map<CoinCommitment, number>;
 ```
 
 The commitment indices map accessible to the contract.
+
+### lastBlockTime
+
+```ts
+lastBlockTime: bigint;
+```
+
+The [secondsSinceEpoch](CallContext.md#secondssinceepoch) of the previous block
 
 ### ownAddress
 

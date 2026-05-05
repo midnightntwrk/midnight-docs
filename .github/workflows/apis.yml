@@ -10,7 +10,7 @@ on:
         description: 'Component docs to update'
         type: choice
         options:
-          - compactc
+          - compact
           - dapp-connector
           - midnight-indexer
           - ledger
@@ -18,9 +18,9 @@ on:
           - testkit-js
           - wallet
           - onchain-runtime
-      branch_compactc:
-        description: 'Compactc branch'
-        default: 'testnet'
+      branch_compact:
+        description: 'Compact branch'
+        default: 'main'
       branch_dapp_connector:
         description: 'DApp Connector branch'
         default: 'main'
@@ -32,7 +32,7 @@ on:
         default: 'ledger-7.0.0'
       branch_indexer:
         description: 'Midnight Indexer branch'
-        default: 'v3.0.0'
+        default: 'v4.0.0'
       branch_wallet:
         description: 'Wallet branch'
         default: 'main'
@@ -42,6 +42,9 @@ on:
       branch_onchain_runtime:
         description: 'Onchain Runtime branch'
         default: 'onchain-runtime-2.0.1'
+      indexer_schema_version:
+        description: 'Indexer schema version'
+        default: 'v4'
 
 permissions:
   contents: write
@@ -64,36 +67,30 @@ jobs:
           git config --global user.name "Midnight CI GitHub Action"
           git config --global url.https://${{ secrets.GH_TOKEN }}@github.com/.insteadOf https://github.com/
 
-      - name: Clone compactc repo
-        if: ${{ github.event.inputs.component == 'compactc' }}
+      - name: Clone compact repo
+        if: ${{ github.event.inputs.component == 'compact' }}
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_compactc }} https://github.com/midnightntwrk/compactc.git
+          git clone --branch "$BRANCH_COMPACT" https://github.com/LFDT-Minokawa/compact
+        env:
+          BRANCH_COMPACT: ${{ github.event.inputs.branch_compact }}
 
       - name: Clone ledger repo
         if: ${{ github.event.inputs.component == 'ledger' }}
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_ledger }} https://github.com/midnightntwrk/midnight-ledger.git
-
-      - name: Update compact-runtime
-        if: ${{ github.event.inputs.component == 'compactc' }}
-        run: |
-          DEST_DIR=api-reference/compact-runtime
-          SRC_DIR=temp/compactc/doc/api/runtime
-          rm -rf ${DEST_DIR} || true
-          mkdir ${DEST_DIR}
-          cp -r ${SRC_DIR}/* ${DEST_DIR}
-          echo -e "# Compact runtime API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
+          git clone --branch "$BRANCH_LEDGER" https://github.com/midnightntwrk/midnight-ledger.git
+        env:
+          BRANCH_LEDGER: ${{ github.event.inputs.branch_ledger }}
 
       - name: Update DApp connector
         if: ${{ github.event.inputs.component == 'dapp-connector' }}
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_dapp_connector }} https://github.com/midnightntwrk/midnight-dapp-connector-api.git
+          git clone --branch "$BRANCH_DAPP_CONNECTOR" https://github.com/midnightntwrk/midnight-dapp-connector-api.git
           cd ..
           DEST_DIR=api-reference/dapp-connector
           SRC_DIR=temp/midnight-dapp-connector-api/docs/api
@@ -109,6 +106,8 @@ jobs:
           if [ -f ./temp/backup-readme.md ]; then
             cp ./temp/backup-readme.md ${DEST_DIR}/README.md
           fi
+        env:
+          BRANCH_DAPP_CONNECTOR: ${{ github.event.inputs.branch_dapp_connector }}
 
       - name: Update ledger
         if: ${{ github.event.inputs.component == 'ledger' }}
@@ -125,7 +124,7 @@ jobs:
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_midnight_js }} https://github.com/midnightntwrk/midnight-js.git
+          git clone --branch "$BRANCH_MIDNIGHT_JS" https://github.com/midnightntwrk/midnight-js.git
           cd ..
           DEST_DIR=api-reference/midnight-js
           SRC_DIR=temp/midnight-js/docs/api/midnight-js
@@ -133,13 +132,15 @@ jobs:
           mkdir ${DEST_DIR}
           cp -r ${SRC_DIR}/* ${DEST_DIR}
           echo -e "# Midnight JS API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
+        env:
+          BRANCH_MIDNIGHT_JS: ${{ github.event.inputs.branch_midnight_js }}
 
       - name: Update testkit-js
         if: ${{ github.event.inputs.component == 'testkit-js' }}
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_midnight_js }} https://github.com/midnightntwrk/midnight-js.git
+          git clone --branch "$BRANCH_MIDNIGHT_JS" https://github.com/midnightntwrk/midnight-js.git
           cd ..
           DEST_DIR=api-reference/testkit-js
           SRC_DIR=temp/midnight-js/docs/api/testkit-js
@@ -147,36 +148,44 @@ jobs:
           mkdir ${DEST_DIR}
           cp -r ${SRC_DIR}/* ${DEST_DIR}
           echo -e "# Testkit JS API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
+        env:
+          BRANCH_MIDNIGHT_JS: ${{ github.event.inputs.branch_midnight_js }}
 
       - name: Update midnight-indexer
         if: ${{ github.event.inputs.component == 'midnight-indexer' }}
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_indexer }} https://github.com/midnightntwrk/midnight-indexer.git
+          git clone --branch "$BRANCH_INDEXER" https://github.com/midnightntwrk/midnight-indexer.git
           cd ..
+          INDEXER_SCHEMA_VERSION="$INDEXER_SCHEMA_VERSION"
           DEST_DIR=api-reference/midnight-indexer
-          SRC_DIR=temp/midnight-indexer/docs/api/v3
+          SRC_DIR=temp/midnight-indexer/docs/api/${INDEXER_SCHEMA_VERSION}
           STATIC_DIR=static/midnight-indexer
           rm -rf ${DEST_DIR} || true
           mkdir ${DEST_DIR}
           cp -r ${SRC_DIR}/* ${DEST_DIR}
           mv ${DEST_DIR}/api-documentation.md ${DEST_DIR}/README.md
-          sed -E -i 's|\[\`indexer-api/graphql/schema-v3\.graphql\`\]\(.*\)|[midnight-indexer-api-schema](pathname:///midnight-indexer/schema-v3.graphql)|g' ${DEST_DIR}/README.md
-          cp temp/midnight-indexer/indexer-api/graphql/schema-v3.graphql ${STATIC_DIR}
+          sed -E -i 's|\[\`indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}\.graphql\`\]\(.*\)|[midnight-indexer-api-schema](pathname:///midnight-indexer/schema-${INDEXER_SCHEMA_VERSION}.graphql)|g' ${DEST_DIR}/README.md
+          cp temp/midnight-indexer/indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}.graphql ${STATIC_DIR}
+        env:
+          BRANCH_INDEXER: ${{ github.event.inputs.branch_indexer }}
+          INDEXER_SCHEMA_VERSION: ${{ github.event.inputs.indexer_schema_version }}
 
       - name: Update wallet
         if: ${{ github.event.inputs.component == 'wallet' }}
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_wallet }} https://github.com/midnightntwrk/midnight-wallet.git
+          git clone --branch "$BRANCH_WALLET" https://github.com/midnightntwrk/midnight-wallet.git
           cd ..
           DEST_DIR=static/midnight-wallet/snippets
           SRC_DIR=temp/midnight-wallet/packages/docs-snippets/src/snippets
           rm -rf ${DEST_DIR} || true
           mkdir -p ${DEST_DIR}
           cp -r ${SRC_DIR}/* ${DEST_DIR}
+        env:
+          BRANCH_WALLET: ${{ github.event.inputs.branch_wallet }}
 
       - name: Inject H1 header into midnight-js packages
         if: ${{ github.event.inputs.component == 'midnight-js' }}
@@ -199,7 +208,7 @@ jobs:
         run: |
           mkdir ./temp
           cd temp
-          git clone --branch ${{ github.event.inputs.branch_onchain_runtime }} https://github.com/midnightntwrk/midnight-ledger.git
+          git clone --branch "$BRANCH_ONCHAIN_RUNTIME" https://github.com/midnightntwrk/midnight-ledger.git
           cd ..
           DEST_DIR=api-reference/onchain-runtime
           SRC_DIR=temp/midnight-ledger/docs/api/midnight-onchain-runtime
@@ -207,33 +216,35 @@ jobs:
           mkdir ${DEST_DIR}
           cp -r ${SRC_DIR}/* ${DEST_DIR}
           echo -e "# Onchain Runtime API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
+        env:
+          BRANCH_ONCHAIN_RUNTIME: ${{ github.event.inputs.branch_onchain_runtime }}
 
       - name: Update Compact standard library
-        if: ${{ github.event.inputs.component == 'compactc' }}
+        if: ${{ github.event.inputs.component == 'compact' }}
         run: |
           DEST_DIR=docs/compact/standard-library
-          SRC_DIR=temp/compactc/doc/api/CompactStandardLibrary
+          SRC_DIR=temp/doc/api/CompactStandardLibrary
           rm -rf ${DEST_DIR} || true
           mkdir ${DEST_DIR}
           cp -r ${SRC_DIR}/* ${DEST_DIR}
           echo -e "# Compact standard library\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
 
-      - name: Update static assets from compactc
-        if: ${{ github.event.inputs.component == 'compactc' }}
+      - name: Update static assets from compact
+        if: ${{ github.event.inputs.component == 'compact' }}
         run: |
           DEST_DIR=static/language
-          SRC_1=temp/compactc/doc/Compact.html
-          SRC_2=temp/compactc/doc/ledger-adt.mdx
+          SRC_1=temp/compact/doc/Compact.html
+          SRC_2=temp/doc/ledger-adt.mdx
           rm -rf ${DEST_DIR} || true
           mkdir ${DEST_DIR}
           cp -r ${SRC_1} ${DEST_DIR}/compact.html
           cp -r ${SRC_2} ${DEST_DIR}/ledger-adt.mdx
 
       - name: Update compiler usage
-        if: ${{ github.event.inputs.component == 'compactc' }}
+        if: ${{ github.event.inputs.component == 'compact' }}
         run: |
           DEST=docs/compact/compilation-and-tooling/compiler-usage.mdx
-          SRC=temp/compactc/doc/compiler-usage.md
+          SRC=temp/doc/compiler-usage.md
           cp -r ${SRC} ${DEST}
 
       - name: Add changes
@@ -270,6 +281,8 @@ jobs:
       - name: Create a PR
         if: ${{ steps.prep.outputs.UPDATE == 'true' }}
         run: |
-            gh pr create --base ${{ github.event.inputs.branch_merge }} --title 'Merge API documentation from ${{ github.event.inputs.component }}' --body 'Merging API documentation - created by Midnight CI Github Action'
+            gh pr create --base "$BRANCH_MERGE" --title 'Merge API documentation from "$COMPONENT"' --body 'Merging API documentation - created by Midnight CI Github Action'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          BRANCH_MERGE: ${{ github.event.inputs.branch_merge }}
+          COMPONENT: ${{ github.event.inputs.component }}

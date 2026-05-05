@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
@@ -8,6 +8,7 @@
 
 ```ts
 type BlockContext: {
+  lastBlockTime: bigint;
   parentBlockHash: string;
   secondsSinceEpoch: bigint;
   secondsSinceEpochErr: number;
@@ -17,6 +18,14 @@ type BlockContext: {
 Context information about the block forwarded to [CallContext](CallContext.md).
 
 ## Type declaration
+
+### lastBlockTime
+
+```ts
+lastBlockTime: bigint;
+```
+
+The [secondsSinceEpoch](BlockContext.md#secondssinceepoch) of the previous block
 
 ### parentBlockHash
 

@@ -1,8 +1,8 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.0.4**](../README.md)
 
 ***
 
-> **waitForFunds**(`wallet`, `env`, `tokenType?`, `fundFromFaucet?`): `Promise`\<`bigint` \| `FacadeState`\>
+> **waitForFunds**(`wallet`, `env`, `tokenType?`, `fundFromFaucet?`): `Promise`\<`bigint`\>
 
 ## Parameters
 
@@ -24,4 +24,4 @@
 
 ## Returns
 
-`Promise`\<`bigint` \| `FacadeState`\>
+`Promise`\<`bigint`\>

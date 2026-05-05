@@ -17,11 +17,48 @@ import { useLocation } from '@docusaurus/router';
 
 
 // CURRENT releases (shown on Canary/next and future versions)
-const currentReleases = [
+const releases = [
   {
-    id: 1,
-    version: '1.0.0',
+    version: '3.0.0',
     status: 'LATEST',
+    date: '20 March 2026',
+    summary: 'Summary of v3.0.0',
+    details: [
+      "Fee calculation split into `calculateFee` (transaction-only) and `estimateFee` (wallet-aware, includes balancing cost)",
+      "Updated to ledger v8 across the SDK",
+      "New `WalletFacade.fetchTermsAndConditions()` static method for retrieving network Terms and Conditions",
+      "New `QueryRunner.runPromise()` utility for executing GraphQL queries as plain Promises",
+      "`SecretKeysResource` in shielded and dust wallets now clears keys from memory after use",
+      "Shielded wallet now clears pending coins on transaction failure",
+      "Improved error messages for invalid transaction submission and balancing failures"
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk-facade/v/3.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-3-0-0',
+  },
+  {
+    version: '2.0.0',
+    status: 'UNSUPPORTED',
+    date: '10 March 2026',
+    summary: 'Summary of v2.0.0',
+    details: [
+      "Proving extracted into standalone `ProvingService` supporting server (HTTP), WASM, and simulator modes",
+      "Transaction submission extracted into standalone `SubmissionService`",
+      "New `PendingTransactionsService` monitors TTL/status and automatically reverts failed transactions",
+      "`WalletFacade` initialization changed to static async `WalletFacade.init()`",
+      "Wallet APIs standardized across shielded, unshielded, and dust wallets (renames and new methods)",
+      "`SyncProgress` moved to `wallet-sdk-abstractions` for shared use across wallet types",
+      "WASM proving provider available via Web Worker"
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk-facade/v/2.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-2-0-0',
+  },
+  {
+    version: '1.0.0',
+    status: 'UNSUPPORTED',
     date: '28 January 2026',
     summary: 'Summary of v1.0.0',
     details: [
@@ -38,63 +75,11 @@ const currentReleases = [
     ],
     link: '/relnotes/wallet/wallet-1-0-0',
   },
-  // Future releases will go here (1.0.1, 1.1.0, etc.)
 ];
 
-const legacyReleases = [
-  {
-    id: 1,
-    version: '5.0.0',
-    status: 'UNSUPPORTED',
-    date: '12 May 2025',
-    summary: 'Summary of 5.0.0',
-    details: [
-      "BLS Support.",
-      "New sync progress API.",
-      "Bech32m viewing key support only."
-    ],
-    artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/5.0.0' },
-    ],
-    link: '/relnotes/wallet/wallet-5-0-0',
-  },
-  {
-    id: 2,
-    version: '4.0.0',
-    status: 'DEPRECATED',
-    date: '2 April 2025',
-    summary: 'Summary of 4.0.0',
-    details: [
-      "Secret Keys separated from state.",
-      "Bech32m address format.",
-      "HD Wallet.",
-      "Midnight Indexer API support.",
-      "New transaction balancer.",
-      "Indexer URL full path required.",
-      "Proving retries.",
-      "Ledger key derivation."
-    ],
-    artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/4.0.0' },
-    ],
-    link: '/relnotes/wallet/wallet-4-0-0',
-  },
-  {
-    id: 3,
-    version: '3.7.5',
-    status: 'DEPRECATED',
-    date: '3 February 2025',
-    summary: 'Summary of 3.7.5',
-    details: [
-      "Zswap 3.0.6 support.",
-      "Bug fixes & improvements."
-    ],
-    artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet/v/3.7.5' },
-    ],
-    link: '/relnotes/wallet/wallet-3-7-5',
-  },
-];
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Helper to determine which release set to use
 function getVersionPrefix(pathname) {
@@ -114,7 +99,6 @@ const DynamicListWithDropdownFilters = () => {
   
   // Show currentReleases only on /next/, otherwise show legacyReleases
   // const releases = docsVersion === 'next' ? currentReleases : legacyReleases;
-  const releases = currentReleases;
   
   // Add version prefix to all release links
   const versionedReleases = releases.map(release => ({

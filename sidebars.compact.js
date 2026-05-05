@@ -8,9 +8,9 @@ const sidebars = {
       link: { type: "doc", id: "index" },
       items: [
         "writing",               // docs/develop/reference/compact/writing.md(x)
-        "lang-ref",              // docs/develop/reference/compact/lang-ref.md(x)
+        "compact-reference",     // docs/develop/reference/compact/compact-reference.md(x)
         "compact-grammar",       // docs/develop/reference/compact/compact-grammar.md(x)
-        "all-keywords",          // docs/develop/reference/compact/all-keywords.md(x)
+        "compact-keywords",      // docs/develop/reference/compact/compact-keywords.md(x)
         "ledger-adt",            // docs/develop/reference/compact/ledger-adt.md(x)
         "opaque_data",           // docs/develop/reference/compact/opaque_data.md(x)
         "explicit-disclosure",   // docs/develop/reference/compact/explicit-disclosure.md(x)
