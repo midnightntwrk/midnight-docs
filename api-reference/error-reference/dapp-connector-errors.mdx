@@ -1,0 +1,77 @@
+---
+title: DApp Connector API errors
+description: Error codes returned by the Midnight DApp Connector API when a DApp interacts with a wallet.
+sidebar_position: 20
+sidebar_label: DApp Connector errors
+tags: [error reference, api reference, dapp connector]
+toc_max_heading_level: 3
+---
+
+# DApp Connector API errors
+
+The Midnight DApp Connector is the browser-based API that connects DApps to supported wallets such as Lace and 1AM.
+
+This reference covers the error codes that the DApp Connector API returns when a DApp interacts with the wallet. 
+Errors surface as `APIError` objects with a `type` field, not as `instanceof` checks. Always use `error.type === 'DAppConnectorAPIError'` to identify them.
+
+## Error codes (v4.0.x)
+
+The following error codes are available in the current version of the DApp Connector API.
+
+| Code | Description | Scope | Fix |
+|------|-------------|-------|-----|
+| `Disconnected` | Connection to the wallet was lost mid-session | Session-level | Re-establish the connection by calling `enable()` again |
+| `InternalError` | Connector could not process the request internally | Internal | Retry the operation; check Lace wallet logs and update the wallet extension if needed |
+| `InvalidRequest` | Malformed transaction or invalid request parameters | Client error | Verify the transaction structure; check parameter types and formats |
+| `PermissionRejected` | Users have set a session-level preference to deny this DApp | Persistent | Ask users to unblock the DApp in their wallet settings |
+| `Rejected` | Users saw a specific request and declined this time | Per-request | Tell users they cancelled the action; do not auto-retry |
+
+### Key distinction: `Rejected` vs. `PermissionRejected`
+
+These two codes both represent user rejection, but differ in scope and how to respond.
+
+- **`Rejected`**: Users saw the specific transaction or request and declined this time. The DApp can try again with a different request.
+- **`PermissionRejected`**: Users have set a session-level preference to deny this DApp entirely. Retrying produces the same result until users change their wallet settings.
+
+### Detecting `APIError`
+
+Use `error.type` to identify DApp Connector API errors. Do not use `instanceof` checks, as `APIError` is not a class you can test against.
+
+```typescript
+// Use the type field to identify connector errors
+if (error.type === 'DAppConnectorAPIError') {
+  switch (error.code) {
+    case 'Rejected':           // user declined
+    case 'PermissionRejected': // user blocked DApp
+    case 'InvalidRequest':     // bad request
+    case 'InternalError':      // internal failure
+    case 'Disconnected':       // connection lost
+  }
+}
+
+// Do NOT use instanceof
+// if (error instanceof APIError) { ... }
+```
+
+### Structure of `APIError`
+
+The `APIError` type extends the native `Error` object with the following fields.
+
+```typescript
+type APIError = Error & {
+  type: 'DAppConnectorAPIError';
+  code: ErrorCode;  // one of the 5 codes above
+  reason: string;   // human-readable explanation
+}
+```
+
+## Transaction status types
+
+The DApp Connector also reports transaction status through these values.
+
+| Status | Description |
+|--------|-------------|
+| `finalized` | Consensus has finalized the transaction |
+| `confirmed` | Transaction included in a block but not yet finalized |
+| `pending` | Transaction submitted, awaiting block inclusion |
+| `discarded` | The node discarded the transaction (not included) |

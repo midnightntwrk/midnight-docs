@@ -1,0 +1,390 @@
+---
+title: Ledger error reference
+description: Rust-level error types from the Midnight ledger crate covering transaction validation, execution, and state management failures.
+sidebar_position: 5
+sidebar_label: Ledger errors
+tags: [error reference, api reference, ledger]
+toc_max_heading_level: 3
+---
+
+# Ledger error reference
+
+The `midnight-ledger` crate defines the full taxonomy of transaction validation, execution, and state management errors. These are the Rust-level error types behind the numeric `LedgerApiError` codes that the node surfaces.
+
+
+## Error hierarchy
+
+Understanding the chain from top-level to low-level is essential when reading nested error output. A `MalformedTransaction::InvalidProof` near the top of a chain may trace back to a deep `OnchainProgramError::Decode` inside a contract transcript execution.
+
+```
+MalformedTransaction
+  └─ wraps zswap::MalformedOffer
+       └─ wraps TranscriptRejected
+            └─ wraps OnchainProgramError
+                 └─ wraps InvalidBuiltinDecode
+                      └─ wraps merkle_tree::InvalidUpdate
+```
+
+## Error types
+
+The following sections describe each error type in the chain, from the top-level transaction envelope down to low-level tree and VM operations.
+
+### `MalformedTransaction`
+
+Over 50 variants, parameterized as `MalformedTransaction<D>`. These are structural validity errors the ledger checks before any state application. The ledger rejects malformed transactions without modifying state.
+
+#### Proof and cryptographic errors
+
+These errors indicate failures in zero-knowledge proof verification or cryptographic consistency checks.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `InvalidNetworkId` | The transaction targets a different network (for example, Mainnet vs. Devnet). | Rebuild the transaction targeting the correct network ID. |
+| `InvalidProof` | A zero-knowledge proof failed verification. | Reproving required; check that the witness and public inputs match. |
+| `BindingCommitmentOpeningInvalid` | The binding commitment opening does not match the committed value. | Indicates a bug in transaction construction; recheck commitment generation. |
+| `InvalidSchnorrProof` | A Schnorr signature proof failed verification. | Key mismatch or corrupted signing data; re-sign. |
+| `PedersenCheckFailure` | A Pedersen commitment consistency check failed. | Balance or value encoding error; recheck transaction values. |
+
+#### Structural errors
+
+These errors indicate violations of canonical form or transaction structure rules.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `NotNormalized` | Transaction fields are not in the required canonical sort order. | Sort and normalize transaction fields per the ledger spec before submitting. |
+| `FallibleWithoutCheckpoint` | A fallible transaction segment lacks the required checkpoint. | Add a checkpoint to the fallible segment. |
+| `TransactionTooLarge` | The serialized transaction exceeds the maximum allowed byte size. | Split into smaller transactions or reduce payload size. |
+| `VerifierKeyTooLarge` | A verifier key in the transaction exceeds the size limit. | Check that the correct (non-debug) verifier key is in use. |
+| `TooManyZswapEntries` | The transaction contains more Zswap entries than the protocol allows. | Split Zswap operations across multiple transactions. |
+
+#### Claims errors
+
+These errors occur when coin claim data is inconsistent or fails verification.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `ClaimReceiveFailed` | A coin receive claim is invalid or the ledger cannot verify it. | Check that the claim data matches the target coin. |
+| `ClaimSpendFailed` | A coin spend claim failed verification. | Verify the spend authorization and nullifier data. |
+| `ClaimNullifierFailed` | The nullifier in a claim is invalid or does not match. | Regenerate the nullifier from the correct key and coin data. |
+| `UnclaimedCoinCom` | A coin commitment is present but has no corresponding claim. | Ensure every coin commitment has a valid associated claim. |
+| `UnclaimedNullifier` | A nullifier is present but has no corresponding coin claim. | Ensure every nullifier has a corresponding spend claim. |
+| `Unbalanced` | The transaction inputs and outputs do not balance; value is not conserved. | Recheck token amounts across all inputs and outputs. |
+| `ClaimOverflow` | Arithmetic overflow occurred while summing claim values. | Reduce individual claim values; the total may exceed `u64::MAX`. |
+| `ClaimCoinMismatch` | The coin referenced in a claim does not match the expected coin. | Ensure the claim targets the correct coin data. |
+
+#### Committee errors
+
+These errors arise when a transaction's committee signatures are missing, insufficient, or invalid.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `KeyNotInCommittee` | A key used for signing is not a member of the expected committee. | Use a key registered as a committee member for this epoch. |
+| `InvalidCommitteeSignature` | A committee signature has an invalid format or does not verify. | Re-collect signatures from valid committee members. |
+| `ThresholdMissed` | The required threshold of committee signatures was not reached. | Gather signatures from more committee members before submitting. |
+
+#### Intents errors
+
+These errors occur when transaction intents carry invalid signatures or conflicting segment identifiers.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `IntentSignatureVerificationFailure` | An intent's signature failed verification. | Re-sign the intent with the correct key. |
+| `IntentSignatureKeyMismatch` | The signing key does not match the key declared in the intent. | Ensure the intent uses the key it references. |
+| `IntentSegmentIdCollision` | Two intents reference the same segment ID. | Assign unique segment IDs to each intent. |
+| `IntentAtGuaranteedSegmentId` | An intent targets a guaranteed segment ID, which is not permitted. | Move the intent to a non-guaranteed segment. |
+
+#### Balance check errors
+
+These errors occur when token balance verification fails during transaction validation.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `BalanceCheckOutOfBounds` | A balance value is outside the valid numeric range for the check. | Verify that all token amounts are within protocol-defined bounds. |
+| `BalanceCheckConversionFailure` | Type conversion failed during balance verification. | Indicates a bug in value encoding; check token type consistency. |
+| `BalanceCheckOverspend` | The transaction attempts to spend more than is available. | Reduce spend amounts or add sufficient inputs. |
+
+#### DUST errors
+
+These errors occur when DUST registration or spend operations fail validation.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `InvalidDustRegistrationSignature` | The DUST registration signature is invalid. | Re-sign the DUST registration with the correct key. |
+| `InvalidDustSpendProof` | The proof for a DUST spend is invalid. | Regenerate the spend proof with correct witness data. |
+| `OutOfDustValidityWindow` | The DUST registration or spend is outside the allowed validity window. | Check block height and resubmit within the validity window. |
+| `MultipleDustRegistrationsForKey` | The same key appears in multiple DUST registrations in one transaction. | Use each DUST key at most once per transaction. |
+| `InsufficientDustForRegistrationFee` | The DUST amount is below the minimum required to cover the registration fee. | Increase the DUST amount to meet the minimum fee threshold. |
+
+#### Version errors
+
+These errors occur when a proof or transcript uses a version the node does not recognize.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `UnsupportedProofVersion` | The proof uses a version the node does not support. | Upgrade the SDK or reproduce the proof with a supported version. |
+| `GuaranteedTranscriptVersion` | The transcript version is invalid for a guaranteed segment. | Ensure guaranteed segments use the correct transcript version format. |
+| `FallibleTranscriptVersion` | The transcript version is invalid for a fallible segment. | Ensure fallible segments use the correct transcript version format. |
+
+#### Check errors
+
+These errors occur when static consistency checks on transaction effects or segment ordering fail.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `EffectsCheckFailure` | The declared effects of the transaction failed static consistency checks. | Verify that declared effects match what contract execution would produce. |
+| `DisjointCheckFailure` | Segments that should be disjoint share resources or state. | Ensure segments operate on non-overlapping state. |
+| `SequencingCheckFailure` | The transaction violated segment ordering constraints. | Reorder segments to satisfy sequencing requirements. |
+
+#### Sorting and deduplication errors
+
+These errors occur when transaction inputs or outputs violate canonical ordering or uniqueness requirements.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `InputsNotSorted` | Transaction inputs are not in the required canonical sort order. | Sort inputs according to the ledger's canonical ordering before building the transaction. |
+| `OutputsNotSorted` | Transaction outputs are not in the required canonical sort order. | Sort outputs canonically before building the transaction. |
+| `DuplicateInputs` | The same input appears more than once in the transaction. | Remove duplicate inputs. |
+| `InputsSignaturesLengthMismatch` | The number of input signatures does not match the number of inputs. | Provide exactly one signature per input. |
+
+### `TransactionInvalid`
+
+19 variants, parameterized as `TransactionInvalid<D>`. These are state-application failures that occur when the ledger applies a structurally valid transaction to the current state and rejects it due to state inconsistencies.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `EffectsMismatch` | The actual effects of applying the transaction differ from the declared effects. | Declared effects must exactly match what contract execution produces. |
+| `ContractAlreadyDeployed` | A contract deployment targets an address that already has a contract. | Deploy to a different address or verify deployment uniqueness. |
+| `ContractNotPresent` | A transaction calls a contract that does not exist at the given address. | Verify the contract address and confirm the contract exists at that address. |
+| `Zswap` | A Zswap sub-operation failed (wraps `zswap::TransactionInvalid`). | See the Zswap errors section for details. |
+| `Transcript` | The ledger rejected a contract transcript execution (wraps `TranscriptRejected`). | See `TranscriptRejected` for details. |
+| `InsufficientClaimable` | The transaction attempts to claim more than is available in the claimable pool. | Reduce the claim amount or wait for more claimable funds to become available. |
+| `VerifierKeyNotFound` | A verifier key referenced in the transaction is not registered on-chain. | Register the verifier key before submitting transactions that reference it. |
+| `VerifierKeyAlreadyPresent` | A verifier key registration targets a key that is already registered. | Do not re-register existing verifier keys. |
+| `ReplayCounterMismatch` | The replay protection counter does not match the expected value. | Fetch the current replay counter from the node and use it in the transaction. |
+| `ReplayProtectionViolation` | The transaction violates replay protection constraints. | Ensure the transaction is not a duplicate or out-of-sequence. |
+| `BalanceCheckOutOfBounds` | A balance value is out of valid range during state application. | Verify token amounts are within bounds after accounting for current state. |
+| `InputNotInUtxos` | A transaction input references a UTXO that does not exist in the current state. | The UTXO may already be spent; fetch fresh state before building the transaction. |
+| `DustDoubleSpend` | A DUST coin the transaction attempts to spend is already spent. | Check current DUST UTXO state; the coin has already been spent. |
+| `DustDeregistrationNotRegistered` | The transaction attempts to deregister a DUST key that has no active registration. | Confirm the key has an active registration before deregistering it. |
+| `GenerationInfoAlreadyPresent` | Generation info for this epoch/key is already recorded on-chain. | You can only submit generation info once per epoch. |
+| `InvariantViolation` | The ledger detected an internal invariant violation. | Report as a bug; this should not occur with a correctly implemented node or SDK. |
+| `RewardTooSmall` | The reward amount is below the minimum required. | Increase the reward amount to meet the protocol minimum. |
+| `DivideByZero` | A division by zero occurred during transaction processing. | Indicates a bug in transaction value computation. |
+| `MerkleTreeError` | A Merkle tree operation failed during state application. | See `merkle_tree::InvalidUpdate` for specific sub-errors. |
+
+---
+
+### `OnchainProgramError`
+
+17 variants, parameterized as `OnchainProgramError<D>`. These are the Impact VM on-chain execution engine errors, surfaced when contract transcript execution fails inside the VM.
+
+| Variant | Description |
+|---------|-------------|
+| `RanOffStack` | The VM stack ran out of space; a pop or read targeted an empty stack. |
+| `RanPastProgramEnd` | The program counter advanced past the end of the bytecode. |
+| `ExpectedCell` | The VM expected a cell value at a stack position but found a different type. |
+| `Decode` | Failed to decode a value from the stack or program data (wraps `InvalidBuiltinDecode`). |
+| `ArithmeticOverflow` | An arithmetic operation overflowed the supported integer range. |
+| `TooLongForEqual` | An equality comparison targeted values exceeding the maximum comparable length. |
+| `TypeError(String)` | A type mismatch occurred during VM execution. The string describes the mismatch. |
+| `OutOfGas` | The transaction ran out of gas during contract execution. |
+| `BoundsExceeded` | An array or buffer access targeted an out-of-bounds position. |
+| `LogBoundExceeded` | A logging operation exceeded the maximum allowed log size. |
+| `InvalidArgs` | A built-in function received invalid or wrong-count arguments. |
+| `MissingKey` | A required key was not found in the contract state map. |
+| `CacheMiss` | A cache lookup for a required value returned no result during execution. |
+| `AttemptedArrayDelete` | An attempt made to delete an array element, which is not supported. |
+| `ReadMismatch` | A read from contract state returned a value that does not match the value declared in the transcript. |
+| `CellBoundExceeded` | A cell value exceeded the maximum allowed size. |
+| `StackOverflow` | The VM call stack grew too deep, exceeding the recursion limit. |
+| `MerkleTreeError` | A Merkle tree built-in operation failed inside the VM. |
+
+### `TranscriptRejected`
+
+Five variants, parameterized as `TranscriptRejected<D>`. Wraps `OnchainProgramError` and represents failures during on-chain contract execution.
+
+| Variant | Description |
+|---------|-------------|
+| `Execution` | Contract execution failed (wraps `OnchainProgramError`). The inner error contains the VM-level failure. |
+| `Decode` | Failed to decode the transcript input before execution could begin. |
+| `FinalStackWrongLength` | After execution completed, the stack did not have the expected number of elements. |
+| `WeakStateReturned` | The contract returned a weakened state when the protocol required a full state. |
+| `EffectDecodeError` | Failed to decode the effects emitted by the contract execution. |
+
+### Zswap errors
+
+Zswap manages private coin operations including shielded transfers, coin commitments, and double-spend prevention.
+
+#### `zswap::TransactionInvalid`
+
+State-level Zswap failures that occur when the ledger applies a Zswap operation to the current state.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `NullifierAlreadyPresent` | The nullifier has already been spent; this is a double-spend attempt. | The coin has been spent; do not attempt to spend it again. |
+| `CommitmentAlreadyPresent` | A coin commitment already exists in the commitment tree. | Duplicate commitment; check for replay or construction error. |
+| `UnknownMerkleRoot` | The Merkle root referenced in the proof is not known to the current state. | Fetch the current Merkle root from the node and rebuild the proof. |
+| `MerkleTreeError` | A Merkle tree update failed during Zswap state application. | For more details, see `merkle_tree::InvalidUpdate`. |
+
+#### `zswap::MalformedOffer`
+
+Structural Zswap errors checked before any state application.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `InvalidProof` | A Zswap zero-knowledge proof failed verification. | Regenerate the proof with correct witness and public inputs. |
+| `ContractSentCiphertext` | A contract attempted to send ciphertext, which is not permitted in this context. | Contracts must not produce ciphertext outputs directly. |
+| `NonDisjointCoinMerge` | A coin merge targeted non-disjoint coin sets. | Ensure merged coin sets are fully disjoint. |
+| `NotNormalized` | The offer is not in canonical normalized form. | Normalize the offer before including it in a transaction. |
+
+#### `zswap::OfferCreationFailed`
+
+Client-side errors encountered while constructing a Zswap offer.
+
+| Variant | Description | Fix |
+|---------|-------------|-----|
+| `InvalidIndex` | The offer construction used an invalid index. | Verify the coin index is within the valid range for the Merkle tree. |
+| `Proving` | The zero-knowledge proving step failed during offer creation. | Check that all witnesses are valid; re-run proving with correct inputs. |
+| `NotContractOwned` | The offer references a coin that is not owned by the expected contract. | Ensure you construct offers only for coins the correct contract owns. |
+| `TreeNotRehashed` | The Merkle tree requires a rehash after recent updates. | Call the tree rehash operation before constructing the offer. |
+| `MerkleTreeError` | A Merkle tree operation failed during offer construction. | See `merkle_tree::InvalidUpdate` for details. |
+
+### Merkle tree errors
+
+These errors surface when operations on the commitment Merkle tree fail.
+
+#### `merkle_tree::InvalidIndex`
+
+Returned when a provided index is out of range for the current tree size.
+
+| Variant | Description |
+|---------|-------------|
+| `InvalidIndex(u64)` | The provided index is out of range for the current Merkle tree size. |
+
+#### `merkle_tree::InvalidUpdate`
+
+Six variants representing structural failures when updating the Merkle tree.
+
+| Variant | Description |
+|---------|-------------|
+| `CollapsedIndex` | An update targeted a collapsed (pruned) subtree node. |
+| `StubUpdate` | An update targeted a stub node that cannot accept updates. |
+| `EndBeforeStart` | The end index of an update range is before the start index. |
+| `EndOutOfTree` | The end index of an update range extends past the tree boundary. |
+| `WrongNumberOfSegments` | The update provides a different number of segments than expected. |
+| `NotFullyRehashed` | The tree has pending updates without a rehash; it is in an inconsistent state. |
+| `BadUpdatePath` | The Merkle path provided for the update is incorrect or inconsistent. |
+
+### Other error types
+
+The following types cover client-side construction, fee calculation, system transactions, and auxiliary operations.
+
+#### `FeeCalculationError`
+
+Errors that occur during fee computation before transaction submission.
+
+| Variant | Description |
+|---------|-------------|
+| `Overflow` | Fee arithmetic overflowed during calculation. |
+| `DivisionByZero` | Fee rate calculation encountered a zero denominator. |
+| `InvalidFeeRate` | The fee rate is outside the valid protocol range. |
+
+#### `MalformedContractDeploy`
+
+Errors specific to contract deployment transactions, checked before state application.
+
+| Variant | Description |
+|---------|-------------|
+| `InvalidContractAddress` | The contract address does not match the hash of the contract code. |
+| `InvalidInitialState` | The initial contract state fails validation checks. |
+| `MissingVerifierKey` | A verifier key required by the contract is not included in the deployment. |
+
+#### `SystemTransactionError`
+
+10 variants covering errors in protocol-level system transactions such as epoch transitions and committee updates.
+
+| Variant | Description |
+|---------|-------------|
+| `InvalidEpoch` | The system transaction targets an incorrect epoch number. |
+| `InvalidCommittee` | The committee set in the system transaction is invalid. |
+| `MissingSignature` | A required protocol-level signature is absent. |
+| `InvalidSignature` | A protocol-level signature failed verification. |
+| `DuplicateEntry` | A duplicate entry was found in the system transaction data. |
+| `ThresholdNotMet` | The signature threshold was not reached for the system transaction. |
+| `InvalidTimestamp` | The timestamp in the system transaction is out of the valid range. |
+| `WrongTransactionType` | The caller submitted a non-system transaction where the protocol requires a system transaction, or vice versa. |
+| `InvalidReward` | The reward distribution in the system transaction is invalid. |
+| `StateTransitionError` | The proposed state transition is invalid given the current protocol state. |
+
+#### `TransactionResult`
+
+The outcome type returned after transaction processing.
+
+| Variant | Description |
+|---------|-------------|
+| `Success` | All segments executed successfully and the ledger applied all effects. |
+| `PartialSuccess` | Guaranteed segments succeeded but one or more fallible segments failed. The ledger applies guaranteed effects and discards fallible effects. |
+| `Failure` | The ledger rejected the transaction entirely (typically due to `MalformedTransaction` or guaranteed segment failure). No state changes occur. |
+
+#### `TransactionConstructionError`
+
+Client-side errors encountered while building a transaction before submission.
+
+| Variant | Description |
+|---------|-------------|
+| `InsufficientFunds` | The wallet does not have enough spendable funds to cover the transaction and fee. |
+| `NoSuitableCoins` | No coins of the required type or denomination are available. |
+| `ProofGenerationFailed` | The client-side proof generation step failed. |
+| `InvalidRecipient` | The recipient address does not conform to the expected format or the node does not support it. |
+| `SerializationError` | Failed to serialize the transaction for submission. |
+
+#### `TransactionProvingError`
+
+Errors during the proving phase. Note that `ProvingError` is an opaque `anyhow::Error` alias.
+
+| Variant | Description |
+|---------|-------------|
+| `ProvingError` | An opaque error from the proving backend. The inner `anyhow::Error` may contain more detail in logs. |
+| `WitnessGenerationFailed` | Failed to generate the witness required for proving. |
+| `CircuitNotFound` | The required proving circuit is not available to the proof server. |
+| `Timeout` | The proving operation timed out. |
+
+#### `EventReplayError`
+
+Errors encountered during event log replay, used for syncing wallet state from on-chain events.
+
+| Variant | Description |
+|---------|-------------|
+| `DecodeError` | The indexer could not decode an event from its on-chain representation. |
+| `MissingEvent` | An expected event was not found in the log at the expected block height. |
+| `StateInconsistency` | Replaying events produced a state that is inconsistent with the known chain state. |
+| `UnknownEventType` | This client version encountered an event type it does not recognize. |
+
+#### `DustSpendError`
+
+Errors during DUST coin spend operations.
+
+| Variant | Description |
+|---------|-------------|
+| `NotRegistered` | The DUST key is not currently registered; cannot spend. |
+| `InvalidProof` | The DUST spend proof failed verification. |
+| `OutOfWindow` | The spend is outside the validity window for this DUST registration. |
+| `AlreadySpent` | The DUST coin has already been spent. |
+
+#### `DustLocalStateError`
+
+Errors in local DUST state management on the client side.
+
+| Variant | Description |
+|---------|-------------|
+| `KeyNotFound` | The DUST key is not found in local state. |
+| `RegistrationExpired` | The stored DUST registration has expired. |
+| `CorruptedState` | Local DUST state data has corruption and the client cannot read it. |
+
+## Cross-reference: Rust error to node error code
+
+When debugging a node error code, find the underlying Rust error by:
+
+- Looking up the numeric `LedgerApiError` code in the node error codes reference to find the high-level category.
+- Checking the node's structured error response body. The Rust error type is often serialized as a string in the `detail` or `cause` field.
+- Matching the Rust type name against the tables in this reference.
