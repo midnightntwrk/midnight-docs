@@ -17,8 +17,24 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.22.3',
+    version: '0.22.5',
     status: 'LATEST',
+    date: '24 April 2026',
+    summary: 'Summary of Release 0.22.5',
+    details: [
+      'Node-only patch release with no runtime upgrade.',
+      'Added transaction pool gas cost filtering via `--max-tx-gas-cost` CLI argument and `MAX_TX_GAS_COST` environment variable.',
+      'Added primary-key range bounding for cNIGHT observation queries to allow PostgreSQL to prune rows before running expensive joins.',
+      'Reset devnet bundled chain spec to runtime version 0.22.0 to match Mainnet.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.22.5' },
+    ],
+    link: '/relnotes/node/node-0-22-5',
+  },
+  {
+    version: '0.22.3',
+    status: 'SUPPORTED',
     date: '25 March 2026',
     summary: 'Summary of Release 0.22.3',
     details: [
