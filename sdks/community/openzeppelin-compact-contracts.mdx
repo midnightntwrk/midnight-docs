@@ -2,18 +2,16 @@
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_position: 10
-sidebar_label: OpenZeppelin Compact Contracts
-description: A library of token standards, access control, and security primitives written in Compact, modeled on OpenZeppelin's Solidity contracts.
-title: OpenZeppelin Contracts for Compact
+sidebar_label: OpenZeppelin compact contracts
+description: A library of token standards, access control, and security primitives for Compact smart contracts, modeled on OpenZeppelin's Solidity contracts.
+title: OpenZeppelin contracts for Compact
 tags: [community, openzeppelin, tokens, access-control]
 toc_max_heading_level: 2
 id: openzeppelin-compact-contracts
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
 
-# OpenZeppelin Contracts for Compact
+# OpenZeppelin contracts for Compact
 
 [OpenZeppelin Contracts for Compact](https://github.com/OpenZeppelin/compact-contracts) is a library of reusable smart contract building blocks written in Compact for Midnight. It mirrors the structure of OpenZeppelin's Solidity contracts library, providing token standards, access-control patterns, and security primitives that compose into custom contracts.
 
@@ -42,8 +40,8 @@ Before using the library, ensure that you have:
 | Library version | `v0.0.1-alpha.1` | Alpha; rapid iteration expected. |
 | Compact compiler | `0.29.0` | Pinned by the library's CI badge. |
 | Compact language | `>= 0.21.0` | Per `pragma` in every source file. |
-| Token amounts | `Uint<128>` (not `Uint<256>`) | Midnight encoding limit. See [compactc #929](https://github.com/midnightntwrk/compactc/issues/929). |
-| Midnight Network | Preprod / Testnet only | Not for Mainnet. |
+| Token amounts | `Uint<128>` (not `Uint<256>`) | Midnight encoding limit; `Uint<256>` is not supported by the Compact compiler. |
+| Midnight Network | Preprod and Preview only | Not for Mainnet. |
 
 :::note[Compiler version mismatch]
 
@@ -59,38 +57,35 @@ The library organizes its modules into four families. Most modules import `Initi
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `Ownable` | Single-owner access control. Owner stored as `Either<ZswapCoinPublicKey, ContractAddress>`. `assertOnlyOwner` verifies via `ownPublicKey()`. The safe path rejects ownership transfer to ContractAddress; explicit `_unsafeTransferOwnership` and `_unsafeUncheckedTransferOwnership` exist for that case. Includes `renounceOwnership` (sets owner to a burn address). | [Narrative](https://docs.openzeppelin.com/contracts-compact/ownable) · [API](https://docs.openzeppelin.com/contracts-compact/api/ownable) |
-| `AccessControl` | Role-based access control. Roles are `Bytes<32>` identifiers. `_operatorRoles` is `Map<roleId, Map<account, Boolean>>`. `assertOnlyRole` verifies via `ownPublicKey()`. `DEFAULT_ADMIN_ROLE` (zero bytes) is its own admin. Each role has a designated admin role, settable via `_setRoleAdmin`. Standard `grantRole` / `revokeRole` / `renounceRole`. | [Narrative](https://docs.openzeppelin.com/contracts-compact/accessControl) · [API](https://docs.openzeppelin.com/contracts-compact/api/accessControl) |
-| `ShieldedAccessControl` | **Privacy-preserving** RBAC. The module stores roles as Merkle-tree commitments (`MerkleTree<20, RoleCommitment>`) and derives identities from a `wit_secretKey()` witness via `accountId = SHA256(secretKey \|\| instanceSalt \|\| accountIdDomain)`. Revocation inserts a `roleNullifier` into a `Set` - permanently burning the role instance. Role commitments behave like private bearer tokens. Same `secretKey` is safe across roles within the same contract instance. | _No narrative on OpenZeppelin's docs site yet - see source._ |
-| `ZOwnablePK` | **Privacy-preserving** Ownable. Owner identity stored as a single `Bytes<32>` commitment: `SHA256(SHA256(pk, nonce), instanceSalt, counter, "ZOwnablePK:shield:")`. The `_counter` increments on every transfer for unlinkability across ownership changes. Uses `wit_secretNonce()` witness. `_instanceSalt` is a sealed ledger field. Designed for single-admin contracts that need privacy. | Documented alongside [Ownable](https://docs.openzeppelin.com/contracts-compact/ownable) |
+| `Ownable` | Single-owner authorization. Stores the owner as `Either<ZswapCoinPublicKey, ContractAddress>`. Supports ownership transfer, renunciation, and safe/unsafe variants for contract-address owners. | [Narrative](https://docs.openzeppelin.com/contracts-compact/ownable) · [API](https://docs.openzeppelin.com/contracts-compact/api/ownable) |
+| `AccessControl` | Role-based authorization with admin hierarchy. Roles are `Bytes<32>` identifiers. Each role has a configurable admin role that controls grants and revocations. | [Narrative](https://docs.openzeppelin.com/contracts-compact/accessControl) · [API](https://docs.openzeppelin.com/contracts-compact/api/accessControl) |
+| `ShieldedAccessControl` | *Privacy-preserving* role-based access control. Stores role commitments in a `MerkleTree<20>` and revokes via nullifiers, so role membership can be proven in zero knowledge. | _Not yet on OpenZeppelin's docs site - see [source](https://github.com/OpenZeppelin/compact-contracts/blob/main/contracts/src/access/ShieldedAccessControl.compact)._ |
+| `ZOwnablePK` | *Privacy-preserving* single-owner authorization. Stores the owner as a commitment hash instead of a public key, so on-chain data does not reveal who the owner is. | Documented alongside [Ownable](https://docs.openzeppelin.com/contracts-compact/ownable) |
 
 ### Security · `src/security/`
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `Initializable` | One-time initialization guard. `_isInitialized: Boolean` ledger. Exports `initialize` / `assertInitialized` / `assertNotInitialized`. Most other modules import this and require an `initialize` call before you can use any other circuit. | [Narrative](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
-| `Pausable` | Two-state pause switch. `_isPaused: Boolean` ledger. Exports `isPaused` / `assertPaused` / `assertNotPaused` / `_pause` / `_unpause`. The `assertNotPaused` guard is what callers use to gate execution; `_pause` and `_unpause` are typically wrapped in your contract's authorization check. | [Narrative](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
+| `Initializable` | One-time initialization guard. Prevents a contract from being initialized more than once. Most other modules depend on this. | [Narrative](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
+| `Pausable` | Emergency pause switch. Gates circuit execution behind `assertNotPaused()`. Wrap `_pause()` and `_unpause()` in your own authorization logic. | [Narrative](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
 
 ### Tokens · `src/token/`
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `FungibleToken` | ERC-20–shaped. `_balances: Map<account, Uint<128>>`, `_allowances: Map<account, Map<spender, Uint<128>>>`, `_totalSupply: Uint<128>`, sealed `_name` / `_symbol` / `_decimals`. Standard `transfer` / `approve` / `transferFrom` surface, plus `_unsafe*` variants that allow ContractAddress recipients (currently dangerous because contract-to-contract calls aren't supported). Internal: `_transfer`, `_mint`, `_unsafeMint`, `_burn`, `_approve`, `_spendAllowance`. **Missing vs. EIP-20**: full `uint256`, events, contract-to-contract calls. | [Narrative](https://docs.openzeppelin.com/contracts-compact/fungibleToken) · [API](https://docs.openzeppelin.com/contracts-compact/api/fungibleToken) |
-| `NonFungibleToken` | ERC-721–shaped. `_owners`, `_balances`, `_tokenApprovals`, `_operatorApprovals`, `_tokenURIs` ledgers. Token IDs are `Uint<128>`. Standard `transferFrom` / `approve` / `setApprovalForAll`. **Missing vs. EIP-721**: `Uint<256>` IDs, events, `safeTransfer*`, `_baseURI`, ERC-165. | [Narrative](https://docs.openzeppelin.com/contracts-compact/nonFungibleToken) · [API](https://docs.openzeppelin.com/contracts-compact/api/nonFungibleToken) |
-| `MultiToken` | ERC-1155–approximation. `_balances: Map<id, Map<account, Uint<128>>>`, `_operatorApprovals`, single `_uri`. **Missing vs. EIP-1155**: batched mint/burn/transfer (no dynamic arrays), balance batching, ERC-165 introspection, safe transfers. **Warning** from the source: tokens sent to a contract address may be lost forever. | [Narrative](https://docs.openzeppelin.com/contracts-compact/multitoken) · [API](https://docs.openzeppelin.com/contracts-compact/api/multitoken) |
+| `FungibleToken` | ERC-20-style fungible token. Supports `transfer`, `approve`, `transferFrom`, `mint`, and `burn`. Balances use `Uint<128>` (not `Uint<256>` - see [Compatibility](#compatibility)). Includes safe and unsafe transfer variants. | [Narrative](https://docs.openzeppelin.com/contracts-compact/fungibleToken) · [API](https://docs.openzeppelin.com/contracts-compact/api/fungibleToken) |
+| `NonFungibleToken` | ERC-721-style non-fungible token. Tracks ownership, approvals, operator approvals, and token URIs. Token IDs use `Uint<128>`. | [Narrative](https://docs.openzeppelin.com/contracts-compact/nonFungibleToken) · [API](https://docs.openzeppelin.com/contracts-compact/api/nonFungibleToken) |
+| `MultiToken` | ERC-1155-style multi-token. Manages multiple token types in a single contract. Does not support batched operations (Compact lacks dynamic arrays). | [Narrative](https://docs.openzeppelin.com/contracts-compact/multitoken) · [API](https://docs.openzeppelin.com/contracts-compact/api/multitoken) |
 
 ### Utilities · `src/utils/`
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `Utils` | Pure helpers: `isKeyOrAddressZero`, `isKeyZero`, `isKeyOrAddressEqual`, `isContractAddress`, `emptyString`, and `canonicalize<T1, T2>(value: Either<T1, T2>)` which zeroes out the unused side of an `Either` to prevent crafted-input attacks where both sides carry data. | [Narrative](https://docs.openzeppelin.com/contracts-compact/utils) · [API](https://docs.openzeppelin.com/contracts-compact/api/utils) |
+| `Utils` | Pure helpers for working with `Either<ZswapCoinPublicKey, ContractAddress>` values. Includes zero-checks, equality checks, and `canonicalize` which prevents crafted-input attacks. | [Narrative](https://docs.openzeppelin.com/contracts-compact/utils) · [API](https://docs.openzeppelin.com/contracts-compact/api/utils) |
 
 ## Installation
 
 The library currently ships as a Git submodule. The OpenZeppelin team plans to publish it on npm, as noted in their [README](https://github.com/OpenZeppelin/compact-contracts#readme).
-
-<Tabs groupId="install">
-<TabItem value="submodule" label="Git submodule (current)">
 
 ```bash
 mkdir my-project && cd my-project
@@ -100,9 +95,6 @@ nvm install
 yarn
 SKIP_ZK=true yarn compact
 ```
-
-</TabItem>
-</Tabs>
 
 ## Compose a contract
 
@@ -153,7 +145,7 @@ export circuit unpause(): [] {
 
 :::note[Why import through `node_modules`]
 
-The OpenZeppelin team recommends importing through `compact-contracts/node_modules/@openzeppelin/compact-contracts/...` rather than the submodule path, to avoid state conflicts between shared dependencies. See their [README](https://github.com/OpenZeppelin/compact-contracts#readme) for details.
+The OpenZeppelin team recommends importing through `compact-contracts/node_modules/@openzeppelin/compact-contracts/...` rather than the submodule path, to avoid state conflicts between shared dependencies. For details, see their [README](https://github.com/OpenZeppelin/compact-contracts#readme).
 
 :::
 
@@ -177,17 +169,17 @@ Overall progress [====================] 3/3
 
 ## Patterns to know
 
-**Modular composition by delegation.** OpenZeppelin's [Module/Contract pattern](https://docs.openzeppelin.com/contracts-compact/extensibility) is the formal framing the library expects you to follow. Each module exports two kinds of circuits: **`external`** ones with no leading underscore (like `transfer`, `approve`) that are safe to expose as-is, and **`public`** ones with a leading underscore (like `_mint`, `_burn`) that serve as composable building blocks you wrap in your own contract logic. Internal helpers remain unexported. Your contract imports modules with a prefix and wires their circuits together; it should not call `initialize()` outside its constructor or re-export circuits raw.
+- **Modular composition by delegation:** OpenZeppelin's [Module/Contract pattern](https://docs.openzeppelin.com/contracts-compact/extensibility) is the formal framing the library expects you to follow. Each module exports two kinds of circuits: *external* ones with no leading underscore (like `transfer`, `approve`) that are safe to expose as-is, and *public* ones with a leading underscore (like `_mint`, `_burn`) that serve as composable building blocks you wrap in your own contract logic. Internal helpers remain unexported. Your contract imports modules with a prefix and wires their circuits together; it should not call `initialize()` outside its constructor or re-export circuits raw.
 
-**Composition through prefixes.** The `import ... prefix X_;` syntax namespaces each module so multiple modules can coexist in a single contract without identifier collisions. Circuits whose names start with `_` show up as `X__name` at the call site.
+- **Composition through prefixes:** The `import ... prefix X_;` syntax namespaces each module so multiple modules can coexist in a single contract without identifier collisions. Circuits whose names start with `_` show up as `X__name` at the call site.
 
-**Initialization is explicit.** Most modules import `Initializable` and require an explicit `initialize` call from your constructor. `Initializable_assertNotInitialized()` and `Initializable_assertInitialized()` enforce this. Calling other circuits before `initialize` will fail at runtime.
+- **Initialization is explicit:** Most modules import `Initializable` and require an explicit `initialize` call from your constructor. `Initializable_assertNotInitialized()` and `Initializable_assertInitialized()` enforce this. Calling other circuits before `initialize` fails at runtime.
 
-**The library restricts contract-address recipients.** Compact does not yet support contract-to-contract calls, so every module's safe path (e.g., `Ownable.transferOwnership`, `AccessControl.grantRole`, `FungibleToken.transfer`) rejects `ContractAddress` recipients. Each module pairs the safe variant with `_unsafe*` circuits explicitly named to make the risk visible. The maintainers plan to deprecate the unsafe variants once Compact supports contract-to-contract calls.
+- **Contract-address recipients are restricted:** Compact does not yet support contract-to-contract calls, so every module's safe path (e.g., `Ownable.transferOwnership`, `AccessControl.grantRole`, `FungibleToken.transfer`) rejects `ContractAddress` recipients. Each module pairs the safe variant with `_unsafe*` circuits explicitly named to make the risk visible. The maintainers plan to deprecate the unsafe variants once Compact supports contract-to-contract calls.
 
-**Caller authorization comes in two flavors.** `Ownable` and `AccessControl` use `ownPublicKey()` directly to check the caller. `ZOwnablePK` and `ShieldedAccessControl` use a witness-derived secret combined with hashing and instance salts to verify the caller via commitments - never exposing the public key on-chain. The privacy-preserving variants are the recommended choice when the contract should not reveal who its owners or role-holders are.
+- **Caller authorization comes in two flavors:** `Ownable` and `AccessControl` use `ownPublicKey()` directly to check the caller. `ZOwnablePK` and `ShieldedAccessControl` use a witness-derived secret combined with hashing and instance salts to verify the caller via commitments - never exposing the public key on-chain. The privacy-preserving variants are the recommended choice when the contract should not reveal who its owners or role-holders are.
 
-**`Either<ZswapCoinPublicKey, ContractAddress>` is the canonical address type** across the library. The `Utils.canonicalize` helper zeroes out the unused side of an `Either` to prevent crafted-input attacks where both sides carry data.
+- **`Either<ZswapCoinPublicKey, ContractAddress>` is the canonical address type:** The `Utils.canonicalize` helper zeroes out the unused side of an `Either` to prevent crafted-input attacks where both sides carry data.
 
 ## Resources
 
