@@ -4,11 +4,183 @@ description: Troubleshoot common issues when building on Midnight Network.
 sidebar_position: 1
 sidebar_label: Common SDK integration issues
 tags: [sdk, integration, issues]
-toc_max_heading_level: 2
+toc_max_heading_level: 3
 ---
 
 # Common SDK integration issues
 
-:::info
-Coming soon...
+This troubleshooting guide covers common errors and how to resolve them when building DApps using Midnight.js and Wallet SDKs.
+
+## Midnight.js SDK issues
+
+Midnight.js errors are plain JavaScript classes. Catch them with `try/catch` and the `instanceof` operator.
+
+### A transaction fails during execution
+
+**Errors**: `TxFailedError`, `DeployTxFailedError`, `CallTxFailedError`, `ReplaceMaintenanceAuthorityTxFailedError`, `RemoveVerifierKeyTxFailedError`, `InsertVerifierKeyTxFailedError`
+
+All transaction error classes expose a `finalizedTxData` property containing the finalization data of the failed transaction. `TxFailedError` and `CallTxFailedError` additionally expose a `circuitId` property.
+
+**What to check**:
+
+- Check the `finalizedTxData` property on the caught error to identify which transaction failed and why.
+- For call transactions, check the `circuitId` property to identify the circuit that constructed the transaction.
+
+```typescript
+import { CallTxFailedError, DeployTxFailedError } from '@midnight-ntwrk/midnight-js-contracts';
+
+try {
+  await client.call(/* ... */);
+} catch (error) {
+  if (error instanceof CallTxFailedError) {
+    console.error('Call failed, tx data:', error.finalizedTxData);
+    console.error('Circuit ID:', error.circuitId);
+  } else if (error instanceof DeployTxFailedError) {
+    console.error('Deploy failed, tx data:', error.finalizedTxData);
+  } else {
+    throw error;
+  }
+}
+```
+
+### Deployed contract type does not match expectations
+
+**Error**: `ContractTypeError`
+
+This error occurs when the deployed contract state does not match the expected contract type, or when one or more verifier keys are mismatched.
+
+**What to check**:
+
+- Check the `circuitIds` property to identify which circuits carry undefined or non-matching verifier keys.
+- Verify that you compiled and deployed the contract with the verifier keys the SDK expects.
+
+### Call transaction configuration is incomplete
+
+**Error**: `IncompleteCallTxPrivateStateConfig`
+
+This error occurs when a call transaction sets `privateStateId` without providing a `privateStateProvider`.
+
+**What to check**:
+
+- If you set `privateStateId` in the call options, then you must also provide a `privateStateProvider`.
+- Check the `privateStateId` and `privateStateProvider` properties on the error to see which values the SDK received and which were omitted.
+
+### Contract lookup configuration is incomplete
+
+**Error**: `IncompleteFindContractPrivateStateConfig`
+
+This error occurs when a contract lookup sets `initialPrivateState` without providing a `privateStateId`. The runtime throws this message:
+
+```
+'initialPrivateState' was defined for contract find while 'privateStateId' was undefined
+```
+
+**What to check**:
+
+- If you supply `initialPrivateState` in the find options, then you must also supply a `privateStateId`.
+- Check the `initialPrivateState` and `privateStateId` properties on the error for the values passed.
+
+For the complete list of Midnight.js error classes and their properties, see the [Midnight.js error reference](/sdks/error-reference/midnight-js).
+
+## Wallet SDK
+
+Wallet SDK errors are often Effect `Data.TaggedError` instances. Use `Effect.catchTag` with the `_tag` value to catch a specific error, or `Effect.catchTags` to handle a union.
+
+### Cannot connect to the node
+
+**Errors**: `ConnectionError` (`_tag: 'ConnectionError'`), `InvalidProtocolSchemeError` (`_tag: 'InvalidProtocolSchemeError'`), `FailedToDeriveWebSocketUrlError` (`_tag: 'FailedToDeriveWebSocketUrlError'`)
+
+**Known `ConnectionError` messages**:
+- `"Could not connect within specified time range (5s)"` — the node is unreachable or slow to respond.
+- `"Failed to retrieve genesis transactions"` — connected but genesis data is unavailable.
+
+**What to check**:
+
+- Verify the node WebSocket URL is correct and the node is running.
+- If connecting over a slow network, then you should consider increasing the connection timeout.
+- If you see `InvalidProtocolSchemeError`, then ensure all network URLs use the expected scheme: `ws://` or `wss://` for WebSocket connections, `http://` or `https://` for HTTP.
+
+### The SDK cannot parse a node response
+
+**Error**: `ParseError` (`_tag: 'ParseError'`)
+
+**What to check**:
+
+- This usually indicates a protocol version mismatch between the SDK and the node.
+- Verify the SDK and node versions are compatible and update whichever is out of date.
+
+:::note
+
+Always refer to the [Compatibility matrix](/relnotes/support-matrix) to check for compatible versions of the SDK and node for the environment you are working in.
+
 :::
+
+### The node rejects a transaction as invalid
+
+**Error**: `TransactionInvalidError` (`_tag: 'TransactionInvalidError'`)
+
+**What to check**:
+
+- A malformed transaction or a validation-rule violation caused this error.
+- Review the transaction construction logic. You should not resubmit without changes.
+
+### Insufficient funds
+
+**Errors**: `InsufficientFundsError` (`_tag: 'Wallet.InsufficientFunds'`), `InsufficientFundsError` (Capabilities — plain `Error`)
+
+The tagged-error variant exposes `tokenType: string` and `amount: bigint`. The capabilities variant is a plain JavaScript `Error` thrown during coin selection, not an Effect failure.
+
+**Known capabilities message**: `"Insufficient Funds: could not balance <tokenType>"`
+
+**What to check**:
+
+- Check the wallet balance for the token type before constructing the transaction.
+- Reduce the transfer amount or request a top-up.
+- For the capabilities plain `Error`, use `try/catch` or `Effect.tryPromise` rather than `Effect.catchTag`.
+
+### Proof generation fails
+
+**Error**: `ProvingError` (`_tag: 'Wallet.Proving'`)
+
+**What to check**:
+
+- Confirm the [proof server](/guides/run-proof-server) is running and accessible.
+- Verify you are loading the correct circuit keys.
+- Check the wrapped cause for the underlying provider error.
+
+### Coins are missing nonce hashes
+
+**Error**: `InvalidCoinHashesError` (`_tag: 'Wallet.InvalidCoinHashes'`)
+
+**What to check**:
+
+- Ensure coins are fully synced before spending.
+- Check the `missingNonces` field to identify the affected coins.
+
+### Address is invalid
+
+**Errors**: `AddressError` (`_tag: 'Wallet.Address'`)
+
+`AddressError` exposes `originalAddress: string` which contains the rejected input. Address-format errors are plain `Error` throws. You can catch them with `try/catch`.
+
+**Common address-format messages**:
+- `"Expected prefix mn"`: The address does not start with the `mn` prefix.
+- `"Segment contains disallowed characters"`: The address segment contains characters outside the allowed set.
+- `"Unshielded address needs to be 32 bytes long"`: The unshielded address payload is the wrong length.
+- `"Dust address is too large"`: The DUST address exceeds the maximum allowed size.
+
+**What to check**:
+
+- Validate address strings before passing them to the address-format API.
+- Use `AddressError` for higher-level address validation at the wallet layer.
+
+### HTTP networking errors
+
+**Errors**: `ClientError` (`_tag: 'ClientError'`), `ServerError` (`_tag: 'ServerError'`)
+
+**What to check**:
+
+- `ClientError` corresponds to HTTP 400–499 status codes. These indicate a problem with the request itself such as a bad input, authentication failure, or a not-found resource. Do not retry without changing the request. Check the error for the specific status code.
+- `ServerError` corresponds to HTTP 500+ status codes. For persistent 500 errors, check the server logs. The SDK automatically retries on transient 502–504 errors.
+
+For the complete list of Wallet SDK error types, see the [Wallet SDK error reference](/sdks/error-reference/wallet-sdk).
