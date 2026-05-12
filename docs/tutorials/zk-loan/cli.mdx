@@ -134,7 +134,7 @@ export type ZKLoanCreditScorerCircuits =
   | 'changePin'
   | 'blacklistUser'
   | 'removeBlacklistUser'
-  | 'transferAdmin'
+  | 'rotateAdmin'
   | 'respondToLoan'
   | 'registerProvider'
   | 'removeProvider';
@@ -236,7 +236,20 @@ export const userProfiles = [
   },
 ];
 
-export function getUserProfile(index?: number): ZKLoanCreditScorerPrivateState {
+import { webcrypto } from 'node:crypto';
+
+// Generate a fresh 32-byte admin secret. The deploying user holds this in
+// private state; the ledger only ever sees its hash via `deriveAdminPublicKey`.
+function generateAdminSecret(): Uint8Array {
+  const bytes = new Uint8Array(32);
+  webcrypto.getRandomValues(bytes);
+  return bytes;
+}
+
+export function getUserProfile(
+  index?: number,
+  adminSecretKey: Uint8Array = generateAdminSecret(),
+): ZKLoanCreditScorerPrivateState {
   let profile;
   if (index !== undefined) {
     if (index < 0 || index >= userProfiles.length) {
@@ -258,9 +271,12 @@ export function getUserProfile(index?: number): ZKLoanCreditScorerPrivateState {
       response: 0n,
     },
     attestationProviderId: 0n,
+    adminSecretKey,
   };
 }
 ```
+
+The `adminSecretKey` field is a 32-byte preimage of the `contractAdmin` ledger value. Whoever deploys the contract becomes admin by virtue of holding this secret; rotating the admin role requires the next admin to generate their own secret and share only its derived public key.
 
 These profiles map to the eligibility tiers defined in the smart contract from [Part 1](./smart-contract):
 
@@ -320,7 +336,7 @@ Set `DEBUG_LEVEL=debug` in your environment for verbose output during developmen
 
 ### Address utilities
 
-The CLI's admin flows (blocklist, transfer admin) need to accept either a full Midnight shielded address (`mn_shield-addr_…`) or a raw 32-byte hex public key, since both are common ways for an operator to identify a wallet. This helper centralizes the parsing.
+The CLI's blocklist flows need to accept either a full Midnight shielded address (`mn_shield-addr_…`) or a raw 32-byte hex public key, since both are common ways for an operator to identify a wallet. This helper centralizes the parsing. The admin rotation flow does *not* use this helper — `rotateAdmin` takes a contract-specific `AdminPublicKey` (a 32-byte hash), not a wallet address.
 
 Create `zkloan-credit-scorer-cli/src/address-utils.ts`:
 
@@ -472,7 +488,7 @@ export const getZKLoanLedgerState = async (
 - `dustSecretKey` — used for paying transaction fees.
 - `unshieldedKeystore` — used for transparent operations such as DUST registration.
 
-`getZKLoanLedgerState` queries the indexer for the current on-chain state of the smart contract. The `ZKLoanCreditScorer.ledger()` function deserializes the raw contract state into the typed `Ledger` object with fields like `admin`, `loans`, `providers`, and `blacklist`.
+`getZKLoanLedgerState` queries the indexer for the current on-chain state of the smart contract. The `ZKLoanCreditScorer.ledger()` function deserializes the raw contract state into the typed `Ledger` object with fields like `contractAdmin`, `loans`, `providers`, and `blacklist`.
 
 #### Compiled smart contract and deploy/join
 
@@ -703,18 +719,28 @@ export const removeBlacklistUser = async (
   return finalizedTxData.public;
 };
 
-export const transferAdmin = async (
+// Hand the admin role over by writing the new admin's derived public key to
+// the ledger. The new admin generates their secret locally and computes
+// `deriveAdminPublicKey(secret)` off-chain; only the resulting 32-byte
+// public key crosses the wire. No private key is ever transmitted.
+export const rotateAdmin = async (
   contract: DeployedZKLoanCreditScorerContract,
-  newAdmin: Uint8Array,
+  newAdminPublicKey: Uint8Array,
 ): Promise<FinalizedTxData> => {
-  logger.info('Transferring admin role...');
-  const finalizedTxData = await contract.callTx.transferAdmin({
-    bytes: newAdmin,
+  logger.info('Rotating admin role to new derived public key...');
+  const finalizedTxData = await contract.callTx.rotateAdmin({
+    bytes: newAdminPublicKey,
   });
   logger.info(
     `Transaction ${finalizedTxData.public.txId} added in block ${finalizedTxData.public.blockHeight}`,
   );
   return finalizedTxData.public;
+};
+
+// Compute the AdminPublicKey for a given secret. Run by a prospective new
+// admin to obtain the 32-byte public key they hand to the current admin.
+export const deriveAdminPublicKey = (adminSecretKey: Uint8Array): Uint8Array => {
+  return pureCircuits.deriveAdminPublicKey({ bytes: adminSecretKey }).bytes;
 };
 
 export const registerProvider = async (
@@ -766,7 +792,7 @@ export const displayContractState = async (
   } else {
     logger.info(`Contract address: ${contractAddress}`);
     logger.info(
-      `Admin: ${Buffer.from(ledgerState.admin.bytes).toString('hex')}`,
+      `Admin public key: ${Buffer.from(ledgerState.contractAdmin.bytes).toString('hex')}`,
     );
     logger.info(`Blocklist size: ${ledgerState.blacklist.size()}`);
   }
@@ -1247,7 +1273,7 @@ You can do one of the following:
   4. Display wallet balances
   5. [Admin] Add user to blocklist
   6. [Admin] Remove user from blocklist
-  7. [Admin] Transfer admin role
+  7. [Admin] Rotate admin role to new derived public key
   8. [Admin] Register attestation provider
   9. [Admin] Remove attestation provider
   10. Exit
@@ -1347,6 +1373,8 @@ const changePinFlow = async (
 
 #### Admin flow functions
 
+The five admin operations — blocklist, unblock, register/remove provider, and rotate — all use the **witness-derived keypair pattern**. Each circuit's first assertion forces the caller, inside the ZK proof, to demonstrate knowledge of the 32-byte secret whose hash is stored in the contract's `contractAdmin` ledger field. Only the deploying admin holds that secret; for everyone else the circuit fails to satisfy its constraints and the transaction reverts. Rotation is the only way to change who holds admin authority, and it works by the new admin generating their own secret locally and sharing only the resulting public key.
+
 Each admin function prompts for the required input and delegates to the corresponding API wrapper. Only the deployer (admin) can execute these operations:
 
 ```typescript
@@ -1377,16 +1405,25 @@ const removeBlacklistUserFlow = async (
   logger.info("User removed from blocklist successfully!");
 };
 
-// Transfer admin role to another wallet
-const transferAdminFlow = async (
+// Rotate the admin role to a public key the new admin already derived
+// locally. The new admin runs `deriveAdminPublicKey(secret)` against their
+// fresh 32-byte secret and hands the resulting public key (64 hex chars)
+// to the current admin. No private key is exchanged.
+const rotateAdminFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const newAdmin = await rli.question(
-    `Enter the new admin account ${ACCOUNT_PROMPT_HINT}: `,
+  const newAdminPkInput = await rli.question(
+    'Enter the new admin derived public key (64 hex chars). ' +
+      'The new admin generates this with `deriveAdminPublicKey(secret)` and shares only the result: ',
   );
-  await api.transferAdmin(contract, resolveZswapCoinPublicKey(newAdmin));
-  logger.info("Admin role transferred successfully!");
+  const hex = newAdminPkInput.trim().toLowerCase().replace(/^0x/, '');
+  if (!/^[0-9a-f]{64}$/.test(hex)) {
+    throw new Error('New admin public key must be exactly 64 hex chars (32 bytes).');
+  }
+  const newAdminPublicKey = Uint8Array.from(Buffer.from(hex, 'hex'));
+  await api.rotateAdmin(contract, newAdminPublicKey);
+  logger.info('Admin role rotated successfully!');
 };
 
 // Register an attestation provider's public key on-chain
@@ -1459,7 +1496,7 @@ const mainLoop = async (
           await removeBlacklistUserFlow(contract, rli);
           break;
         case "7":
-          await transferAdminFlow(contract, rli);
+          await rotateAdminFlow(contract, rli);
           break;
         case "8":
           await registerProviderFlow(contract, rli);
@@ -1801,6 +1838,6 @@ The CLI fetches an attestation from the API, stores it in the local private stat
 
 #### 5. Inspect the on-chain state
 
-Pick **option 3 (Display contract state)**. The CLI logs the contract address, admin, blocklist size, and the loan record (status + authorized amount).
+Pick **option 3 (Display contract state)**. The CLI logs the contract address, the admin public key (the hash of the deploying admin's secret), blocklist size, and the loan record (status + authorized amount).
 
 Notice what is **not** on-chain: your credit score, income, employment tenure, attestation signature, or PIN. The transaction proved your eligibility without revealing any of those — only the outcome was disclosed.

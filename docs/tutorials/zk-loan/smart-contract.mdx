@@ -259,10 +259,10 @@ Create `zkloan-credit-scorer.compact` inside the `contract/src/` folder.
 
 ### The header, types, ledger state, and constructor
 
-This first block declares the language version, imports, data types, ledger state, and the constructor that sets the deployer as admin:
+This first block declares the language version, imports, data types, ledger state, and the constructor that derives the initial admin public key from a witness-provided secret:
 
 ```compact
-pragma language_version 0.22;
+pragma language_version >= 0.22;
 
 import CompactStandardLibrary;
 import "schnorr" prefix Schnorr_;
@@ -284,17 +284,40 @@ struct Applicant {
     monthsAsCustomer: Uint<16>;
 }
 
+// Admin authorization uses the witness-derived keypair pattern. The admin
+// holds a 32-byte secret in private state; the ledger stores only its
+// public hash. Every admin circuit asserts the caller's secret hashes to
+// the stored value — `ownPublicKey()` is never used for authorization.
+export struct AdminSecretKey {
+    bytes: Bytes<32>;
+}
+export struct AdminPublicKey {
+    bytes: Bytes<32>;
+}
+
 constructor() {
-    admin = ownPublicKey();
+    contractAdmin = disclose(deriveAdminPublicKey(getAdminSecret()));
 }
 
 export ledger blacklist: Set<ZswapCoinPublicKey>;
 export ledger loans: Map<Bytes<32>, Map<Uint<16>, LoanApplication>>;
 export ledger onGoingPinMigration: Map<Bytes<32>, Uint<16>>;
-export ledger admin: ZswapCoinPublicKey;
+export ledger contractAdmin: AdminPublicKey;
 export ledger providers: Map<Uint<16>, JubjubPoint>;
 
 witness getAttestedScoringWitness(): [Applicant, Schnorr_SchnorrSignature, Uint<16>];
+witness getAdminSecret(): AdminSecretKey;
+
+// Domain-separated hash binds this admin secret to this specific contract,
+// so the same secret cannot be reused across other deployments.
+export pure circuit deriveAdminPublicKey(sk: AdminSecretKey): AdminPublicKey {
+    return AdminPublicKey {
+        bytes: persistentHash<Vector<2, Bytes<32>>>([
+            pad(32, "zkloan:admin:pk:v1"),
+            sk.bytes
+        ])
+    };
+}
 ```
 
 Every Compact smart contract starts with a pragma (the language version) and imports. The standard library and the Schnorr module are imported with a prefix so their names do not collide.
@@ -306,11 +329,12 @@ Define the data types next. Note two key things:
 The [ledger](/concepts/ledgers) declarations define what lives on the blockchain:
 - `loans` is a *nested map*: the outer key is the user's derived public key (`Bytes<32>`), the inner key is a loan ID (`Uint<16>`), and the value is the `LoanApplication`. This lets each user have multiple loans.
 - `providers` maps a provider ID to a Jubjub curve point (the provider's public key). The smart contract verifies attestation signatures against these registered keys.
-- `admin` is set to whoever deploys the smart contract using `ownPublicKey()` in the constructor. Only the admin can add users to the blocklist or register providers.
+- `contractAdmin` stores the *derived public key* of the admin: `persistentHash("zkloan:admin:pk:v1" || adminSecret)`. The deploying admin holds the 32-byte secret in private state; the ledger only ever sees the hash. Each admin circuit forces the caller, inside the ZK proof, to demonstrate knowledge of the preimage of this stored value.
 - `blacklist` blocks wallets from requesting new loans.
 - `onGoingPinMigration` tracks progress when a user changes their PIN (more on this in the identity section).
+- `deriveAdminPublicKey(sk)` is a pure circuit that hashes a secret with a contract-specific domain separator. The constructor calls it with the witness `getAdminSecret()` to compute the initial admin's public key.
 
-Finally, the `witness` declaration tells the compiler: "At proving time, TypeScript code provides an `Applicant`, a `SchnorrSignature`, and a provider ID." The TypeScript implementation is covered in the next section.
+Finally, the `witness` declarations tell the compiler: "At proving time, TypeScript code will provide an `Applicant` + `SchnorrSignature` + provider ID, and separately a 32-byte admin secret." The TypeScript implementation is covered in the next section.
 
 :::note
 Do not close the file yet — the remaining blocks get appended to it.
@@ -447,53 +471,61 @@ Also, `evaluateApplicant` is an internal circuit (not exported, cannot be called
 
 ### Admin circuits
 
-These are straightforward access-controlled operations. Every admin circuit starts with the same guard:
+These access-controlled operations use the **witness-derived keypair pattern**. Every admin circuit starts with the same guard:
 
 ```compact
-assert(ownPublicKey() == admin, "Only admin can ...");
+assert(contractAdmin == deriveAdminPublicKey(getAdminSecret()), "Only admin can ...");
 ```
 
-This checks that the transaction signer's wallet key matches the `admin` stored in the ledger. If it does not match, the transaction reverts.
+Inside the ZK proof, this enforces that the caller knows the 32-byte preimage of the public value stored in `contractAdmin`. The ledger value alone is useless to an attacker: they could copy it into their proof input, but they cannot supply a witness that hashes to it without knowing the secret.
+
+:::warning Why not `ownPublicKey()`?
+
+An older pattern was `assert(ownPublicKey() == admin, "...")`. This is **not** authorization. `ownPublicKey()` returns a value the prover claims; it is not a proof of key ownership. Because `admin` was a public ledger value, any reader of the chain could supply that value as their own `ownPublicKey()` and the assertion would pass. The witness-derived keypair pattern fixes this by forcing the caller to know a secret whose hash is on the ledger.
+
+`ownPublicKey()` remains a valid primitive when used as an *identifier* (e.g. blacklist membership lookup, deriving a PIN-bound per-user key) — never as the right-hand side of an authorization assert.
+
+:::
 
 The five admin circuits are:
 
-*   `blacklistUser` / `removeBlacklistUser`: Add or remove a wallet from the blocklist. Wallets on the blocklist cannot request new loans.
+*   `blacklistUser` / `removeBlacklistUser`: Add or remove a wallet from the blocklist.
 
-*   `registerProvider` / `removeProvider`: Add or remove an attestation provider's public key. Without a registered provider, no loan requests can be processed (signature verification would fail).
+*   `registerProvider` / `removeProvider`: Add or remove an attestation provider's public key.
 
-*   `transferAdmin`: Hand over the admin role to another wallet.
+*   `rotateAdmin`: Hand over the admin role to a new derived public key. The new admin generates their own secret locally and shares only the resulting public key — no private key crosses the wire.
 
 Add the following code snippet:
 
 ```compact
 export circuit blacklistUser(account: ZswapCoinPublicKey): [] {
-    assert(ownPublicKey() == admin, "Only admin can blacklist users");
+    assert(contractAdmin == deriveAdminPublicKey(getAdminSecret()), "Only admin can blacklist users");
     blacklist.insert(disclose(account));
     return [];
 }
 
 export circuit removeBlacklistUser(account: ZswapCoinPublicKey): [] {
-    assert(ownPublicKey() == admin, "Only admin can remove from blacklist");
+    assert(contractAdmin == deriveAdminPublicKey(getAdminSecret()), "Only admin can remove from blacklist");
     blacklist.remove(disclose(account));
     return [];
 }
 
 export circuit registerProvider(providerId: Uint<16>, providerPk: JubjubPoint): [] {
-    assert(ownPublicKey() == admin, "Only admin can register providers");
+    assert(contractAdmin == deriveAdminPublicKey(getAdminSecret()), "Only admin can register providers");
     providers.insert(disclose(providerId), disclose(providerPk));
     return [];
 }
 
 export circuit removeProvider(providerId: Uint<16>): [] {
-    assert(ownPublicKey() == admin, "Only admin can remove providers");
+    assert(contractAdmin == deriveAdminPublicKey(getAdminSecret()), "Only admin can remove providers");
     assert(providers.member(disclose(providerId)), "Provider not found");
     providers.remove(disclose(providerId));
     return [];
 }
 
-export circuit transferAdmin(newAdmin: ZswapCoinPublicKey): [] {
-    assert(ownPublicKey() == admin, "Only admin can transfer admin role");
-    admin = disclose(newAdmin);
+export circuit rotateAdmin(newAdmin: AdminPublicKey): [] {
+    assert(contractAdmin == deriveAdminPublicKey(getAdminSecret()), "Only admin can rotate admin role");
+    contractAdmin = disclose(newAdmin);
     return [];
 }
 ```
@@ -631,6 +663,7 @@ export type ZKLoanCreditScorerPrivateState = {
   monthsAsCustomer: bigint;
   attestationSignature: SchnorrSignature;
   attestationProviderId: bigint;
+  adminSecretKey: Uint8Array;
 };
 
 const TWO_248 = 452312848583266388373324160190187140051835877600158453279131187530910662656n;
@@ -667,6 +700,18 @@ export const witnesses = {
     const r = challengeHash % TWO_248;
     return [privateState, [q, r]];
   },
+
+  getAdminSecret: ({
+    privateState,
+  }: WitnessContext<Ledger, ZKLoanCreditScorerPrivateState>): [
+    ZKLoanCreditScorerPrivateState,
+    { bytes: Uint8Array },
+  ] => {
+    if (!privateState.adminSecretKey || privateState.adminSecretKey.length !== 32) {
+      throw new Error("getAdminSecret: adminSecretKey is missing or wrong length");
+    }
+    return [privateState, { bytes: privateState.adminSecretKey }];
+  },
 };
 ```
 
@@ -677,6 +722,8 @@ In the code above, each witness function receives a `WitnessContext` containing 
 *   `getAttestedScoringWitness`: When the circuit calls `getAttestedScoringWitness()`, this function extracts the credit profile, the attestation signature, and the provider ID from private state and hands them to the circuit. The circuit then verifies the signature and evaluates eligibility.
 
 *   `getSchnorrReduction`: Computes the quotient and remainder of dividing the challenge hash by 2^248. The circuit needs this for the Schnorr signature truncation step (since it cannot do integer division directly in zero-knowledge).
+
+*   `getAdminSecret`: Returns the 32-byte admin secret from private state. The circuit hashes it with the contract-specific domain separator and compares the result to the `contractAdmin` ledger value. Only the deploying admin holds a secret whose hash matches what is stored on-chain; for everyone else, the comparison fails and the transaction reverts. The runtime validation ensures the witness never returns a malformed value.
 
 ## Create the smart contract TypeScript exports
 
