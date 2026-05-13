@@ -76,8 +76,8 @@ export class PreprodConfig implements Config {
     "preprod",
     `${new Date().toISOString()}.log`,
   );
-  indexer = "https://indexer.preprod.midnight.network/api/v3/graphql";
-  indexerWS = "wss://indexer.preprod.midnight.network/api/v3/graphql/ws";
+  indexer = "https://indexer.preprod.midnight.network/api/v4/graphql";
+  indexerWS = "wss://indexer.preprod.midnight.network/api/v4/graphql/ws";
   node = "wss://rpc.preprod.midnight.network";
   proofServer = "http://127.0.0.1:6300";
   networkId = "preprod";
@@ -92,8 +92,8 @@ export class LocalDevConfig implements Config {
     "localdev",
     `${new Date().toISOString()}.log`,
   );
-  indexer = "http://127.0.0.1:8088/api/v3/graphql";
-  indexerWS = "ws://127.0.0.1:8088/api/v3/graphql/ws";
+  indexer = "http://127.0.0.1:8088/api/v4/graphql";
+  indexerWS = "ws://127.0.0.1:8088/api/v4/graphql/ws";
   node = "http://127.0.0.1:9944";
   proofServer = "http://127.0.0.1:6300";
   networkId = "undeployed";
@@ -238,9 +238,12 @@ export const userProfiles = [
 
 import { webcrypto } from 'node:crypto';
 
-// Generate a fresh 32-byte admin secret. The deploying user holds this in
-// private state; the ledger only ever sees its hash via `deriveAdminPublicKey`.
-function generateAdminSecret(): Uint8Array {
+// Generate a fresh 32-byte user secret. This single value drives all identity
+// in the contract: per-user PIN-bound identity (`deriveUserPublicKey(secret, pin)`)
+// and the admin role (`deriveAdminPublicKey(secret)`). It is the only
+// authoritative caller identity — `ownPublicKey()` is prover-supplied and
+// unused.
+function generateUserSecret(): Uint8Array {
   const bytes = new Uint8Array(32);
   webcrypto.getRandomValues(bytes);
   return bytes;
@@ -248,7 +251,7 @@ function generateAdminSecret(): Uint8Array {
 
 export function getUserProfile(
   index?: number,
-  adminSecretKey: Uint8Array = generateAdminSecret(),
+  userSecretKey: Uint8Array = generateUserSecret(),
 ): ZKLoanCreditScorerPrivateState {
   let profile;
   if (index !== undefined) {
@@ -271,12 +274,12 @@ export function getUserProfile(
       response: 0n,
     },
     attestationProviderId: 0n,
-    adminSecretKey,
+    userSecretKey,
   };
 }
 ```
 
-The `adminSecretKey` field is a 32-byte preimage of the `contractAdmin` ledger value. Whoever deploys the contract becomes admin by virtue of holding this secret; rotating the admin role requires the next admin to generate their own secret and share only its derived public key.
+The `userSecretKey` field is the 32-byte preimage of both the caller's per-user pubkey (with PIN) and the admin pubkey (without PIN). Whoever deploys becomes admin by virtue of holding this secret; rotating the admin role requires the next admin to generate their own secret and share only its derived admin public key.
 
 These profiles map to the eligibility tiers defined in the smart contract from [Part 1](./smart-contract):
 
@@ -333,48 +336,6 @@ export const createLogger = async (
 ```
 
 Set `DEBUG_LEVEL=debug` in your environment for verbose output during development.
-
-### Address utilities
-
-The CLI's blocklist flows need to accept either a full Midnight shielded address (`mn_shield-addr_…`) or a raw 32-byte hex public key, since both are common ways for an operator to identify a wallet. This helper centralizes the parsing. The admin rotation flow does *not* use this helper — `rotateAdmin` takes a contract-specific `AdminPublicKey` (a 32-byte hash), not a wallet address.
-
-Create `zkloan-credit-scorer-cli/src/address-utils.ts`:
-
-```typescript
-import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import {
-  MidnightBech32m,
-  ShieldedAddress,
-} from '@midnight-ntwrk/wallet-sdk-address-format';
-
-// Resolve a user-provided account identifier into the 32-byte Zswap coin
-// public key the contract expects. Accepts:
-//   - A Midnight shielded address (mn_shield-addr_preprod1… / mn_shield-addr_undeployed1…)
-//   - A raw 32-byte hex string (with or without a 0x prefix)
-export const resolveZswapCoinPublicKey = (input: string): Uint8Array => {
-  const trimmed = input.trim();
-
-  if (trimmed.startsWith('mn_shield-addr_')) {
-    const decoded = MidnightBech32m.parse(trimmed).decode(
-      ShieldedAddress,
-      getNetworkId(),
-    );
-    // ShieldedAddress carries both the coin public key and an encryption key;
-    // the contract only takes the coin public key.
-    return Uint8Array.from(decoded.coinPublicKey.data);
-  }
-
-  const hex = trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed;
-  if (!/^[0-9a-fA-F]{64}$/.test(hex)) {
-    throw new Error(
-      'Invalid account identifier — expected a 32-byte hex public key or an mn_shield-addr_… address',
-    );
-  }
-  return Uint8Array.from(Buffer.from(hex, 'hex'));
-};
-```
-
-The function returns a 32-byte `Uint8Array` either way, which is exactly what the contract's `ZswapCoinPublicKey` parameter takes. The shielded-address branch discards the encryption key portion — only the coin public key is used on-chain.
 
 ### Core API implementation
 
@@ -553,11 +514,22 @@ This section handles the core loan flow: computing the user's public key hash, f
 const bytes32Type = new CompactTypeBytes(32);
 const { pureCircuits } = ZKLoanCreditScorer;
 
+// Derive the per-user public key off-chain from the local user secret and a
+// PIN, using the same pure circuit the contract uses on-chain. The user
+// secret comes from private state — it is the only authoritative identity
+// for the caller, since `ownPublicKey()` is prover-claimed and not used.
+export const deriveUserPublicKey = (userSecretKey: Uint8Array, pin: bigint): Uint8Array => {
+  return pureCircuits.deriveUserPublicKey({ bytes: userSecretKey }, pin).bytes;
+};
+
+// Compute the userPubKeyHash for an attestation message. Matches what the
+// contract computes inside `requestLoan` via
+// `transientHash(deriveUserPublicKey(secret, pin))`.
 export const computeUserPubKeyHash = (
-  zwapKeyBytes: Uint8Array,
+  userSecretKey: Uint8Array,
   pin: bigint,
 ): bigint => {
-  const pubKey = pureCircuits.publicKey(zwapKeyBytes, pin);
+  const pubKey = deriveUserPublicKey(userSecretKey, pin);
   return transientHash(bytes32Type, pubKey);
 };
 
@@ -606,20 +578,24 @@ export const requestLoan = async (
   providers: ZKLoanCreditScorerProviders,
   amountRequested: bigint,
   secretPin: bigint,
-  zwapKeyBytes: Uint8Array,
   attestationApiUrl: string,
 ): Promise<FinalizedTxData> => {
-  const userPubKeyHash = computeUserPubKeyHash(zwapKeyBytes, secretPin);
-  logger.info(`Computed userPubKeyHash for attestation`);
-
-  const currentState =
-    await providers.privateStateProvider.get(
-      'zkLoanCreditScorerPrivateState',
-    );
+  // 1. Get current private state (must contain `userSecretKey`)
+  const currentState = await providers.privateStateProvider.get(
+    'zkLoanCreditScorerPrivateState',
+  );
   if (!currentState) {
     throw new Error('No private state found');
   }
 
+  // 2. Compute user pub key hash from the user secret (same as the circuit)
+  const userPubKeyHash = computeUserPubKeyHash(
+    currentState.userSecretKey,
+    secretPin,
+  );
+  logger.info(`Computed userPubKeyHash for attestation`);
+
+  // 3. Fetch attestation signature from API
   logger.info(`Fetching attestation from ${attestationApiUrl}...`);
   const signature = await fetchAttestation(
     attestationApiUrl,
@@ -629,11 +605,13 @@ export const requestLoan = async (
     userPubKeyHash,
   );
 
+  // 4. Get provider info
   const providerRes = await fetch(`${attestationApiUrl}/provider-info`);
   const providerInfo = (await providerRes.json()) as {
     providerId: number;
   };
 
+  // 5. Update private state with attestation data
   const updatedState: ZKLoanCreditScorerPrivateState = {
     ...currentState,
     attestationSignature: signature,
@@ -647,6 +625,7 @@ export const requestLoan = async (
     `Private state updated with attestation (provider ${providerInfo.providerId})`,
   );
 
+  // 6. Call the circuit
   logger.info(
     `Requesting loan for $${amountRequested} (USD) with PIN...`,
   );
@@ -663,15 +642,15 @@ export const requestLoan = async (
 
 This is the core loan flow from the CLI's perspective. `requestLoan` does four things in sequence:
 
-1.  Computes the user's public key hash from the wallet key and PIN using the `publicKey` pure circuit
+1.  Reads `userSecretKey` from local private state and derives the user's public key hash with `computeUserPubKeyHash(userSecretKey, pin)`. The function no longer takes `zwapKeyBytes` — identity comes from the witness secret, not the wallet's coin public key. The wallet still pays for the transaction via the standard Zswap balancing flow, but does not *identify* the user.
 
-2.  Sends the credit data to the attestation API, which returns a Schnorr signature
+2.  Sends the credit data to the attestation API, which returns a Schnorr signature.
 
-3.  Stores the signature and provider ID in the local private state
+3.  Stores the signature and provider ID in the local private state.
 
-4.  Calls `requestLoan` on the smart contract, the proof server reads the private state (including the attestation) and generates the zero-knowledge proof
+4.  Calls `requestLoan` on the smart contract. The proof server reads private state (including the attestation and the user secret) and generates the zero-knowledge proof.
 
-The `computeUserPubKeyHash` function uses the same `publicKey` pure circuit that the smart contract uses. This ensures the hash included in the attestation matches what the circuit computes during verification.
+The `computeUserPubKeyHash` function uses the same `deriveUserPublicKey` pure circuit the smart contract uses on-chain. Calling the generated `pureCircuits.deriveUserPublicKey` from TypeScript guarantees the off-chain hash and the in-circuit hash agree, so the attestation message and the in-proof identity match.
 
 #### Circuit call wrappers and state display
 
@@ -691,13 +670,20 @@ export const changePin = async (
   return finalizedTxData.public;
 };
 
+// Blacklist a user by their derived `UserPublicKey` (the value the contract
+// checks inside `assert(!blacklist.member(deriveUserPublicKey(...)))`). The
+// admin must obtain this 32-byte value out of band — typically by reading
+// the on-chain `loans` map keys for users who have already interacted, or
+// by asking the target to share their derived pubkey directly. Note that
+// admin cannot blacklist by wallet address, since `ownPublicKey()` is not
+// trusted by the contract.
 export const blacklistUser = async (
   contract: DeployedZKLoanCreditScorerContract,
-  account: Uint8Array,
+  userPublicKey: Uint8Array,
 ): Promise<FinalizedTxData> => {
-  logger.info('Adding user to blocklist...');
+  logger.info('Blacklisting user public key...');
   const finalizedTxData = await contract.callTx.blacklistUser({
-    bytes: account,
+    bytes: userPublicKey,
   });
   logger.info(
     `Transaction ${finalizedTxData.public.txId} added in block ${finalizedTxData.public.blockHeight}`,
@@ -707,11 +693,11 @@ export const blacklistUser = async (
 
 export const removeBlacklistUser = async (
   contract: DeployedZKLoanCreditScorerContract,
-  account: Uint8Array,
+  userPublicKey: Uint8Array,
 ): Promise<FinalizedTxData> => {
-  logger.info('Removing user from blocklist...');
+  logger.info('Removing user public key from blacklist...');
   const finalizedTxData = await contract.callTx.removeBlacklistUser({
-    bytes: account,
+    bytes: userPublicKey,
   });
   logger.info(
     `Transaction ${finalizedTxData.public.txId} added in block ${finalizedTxData.public.blockHeight}`,
@@ -721,7 +707,7 @@ export const removeBlacklistUser = async (
 
 // Hand the admin role over by writing the new admin's derived public key to
 // the ledger. The new admin generates their secret locally and computes
-// `deriveAdminPublicKey(secret)` off-chain; only the resulting 32-byte
+// `deriveAdminPublicKey(userSecret)` off-chain; only the resulting 32-byte
 // public key crosses the wire. No private key is ever transmitted.
 export const rotateAdmin = async (
   contract: DeployedZKLoanCreditScorerContract,
@@ -737,10 +723,13 @@ export const rotateAdmin = async (
   return finalizedTxData.public;
 };
 
-// Compute the AdminPublicKey for a given secret. Run by a prospective new
-// admin to obtain the 32-byte public key they hand to the current admin.
-export const deriveAdminPublicKey = (adminSecretKey: Uint8Array): Uint8Array => {
-  return pureCircuits.deriveAdminPublicKey({ bytes: adminSecretKey }).bytes;
+// Compute the AdminPublicKey for a given user secret. Run by a prospective
+// new admin to obtain the 32-byte public key they hand to the current admin.
+// Same `userSecretKey` is used for both per-user identity (PIN-bound) and
+// the admin role (no PIN) — different domain separators inside the contract
+// keep them logically independent.
+export const deriveAdminPublicKey = (userSecretKey: Uint8Array): Uint8Array => {
+  return pureCircuits.deriveAdminPublicKey({ bytes: userSecretKey }).bytes;
 };
 
 export const registerProvider = async (
@@ -1251,7 +1240,6 @@ import { type Config } from "./config";
 import * as api from "./api";
 import type { WalletContext } from "./api";
 import { getUserProfile } from "./state.utils";
-import { resolveZswapCoinPublicKey } from "./address-utils";
 import "dotenv/config";
 
 let logger: Logger;
@@ -1340,16 +1328,12 @@ const requestLoan = async (
 
   const attestationApiUrl =
     process.env.ATTESTATION_API_URL || "http://localhost:4000";
-  const coinPubKeyHex = walletContext.shieldedSecretKeys
-    .coinPublicKey as unknown as string;
-  const zwapKeyBytes = Buffer.from(coinPubKeyHex, "hex");
 
   await api.requestLoan(
     contract,
     providers,
     amount,
     pin,
-    zwapKeyBytes,
     attestationApiUrl,
   );
   logger.info("Loan request submitted successfully!");
@@ -1373,56 +1357,59 @@ const changePinFlow = async (
 
 #### Admin flow functions
 
-The five admin operations — blocklist, unblock, register/remove provider, and rotate — all use the **witness-derived keypair pattern**. Each circuit's first assertion forces the caller, inside the ZK proof, to demonstrate knowledge of the 32-byte secret whose hash is stored in the contract's `contractAdmin` ledger field. Only the deploying admin holds that secret; for everyone else the circuit fails to satisfy its constraints and the transaction reverts. Rotation is the only way to change who holds admin authority, and it works by the new admin generating their own secret locally and sharing only the resulting public key.
+All five admin operations — blocklist, unblock, register/remove provider, and rotate — use the **witness-derived keypair pattern**. Each circuit's first assertion forces the caller, inside the ZK proof, to demonstrate knowledge of the 32-byte secret whose admin-derivation is stored in `contractAdmin`. Only the deploying admin holds that secret; for everyone else the circuit fails to satisfy its constraints and the transaction reverts. Rotation is the only way to change who holds admin authority, and it works by the new admin generating their own user secret locally and sharing only the resulting admin public key.
+
+The blacklist flows take a derived `UserPublicKey` (64 hex chars), not a wallet address. Admin obtains this value either by reading the on-chain `loans` map (where it appears as the key for any user who has interacted) or out-of-band from the target. Admin cannot preemptively blacklist a user who has not yet touched the contract — that's a deliberate trade-off for unforgeable caller identity.
 
 Each admin function prompts for the required input and delegates to the corresponding API wrapper. Only the deployer (admin) can execute these operations:
 
 ```typescript
-const ACCOUNT_PROMPT_HINT =
-  "(shielded address `mn_shield-addr_…` or 32-byte hex public key)";
+const USER_PUBKEY_PROMPT_HINT =
+  '(64-char hex of the user\'s derived UserPublicKey — e.g. read from the on-chain `loans` map key, or shared by the target)';
 
-// Add a wallet to the blocklist
+const parseUserPublicKeyHex = (input: string): Uint8Array => {
+  const hex = input.trim().toLowerCase().replace(/^0x/, '');
+  if (!/^[0-9a-f]{64}$/.test(hex)) {
+    throw new Error('User public key must be exactly 64 hex chars (32 bytes).');
+  }
+  return Uint8Array.from(Buffer.from(hex, 'hex'));
+};
+
 const blacklistUserFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const account = await rli.question(
-    `Enter the account to add to the blocklist ${ACCOUNT_PROMPT_HINT}: `,
+  const input = await rli.question(
+    `Enter the user public key to blacklist ${USER_PUBKEY_PROMPT_HINT}: `,
   );
-  await api.blacklistUser(contract, resolveZswapCoinPublicKey(account));
-  logger.info("User added to blocklist successfully!");
+  await api.blacklistUser(contract, parseUserPublicKeyHex(input));
+  logger.info('User public key blacklisted successfully!');
 };
 
-// Remove a wallet from the blocklist
 const removeBlacklistUserFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const account = await rli.question(
-    `Enter the account to remove from the blocklist ${ACCOUNT_PROMPT_HINT}: `,
+  const input = await rli.question(
+    `Enter the user public key to remove from blacklist ${USER_PUBKEY_PROMPT_HINT}: `,
   );
-  await api.removeBlacklistUser(contract, resolveZswapCoinPublicKey(account));
-  logger.info("User removed from blocklist successfully!");
+  await api.removeBlacklistUser(contract, parseUserPublicKeyHex(input));
+  logger.info('User public key removed from blacklist successfully!');
 };
 
 // Rotate the admin role to a public key the new admin already derived
-// locally. The new admin runs `deriveAdminPublicKey(secret)` against their
-// fresh 32-byte secret and hands the resulting public key (64 hex chars)
-// to the current admin. No private key is exchanged.
+// locally. The new admin runs `deriveAdminPublicKey(userSecret)` against
+// their own 32-byte user secret and hands the resulting public key (64 hex
+// chars) to the current admin. No private key is exchanged.
 const rotateAdminFlow = async (
   contract: DeployedZKLoanCreditScorerContract,
   rli: Interface,
 ): Promise<void> => {
-  const newAdminPkInput = await rli.question(
+  const input = await rli.question(
     'Enter the new admin derived public key (64 hex chars). ' +
-      'The new admin generates this with `deriveAdminPublicKey(secret)` and shares only the result: ',
+      'The new admin generates this with `deriveAdminPublicKey(userSecret)` and shares only the result: ',
   );
-  const hex = newAdminPkInput.trim().toLowerCase().replace(/^0x/, '');
-  if (!/^[0-9a-f]{64}$/.test(hex)) {
-    throw new Error('New admin public key must be exactly 64 hex chars (32 bytes).');
-  }
-  const newAdminPublicKey = Uint8Array.from(Buffer.from(hex, 'hex'));
-  await api.rotateAdmin(contract, newAdminPublicKey);
+  await api.rotateAdmin(contract, parseUserPublicKeyHex(input));
   logger.info('Admin role rotated successfully!');
 };
 
@@ -1838,6 +1825,6 @@ The CLI fetches an attestation from the API, stores it in the local private stat
 
 #### 5. Inspect the on-chain state
 
-Pick **option 3 (Display contract state)**. The CLI logs the contract address, the admin public key (the hash of the deploying admin's secret), blocklist size, and the loan record (status + authorized amount).
+Pick **option 3 (Display contract state)**. The CLI logs the contract address, the admin public key (the hash of the deploying admin's user secret), blocklist size, and the loan record (status + authorized amount).
 
 Notice what is **not** on-chain: your credit score, income, employment tenure, attestation signature, or PIN. The transaction proved your eligibility without revealing any of those — only the outcome was disclosed.
