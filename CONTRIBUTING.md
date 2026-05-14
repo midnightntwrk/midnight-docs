@@ -21,34 +21,33 @@ Supported issue types include:
 - **New content**: Suggest new documentation content or request documentation for a new Midnight feature.
 - **Site**: Request updates to the Midnight documentation site that affect its interface, functionality, or infrastructure.
 
-## Documentation contribution process
+## Documentation contribution guidelines
 
 Before contributing to the doc, review the following guides:
 
-- **[Doc contribution guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/contribute-docs.mdx)**: This includes a step-by-step guide on setting up your GitHub environment, creating pull requests, file naming convention.
+- **[Doc contribution guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/contribute-docs.mdx)**: This includes a step-by-step guide on setting up your GitHub environment, creating pull requests, file naming convention, and more.
 - **[Style guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/style-guide.mdx)**: The style guide helps contributors adhere to writing and formatting standards for the Midnight blockchain.
-- **[Formatting guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/formatting-guide.mdx)**: This includes a detailed guide on some of the markdown syntax and component used in the Midnight documentation.
+- **[Formatting guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/formatting-guide.mdx)**: This includes a detailed guide on markdown syntax and components used in the Midnight documentation.
 
-## Code contribution process
+## Code contribution guidelines
 
-* **Pull Requests:** Code contributions are submitted via Pull Requests.
-* **Fork the Repository:** Create your own fork of the Midnight repository.
-* **Create a Branch:** Make your changes in a separate branch,
-  prefixed with a short name moniker (e.g. `jill-my-feature`).
-* **Follow Coding Standards:** Adhere to the coding style guides specified in our documentation.
-* **Write Tests:** Include unit tests and integration tests to cover your changes.
-* **Commit Messages:** Write clear and concise commit messages.
-* **Submit Pull Request:** Submit your pull request to the appropriate branch in the main repository.
-* **Please do not `--force` pushes** - doing so means that reviewers will have to re-review all
-  commits in the PR rather than commits since last review.
-* **Code Review:** All pull requests undergo code review by project maintainers.
-  Be prepared to address feedback from reviewers.
+All code contributions must follow these guidelines. Adhering to them helps maintainers review your changes efficiently and keeps the review history clean.
+
+* **Pull requests**: Code contributions are submitted via pull requests.
+* **Fork the repository**: Create your own fork of the Midnight docs repository.
+* **Create a branch**: Make your changes in a separate branch, prefixed with a short name moniker (for example, `jill-my-feature`).
+* **Follow coding standards**: Adhere to the coding style guides specified in our documentation.
+* **Write tests**: Include unit tests and integration tests to cover your changes.
+* **Commit messages**: Write clear and concise commit messages.
+* **Submit pull request**: Submit your pull request to the appropriate branch in the main repository.
+* **Do not `--force` push**: Doing so requires reviewers to re-review all commits in the PR rather than only the commits since the last review.
+* **Code review**: All pull requests undergo code review by project maintainers. Be prepared to address feedback from reviewers.
 
 ## Requirements for acceptable contributions
 
-To ensure your contributions are reviewed and merged, you need to adhere to the following:
+To ensure that your contributions are reviewed and merged, you need to adhere to the following standards:
 
-* **Coding standards**: Code must adhere to the coding style guides defined in our documentation
+* **Coding**: Code must adhere to the coding style guides defined in our documentation
 * **Testing**: New functionality must include corresponding unit tests and integration tests.
 * **Documentation**: Code changes should be accompanied by proposed relevant documentation updates.
 * **License**: All contributions must be compatible with the project's license.
