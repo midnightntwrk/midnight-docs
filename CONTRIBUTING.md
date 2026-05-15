@@ -4,13 +4,13 @@ We welcome your contributions to the Midnight network! By contributing, you'll p
 
 ## Get started
 
-* **Review existing contributions and issues**: Before submitting, please check if a similar issue or feature request already exists by searching our issue tracker.
+* **Review existing contributions and issues**: Before submitting, check if a similar issue or feature request already exists by searching the issue tracker.
 * **Understand the project**: Familiarize yourself with Midnight's architecture, technology, and coding standards. You can find relevant information in our litepaper.
 * **Set up your development environment**: Ensure you have the necessary tools and dependencies installed. See our developer [documentation](https://docs.midnight.network/) for detailed instructions.
 
 ## Submit issues
 
-Use one of the [issue templates](https://github.com/midnightntwrk/midnight-docs/issues/new/choose) to submit an issue to the Midnight docs repository. The Midnight team or a community member will address it if it's relevant.
+Use one of the [issue templates](https://github.com/midnightntwrk/midnight-docs/issues/new/choose) to submit an issue to the Midnight docs repository. The Midnight team or a community member triages and addresses relevant issues.
 
 Ensure the title is a clear summary of the requirement and provides enough context.
 
@@ -25,7 +25,7 @@ Supported issue types include:
 
 Before contributing to the doc, review the following guides:
 
-- **[Doc contribution guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/contribute-docs.mdx)**: This includes a step-by-step guide on setting up your GitHub environment, creating pull requests, file naming convention, and more.
+- **[Doc contribution guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/contribute-docs.mdx)**: A step-by-step guide to setting up your GitHub environment, creating pull requests, and following file naming conventions.
 - **[Style guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/style-guide.mdx)**: The style guide helps contributors adhere to writing and formatting standards for the Midnight blockchain.
 - **[Formatting guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/formatting-guide.mdx)**: This includes a detailed guide on markdown syntax and components used in the Midnight documentation.
 
@@ -33,7 +33,7 @@ Before contributing to the doc, review the following guides:
 
 All code contributions must follow these guidelines. Adhering to them helps maintainers review your changes efficiently and keeps the review history clean.
 
-* **Pull requests**: Code contributions are submitted via pull requests.
+* **Pull requests**:  Submit code contributions via pull requests.
 * **Fork the repository**: Create your own fork of the Midnight docs repository.
 * **Create a branch**: Make your changes in a separate branch, prefixed with a short name moniker (for example, `jill-my-feature`).
 * **Follow coding standards**: Adhere to the coding style guides specified in our documentation.
@@ -45,9 +45,9 @@ All code contributions must follow these guidelines. Adhering to them helps main
 
 ## Requirements for acceptable contributions
 
-To ensure that your contributions are reviewed and merged, you need to adhere to the following standards:
+Follow these standards so your contributions can be reviewed and merged:
 
-* **Coding**: Code must adhere to the coding style guides defined in our documentation
+* **Coding**: Code must adhere to the coding style guides defined in the project documentation.
 * **Testing**: New functionality must include corresponding unit tests and integration tests.
 * **Documentation**: Code changes should be accompanied by proposed relevant documentation updates.
 * **License**: All contributions must be compatible with the project's license.
