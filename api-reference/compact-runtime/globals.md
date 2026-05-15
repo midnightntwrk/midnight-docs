@@ -177,7 +177,7 @@
 - [maxAlignedSize](functions/maxAlignedSize.md)
 - [maxField](functions/maxField.md)
 - [mulField](functions/mulField.md)
-- [ownPublicKey](functions/ownPublicKey.md)
+- [ownPublicKey](functions/ownPublicKey.md) ⚠️ _witness — do not use for caller verification_
 - [persistentCommit](functions/persistentCommit.md)
 - [persistentHash](functions/persistentHash.md)
 - [proofDataIntoSerializedPreimage](functions/proofDataIntoSerializedPreimage.md)
