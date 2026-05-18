@@ -1,0 +1,80 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Production deployment"
+title: "Production deployment"
+description: "Deploy a Midnight leaderboard DApp frontend to Vercel on Preprod."
+sidebar_position: 5
+toc_max_heading_level: 2
+tags: ["deployment", "vercel", "production", "dapp", "preprod", "tutorial"]
+---
+
+# Part 4: Production deployment
+
+In this section, you deploy the leaderboard frontend to Vercel.
+
+## Vercel build configuration
+
+Create the Vercel build configuration. This tells Vercel how to build the monorepo: it compiles the contract and API packages first, then builds the Vite frontend.
+
+```bash
+touch vercel.json
+```
+
+The `buildCommand` chains the TypeScript compilation for each workspace package. The `outputDirectory` points to the Vite build output.
+
+```json
+{
+  "buildCommand": "cd contract && npm run build && cd ../api && npm run build && cd ../leaderboard-ui && npm run build",
+  "outputDirectory": "leaderboard-ui/dist",
+  "installCommand": "npm install",
+  "framework": null
+}
+```
+
+### Compiled contract output
+
+Vercel does not have the Compact compiler installed. Make sure `contract/managed/` is not in your `.gitignore` so your push to GitHub includes the compiled circuit keys and TypeScript bindings.
+
+### Production environment file
+
+Create the production environment file with your deployed contract address.
+
+```bash
+touch leaderboard-ui/.env.preprod
+```
+
+The `leaderboard-ui` build script runs `vite build --mode preprod`, which loads `.env.preprod` instead of `.env`.
+
+```bash
+VITE_NETWORK_ID=preprod
+VITE_INDEXER_URL=https://indexer.preprod.midnight.network/api/v4/graphql
+VITE_INDEXER_WS_URL=wss://indexer.preprod.midnight.network/api/v4/graphql/ws
+VITE_DEFAULT_CONTRACT=<your deployed contract address>
+```
+
+### Deploy to Vercel
+
+Import the repository and deploy it from the Vercel dashboard.
+
+1. Go to [vercel.com](https://vercel.com) and sign in with GitHub.
+2. Click **Add New Project** and import your repository.
+3. Make sure the **Root Directory** setting is empty (not set to a subdirectory).
+4. Click **Deploy**.
+
+## Test the production deployment
+
+Visit your Vercel URL in Chrome with Lace installed. The leaderboard loads from the indexer. Connect your wallet and submit a score to verify the full pipeline works end to end.
+
+## Summary
+
+The production stack relies on the following services.
+
+| Component | Service |
+|-----------|---------|
+| Frontend | Vercel |
+| Chain and indexer | Midnight Preprod |
+| Wallet and proof generation | Lace browser extension |
+| Test tokens | Preprod faucet |
+
+This architecture scales to any Midnight DApp. The contract defines the on-chain logic. The API layer wraps it for TypeScript consumption. The frontend connects via Lace, and the wallet's proof server handles proof generation.
