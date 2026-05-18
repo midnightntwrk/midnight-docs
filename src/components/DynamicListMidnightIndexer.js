@@ -17,8 +17,38 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.0.0',
+    version: '4.0.2',
     status: 'LATEST',
+    date: '23 April 2026',
+    summary: 'Patch release correcting paidFees computation.',
+    details: [
+      'Corrected `paidFees` computation (backport of #1031 and #1061).',
+    ],
+    artifacts: [
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+    ],
+  },
+  {
+    version: '4.0.1',
+    status: 'SUPPORTED',
+    date: '25 March 2026',
+    summary: 'Patch release correcting timestamp unit mismatch in capacity calculation.',
+    details: [
+      'Corrected timestamp unit mismatch in `currentCapacity` calculation.',
+    ],
+    artifacts: [
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+    ],
+  },
+  {
+    version: '4.0.0',
+    status: 'SUPPORTED',
     date: '17 March 2026',
     summary: 'Indexer API v4 release with Node 0.22 and Ledger 8 support.',
     details: [
@@ -222,7 +252,7 @@ const DynamicListWithDropdownFilters = () => {
   // Add version prefix to all release links
   const versionedReleases = releases.map(release => ({
     ...release,
-    link: `${versionPrefix}${release.link}`
+    link: release.link ? `${versionPrefix}${release.link}` : null,
   }));
 
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
@@ -297,9 +327,13 @@ const DynamicListWithDropdownFilters = () => {
               fontWeight: 'bold',
             }}
           >
-            <Link to={release.link} className="hyperlink">
-              Release {release.version}
-            </Link>
+            {release.link ? (
+              <Link to={release.link} className="hyperlink">
+                Release {release.version}
+              </Link>
+            ) : (
+              <span>Release {release.version}</span>
+            )}
             <span style={{
               display: 'inline-block',
               padding: '0.2rem 0.6rem',
