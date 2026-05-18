@@ -41,18 +41,17 @@ This DApp uses `@midnight-ntwrk/wallet-sdk-shielded`, which calls `Map.prototype
 
 Install the Midnight Compact compiler. Follow the instructions in the [installation guide](/getting-started/installation) to install the Compact toolchain on your system.
 
-Verify it is available (this tutorial targets Compact toolchain `0.30.0`):
+Verify it is available:
 
 ```shell
 compact compile --version
-# Should print 0.30.0
 ```
 
-The workspace is pinned to `0.30.0`. Run `compact update` to install all available compilers; the build script (below) invokes the pinned version explicitly with `compact compile +0.30.0`, so even with newer compilers installed the project will compile against `0.30.0`.
+Run `compact update` to install the latest Compact toolchain. The workspace `package.json` declares `@midnight-ntwrk/compact-runtime: ^0.16.0`, which matches what the latest `compact compile` emits.
 
-:::note Toolchain pin
+:::note compact-js's nested compact-runtime
 
-The toolchain pin is required while `@midnight-ntwrk/compact-js@2.5.0` hard-pins `@midnight-ntwrk/compact-runtime` to exactly `0.15.0`. The latest compactc (0.31+) emits code expecting runtime `0.16`, which the workspace cannot reach until compact-js publishes a `0.16`-compatible release. Until then, run `compact update` to install all available compilers, but invoke the workspace build with `compact compile +0.30.0`.
+`compact-js@2.5.0` declares an exact-pin on `compact-runtime@0.15.0`, but that pin only applies to compact-js's internal resolution — npm nests the `0.15` build inside `node_modules/@midnight-ntwrk/compact-js/node_modules/` and serves `0.16` to your application code at the top level. There is no workspace-level version conflict, and you do not need to do anything about the nested copy.
 
 :::
 
@@ -92,8 +91,8 @@ cat > package.json << 'EOF'
     "vitest": "^4.0.15"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-js": "2.5.0",
-    "@midnight-ntwrk/compact-runtime": "0.15.0",
+    "@midnight-ntwrk/compact-js": "^2.5.0",
+    "@midnight-ntwrk/compact-runtime": "^0.16.0",
     "@midnight-ntwrk/ledger-v8": "8.0.3",
     "@midnight-ntwrk/midnight-js-contracts": "4.0.4",
     "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.4",
@@ -119,13 +118,11 @@ cat > package.json << 'EOF'
   "overrides": {
     "smoldot": "npm:@aspect-build/empty@0.0.0",
     "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
-    "@midnight-ntwrk/compact-runtime": "0.15.0"
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4"
   },
   "resolutions": {
     "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
-    "@midnight-ntwrk/compact-runtime": "0.15.0"
+    "@midnight-ntwrk/midnight-js-network-id": "4.0.4"
   }
 }
 EOF
@@ -775,7 +772,7 @@ cat > contract/package.json << 'EOF'
     }
   },
   "scripts": {
-    "compact": "compact compile +0.30.0 src/zkloan-credit-scorer.compact src/managed/zkloan-credit-scorer",
+    "compact": "compact compile src/zkloan-credit-scorer.compact src/managed/zkloan-credit-scorer",
     "test": "vitest run",
     "test:compile": "npm run compact && vitest run",
     "build": "rm -rf dist && tsc --project tsconfig.build.json && cp -Rf ./src/managed ./dist/managed && cp ./src/zkloan-credit-scorer.compact ./src/schnorr.compact ./dist"
