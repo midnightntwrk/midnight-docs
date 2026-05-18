@@ -42,7 +42,7 @@ Key parts of the API are:
 - Coin management functions
     - [`tokenType`](exports.md#tokentype)
     - [`nativeToken`](exports.md#nativetoken)
-    - [`ownPublicKey`](exports.md#ownpublickey)
+    - [`ownPublicKey`](exports.md#ownpublickey) ⚠️ _witness — do not use for caller verification_
     - [`createZswapInput`](exports.md#createzswapinput)
     - [`createZswapOutput`](exports.md#createzswapoutput)
     - [`mintShieldedToken`](exports.md#mintshieldedtoken)

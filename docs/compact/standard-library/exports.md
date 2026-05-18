@@ -465,6 +465,14 @@ creating this transaction.
 circuit ownPublicKey(): ZswapCoinPublicKey;
 ```
 
+:::warning Do not use `ownPublicKey()` for caller verification
+
+`ownPublicKey()` is a **witness function** — it runs outside zero-knowledge circuits and each user provides their own implementation. Do **not** use it to verify callers in Compact circuits. Only use it after the caller has been verified through another mechanism.
+
+See the [Smart Contract Security Guide](../smart-contract-security.mdx#ownpublickey-is-a-witness-function) for details.
+
+:::
+
 ### `createZswapInput`
 
 Notifies the context to create a new Zswap input originating from this call.
