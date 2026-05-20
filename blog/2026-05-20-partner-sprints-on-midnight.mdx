@@ -1,0 +1,76 @@
+---
+slug: navigating-cardano-hard-forks
+title: How Midnight Navigates Van Rossem Hard Fork
+authors: stev
+tags: [blockchain, hardforks, upgrades]
+date: 2026-05-20
+image: /img/blog/blockchain.jpg
+---
+
+# How Midnight Navigates Cardano Van Rossem Hard Fork
+
+As a data-protection partner chain, Midnight is intrinsically tethered to Cardano. This close relationship provides incredible security and interoperability, but it also means that when Cardano undergoes a major evolution, Midnight must move in lockstep.
+
+With the Cardano network preparing for the ** **Van Rossem hard fork****, Midnight faces a classic infrastructure challenge: How do you upgrade a live blockchain without pulling the plug on the network?
+
+Here is a high-level look at why Cardano hard forks require a unique approach from Midnight operators, and how the ecosystem reduces potential downtime.
+
+## Why Cardano Hard Forks Matter to Midnight
+
+```mermaid
+flowchart LR
+    A[cardano-node] -->|Syncs Blocks| B[cardano-db-sync]
+    B -->|Writes State| C[(Postgres: cexplorer)]
+    D[midnight-node] -->|Reads Chain State| C
+
+    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style C fill:#bbf,stroke:#333,stroke-width:1px
+```
+
+To understand the upgrade process, you first have to understand the architecture. A Midnight node doesn't just run Midnight software; it relies on a local Cardano infrastructure stack consisting of `cardano-node`, `cardano-db-sync`, and a Postgres database (`cexplorer`).
+
+The Midnight node constantly reads Cardano main-chain state from this Postgres database to to produce Midnight blocks, read partner chain contract events, and fetch NIGHT/ DUST generation UTXOs.
+
+When a Cardano hard fork occurs:
+
+* **The Protocol Shifts:** Pre-fork software cannot validate post-fork blocks.
+* **The Chain Reaction:** If an operator's underlying `cardano-node` stops tracking the tip, `cardano-db-sync` stops feeding data to Postgres.
+* **The Result:** The Midnight node goes down, stops producing blocks shortly after, or becomes a partner chain to the incorrect Cardano chain.
+
+Therefore, every Midnight node operator must upgrade their entire Cardano stack for the  **Van Rossem hard fork** hard-fork.
+
+## The Migration Dilemma
+
+Upgrading a blockchain stack isn't as simple as clicking "update" and restarting an app. Major upgrades often introduce foundational data changes. For the Van Rossem fork, `cardano-node` transitions to a brand-new **LSM-tree ledger storage backend** (which drastically reduces steady-state RAM), while `cardano-db-sync` introduces entirely new ledger snapshot formats and schema migrations.
+
+Processing these changes on mainnet-sized data is incredibly heavy, leading operators to choose between two distinctly different operational paths.
+
+### Parallel Cardano Stack (Recommended)
+
+
+```mermaid
+flowchart TD
+    M["midnight-node"] -->|1. Active Connection| Old["Old Cardano Stack (Live)"]
+    M -.->|2. Swift Cutover| New["New Cardano Stack (Synced in Background)"]
+
+    style Old fill:#eee,stroke:#999
+    style New fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style M fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
+```
+
+Instead of tampering with the live, block-producing system, the operator builds a completely separate Cardano stack alongside the existing one.
+
+* **How it works:** The new stack (`cardano-node` 11+, `cardano-db-sync` 13.7.0.5+, and Postgres 17) is provisioned and bootstrapped in the background. Testnets may take hours to replay, but it takes days to replay the Mainnet ledger and run schema migrations, but the live Midnight node remains untouched, happily producing blocks on the old stack.
+* **The Cutover:** Once the new stack is fully synced to the live tip and soaked for stability, the operator executes a swift cutover. They gracefully redirect `midnight-node`, to point to the new Postgres instance that has the new database.
+
+### Typical In-place Upgrade
+
+The operator shuts down the live Midnight-node and upgrades the software directly on the existing host hardware.
+
+Because the database formats have changed, the host must sit idle while it sequentially processes hours of disk-intensive ledger replays and single-threaded schema migrations.
+
+:::important
+Because the Van Rossem Hard Fork requires a state replay, a parallel Cardano stack method is required if service downtime is a concern. Federated Node Operators, faucets, RPCs, or other very important running services in the ecosystem should approach the Van Rossem Hard Fork through a parellel Cardano Stack to minimize downtime.
+:::
+
+**The Big Takeaway:** Minimizing downtime isn't just about preserving an individual node's uptime metrics; it’s about maintaining the health, throughput, and decentralized integrity of the entire Midnight network while Cardano beaneth the surface evolves.
