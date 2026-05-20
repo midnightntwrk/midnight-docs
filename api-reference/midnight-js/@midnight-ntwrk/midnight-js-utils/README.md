@@ -12,11 +12,17 @@
 
 - [ParsedHexString](type-aliases/ParsedHexString.md)
 
+## Variables
+
+- [MAX\_SAFE\_NAME\_LENGTH](variables/MAX_SAFE_NAME_LENGTH.md)
+
 ## Functions
 
 - [assertDefined](functions/assertDefined.md)
 - [assertIsContractAddress](functions/assertIsContractAddress.md)
 - [assertIsHex](functions/assertIsHex.md)
+- [assertSafeName](functions/assertSafeName.md)
+- [assertSemVer](functions/assertSemVer.md)
 - [assertUndefined](functions/assertUndefined.md)
 - [fromHex](functions/fromHex.md)
 - [isHex](functions/isHex.md)

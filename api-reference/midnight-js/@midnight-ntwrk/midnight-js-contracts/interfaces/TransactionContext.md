@@ -106,7 +106,7 @@ Gets the additional scoped CoinPublicKey to EncPublicKey mappings.
 
 `ReadonlyMap`\<`string`, `string`\> \| `undefined`
 
-A `ReadonlyMap<CoinPublicKey, EncPublicKey>` instance, or `undefined` if no additional
+A `ReadonlyMap`<CoinPublicKey, EncPublicKey> instance, or `undefined` if no additional
 mappings were specified for the current transaction context.
 
 ***
