@@ -1,9 +1,11 @@
-[**@midnight-ntwrk/testkit-js v3.1.0**](README.md)
+[**@midnight-ntwrk/testkit-js v4.0.4**](README.md)
 
 ***
 
 ## Classes
 
+- [DAppConnectorInitialAPI](classes/DAppConnectorInitialAPI.md)
+- [DAppConnectorWalletAdapter](classes/DAppConnectorWalletAdapter.md)
 - [DynamicProofServerContainer](classes/DynamicProofServerContainer.md)
 - [EnvVarRemoteTestEnvironment](classes/EnvVarRemoteTestEnvironment.md)
 - [FaucetClient](classes/FaucetClient.md)
@@ -14,12 +16,13 @@
 - [LocalTestEnvironment](classes/LocalTestEnvironment.md)
 - [MidnightWalletProvider](classes/MidnightWalletProvider.md)
 - [NodeClient](classes/NodeClient.md)
+- [PreprodTestEnvironment](classes/PreprodTestEnvironment.md)
+- [PreviewTestEnvironment](classes/PreviewTestEnvironment.md)
 - [ProofServerClient](classes/ProofServerClient.md)
 - [QanetTestEnvironment](classes/QanetTestEnvironment.md)
 - [RemoteTestEnvironment](classes/RemoteTestEnvironment.md)
 - [StaticProofServerContainer](classes/StaticProofServerContainer.md)
 - [TestEnvironment](classes/TestEnvironment.md)
-- [Testnet2TestEnvironment](classes/Testnet2TestEnvironment.md)
 - [WalletFactory](classes/WalletFactory.md)
 - [WalletSaveStateProvider](classes/WalletSaveStateProvider.md)
 - [WalletSeeds](classes/WalletSeeds.md)
@@ -53,6 +56,7 @@
 
 ## Functions
 
+- [buildUrlWithPath](functions/buildUrlWithPath.md)
 - [createDefaultTestLogger](functions/createDefaultTestLogger.md)
 - [createLogger](functions/createLogger.md)
 - [delay](functions/delay.md)
@@ -63,7 +67,6 @@
 - [expectSuccessfulCallTx](functions/expectSuccessfulCallTx.md)
 - [expectSuccessfulDeployTx](functions/expectSuccessfulDeployTx.md)
 - [expectSuccessfulTxData](functions/expectSuccessfulTxData.md)
-- [extractHostnameAndPort](functions/extractHostnameAndPort.md)
 - [getContainersConfiguration](functions/getContainersConfiguration.md)
 - [getDustSeed](functions/getDustSeed.md)
 - [getInitialShieldedState](functions/getInitialShieldedState.md)

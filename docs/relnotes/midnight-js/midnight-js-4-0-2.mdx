@@ -1,0 +1,192 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight.js v4.0.2 release notes
+description: Midnight.js is a client library designed to facilitate the development of decentralized applications on the Midnight blockchain.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v4.0.2  
+* **Date**: March 24, 2026  
+* **Node.js requirement**: >=22   
+
+---
+
+## High-level summary
+
+This release stabilizes the v4.0.x line by preserving core v4 capabilities while reverting a transaction construction path that caused failures in shielded coin flows.
+
+It also improves proving provider configuration, contract error typing, security hardening, and operational reliability across transaction handling.
+
+## Audience
+
+This release note is most relevant for developers who:
+
+- Upgraded to v4.0.1 and adopted the `addCalls`-based call transaction flow.
+- Build contracts that use shielded coin operations.
+- Run HTTP proof providers requiring authentication headers.
+- Maintain custom error handling for Effect-based contract errors.
+
+## Summary of updates
+
+- Added custom headers support in `httpClientProvingProvider`
+- Added `isEffectContractError` type guard for safe error narrowing
+- Reverted `createUnprovenLedgerCallTx` internals to restore shielded-call reliability
+- Fixed Merkle-tree rehash handling before contract-owned spend validation
+- Improved compact error propagation for deploy flows
+- Fixed fallible transaction error construction and reporting
+
+---
+
+## New features
+
+This release adds focused developer ergonomics for proving-provider configuration and safer error handling.
+
+### Headers support in `httpClientProvingProvider`
+
+The HTTP client proving provider now supports custom headers for all requests to the proof server. This enables authentication tokens, API keys, or other custom headers to be forwarded with proof generation and verification requests.
+
+Usage:
+
+```typescript
+import { httpClientProvingProvider } from '@midnight-ntwrk/http-client-proof-provider';
+
+const provider = httpClientProvingProvider(zkConfigProvider, proofServerUrl, {
+  timeout: 60_000,
+  headers: {
+    'Authorization': 'Bearer <token>',
+    'X-Custom-Header': 'value'
+  }
+});
+```
+
+API interface:
+
+```typescript
+export interface ProvingProviderConfig {
+  readonly timeout?: number;
+  readonly headers?: Record<string, string>;  // NEW
+}
+```
+
+Headers are merged with `{ 'Content-Type': 'application/octet-stream' }` as the base, so custom headers take precedence over defaults.
+
+---
+
+### `isEffectContractError` type guard
+
+A new type guard for safely narrowing Effect-ts contract errors without `as any` casts. Used internally in `unproven-call-tx.ts` and `unproven-deploy-tx.ts`, and exported from `@midnight-ntwrk/midnight-js-contracts` for use in custom error handling.
+
+Usage:
+
+```typescript
+import { isEffectContractError } from '@midnight-ntwrk/midnight-js-contracts';
+
+try {
+  await executeCircuit();
+} catch (error) {
+  if (isEffectContractError(error) && error._tag === 'ContractRuntimeError') {
+    // Safely access error.cause without any casts
+    console.error(error.cause.message);
+  }
+}
+```
+
+---
+
+## Breaking changes
+
+This release introduces no new breaking APIs. However, it reverts v4.0.1 breaking change #4 (`addCalls` transaction-construction migration), so teams that already adapted to v4.0.1 must revert those adaptations.
+
+### Revert of v4.0.1 `addCalls` migration
+
+**What changed**: `createUnprovenLedgerCallTx` behavior was restored from the v4.0.1 `addCalls` path to the v3.2.0-compatible `ContractCallPrototype`/`PartitionedTranscript` approach.
+
+**What breaks**: Implementations migrated to the v4.0.1 `publicTranscript` + `ledgerParameters` call signature can fail or become incompatible in v4.0.2.
+
+**Required actions**:
+- Replace `publicTranscript` with `partitionedTranscript: PartitionedTranscript` in `createUnprovenLedgerCallTx` call sites.
+- Remove `ledgerParameters` from `createUnprovenLedgerCallTx` call arguments (while keeping `ledgerParameters` in `CallOptionsProviderDataDependencies`, which remains required).
+- Restore `extractUserAddressedOutputs` usage where it was removed for v4.0.1 compatibility workarounds.
+
+**Restored API shape**:
+
+```typescript
+// v4.0.2 restored shape
+createUnprovenLedgerCallTx(
+  circuitId: AnyProvableCircuitId,
+  contractAddress: ContractAddress,
+  initialContractState: ContractState,
+  zswapChainState: ZswapChainState,
+  partitionedTranscript: PartitionedTranscript,
+  privateTranscriptOutputs: AlignedValue[],
+  input: AlignedValue,
+  output: AlignedValue,
+  nextZswapLocalState: ZswapLocalState,
+  encryptionPublicKey: EncPublicKey
+): UnprovenTransaction
+```
+
+### Common migration issues
+
+The following runtime errors are commonly resolved by upgrading to v4.0.2 and reverting v4.0.1 `addCalls`-specific adaptations.
+
+#### Error: "expected a cell, received null" on shielded operations
+
+**Cause**: v4.0.1 `addCalls` stack initialization mismatch for contracts using `receiveShielded`, `sendShielded`, or `writeCoin`.
+
+**Resolution**: Use v4.0.2 transaction construction path (restored prototype approach).
+
+#### Error: "attempted to spend from a Merkle tree that was not rehashed"
+
+**Cause**: The chain state's Merkle tree was not rehashed before constructing inclusion proofs.
+
+**Resolution**: v4.0.2 updates `zswapStateToOffer` to call `postBlockUpdate()` before input construction.
+
+---
+
+## Bug fixes
+
+This release resolves correctness and reliability issues in transaction construction, fallible transaction reporting, and deploy-time error propagation.
+
+### Revert `createUnprovenLedgerCallTx` to `ContractCallPrototype` approach
+
+The `PreTranscript + Transaction.addCalls()` approach introduced in v4.0.1 fails for contracts using shielded coin operations (`receiveShielded`, `sendShielded`, `writeCoin`). The `addCalls()` stack machine does not initialize its stack identically to compact-runtime's `queryLedgerState` during circuit execution, causing `"expected a cell, received null"` errors when shielded operations produce `dup` ops expecting items on the initial stack.
+
+Reverted `createUnprovenLedgerCallTx` to use `ContractCallPrototype + Intent.addCall()` with `PartitionedTranscript`, which correctly handles shielded coin operations.
+
+**Affected contracts**: Any contract using `receiveShielded`, `sendShielded`, or `writeCoin` (for example, Seabattle `join_p1`/`join_p2`, Lunarswap `addLiquidity`).
+
+### Rehash `ZswapChainState` before spending from Merkle tree
+
+`ZswapInput.newContractOwned` in ledger-v8 requires the chain state's Merkle tree to be rehashed before validating coin inclusion proofs. The `zswapStateToOffer` function now calls `postBlockUpdate()` on the chain state before constructing inputs. Without this, contracts that spend coins deposited in a prior transaction (for example, Seabattle `join_p2` calling `mergeCoinImmediate` on a coin from `join_p1`) fail with `"attempted to spend from a Merkle tree that was not rehashed"`.
+
+### Fix `CompactError` propagation in `createUnprovenDeployTxFromVerifierKeys`
+
+The error handler in `createUnprovenDeployTxFromVerifierKeys` only checked for `ContractRuntimeError` when unwrapping errors from the contract runtime. The `compact-js` dependency now wraps `initialState` errors as `ContractConfigurationError`. Updated the handler to recognize both `ContractRuntimeError` and `ContractConfigurationError`, so `CompactError` messages propagate correctly to callers.
+
+### Fix fallible offer error reporting
+
+Two bugs in fallible transaction error reporting:
+
+- **Map serialization in `TxFailedError`**: `segmentStatusMap` was silently lost during `JSON.stringify` because `Map` is not natively serializable. The replacer now converts `Map` instances to plain objects via `Object.fromEntries`.
+- **Incorrect `scopeName` in scoped transaction errors**: Error messages referenced the `options` parameter (only set for nested transactions) instead of the resolved `txOptions`. Root transactions always displayed `<unnamed>` even when a `scopeName` was provided.
+
+### Fix fallible error handling
+
+Fixed error construction in fallible transaction handling where the error object was incorrectly built.
+
+### Replace error `as any` casts with type guard
+
+Introduced `isEffectContractError` type guard in `errors.ts` to safely narrow Effect-ts errors instead of using fragile `(error as any)` introspection. Removed all `as-any` casts and `eslint-disable` comments from catch blocks in `unproven-call-tx.ts` and `unproven-deploy-tx.ts`.
+
+## Known issues
+
+No critical known issues were identified at release time.
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight.js repository](https://github.com/midnightntwrk/midnight-js)
+- **API reference**: [Midnight.js API documentation](/api-reference/midnight-js/packages)

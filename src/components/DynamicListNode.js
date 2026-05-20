@@ -1,5 +1,5 @@
 // This file is part of midnight-docs.
-// Copyright (C) 2025 Midnight Foundation
+// Copyright (C) Midnight Foundation
 // SPDX-License-Identifier: Apache-2.0
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -17,7 +17,120 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
+    version: '0.22.5',
+    status: 'LATEST',
+    date: '24 April 2026',
+    summary: 'Summary of Release 0.22.5',
+    details: [
+      'Node-only patch release with no runtime upgrade.',
+      'Added transaction pool gas cost filtering via `--max-tx-gas-cost` CLI argument and `MAX_TX_GAS_COST` environment variable.',
+      'Added primary-key range bounding for cNIGHT observation queries to allow PostgreSQL to prune rows before running expensive joins.',
+      'Reset devnet bundled chain spec to runtime version 0.22.0 to match Mainnet.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.22.5' },
+    ],
+    link: '/relnotes/node/node-0-22-5',
+  },
+  {
+    version: '0.22.3',
+    status: 'SUPPORTED',
+    date: '25 March 2026',
+    summary: 'Summary of Release 0.22.3',
+    details: [
+      'Config-only patch release for Preview',
+      'Regenerated Preview network genesis state and chain specifications for 0.22.3',
+      'Preserved existing cNightObservation data',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.22.3' }
+    ],
+    link: '/relnotes/node/node-0-22-3',
+  },
+  {
+    version: '0.22.2',
+    status: 'SUPPORTED',
+    date: 'March 2026',
+    summary: 'Summary of Release 0.22.2',
+    details: [
+      'Minor release with a config-only change for Preprod.',
+      'No other environments are affected.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.22.2' }
+    ],
+  },
+  {
+    version: '0.22.1',
+    status: 'SUPPORTED',
+    date: '19 March 2026',
+    summary: 'Summary of Release 0.22.1',
+    details: [
+      'Security patch release for yamux networking vulnerability.',
+      'Restricted peer info RPC methods to unsafe-only access.',
+      'Node-only upgrade with no runtime changes.',
+      'Backward compatible with 0.22.0.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.22.1' }
+    ],
+    link: '/relnotes/node/node-0-22-1',
+  },
+  {
+    version: '0.22.0',
+    status: 'SUPPORTED',
+    date: '16 March 2026',
+    summary: 'Summary of Release 0.22.0',
+    details: [
+      'Upgraded runtime ledger integration from v7 to v8.0.2.',
+      'Added per-account signed transaction throttling for governance members.',
+      'Added governance system-transaction gating for safer privileged operations.',
+      'Added `--filter-deploy-txs` to filter `Op::Deploy` and `Op::Maintain` transactions.',
+      'Enabled ledger storage layout v2 for improved write-cost behavior.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.22.0' }
+    ],
+    link: '/relnotes/node/node-0-22-0',
+  },
+  {
+    version: '0.20.0',
+    status: 'UNSUPPORTED',
+    date: '28 January 2026',
+    summary: 'Summary of Release 0.20.0',
+    details: [
+      'Removed `pallet_sudo` from runtime and introduced governance-based root-call workflows.',
+      'Migrated permissioned candidates contracts to Aiken-based versions with updated policy IDs.',
+      'Added `systemParameters_getAriadneParameters` and deprecated `sidechain_getAriadneParameters`.',
+      'Added Prometheus Remote Write support for push-based metrics collection.',
+      'Reduced maximum block size from 5 MB to 1 MB for network stability.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.20.0' }
+    ],
+    link: '/relnotes/node/node-0-20-0',
+  },
+  {
+    version: '0.18.0',
+    status: 'UNSUPPORTED',
+    date: '15 December 2025',
+    summary: 'Summary of Release 0.18.0',
+    details: [
+      'Introduce unshielded transactions alongside existing shielded transactions.',
+      'Implement new DUST fee mechanism generated from the NIGHT token.',
+      'Upgrade to Partner Chains v1.8.0.',
+      'Add Federated Authority Observation capabilities.',
+      'Reduce session length from 2 hours to 30 minutes (1200 slots → 300 slots) for improved stability.',
+      'Implement state forking for ephemeral environments.',
+      'Enhance security with non-root Docker container users.',
+      'Multiple critical bug fixes for DUST generation and registration.', 
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:0.18.0' }
+    ],
+    link: '/relnotes/node/node-0-18-0',
+  },
+  {
     version: '0.12.1',
     status: 'UNSUPPORTED',
     date: '11 June 2025',
@@ -36,7 +149,6 @@ const releases = [
     link: '/relnotes/node/node-0-12-1',
   },
   {
-    id: 2,
     version: '0.12.0',
     status: 'DEPRECATED',
     date: '12 May 2025',
@@ -78,7 +190,6 @@ const releases = [
     link: '/relnotes/node/node-0-12',
   },
   {
-    id: 3,
     version: '0.8.0',
     status: 'DEPRECATED',
     date: '24 January 2025',
@@ -103,6 +214,10 @@ const releases = [
     link: '/relnotes/node/node-0-8-0',
   },
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases
@@ -136,7 +251,7 @@ const DynamicListWithDropdownFilters = () => {
   // Add version prefix to all release links
   const versionedReleases = releases.map(release => ({
     ...release,
-    link: `${versionPrefix}${release.link}`
+    link: release.link ? `${versionPrefix}${release.link}` : null
   }));
 
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
@@ -203,9 +318,13 @@ const DynamicListWithDropdownFilters = () => {
       {filteredReleases.map((release) => (
         <div key={release.id} style={{ marginBottom: '2rem', borderBottom: '1px solid #ddd', paddingBottom: '1rem' }}>
           <h3 style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontWeight: 'bold' }}>
-            <Link to={release.link} className="hyperlink">
-              Release {release.version}
-            </Link>
+            {release.link ? (
+              <Link to={release.link} className="hyperlink">
+                Release {release.version}
+              </Link>
+            ) : (
+              <span>Release {release.version}</span>
+            )}
             <span style={{
               display: 'inline-block',
               padding: '0.2rem 0.6rem',

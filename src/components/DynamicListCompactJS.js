@@ -17,11 +17,26 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    id: 1,
-    version: '2.4.0',
+    version: '2.5.0',
     status: 'LATEST',
+    date: '20 March 2026',
+    summary: 'Compatibility and tooling update for Compact.js.',
+    details: [
+      'Adds `--input-ledger-params` support to the `circuit` command in `@midnight-ntwrk/compact-js-command`.',
+      'Defaults to initial ledger parameters when `--input-ledger-params` is not provided.',
+      'Built against `@midnight-ntwrk/compact-runtime` `0.15.0` and requires `compact-compiler` `0.30.0`.',
+      'Contracts must be recompiled against the updated dependencies.'
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/2.5.0' },
+    ],
+    link: '/relnotes/compact-js/compact-js-2-5-0',
+  },
+  {
+    version: '2.4.0',
+    status: 'UNSUPPORTED',
     date: '28 January 2026',
-    summary: 'Summary of Release 2.4.0',
+    summary: 'Initial release of Compact.js used by Midnight.js and Node Toolkit.',
     details: [
       'Provides a Typescript-based execution environment for smart contracts compiled with the Compact language.',
       'Used internally by Midnight.js and the Node Toolkit.',
@@ -32,6 +47,10 @@ const releases = [
     link: '/relnotes/compact-js/compact-js-2-4-0',
   }
 ];
+
+releases.forEach((release, index) => {
+  release.id = index + 1;
+});
 
 // Ensure versions are sorted with the latest at the top
 const sortedVersions = releases

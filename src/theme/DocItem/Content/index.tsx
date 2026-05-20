@@ -25,6 +25,9 @@ export default function DocItemContent({ children }: Props) {
           <Heading as="h1">{syntheticTitle}</Heading>
         </header>
       )}
+      <blockquote className="llms-directive">
+        For the complete documentation index, see <a href="/llms.txt">llms.txt</a>
+      </blockquote>
       <MDXContent>{children}</MDXContent>
     </div>
   );

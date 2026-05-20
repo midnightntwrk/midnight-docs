@@ -43,6 +43,13 @@ export default function BlogIndex() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [selectedAuthor, setSelectedAuthor] = useState('');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
+
+  const toggleTag = (tagLabel) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagLabel) ? prev.filter((t) => t !== tagLabel) : [...prev, tagLabel]
+    );
+  };
 
   const getPostImage = (post) => {
     const image = post.image || post.frontMatter?.image;
@@ -545,7 +552,7 @@ export default function BlogIndex() {
 
         <section className="margin-bottom--xl">
           <h2 style={{ fontSize: '2rem', marginBottom: '1.5rem', fontWeight: '700' }}>
-            Latest Post
+            Latest Post 
           </h2>
           {latestPost && (
             <div style={{ width: '100%' }}>
@@ -583,33 +590,88 @@ export default function BlogIndex() {
           </div>
           
           <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
-            <div style={{ flex: '0 0 32%' }}>
+            <div style={{ flex: '0 0 32%', position: 'relative' }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
                 Tags: {selectedTags.length > 0 && <span style={{ color: '#2563eb', fontSize: '0.875rem' }}>({selectedTags.length} selected)</span>}
               </label>
-              <select
-                multiple
-                value={selectedTags}
-                onChange={(e) =>
-                  setSelectedTags(Array.from(e.target.selectedOptions, (o) => o.value))
-                }
-                style={{ 
-                  height: '60px', 
+              <button
+                type="button"
+                onClick={() => setIsTagDropdownOpen((v) => !v)}
+                aria-haspopup="listbox"
+                aria-expanded={isTagDropdownOpen}
+                style={{
                   width: '100%',
-                  padding: '0.25rem',
+                  padding: '0.5rem 0.75rem',
                   borderRadius: '6px',
                   border: '1px solid #ccc',
+                  background: '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   fontSize: '0.875rem',
-                  overflowY: 'auto'
-                }}>
-                {allTags.map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
-              </select>
+                  height: '38px',
+                  cursor: 'pointer'
+                }}
+              >
+                <span style={{ color: selectedTags.length ? '#111827' : '#6b7280' }}>
+                  {selectedTags.length ? `${selectedTags.length} tags selected` : 'Select tags'}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>{isTagDropdownOpen ? '▲' : '▼'}</span>
+              </button>
+
+              {isTagDropdownOpen && (
+                <div
+                  role="listbox"
+                  aria-multiselectable="true"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '0.5rem',
+                    maxHeight: '220px',
+                    overflowY: 'auto',
+                    borderRadius: '6px',
+                    border: '1px solid #ccc',
+                    background: '#ffffff',
+                    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.08)',
+                    zIndex: 10,
+                    padding: '0.25rem'
+                  }}
+                >
+                  {allTags.map((tag) => {
+                    const isSelected = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => toggleTag(tag)}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '0.45rem 0.6rem',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: isSelected ? '#eff6ff' : 'transparent',
+                          color: '#111827',
+                          fontSize: '0.8125rem',
+                          cursor: 'pointer',
+                          textAlign: 'left'
+                        }}
+                      >
+                        <span>{tag}</span>
+                        <span style={{ opacity: isSelected ? 1 : 0.2 }}>✓</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
-                Hold Ctrl/Cmd to select multiple
+                Click to select. Click again to deselect.
               </div>
             </div>
             
@@ -657,74 +719,6 @@ export default function BlogIndex() {
               </select>
             </div>
           </div>
-
-          {/* Active Filters Display */}
-          {(selectedTags.length > 0 || selectedAuthor) && (
-            <div style={{ marginTop: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.875rem', fontWeight: '500', color: '#666' }}>Active filters:</span>
-              
-              {selectedTags.map((tag) => (
-                <span 
-                  key={tag}
-                  style={{
-                    background: '#2563eb',
-                    color: 'white',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
-                  }}
-                >
-                  {tag}
-                  <button
-                    onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'white',
-                      cursor: 'pointer',
-                      padding: 0,
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-              
-              {selectedAuthor && (
-                <span 
-                  style={{
-                    background: '#059669',
-                    color: 'white',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
-                    fontSize: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem'
-                  }}
-                >
-                  Author: {selectedAuthor}
-                  <button
-                    onClick={() => setSelectedAuthor('')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'white',
-                      cursor: 'pointer',
-                      padding: 0,
-                      fontSize: '0.875rem'
-                    }}
-                  >
-                    ×
-                  </button>
-                </span>
-              )}
-            </div>
-          )}
         </section>
 
         <section className="margin-bottom--xl">

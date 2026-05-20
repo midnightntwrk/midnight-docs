@@ -381,7 +381,7 @@ produce this. To mint a shielded token to the current contract, pass
 ```compact
 circuit mintShieldedToken(
   domainSep: Bytes<32>,
-  value: Uint<128>,
+  value: Uint<64>,
   nonce: Bytes<32>,
   recipient: Either<ZswapCoinPublicKey, ContractAddress>
 ): ShieldedCoinInfo;
@@ -394,7 +394,7 @@ and a prior nonce.
 
 ```compact
 circuit evolveNonce(
-  index: Uint<64>,
+  index: Uint<128>,
   nonce: Bytes<32>
 ): Bytes<32>;
 ```

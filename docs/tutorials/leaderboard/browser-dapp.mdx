@@ -1,0 +1,970 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Browser DApp"
+title: "Browser DApp"
+description: "Build a React frontend that connects to the Lace wallet, reads leaderboard state from the Midnight indexer, and submits scores on-chain with privacy modes."
+sidebar_position: 4
+toc_max_heading_level: 2
+tags: ["react", "dapp", "lace", "wallet", "browser", "frontend", "midnight-js", "indexer", "tutorial"]
+---
+
+# Part 3: Browser DApp
+
+In this section, you build a React frontend that connects to the Lace wallet and reads leaderboard data from the indexer. The frontend also submits scores on-chain and lets you prove ownership of your entries.
+
+## Set up the UI package
+
+Create the UI workspace directory structure and its `package.json`.
+
+```bash
+mkdir -p leaderboard-ui/src/contexts leaderboard-ui/src/hooks
+touch leaderboard-ui/package.json
+```
+
+The `leaderboard-contract` workspace dependency gives the UI access to the compiled contract bindings. The `dev` script copies circuit keys into `public/` so the browser can fetch them at runtime.
+
+```json
+{
+  "name": "leaderboard-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mkdir -p ./public/keys ./public/zkir && cp -r ../contract/managed/leaderboard/keys/* ./public/keys/ && cp -r ../contract/managed/leaderboard/zkir/* ./public/zkir/ && vite",
+    "build": "tsc && vite build --mode preprod && cp -r ../contract/managed/leaderboard/keys ./dist/keys && cp -r ../contract/managed/leaderboard/zkir ./dist/zkir",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/dapp-connector-api": "^4.0.1",
+    "@midnight-ntwrk/compact-runtime": "^0.16.0",
+    "@midnight-ntwrk/midnight-js-contracts": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-network-id": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-types": "^4.0.4",
+    "@midnight-ntwrk/midnight-js-utils": "^4.0.4",
+    "@midnight-ntwrk/wallet-sdk-address-format": "^3.0.0",
+    "@midnight-ntwrk/ledger-v8": "^8.0.3",
+    "buffer": "^6.0.3",
+    "fp-ts": "^2.16.11",
+    "leaderboard-contract": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "rxjs": "^7.8.2",
+    "semver": "^7.7.4",
+    "pino": "^10.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/semver": "^7.7.1",
+    "@vitejs/plugin-react": "^5.1.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0"
+  }
+}
+```
+
+## Vite configuration
+
+The Midnight SDK uses WebAssembly modules for cryptographic operations. Vite needs specific plugins to handle WASM imports in the browser.
+
+```bash
+touch leaderboard-ui/vite.config.ts
+```
+
+The Vite configuration enables WebAssembly support, sets up the WASM module resolver for the Midnight runtime, and configures the development server on port 3000.
+
+```typescript
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
+
+export default defineConfig({
+  cacheDir: './.vite',
+  build: {
+    target: 'esnext',
+    minify: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          wasm: ['@midnight-ntwrk/onchain-runtime-v3'],
+        },
+      },
+    },
+    commonjsOptions: {
+      transformMixedEsModules: true,
+      extensions: ['.js', '.cjs'],
+      ignoreDynamicRequires: true,
+    },
+  },
+  plugins: [
+    react(),
+    wasm(),
+    topLevelAwait({
+      promiseExportName: '__tla',
+      promiseImportName: (i) => `__tla_${i}`,
+    }),
+    {
+      name: 'wasm-module-resolver',
+      resolveId(source, importer) {
+        if (
+          source === '@midnight-ntwrk/onchain-runtime-v3' &&
+          importer &&
+          importer.includes('@midnight-ntwrk/compact-runtime')
+        ) {
+          return { id: source, external: false, moduleSideEffects: true };
+        }
+        return null;
+      },
+    },
+  ],
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'esnext',
+      supported: { 'top-level-await': true },
+      platform: 'browser',
+      format: 'esm',
+      loader: { '.wasm': 'binary' },
+    },
+    include: ['@midnight-ntwrk/compact-runtime'],
+    exclude: [
+      '@midnight-ntwrk/onchain-runtime-v3',
+      '@midnight-ntwrk/onchain-runtime-v3/midnight_onchain_runtime_wasm_bg.wasm',
+      '@midnight-ntwrk/onchain-runtime-v3/midnight_onchain_runtime_wasm.js',
+    ],
+  },
+  resolve: {
+    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.wasm'],
+    mainFields: ['browser', 'module', 'main'],
+  },
+  server: { port: 3000, open: true },
+});
+```
+
+## TypeScript config
+
+The TypeScript configuration needs `"types": ["vite/client"]` so that `import.meta.env` references compile correctly. Midnight SDK subpath imports require the `"bundler"` module resolution.
+
+```bash
+touch leaderboard-ui/tsconfig.json
+```
+
+This configuration targets ES2022 with React JSX transform enabled.
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
+```
+
+## Environment variables
+
+Create the local development environment file. Leave `VITE_DEFAULT_CONTRACT` empty until you deploy a contract in a later step.
+
+```bash
+touch leaderboard-ui/.env
+```
+
+Vite loads these variables at build time. Any variable prefixed with `VITE_` is available in the browser via `import.meta.env`.
+
+```bash
+VITE_NETWORK_ID=preprod
+VITE_INDEXER_URL=https://indexer.preprod.midnight.network/api/v4/graphql
+VITE_INDEXER_WS_URL=wss://indexer.preprod.midnight.network/api/v4/graphql/ws
+VITE_DEFAULT_CONTRACT=
+```
+
+## HTML entry point
+
+Create the HTML shell that Vite uses as the application entry point. The browser loads the `src/main.tsx` script as an ES module.
+
+```bash
+touch leaderboard-ui/index.html
+```
+
+Vite transforms this file during development, injecting hot module reload support and resolving the TypeScript entry point.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Midnight Leaderboard</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+## Application entry point
+
+Several Midnight SDK packages use Node.js `Buffer`, which does not exist in the browser. The entry point must polyfill it before any other imports.
+
+```bash
+touch leaderboard-ui/src/main.tsx
+touch leaderboard-ui/src/App.css
+```
+
+The entry point polyfills `Buffer` into the global scope, then mounts the React application.
+
+```typescript
+import { Buffer } from 'buffer';
+(globalThis as any).Buffer = Buffer;
+
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './App.css';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>
+);
+```
+
+## In-memory private state provider
+
+The `midnight-js-contracts` library requires a `PrivateStateProvider`. In the browser, an in-memory implementation is sufficient.
+
+```bash
+touch leaderboard-ui/src/in-memory-private-state-provider.ts
+```
+
+The provider stores private state and signing keys in memory, scoped by contract address. It implements the full `PrivateStateProvider` interface including import and export operations.
+
+```typescript
+import type { ContractAddress, SigningKey } from '@midnight-ntwrk/compact-runtime';
+import type {
+  ExportPrivateStatesOptions,
+  ExportSigningKeysOptions,
+  ImportPrivateStatesOptions,
+  ImportPrivateStatesResult,
+  ImportSigningKeysOptions,
+  ImportSigningKeysResult,
+  PrivateStateExport,
+  PrivateStateId,
+  PrivateStateProvider,
+  SigningKeyExport,
+} from '@midnight-ntwrk/midnight-js-types';
+
+export const inMemoryPrivateStateProvider = <PSI extends PrivateStateId, PS = unknown>(): PrivateStateProvider<PSI, PS> => {
+  const privateStates = new Map<ContractAddress, Map<PSI, PS>>();
+  const signingKeys = new Map<ContractAddress, SigningKey>();
+  let contractAddress: ContractAddress | null = null;
+
+  const requireContractAddress = (): ContractAddress => {
+    if (contractAddress === null) throw new Error('Contract address not set');
+    return contractAddress;
+  };
+
+  const getScopedStates = (address: ContractAddress): Map<PSI, PS> => {
+    let scopedStates = privateStates.get(address);
+    if (!scopedStates) {
+      scopedStates = new Map<PSI, PS>();
+      privateStates.set(address, scopedStates);
+    }
+    return scopedStates;
+  };
+
+  const encode = <T>(value: T): string => JSON.stringify(value);
+  const decode = <T>(value: string): T => JSON.parse(value) as T;
+
+  return {
+    setContractAddress(address: ContractAddress): void { contractAddress = address; },
+    set(key: PSI, state: PS): Promise<void> {
+      getScopedStates(requireContractAddress()).set(key, state);
+      return Promise.resolve();
+    },
+    get(key: PSI): Promise<PS | null> {
+      return Promise.resolve(getScopedStates(requireContractAddress()).get(key) ?? null);
+    },
+    remove(key: PSI): Promise<void> {
+      getScopedStates(requireContractAddress()).delete(key);
+      return Promise.resolve();
+    },
+    clear(): Promise<void> {
+      privateStates.delete(requireContractAddress());
+      return Promise.resolve();
+    },
+    setSigningKey(addr: ContractAddress, key: SigningKey): Promise<void> {
+      signingKeys.set(addr, key);
+      return Promise.resolve();
+    },
+    getSigningKey(addr: ContractAddress): Promise<SigningKey | null> {
+      return Promise.resolve(signingKeys.get(addr) ?? null);
+    },
+    removeSigningKey(addr: ContractAddress): Promise<void> {
+      signingKeys.delete(addr);
+      return Promise.resolve();
+    },
+    clearSigningKeys(): Promise<void> {
+      signingKeys.clear();
+      return Promise.resolve();
+    },
+    exportPrivateStates(_options?: ExportPrivateStatesOptions): Promise<PrivateStateExport> {
+      const address = requireContractAddress();
+      const states = Object.fromEntries(
+        Array.from(getScopedStates(address).entries()).map(([k, v]) => [k, encode(v)]),
+      );
+      return Promise.resolve({
+        format: 'midnight-private-state-export',
+        encryptedPayload: encode({ contractAddress: address, states }),
+        salt: 'in-memory',
+      });
+    },
+    importPrivateStates(exportData: PrivateStateExport, options?: ImportPrivateStatesOptions): Promise<ImportPrivateStatesResult> {
+      const address = requireContractAddress();
+      const strategy = options?.conflictStrategy ?? 'error';
+      const payload = decode<{ states?: Record<string, string> }>(exportData.encryptedPayload);
+      const scopedStates = getScopedStates(address);
+      let imported = 0, skipped = 0, overwritten = 0;
+      for (const [rawId, serialized] of Object.entries(payload.states ?? {})) {
+        const id = rawId as PSI;
+        if (scopedStates.has(id)) {
+          if (strategy === 'skip') { skipped++; continue; }
+          if (strategy === 'error') return Promise.reject(new Error(`Conflict: ${id}`));
+          overwritten++;
+        } else { imported++; }
+        scopedStates.set(id, decode<PS>(serialized));
+      }
+      return Promise.resolve({ imported, skipped, overwritten });
+    },
+    exportSigningKeys(_options?: ExportSigningKeysOptions): Promise<SigningKeyExport> {
+      return Promise.resolve({
+        format: 'midnight-signing-key-export',
+        encryptedPayload: encode({ keys: Object.fromEntries(signingKeys.entries()) }),
+        salt: 'in-memory',
+      });
+    },
+    importSigningKeys(exportData: SigningKeyExport, options?: ImportSigningKeysOptions): Promise<ImportSigningKeysResult> {
+      const strategy = options?.conflictStrategy ?? 'error';
+      const payload = decode<{ keys?: Record<string, SigningKey> }>(exportData.encryptedPayload);
+      let imported = 0, skipped = 0, overwritten = 0;
+      for (const [addr, key] of Object.entries(payload.keys ?? {})) {
+        if (signingKeys.has(addr)) {
+          if (strategy === 'skip') { skipped++; continue; }
+          if (strategy === 'error') return Promise.reject(new Error(`Conflict: ${addr}`));
+          overwritten++;
+        } else { imported++; }
+        signingKeys.set(addr, key);
+      }
+      return Promise.resolve({ imported, skipped, overwritten });
+    },
+  };
+};
+```
+
+## Read on-chain state
+
+This hook queries the Midnight indexer directly via GraphQL, deserializes the contract state, and parses it using the compiled contract's `ledger()` function. It imports `decodeDisplayName` from the API utils created in Part 2 to convert raw `Bytes<32>` into readable names. It auto-refreshes every 15 seconds and requires no wallet connection.
+
+```bash
+touch leaderboard-ui/src/hooks/useLeaderboard.ts
+```
+
+The hook fetches contract state from the indexer, deserializes it using the compiled contract's `ledger()` function, and returns a sorted list of entries.
+
+```typescript
+import { useState, useEffect, useCallback } from 'react';
+import { ContractState } from '@midnight-ntwrk/compact-runtime';
+import { Leaderboard } from 'leaderboard-contract';
+import { decodeDisplayName } from '../../../api/src/utils/index.js';
+
+const INDEXER_URL = import.meta.env.VITE_INDEXER_URL ?? 'https://indexer.preprod.midnight.network/api/v4/graphql';
+
+const CONTRACT_STATE_QUERY = `
+  query ContractState($address: HexEncoded!) {
+    contractAction(address: $address) {
+      state
+    }
+  }
+`;
+
+export interface LeaderboardEntry {
+  id: number;
+  score: number;
+  displayName: string;
+  ownerHash: string;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return bytes;
+}
+
+export function useLeaderboard(contractAddress: string | null, refreshInterval = 15_000) {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [entryCount, setEntryCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchLeaderboard = useCallback(async () => {
+    if (!contractAddress || !/^[0-9a-fA-F]{64}$/.test(contractAddress)) return;
+    try {
+      setLoading(true);
+      const res = await fetch(INDEXER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: CONTRACT_STATE_QUERY, variables: { address: contractAddress } }),
+      });
+      const gql = await res.json();
+      if (gql.errors) throw new Error(gql.errors[0]?.message ?? 'Indexer query failed');
+      const stateHex = gql.data?.contractAction?.state;
+      if (!stateHex) throw new Error('Contract not found');
+
+      const contractState = ContractState.deserialize(hexToBytes(stateHex));
+      const ledgerState = Leaderboard.ledger(contractState.data);
+
+      const parsed: LeaderboardEntry[] = [];
+      for (const [key, entry] of ledgerState.scores) {
+        parsed.push({
+          id: Number(key),
+          score: Number(entry.score),
+          displayName: decodeDisplayName(entry.displayName, Number(key), Number(entry.score)),
+          ownerHash: entry.ownerHash.toString(),
+        });
+      }
+      parsed.sort((a, b) => b.score - a.score);
+      setEntries(parsed);
+      setEntryCount(Number(ledgerState.nextId));
+      setError(null);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [contractAddress]);
+
+  useEffect(() => { fetchLeaderboard(); }, [fetchLeaderboard]);
+  useEffect(() => {
+    if (!contractAddress) return;
+    const interval = setInterval(fetchLeaderboard, refreshInterval);
+    return () => clearInterval(interval);
+  }, [contractAddress, refreshInterval, fetchLeaderboard]);
+
+  return { entries, entryCount, loading, error, refresh: fetchLeaderboard };
+}
+```
+
+## Wallet bridge
+
+The `BrowserLeaderboardManager` connects to the Lace wallet via the DApp Connector API, initializes all providers, and delegates contract operations to the `LeaderboardAPI`.
+
+The manager generates a random 32-byte secret key on first use and stores it in `localStorage`. On subsequent visits, it retrieves the same key. This ensures that ownership verification works even after the page is refreshed or the browser is restarted.
+
+The `walletProvider.balanceTx` method bridges the DApp and your wallet. The DApp builds an unbalanced transaction with the contract circuit proof and sends it to Lace for balancing. Lace adds DUST fees and Zswap proofs, then returns a finalized transaction ready to submit.
+
+Call `setNetworkId()` before initializing any providers.
+
+```bash
+touch leaderboard-ui/src/contexts/BrowserLeaderboardManager.ts
+```
+
+The manager class handles wallet connection, provider initialization, secret key persistence, and contract deployment or joining.
+
+```typescript
+import { LeaderboardAPI, type LeaderboardCircuitKeys, type LeaderboardProviders } from '../../../api/src/index';
+import { type ContractAddress, fromHex, toHex } from '@midnight-ntwrk/compact-runtime';
+import { BehaviorSubject, catchError, concatMap, filter, firstValueFrom, interval, map, type Observable, take, throwError, timeout } from 'rxjs';
+import { pipe as fnPipe } from 'fp-ts/function';
+import { type Logger } from 'pino';
+import { type ConnectedAPI, type InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
+import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import semver from 'semver';
+import { Binding, type FinalizedTransaction, Proof, SignatureEnabled, Transaction, type TransactionId } from '@midnight-ntwrk/ledger-v8';
+import { type LeaderboardPrivateState } from 'leaderboard-contract';
+import { inMemoryPrivateStateProvider } from '../in-memory-private-state-provider';
+import { type NetworkId, setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
+
+export type LeaderboardDeployment =
+  | { readonly status: 'in-progress' }
+  | { readonly status: 'deployed'; readonly api: LeaderboardAPI }
+  | { readonly status: 'failed'; readonly error: Error };
+
+export class BrowserLeaderboardManager {
+  readonly #deploymentsSubject = new BehaviorSubject<Array<BehaviorSubject<LeaderboardDeployment>>>([]);
+  #initializedProviders: Promise<LeaderboardProviders> | undefined;
+
+  constructor(private readonly logger: Logger) {}
+
+  readonly deployments$: Observable<Array<Observable<LeaderboardDeployment>>> = this.#deploymentsSubject;
+
+  resolve(contractAddress?: ContractAddress): Observable<LeaderboardDeployment> {
+    const deployments = this.#deploymentsSubject.value;
+    const existing = deployments.find(
+      (d) => d.value.status === 'deployed' && d.value.api.deployedContractAddress === contractAddress,
+    );
+    if (existing) return existing;
+    const secretKey = this.getSecretKey();
+    const deployment = new BehaviorSubject<LeaderboardDeployment>({ status: 'in-progress' });
+    if (contractAddress) {
+      void this.run(deployment, (providers) => LeaderboardAPI.join(providers, contractAddress, secretKey, this.logger));
+    } else {
+      void this.run(deployment, (providers) => LeaderboardAPI.deploy(providers, secretKey, this.logger));
+    }
+    this.#deploymentsSubject.next([...deployments, deployment]);
+    return deployment;
+  }
+
+  private getSecretKey(): Uint8Array {
+    const storageKey = 'midnight-leaderboard-secret';
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      return Uint8Array.from(atob(stored), (c) => c.charCodeAt(0));
+    }
+    const secret = crypto.getRandomValues(new Uint8Array(32));
+    localStorage.setItem(storageKey, btoa(String.fromCharCode(...secret)));
+    return secret;
+  }
+
+  private getProviders(): Promise<LeaderboardProviders> {
+    return this.#initializedProviders ?? (this.#initializedProviders = initializeProviders(this.logger));
+  }
+
+  private async run(
+    deployment: BehaviorSubject<LeaderboardDeployment>,
+    factory: (providers: LeaderboardProviders) => Promise<LeaderboardAPI>,
+  ): Promise<void> {
+    try {
+      const providers = await this.getProviders();
+      const api = await factory(providers);
+      deployment.next({ status: 'deployed', api });
+    } catch (error: unknown) {
+      console.error('Contract operation failed:', error);
+      let err: Error;
+      if (error instanceof Error) { err = error; }
+      else if (typeof error === 'string') { err = new Error(error); }
+      else { err = new Error(JSON.stringify(error) || 'Unknown error during contract operation'); }
+      deployment.next({ status: 'failed', error: err });
+    }
+  }
+}
+
+const COMPATIBLE_CONNECTOR_API_VERSION = '4.x';
+
+const initializeProviders = async (logger: Logger): Promise<LeaderboardProviders> => {
+  const networkId = import.meta.env.VITE_NETWORK_ID as NetworkId;
+  setNetworkId(networkId);
+  const connectedAPI = await connectToWallet(logger, networkId);
+  const config = await connectedAPI.getConfiguration();
+  const proofServerUri = config.proverServerUri!;
+  const shieldedAddresses = await connectedAPI.getShieldedAddresses();
+  const zkConfigProvider = new FetchZkConfigProvider<LeaderboardCircuitKeys>(window.location.origin, fetch.bind(window));
+
+  return {
+    privateStateProvider: inMemoryPrivateStateProvider<string, LeaderboardPrivateState>(),
+    zkConfigProvider,
+    proofProvider: httpClientProofProvider(proofServerUri, zkConfigProvider),
+    publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),
+    walletProvider: {
+      getCoinPublicKey: () => shieldedAddresses.shieldedCoinPublicKey,
+      getEncryptionPublicKey: () => shieldedAddresses.shieldedEncryptionPublicKey,
+      balanceTx: async (tx: UnboundTransaction): Promise<FinalizedTransaction> => {
+        const received = await connectedAPI.balanceUnsealedTransaction(toHex(tx.serialize()));
+        return Transaction.deserialize<SignatureEnabled, Proof, Binding>('signature', 'proof', 'binding', fromHex(received.tx));
+      },
+    },
+    midnightProvider: {
+      submitTx: async (tx: FinalizedTransaction): Promise<TransactionId> => {
+        await connectedAPI.submitTransaction(toHex(tx.serialize()));
+        return tx.identifiers()[0];
+      },
+    },
+  };
+};
+
+const getFirstCompatibleWallet = (): InitialAPI | undefined => {
+  if (!window.midnight) return undefined;
+  return Object.values(window.midnight).find(
+    (wallet): wallet is InitialAPI =>
+      !!wallet && typeof wallet === 'object' && 'apiVersion' in wallet &&
+      semver.satisfies(wallet.apiVersion, COMPATIBLE_CONNECTOR_API_VERSION),
+  );
+};
+
+const connectToWallet = (logger: Logger, networkId: string): Promise<ConnectedAPI> =>
+  firstValueFrom(
+    fnPipe(
+      interval(100),
+      map(() => getFirstCompatibleWallet()),
+      filter((api): api is InitialAPI => !!api),
+      take(1),
+      timeout({ first: 3_000, with: () => throwError(() => new Error('Could not find Midnight Lace wallet.')) }),
+      concatMap(async (initialAPI) => initialAPI.connect(networkId)),
+      timeout({ first: 5_000, with: () => throwError(() => new Error('Lace wallet failed to respond.')) }),
+      catchError((error) => throwError(() => error instanceof Error ? error : new Error('Wallet not authorized'))),
+    ),
+  );
+```
+
+## Application component
+
+The `App.tsx` component ties everything together: wallet detection, the click challenge game, score submission with privacy mode selection, leaderboard display, and ownership verification.
+
+The three UI privacy modes map to two contract paths. Anonymous sends `undefined` as the custom name, triggering the contract's `else` branch which stores a hash as the display name. Public and Custom both send a string through the witness (the wallet address or a user-typed name), triggering the contract's `if` branch.
+
+Ownership verification calls `verifyOwnership` on the API and tracks verified entries in local React state. If the caller is not the owner, then the contract's `assert` fails and the network rejects the transaction.
+
+```bash
+touch leaderboard-ui/src/App.tsx
+```
+
+The component uses a shared `BrowserLeaderboardManager` instance via `useRef` to ensure the same secret key and providers are used across all contract operations within a session.
+
+```tsx
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { InitialAPI, ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+import { useLeaderboard } from './hooks/useLeaderboard';
+import { BrowserLeaderboardManager } from './contexts/BrowserLeaderboardManager';
+import pino from 'pino';
+
+const NETWORK_ID = import.meta.env.VITE_NETWORK_ID ?? 'preprod';
+const DEFAULT_CONTRACT = import.meta.env.VITE_DEFAULT_CONTRACT ?? '';
+
+enum DisplayMode { PUBLIC = 0, ANONYMOUS = 1, CUSTOM = 2 }
+type WalletState = 'detecting' | 'no-wallet' | 'ready' | 'connecting' | 'connected';
+
+function findWallet(): InitialAPI | undefined {
+  const midnight = (window as any).midnight;
+  if (!midnight) return undefined;
+  return Object.values(midnight).find(
+    (w): w is InitialAPI => !!w && typeof w === 'object' && 'apiVersion' in w,
+  );
+}
+
+function truncAddr(addr: string): string {
+  return addr.length <= 24 ? addr : `${addr.slice(0, 14)}...${addr.slice(-8)}`;
+}
+
+function friendlyError(e: any): string {
+  const msg = extractErrorMessage(e);
+  if (msg.includes('User rejected')) return 'Transaction cancelled.';
+  if (msg.includes('not the owner')) return 'This entry does not belong to your wallet.';
+  if (msg.includes('entry not found')) return 'Entry not found on the leaderboard.';
+  if (msg.includes('Failed to fetch') || msg.includes('Failed Proof Server')) return 'Could not reach the proof server. Check your connection and try again.';
+  if (msg.includes('mismatched verifier keys')) return 'Contract version mismatch. Try deploying a new leaderboard.';
+  if (msg.includes('submission') || msg.includes('Submission')) return 'Transaction failed to submit. Please try again.';
+  return msg || 'An unexpected error occurred. Check the browser console for details.';
+}
+
+function extractErrorMessage(e: any): string {
+  if (!e) return '';
+  if (e.message && e.message !== '') return e.message;
+  const failure = e?.cause?.failure;
+  if (failure?.message) return failure.message;
+  if (failure?.cause?.message) return failure.cause.message;
+  if (e?.cause?.message) return e.cause.message;
+  try { return JSON.stringify(e); } catch { return String(e); }
+}
+
+export default function App() {
+  const [walletState, setWalletState] = useState<WalletState>('detecting');
+  const [walletAPI, setWalletAPI] = useState<InitialAPI | undefined>();
+  const [wallet, setWallet] = useState<ConnectedAPI | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [contractAddress, setContractAddress] = useState(DEFAULT_CONTRACT);
+  const [joinInput, setJoinInput] = useState('');
+  const [showJoinPanel, setShowJoinPanel] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [clicks, setClicks] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [showResult, setShowResult] = useState(false);
+  const [lastScore, setLastScore] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clickRef = useRef(0);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(DisplayMode.ANONYMOUS);
+  const [customName, setCustomName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [verifiedIds, setVerifiedIds] = useState<Set<number>>(new Set());
+
+  const managerRef = useRef<BrowserLeaderboardManager | null>(null);
+
+  const getManager = useCallback(() => {
+    if (!managerRef.current) {
+      const logger = pino({ level: 'warn', browser: { asObject: true } });
+      managerRef.current = new BrowserLeaderboardManager(logger);
+    }
+    return managerRef.current;
+  }, []);
+
+  const { entries: leaderboardEntries, refresh: refreshLeaderboard } = useLeaderboard(contractAddress || null);
+  const leaderboard = leaderboardEntries.map((e, i) => ({
+    rank: i + 1, id: e.id, displayName: e.displayName, score: BigInt(e.score),
+  }));
+
+  // Wallet detection: poll for Lace extension
+  useEffect(() => {
+    const found = findWallet();
+    if (found) { setWalletAPI(found); setWalletState('ready'); return; }
+    let elapsed = 0;
+    const t = setInterval(() => {
+      elapsed += 100;
+      const w = findWallet();
+      if (w) { setWalletAPI(w); setWalletState('ready'); clearInterval(t); }
+      else if (elapsed >= 5_000) { setWalletState('no-wallet'); clearInterval(t); }
+    }, 100);
+    return () => clearInterval(t);
+  }, []);
+
+  const connect = useCallback(async () => {
+    if (!walletAPI) return;
+    setWalletState('connecting');
+    setError(null);
+    try {
+      const c = await walletAPI.connect(NETWORK_ID);
+      setWallet(c);
+      const { unshieldedAddress } = await c.getUnshieldedAddress();
+      setAddress(unshieldedAddress);
+      setWalletState('connected');
+    } catch (e) { setError(friendlyError(e)); setWalletState('ready'); }
+  }, [walletAPI]);
+
+  // Helper to resolve a contract (deploy or join)
+  const resolveContract = useCallback(async (addr?: any) => {
+    const manager = getManager();
+    const deployment$ = manager.resolve(addr);
+    return new Promise<any>((resolve, reject) => {
+      const sub = deployment$.subscribe((d) => {
+        if (d.status === 'deployed') { Promise.resolve().then(() => sub.unsubscribe()); resolve(d); }
+        if (d.status === 'failed') { Promise.resolve().then(() => sub.unsubscribe()); reject(d.error); }
+      });
+    });
+  }, [getManager]);
+
+  const deployContract = useCallback(async () => {
+    if (!wallet) return;
+    setDeploying(true); setError(null);
+    try {
+      const result = await resolveContract();
+      setContractAddress(result.api.deployedContractAddress);
+      setShowJoinPanel(false); setClicks(0); setShowResult(false);
+    } catch (e: any) { setError(friendlyError(e)); }
+    finally { setDeploying(false); }
+  }, [wallet, resolveContract]);
+
+  const joinContract = useCallback(() => {
+    const addr = joinInput.trim();
+    if (!addr || !/^[0-9a-fA-F]{64}$/.test(addr)) {
+      setError('Invalid contract address. Must be 64 hex characters.'); return;
+    }
+    setContractAddress(addr); setShowJoinPanel(false); setJoinInput('');
+  }, [joinInput]);
+
+  // Game logic
+  const startGame = useCallback(() => {
+    setClicks(0); clickRef.current = 0;
+    setTimeLeft(10); setIsPlaying(true); setShowResult(false);
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current!);
+          setIsPlaying(false); setShowResult(true);
+          setLastScore(clickRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1_000);
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (!isPlaying) return;
+    clickRef.current += 1;
+    setClicks(clickRef.current);
+  }, [isPlaying]);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  // Submit score
+  const submitScore = useCallback(async () => {
+    if (lastScore === 0 || !wallet) return;
+    setSubmitting(true); setSubmitStatus('Joining contract...'); setError(null);
+    try {
+      const result = await resolveContract(contractAddress as any);
+      setSubmitStatus('Generating proof & submitting...');
+      const name = displayMode === DisplayMode.PUBLIC
+        ? address!.slice(0, 12) + '..' + address!.slice(-12)
+        : displayMode === DisplayMode.CUSTOM ? customName : undefined;
+      await result.api.submitScore(lastScore, name);
+      setSubmitting(false); setSubmitStatus(null);
+      setShowResult(false); setLastScore(0);
+      setTimeout(() => refreshLeaderboard(), 3000);
+    } catch (e: any) { setSubmitting(false); setSubmitStatus(null); setError(friendlyError(e)); }
+  }, [wallet, lastScore, displayMode, customName, contractAddress, refreshLeaderboard, address, resolveContract]);
+
+  // Verify ownership
+  const verifyEntry = useCallback(async (entryId: number) => {
+    if (!wallet) return;
+    setVerifyingId(entryId); setError(null);
+    try {
+      const result = await resolveContract(contractAddress as any);
+      await result.api.verifyOwnership(entryId);
+      setVerifiedIds(prev => new Set(prev).add(entryId));
+    } catch (e: any) { setError(friendlyError(e)); }
+    finally { setVerifyingId(null); }
+  }, [wallet, contractAddress, resolveContract]);
+
+  const isConnected = walletState === 'connected';
+
+  return (
+    <div>
+      <h1>Midnight Leaderboard</h1>
+
+      {walletState === 'no-wallet' ? (
+        <a href="https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk" target="_blank" rel="noopener noreferrer">Install Lace Wallet</a>
+      ) : isConnected && address ? (
+        <p>Connected: {truncAddr(address)}</p>
+      ) : (
+        <button onClick={connect} disabled={walletState !== 'ready'}>Connect Wallet</button>
+      )}
+
+      {error && <p style={{ color: 'red' }}>{error} <button onClick={() => setError(null)}>dismiss</button></p>}
+
+      <p>Contract: {truncAddr(contractAddress)}</p>
+      <button onClick={() => setShowJoinPanel(!showJoinPanel)}>{showJoinPanel ? 'Cancel' : 'Switch Contract'}</button>
+
+      {showJoinPanel && (
+        <div>
+          <input type="text" placeholder="Contract address (64 hex chars)" value={joinInput} onChange={e => setJoinInput(e.target.value)} />
+          <button onClick={joinContract} disabled={!joinInput.trim()}>Join</button>
+          {isConnected ? (
+            <button onClick={deployContract} disabled={deploying}>{deploying ? 'Deploying...' : 'Deploy New'}</button>
+          ) : (
+            <button onClick={connect} disabled={walletState !== 'ready'}>Connect to Deploy</button>
+          )}
+        </div>
+      )}
+
+      <h2>Click Challenge</h2>
+      <p>Time: {isPlaying ? timeLeft : 10}s | Clicks: {clicks}</p>
+
+      {isPlaying && (
+        <button onPointerDown={handleClick}>CLICK!</button>
+      )}
+
+      {!isPlaying && !showResult && (
+        <button onClick={startGame}>Start Game</button>
+      )}
+
+      {lastScore > 0 && !isPlaying && (
+        <div>
+          <button onClick={startGame}>Try Again</button>
+          <div>
+            {([[DisplayMode.ANONYMOUS, 'Anonymous'], [DisplayMode.PUBLIC, 'Public'], [DisplayMode.CUSTOM, 'Custom']] as const).map(([m, label]) => (
+              <button key={m} onClick={() => setDisplayMode(m)} style={{ fontWeight: displayMode === m ? 'bold' : 'normal' }}>{label}</button>
+            ))}
+          </div>
+          {displayMode === DisplayMode.CUSTOM && (
+            <input type="text" placeholder="Display name (max 32)" maxLength={32} value={customName} onChange={e => setCustomName(e.target.value)} />
+          )}
+          {isConnected ? (
+            <button onClick={submitScore} disabled={submitting || (displayMode === DisplayMode.CUSTOM && !customName.trim())}>
+              {submitting ? submitStatus : 'Submit to Chain'}
+            </button>
+          ) : (
+            <button onClick={connect} disabled={walletState !== 'ready'}>Connect Wallet to Submit</button>
+          )}
+        </div>
+      )}
+
+      <h2>Leaderboard ({leaderboard.length} entries)</h2>
+      {leaderboard.length === 0 ? (
+        <p>No scores yet.</p>
+      ) : (
+        <table>
+          <thead><tr><th>#</th><th>Player</th><th>Score</th><th></th></tr></thead>
+          <tbody>
+            {leaderboard.map(e => (
+              <tr key={e.id}>
+                <td>{e.rank}</td>
+                <td>{e.displayName} {verifiedIds.has(e.id) && <span>✓ yours</span>}</td>
+                <td>{Number(e.score).toLocaleString()}</td>
+                <td>
+                  {isConnected && !verifiedIds.has(e.id) && (
+                    <button onClick={() => verifyEntry(e.id)} disabled={verifyingId !== null}>
+                      {verifyingId === e.id ? '...' : 'Prove'}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+```
+
+## Install and run
+
+Reinstall dependencies to pick up the new workspace.
+
+```bash
+npm install
+```
+
+Start the proof server.
+
+```bash
+docker run -d -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server --network preprod
+```
+
+Start the dev server.
+
+```bash
+cd leaderboard-ui
+npm run dev
+```
+
+Open `http://localhost:3000` in Chrome with Lace installed. The leaderboard loads from the indexer immediately.
+
+## Deploy a contract
+
+Before you can submit scores, you need a deployed contract. Connect your wallet, then click **Switch Contract** and **Deploy New**. This creates a new leaderboard contract on Preprod and copies the address to your clipboard.
+
+Update `VITE_DEFAULT_CONTRACT` in your `.env` file with the new contract address, then restart the dev server so it loads automatically on future visits.
+
+:::warning[tDUST required]
+Deploying a contract requires tDUST in your wallet. If you see a transaction submission error, open Lace, go to the Tokens tab, and click **Generate tDUST**.
+:::
+
+Once deployed, play the click challenge, choose a privacy mode, and submit your score to the chain.
+
+## Next steps
+
+With the DApp running locally, you can move on to [Production deployment](./deployment.mdx) to deploy the frontend to Vercel.

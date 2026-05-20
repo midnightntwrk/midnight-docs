@@ -2,17 +2,23 @@
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 id: account
+title: Account model
+sidebar_label: Account model
+description: A reference on the account model.
+keywords: [account, model]
+sidebar_position: 10
+tags: [concepts]
 ---
 
 # Account model
 
-If you've built on Ethereum, Polygon, BSC, or any EVM-compatible chain, you're already intimately familiar with the Account model. But have you ever stopped to think about why things work the way they do? Why do you need to worry about nonces? Why does MEV exist? Why is achieving privacy so challenging?
+If you've built on Ethereum, Polygon, BSC, or any EVM-compatible chain, you're already familiar with the account model. But have you ever stopped to think about why things work the way they do? Why do you need to manage nonces? Why does MEV exist? Why is privacy so hard to achieve?
 
-These aren't random quirks—they're direct consequences of the Account model's fundamental design. Understanding these connections will help you appreciate why Midnight's UTXO approach enables entirely different capabilities, particularly around privacy and parallelism. More importantly, it will help you understand when to use Midnight's account-style contract tokens versus UTXO-based ledger tokens.
+These are not random quirks. They are direct consequences of the account model's design. Understanding these connections helps explain why Midnight's UTXO approach enables different capabilities, especially around privacy and parallelism. It also helps you decide when to use Midnight's account-style contract tokens versus UTXO-based ledger tokens.
 
 ## How accounts work
 
-In the Account model, the blockchain maintains a global state database where every address has an entry. Think of it as a massive, distributed spreadsheet that every node must keep in perfect sync:
+In the account model, the blockchain maintains a global state database where every address has an entry. Think of it as a massive, distributed spreadsheet that every node must keep in perfect sync:
 
 ```solidity
 Account {
@@ -40,26 +46,26 @@ storageSlot[keccak256(address, 0x1)] = balances[address]
 
 Every token contract, every DEX, every NFT collection adds to this ever-growing state tree that nodes must maintain forever. This is why Ethereum node requirements keep increasing—the state never shrinks.
 
-## Transaction Lifecycle: The Atomic Dance
+## Transaction lifecycle: the atomic dance
 
-When you submit a transaction in Ethereum, here's the precise sequence that unfolds:
+When you submit a transaction in Ethereum, this is the sequence that unfolds:
 
-| Step | Action              | What Really Happens                                  | Failure Mode           |
+| Step | Action              | What really happens                                  | Failure mode           |
 |------|---------------------|-------------------------------------------------------|------------------------|
-| 1    | Load State          | Node loads sender's account from global state        | Account doesn't exist  |
-| 2    | Validate Nonce      | Check tx nonce matches account nonce exactly         | Wrong nonce = rejected |
-| 3    | Check Balance       | Verify balance ≥ value + (gasPrice × gasLimit)       | Insufficient funds     |
-| 4    | Deduct Gas          | Reduce balance by maximum possible gas cost          | Always happens         |
+| 1    | Load state          | Node loads sender's account from global state        | Account doesn't exist  |
+| 2    | Validate nonce      | Check tx nonce matches account nonce exactly         | Wrong nonce = rejected |
+| 3    | Check balance       | Verify balance ≥ value + (gasPrice × gasLimit)       | Insufficient funds     |
+| 4    | Deduct gas          | Reduce balance by maximum possible gas cost          | Always happens         |
 | 5    | Execute             | Run EVM code, updating multiple accounts             | Revert (lose gas)      |
-| 6    | Apply Changes       | Write all state changes to global tree               | State conflict         |
-| 7    | Refund Gas          | Return unused gas × gasPrice to sender               | N/A                    |
-| 8    | Update Nonce        | Increment sender's nonce by exactly 1                | N/A                    |
+| 6    | Apply changes       | Write all state changes to global tree               | State conflict         |
+| 7    | Refund gas          | Return unused gas × gasPrice to sender               | N/A                    |
+| 8    | Update nonce        | Increment sender's nonce by exactly 1                | N/A                    |
 
-The critical insight: all affected accounts must be updated atomically. If your transaction touches 10 different token contracts, all 10 state updates must succeed together or all must fail together.
+The critical insight is that all affected accounts must be updated atomically. If your transaction touches 10 different token contracts, all 10 state updates must succeed together or all must fail together.
 
-## Nonces: Order from Chaos
+## Nonces: Order from chaos
 
-Nonces prevent replay attacks and enforce transaction ordering, but they create their own challenges:
+Nonces prevent replay attacks and enforce transaction ordering but create their own challenges:
 
 ```solidity
 // Alice's account state
@@ -76,11 +82,11 @@ tx3: { nonce: 6, ... }  // ⏳ Unblocks tx2 when it arrives
 tx4: { nonce: 5, ... }  // ❌ Rejected - nonce already used
 ```
 
-This sequential requirement is why sophisticated users run "nonce managers" and why dApps sometimes fail with "nonce too low" errors. In Midnight's UTXO model, each coin is independent—no sequence requirements, no stuck transactions.
+This sequential requirement is why sophisticated users run "nonce managers" and why DApps sometimes fail with "nonce too low" errors. In Midnight's UTXO model, each coin is independent—no sequence requirements, no stuck transactions.
 
-## Smart Contracts: The Global Computer
+## Smart contracts: the global computer
 
-When you deploy a smart contract, you're adding executable code to the global state:
+When you deploy a smart contract, you add executable code to global state:
 
 ```solidity
 contract SimpleToken {
@@ -103,9 +109,9 @@ During execution:
 
 This redundancy ensures security but limits efficiency. If 10,000 nodes run the network, that transfer calculation happens 10,000 times. Midnight's approach with off-chain execution and zero-knowledge proofs eliminates this redundancy while maintaining security.
 
-## MEV: The Dark Side of Transparency
+## MEV: The dark side of transparency
 
-Maximum Extractable Value (MEV) isn't a bug—it's an inevitable consequence of transparent, sequential execution:
+Maximum Extractable Value (MEV) is not a bug. It is an inevitable consequence of transparent, sequential execution:
 
 ```solidity
 // 1. User submits DEX trade (visible in mempool)
@@ -135,9 +141,9 @@ MEV exists because:
 
 Midnight's private state and parallel execution naturally resist many MEV strategies—attackers can't exploit what they can't see.
 
-## Privacy: The Impossible Dream?
+## Privacy: The impossible dream?
 
-The Account model makes privacy exceptionally difficult:
+The account model makes privacy exceptionally difficult:
 
 ```solidity
 // Everything about your address is permanently public:
@@ -156,11 +162,13 @@ YourAddress: 0x742d35Cc...
 
 Even privacy mixers only break links at specific points—everything before and after remains transparent. Midnight's UTXO model with selective shielding enables true transaction privacy without sacrificing the ability to prove compliance when needed.
 
-## Why It Works (When It Works)
+## Why it works
 
-Despite these challenges, the Account model excels in certain areas.
+Despite these challenges, the account model excels in certain areas.
 
-### Developer Experience
+### Developer experience
+
+The account model offers a direct and intuitive programming experience. Developers can reason about balances and storage as mutable state, which makes many contract patterns straightforward to express and debug.
 
 ```solidity
 // Intuitive mental model - just like programming class
@@ -175,7 +183,7 @@ contract Token {
 }
 ```
 
-### Composability Power
+### Composability power
 
 The shared global state enables complex interactions:
 
@@ -184,27 +192,27 @@ The shared global state enables complex interactions:
 * Rich contract-to-contract communication
 * Complex DeFi "money legos"
 
-This is why Midnight supports account-style tokens through Compact contracts—sometimes this model is exactly what you need.
+This is why Midnight supports account-style tokens through [Compact smart contracts](../compact). Sometimes this model is exactly what you need.
 
-## Key Takeaways for Midnight Development
+## Key takeaways for Midnight development
 
-Understanding the Account model deeply helps you make better architectural decisions:
+Understanding the account model deeply helps you make better architectural decisions:
 
-| Account Model Characteristic | Resulting Limitation       | Midnight's Solution                   |
+| Account model characteristic | Resulting limitation       | Midnight's solution                   |
 |-----------------------------|-----------------------------|----------------------------------------|
-| Global shared state         | No privacy possible         | Shielded Tokens                        |
+| Global shared state         | No privacy possible         | Shielded tokens                        |
 | Sequential nonces           | Transaction bottlenecks     | Independent UTXO processing            |
 | Everything on-chain         | High gas costs              | Off-chain execution with proofs        |
 | Transparent mempool         | MEV exploitation            | Private transaction submission         |
 
 
-## When to Use Account-Style Tokens on Midnight
+## When to use account-style tokens on Midnight
 
-Even with UTXO advantages, account-style patterns (through Compact contracts) make sense for:
+Account-style patterns (through Compact contracts) make sense for:
 
-* Complex DeFi protocols requiring intricate state machines
+* Complex Decentralized Finance (DeFi) protocols requiring intricate state machines
 * Gaming systems with complex rules and interactions
 * Governance tokens with delegation mechanisms
 * Social tokens tracking relationships
 
-The key insight: Midnight lets you choose the right model for each use case rather than forcing everything into one paradigm.
+The key insight is that Midnight lets you choose the right model for each use case rather than forcing everything into one paradigm.

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.14.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
 
 ***
 
@@ -7,10 +7,10 @@
 # Function: ecMulGenerator()
 
 ```ts
-function ecMulGenerator(b): NativePoint;
+function ecMulGenerator(b): JubjubPoint;
 ```
 
-The Compact builtin `ec_mul_generator` function
+The Compact builtin `ecMulGenerator` function
 
 This function multiplies the primary group generator of the embedded curve
 by a scalar (in multiplicative notation)
@@ -23,4 +23,4 @@ by a scalar (in multiplicative notation)
 
 ## Returns
 
-[`NativePoint`](../interfaces/NativePoint.md)
+[`JubjubPoint`](../interfaces/JubjubPoint.md)

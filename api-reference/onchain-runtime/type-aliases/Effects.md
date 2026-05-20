@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/onchain-runtime v2.0.1**](../README.md)
+[**@midnight-ntwrk/onchain-runtime v3.0.0**](../README.md)
 
 ***
 
