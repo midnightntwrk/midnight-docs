@@ -1,0 +1,558 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Configure providers"
+title: "Configure providers"
+description: "How to configure the MidnightProviders object for deploying and interacting with Compact smart contracts."
+sidebar_position: 10
+toc_max_heading_level: 2
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Configure providers
+
+Providers are the modular, pluggable components that the Midnight.js SDK uses to interact with the Midnight network. Each provider handles one specific capability in the transaction pipeline: storing private state, querying the indexer, generating ZK proofs, balancing transactions, and submitting them on-chain.
+
+You assemble all providers into a single `MidnightProviders` object and pass it to `deployContract`, `findDeployedContract`, and other SDK functions.
+
+## The `MidnightProviders` type
+
+`MidnightProviders` is a generic type imported from `@midnight-ntwrk/midnight-js-types`. It is parameterized by three arguments that are specific to your contract:
+
+```typescript
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+
+// CircuitKeys  — union of circuit names from your compiled contract
+// PrivateStateId — literal type of your private state storage key
+// PrivateState   — shape of your contract's private state object
+type MyProviders = MidnightProviders<CircuitKeys, PrivateStateId, PrivateState>;
+```
+
+In practice, you define these aliases in a `common-types.ts` file shared between your API and UI packages, for example:
+
+```typescript
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import { type FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+export const myPrivateStateKey = 'myPrivateState';
+export type PrivateStateId = typeof myPrivateStateKey;
+
+export type MyCircuitKeys = 'circuitA' | 'circuitB';
+export type MyProviders = MidnightProviders<MyCircuitKeys, PrivateStateId, MyPrivateState>;
+```
+
+## Set the network ID
+
+Call `setNetworkId` before initializing any providers. All Midnight.js packages read this value to target the correct network.
+
+<Tabs groupId="network">
+<TabItem value="preprod">
+
+```typescript
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('preprod');
+```
+
+</TabItem>
+<TabItem value="undeployed">
+
+```typescript
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('undeployed');
+```
+
+</TabItem>
+</Tabs>
+
+In Node.js environments, also polyfill `WebSocket` so that GraphQL subscriptions to the indexer work:
+
+```typescript
+import { WebSocket } from 'ws';
+
+globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+```
+
+## Providers
+
+### `privateStateProvider`
+
+The private state provider stores and retrieves the contract's private state on the local device. Private state is never sent to the network.
+
+<Tabs groupId="runtime">
+<TabItem value="nodejs">
+
+Use `levelPrivateStateProvider` from `@midnight-ntwrk/midnight-js-level-private-state-provider`. It persists private state to a LevelDB database encrypted with AES-256-GCM.
+
+```typescript
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+
+const privateStateProvider = levelPrivateStateProvider<PrivateStateId, MyPrivateState>({
+  privateStateStoreName: 'my-contract-private-state',
+  signingKeyStoreName: 'my-contract-private-state-signing-keys',
+  privateStoragePasswordProvider: () => 'your-encryption-password',
+});
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `privateStateStoreName` | Name of the LevelDB store for private state |
+| `signingKeyStoreName` | Name of the LevelDB store for signing keys |
+| `privateStoragePasswordProvider` | Function returning the encryption password |
+
+:::warning
+Do not use a hardcoded password in production. Derive it from wallet credentials or a secure key management system.
+:::
+
+</TabItem>
+<TabItem value="browser">
+
+In the browser, use an in-memory provider. Private state is held in memory, scoped by contract address. It is lost on page reload, so the caller is responsible for persisting and restoring any state that must survive across sessions (such as a secret key stored in `localStorage`).
+
+```typescript
+import type { ContractAddress, SigningKey } from '@midnight-ntwrk/compact-runtime';
+import type {
+  ExportPrivateStatesOptions,
+  ExportSigningKeysOptions,
+  ImportPrivateStatesOptions,
+  ImportPrivateStatesResult,
+  ImportSigningKeysOptions,
+  ImportSigningKeysResult,
+  PrivateStateExport,
+  PrivateStateId,
+  PrivateStateProvider,
+  SigningKeyExport,
+} from '@midnight-ntwrk/midnight-js-types';
+
+export const inMemoryPrivateStateProvider = <PSI extends PrivateStateId, PS = unknown>(): PrivateStateProvider<PSI, PS> => {
+  const privateStates = new Map<ContractAddress, Map<PSI, PS>>();
+  const signingKeys = new Map<ContractAddress, SigningKey>();
+  let contractAddress: ContractAddress | null = null;
+
+  const requireContractAddress = (): ContractAddress => {
+    if (contractAddress === null) throw new Error('Contract address not set');
+    return contractAddress;
+  };
+
+  const getScopedStates = (address: ContractAddress): Map<PSI, PS> => {
+    let scoped = privateStates.get(address);
+    if (!scoped) { scoped = new Map<PSI, PS>(); privateStates.set(address, scoped); }
+    return scoped;
+  };
+
+  const encode = <T>(v: T): string => JSON.stringify(v);
+  const decode = <T>(v: string): T => JSON.parse(v) as T;
+
+  return {
+    setContractAddress(address: ContractAddress): void { contractAddress = address; },
+    set(key: PSI, state: PS): Promise<void> {
+      getScopedStates(requireContractAddress()).set(key, state);
+      return Promise.resolve();
+    },
+    get(key: PSI): Promise<PS | null> {
+      return Promise.resolve(getScopedStates(requireContractAddress()).get(key) ?? null);
+    },
+    remove(key: PSI): Promise<void> {
+      getScopedStates(requireContractAddress()).delete(key);
+      return Promise.resolve();
+    },
+    clear(): Promise<void> {
+      privateStates.delete(requireContractAddress());
+      return Promise.resolve();
+    },
+    setSigningKey(addr: ContractAddress, key: SigningKey): Promise<void> {
+      signingKeys.set(addr, key); return Promise.resolve();
+    },
+    getSigningKey(addr: ContractAddress): Promise<SigningKey | null> {
+      return Promise.resolve(signingKeys.get(addr) ?? null);
+    },
+    removeSigningKey(addr: ContractAddress): Promise<void> {
+      signingKeys.delete(addr); return Promise.resolve();
+    },
+    clearSigningKeys(): Promise<void> {
+      signingKeys.clear(); return Promise.resolve();
+    },
+    exportPrivateStates(_options?: ExportPrivateStatesOptions): Promise<PrivateStateExport> {
+      const address = requireContractAddress();
+      const states = Object.fromEntries(
+        Array.from(getScopedStates(address).entries()).map(([k, v]) => [k, encode(v)]),
+      );
+      return Promise.resolve({
+        format: 'midnight-private-state-export',
+        encryptedPayload: encode({ contractAddress: address, states }),
+        salt: 'in-memory',
+      });
+    },
+    importPrivateStates(exportData: PrivateStateExport, options?: ImportPrivateStatesOptions): Promise<ImportPrivateStatesResult> {
+      const address = requireContractAddress();
+      const strategy = options?.conflictStrategy ?? 'error';
+      const payload = decode<{ states?: Record<string, string> }>(exportData.encryptedPayload);
+      const scoped = getScopedStates(address);
+      let imported = 0, skipped = 0, overwritten = 0;
+      for (const [rawId, serialized] of Object.entries(payload.states ?? {})) {
+        const id = rawId as PSI;
+        if (scoped.has(id)) {
+          if (strategy === 'skip') { skipped++; continue; }
+          if (strategy === 'error') return Promise.reject(new Error(`Conflict: ${id}`));
+          overwritten++;
+        } else { imported++; }
+        scoped.set(id, decode<PS>(serialized));
+      }
+      return Promise.resolve({ imported, skipped, overwritten });
+    },
+    exportSigningKeys(_options?: ExportSigningKeysOptions): Promise<SigningKeyExport> {
+      return Promise.resolve({
+        format: 'midnight-signing-key-export',
+        encryptedPayload: encode({ keys: Object.fromEntries(signingKeys.entries()) }),
+        salt: 'in-memory',
+      });
+    },
+    importSigningKeys(exportData: SigningKeyExport, options?: ImportSigningKeysOptions): Promise<ImportSigningKeysResult> {
+      const strategy = options?.conflictStrategy ?? 'error';
+      const payload = decode<{ keys?: Record<string, SigningKey> }>(exportData.encryptedPayload);
+      let imported = 0, skipped = 0, overwritten = 0;
+      for (const [addr, key] of Object.entries(payload.keys ?? {})) {
+        if (signingKeys.has(addr)) {
+          if (strategy === 'skip') { skipped++; continue; }
+          if (strategy === 'error') return Promise.reject(new Error(`Conflict: ${addr}`));
+          overwritten++;
+        } else { imported++; }
+        signingKeys.set(addr, key);
+      }
+      return Promise.resolve({ imported, skipped, overwritten });
+    },
+  };
+};
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### `publicDataProvider`
+
+The public data provider queries and subscribes to on-chain contract state via the Midnight indexer's GraphQL API. Use `indexerPublicDataProvider` from `@midnight-ntwrk/midnight-js-indexer-public-data-provider` in both Node.js and browser environments.
+
+```typescript
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+
+const publicDataProvider = indexerPublicDataProvider(
+  'https://indexer.preprod.midnight.network/api/v4/graphql',     // HTTP query URL
+  'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',   // WebSocket subscription URL
+);
+```
+
+For local development, use:
+
+```typescript
+const publicDataProvider = indexerPublicDataProvider(
+  'http://localhost:8088/api/v4/graphql',
+  'ws://localhost:8088/api/v4/graphql/ws',
+);
+```
+
+---
+
+### `zkConfigProvider`
+
+The ZK configuration provider supplies the prover key, verifier key, and ZKIR artifacts that the proof provider needs to generate zero-knowledge proofs. The right implementation depends on where your artifacts are stored.
+
+<Tabs groupId="runtime">
+<TabItem value="nodejs">
+
+Use `NodeZkConfigProvider` from `@midnight-ntwrk/midnight-js-node-zk-config-provider`. It reads artifacts from the local filesystem. The path should point to the directory containing the compiled contract's `keys/` and `zkir/` output.
+
+```typescript
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+
+const zkConfigProvider = new NodeZkConfigProvider<'circuitA' | 'circuitB'>(
+  '/path/to/contract/src/managed/my-contract',
+);
+```
+
+The type parameter is the union of circuit names your contract exposes. This is typically the same type as your `CircuitKeys` alias.
+
+</TabItem>
+<TabItem value="browser">
+
+Use `FetchZkConfigProvider` from `@midnight-ntwrk/midnight-js-fetch-zk-config-provider`. It fetches artifacts over HTTP from a URL base — typically the origin of your deployed app, where the `keys/` and `zkir/` directories are served as static assets.
+
+```typescript
+import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+
+const zkConfigProvider = new FetchZkConfigProvider<'circuitA' | 'circuitB'>(
+  window.location.origin,
+  fetch.bind(window),
+);
+```
+
+During development, copy the compiled ZK artifacts into the `public/` directory so Vite serves them:
+
+```bash
+cp -r contract/managed/my-contract/keys public/keys
+cp -r contract/managed/my-contract/zkir  public/zkir
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### `proofProvider`
+
+The proof provider calls the Midnight proof server to generate zero-knowledge proofs from unproven transactions. Use `httpClientProofProvider` from `@midnight-ntwrk/midnight-js-http-client-proof-provider`.
+
+It takes the proof server URL and the `zkConfigProvider` instance. The proof server needs access to the same ZK artifacts, which it retrieves via the `zkConfigProvider`.
+
+```typescript
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+
+const proofProvider = httpClientProofProvider(
+  'http://localhost:6300',  // proof server URL
+  zkConfigProvider,
+);
+```
+
+:::info
+The proof server is a Docker container you run locally or point to a hosted instance. See the [proof server guide](./run-proof-server) for setup instructions.
+:::
+
+---
+
+### `walletProvider`
+
+The wallet provider exposes the public keys needed to receive shielded tokens and decrypts transaction data. It also balances unbound transactions by selecting UTXOs to cover fees and adding change outputs.
+
+<Tabs groupId="runtime">
+<TabItem value="nodejs">
+
+In a Node.js CLI, implement `WalletProvider` using the Wallet SDK facade. The following is the pattern used in the bulletin board tutorial:
+
+```typescript
+import {
+  type CoinPublicKey,
+  type EncPublicKey,
+  type FinalizedTransaction,
+  ZswapSecretKeys,
+  DustSecretKey,
+} from '@midnight-ntwrk/ledger-v8';
+import { type WalletProvider, UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
+
+class MyWalletProvider implements WalletProvider {
+  constructor(
+    private readonly wallet: WalletFacade,
+    private readonly zswapSecretKeys: ZswapSecretKeys,
+    private readonly dustSecretKey: DustSecretKey,
+  ) {}
+
+  getCoinPublicKey(): CoinPublicKey {
+    return this.zswapSecretKeys.coinPublicKey;
+  }
+
+  getEncryptionPublicKey(): EncPublicKey {
+    return this.zswapSecretKeys.encryptionPublicKey;
+  }
+
+  async balanceTx(tx: UnboundTransaction, ttl: Date = ttlOneHour()): Promise<FinalizedTransaction> {
+    const recipe = await this.wallet.balanceUnboundTransaction(
+      tx,
+      { shieldedSecretKeys: this.zswapSecretKeys, dustSecretKey: this.dustSecretKey },
+      { ttl },
+    );
+    return await this.wallet.finalizeRecipe(recipe);
+  }
+}
+```
+
+</TabItem>
+<TabItem value="browser">
+
+In the browser, the Lace wallet handles balancing via the DApp Connector API. Construct an inline `walletProvider` object from the connected wallet's shielded addresses:
+
+```typescript
+import { type ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+import { Binding, type FinalizedTransaction, Proof, SignatureEnabled, Transaction } from '@midnight-ntwrk/ledger-v8';
+import { fromHex, toHex } from '@midnight-ntwrk/compact-runtime';
+import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
+
+const shieldedAddresses = await connectedAPI.getShieldedAddresses();
+
+const walletProvider = {
+  getCoinPublicKey: () => shieldedAddresses.shieldedCoinPublicKey,
+  getEncryptionPublicKey: () => shieldedAddresses.shieldedEncryptionPublicKey,
+  balanceTx: async (tx: UnboundTransaction): Promise<FinalizedTransaction> => {
+    const received = await connectedAPI.balanceUnsealedTransaction(toHex(tx.serialize()));
+    return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
+      'signature', 'proof', 'binding', fromHex(received.tx),
+    );
+  },
+};
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+### `midnightProvider`
+
+The midnight provider submits finalized transactions to the network and returns the transaction ID.
+
+<Tabs groupId="runtime">
+<TabItem value="nodejs">
+
+In a Node.js CLI, the same class that implements `WalletProvider` can also implement `MidnightProvider`, since the `WalletFacade` exposes both capabilities:
+
+```typescript
+import { type MidnightProvider } from '@midnight-ntwrk/midnight-js-types';
+import { type FinalizedTransaction } from '@midnight-ntwrk/ledger-v8';
+
+class MyWalletProvider implements WalletProvider, MidnightProvider {
+  // ...other methods...
+
+  submitTx(tx: FinalizedTransaction): Promise<string> {
+    return this.wallet.submitTransaction(tx);
+  }
+}
+```
+
+A single instance is then passed as both `walletProvider` and `midnightProvider` in the providers object.
+
+</TabItem>
+<TabItem value="browser">
+
+In the browser, the DApp Connector API handles submission. Construct an inline `midnightProvider` from the connected wallet:
+
+```typescript
+import type { TransactionId } from '@midnight-ntwrk/ledger-v8';
+import { toHex } from '@midnight-ntwrk/compact-runtime';
+
+const midnightProvider = {
+  submitTx: async (tx: FinalizedTransaction): Promise<TransactionId> => {
+    await connectedAPI.submitTransaction(toHex(tx.serialize()));
+    return tx.identifiers()[0];
+  },
+};
+```
+
+</TabItem>
+</Tabs>
+
+---
+
+## Assemble the providers object
+
+Once each provider is initialized, assemble them into the `MidnightProviders` object and pass it to the contract API.
+
+<Tabs groupId="runtime">
+<TabItem value="nodejs">
+
+```typescript
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+
+const zkConfigProvider = new NodeZkConfigProvider<MyCircuitKeys>('/path/to/contract/managed/my-contract');
+
+const walletProvider = new MyWalletProvider(wallet, zswapSecretKeys, dustSecretKey);
+
+const providers: MyProviders = {
+  privateStateProvider: levelPrivateStateProvider<PrivateStateId, MyPrivateState>({
+    privateStateStoreName: 'my-contract-private-state',
+    signingKeyStoreName: 'my-contract-private-state-signing-keys',
+    privateStoragePasswordProvider: () => 'your-encryption-password',
+  }),
+  publicDataProvider: indexerPublicDataProvider(
+    'https://indexer.preprod.midnight.network/api/v4/graphql',
+    'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+  ),
+  zkConfigProvider,
+  proofProvider: httpClientProofProvider('http://localhost:6300', zkConfigProvider),
+  walletProvider,
+  midnightProvider: walletProvider,
+};
+```
+
+</TabItem>
+<TabItem value="browser">
+
+```typescript
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+import { setNetworkId, type NetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('preprod');
+
+const connectedAPI = await connectToWallet();
+const config = await connectedAPI.getConfiguration();
+const shieldedAddresses = await connectedAPI.getShieldedAddresses();
+
+const zkConfigProvider = new FetchZkConfigProvider<MyCircuitKeys>(
+  window.location.origin,
+  fetch.bind(window),
+);
+
+const providers: MyProviders = {
+  privateStateProvider: inMemoryPrivateStateProvider<PrivateStateId, MyPrivateState>(),
+  publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),
+  zkConfigProvider,
+  proofProvider: httpClientProofProvider(config.proverServerUri!, zkConfigProvider),
+  walletProvider: {
+    getCoinPublicKey: () => shieldedAddresses.shieldedCoinPublicKey,
+    getEncryptionPublicKey: () => shieldedAddresses.shieldedEncryptionPublicKey,
+    balanceTx: async (tx) => {
+      const received = await connectedAPI.balanceUnsealedTransaction(toHex(tx.serialize()));
+      return Transaction.deserialize('signature', 'proof', 'binding', fromHex(received.tx));
+    },
+  },
+  midnightProvider: {
+    submitTx: async (tx) => {
+      await connectedAPI.submitTransaction(toHex(tx.serialize()));
+      return tx.identifiers()[0];
+    },
+  },
+};
+```
+
+</TabItem>
+</Tabs>
+
+Pass this object to `deployContract` or `findDeployedContract`:
+
+```typescript
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+// Deploy a new contract
+const deployed = await deployContract(providers, {
+  compiledContract: CompiledMyContract,
+  privateStateId: myPrivateStateKey,
+  initialPrivateState: myInitialPrivateState,
+});
+
+// Or connect to an existing one
+const deployed = await findDeployedContract(providers, {
+  contractAddress,
+  compiledContract: CompiledMyContract,
+  privateStateId: myPrivateStateKey,
+  initialPrivateState: myInitialPrivateState,
+});
+```
+
+## Provider summary
+
+| Provider | Package | Node.js implementation | Browser implementation |
+|----------|---------|------------------------|------------------------|
+| `privateStateProvider` | `midnight-js-level-private-state-provider` | `levelPrivateStateProvider` | In-memory implementation |
+| `publicDataProvider` | `midnight-js-indexer-public-data-provider` | `indexerPublicDataProvider` | `indexerPublicDataProvider` |
+| `zkConfigProvider` | `midnight-js-node-zk-config-provider` | `NodeZkConfigProvider` | `FetchZkConfigProvider` |
+| `proofProvider` | `midnight-js-http-client-proof-provider` | `httpClientProofProvider` | `httpClientProofProvider` |
+| `walletProvider` | `midnight-js-types` | Custom class (Wallet SDK) | Inline object (DApp Connector) |
+| `midnightProvider` | `midnight-js-types` | Same class as `walletProvider` | Inline object (DApp Connector) |
