@@ -1,6 +1,6 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) 2025 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: "ZK Loan smart contract"
 title: "ZK Loan smart contract"
 description: "Build a zero-knowledge loan smart contract on Midnight Network that privately evaluates credit data using zero-knowledge proofs."
@@ -249,7 +249,7 @@ In the Schnorr code above:
 *   Verifies the Schnorr equation: `G * response == announcement + publicKey * challenge`
 
 :::caution `JubjubPoint` equality
-In Compact `0.22`, two `JubjubPoint` values can no longer be compared with `==`. The compiler emits JS reference equality for struct equality, which is always `false` for freshly constructed points and would make the assertion silently impossible to satisfy. Compare the `x` and `y` coordinates explicitly with `jubjubPointX()` / `jubjubPointY()`, as shown above.
+Since Compact language version `0.22`, two `JubjubPoint` values can no longer be compared with `==`. The compiler emits JS reference equality for struct equality, which is always `false` for freshly constructed points and would make the assertion silently impossible to satisfy. Compare the `x` and `y` coordinates explicitly with `jubjubPointX()` / `jubjubPointY()`, as shown above.
 :::
 
 The truncation uses a *witness* (`getSchnorrReduction`). The TypeScript code provides the quotient and remainder of dividing by 2^248, and the circuit verifies `q * 2^248 + r == cFull`. This is a common pattern in zero-knowledge systems: let the prover compute something expensive off-chain, then verify the result cheaply on-chain.
@@ -349,6 +349,8 @@ Every Compact smart contract starts with a pragma (the language version) and imp
 Define the data types next. Note two key things:
 - `LoanApplication` and `LoanStatus` are *exported* — they are visible on-chain. Anyone can read a loan's status and authorized amount.
 - `Applicant` is *not exported* — it only exists inside the zero-knowledge circuit. The credit score, income, and tenure never appear on-chain.
+
+`UserSecretKey`, `UserPublicKey`, and `AdminPublicKey` each wrap a single `Bytes<32>`. The wrapper structs are deliberate: they are all 32-byte values, but giving each a distinct named type makes them *nominally* distinct in Compact, so the compiler rejects passing a `UserPublicKey` where an `AdminPublicKey` is expected (and vice versa). A bare `Bytes<32>` everywhere would compile too, but it would let a user key and an admin key be used interchangeably — exactly the kind of confusion this contract's security depends on avoiding.
 
 The [ledger](/concepts/ledgers) declarations define what lives on the blockchain:
 - `loans` is a *nested map*: the outer key is the user's derived public key bytes (`Bytes<32>`), the inner key is a loan ID (`Uint<16>`), and the value is the `LoanApplication`. This lets each user have multiple loans.
@@ -468,7 +470,7 @@ const authorizedAmount = amountRequested > topTierAmount ? topTierAmount : amoun
 5.  [`disclose()`](/compact/reference/explicit-disclosure) only the results (amount and status), and write the loan record to the ledger.
 
 :::important
-`evaluateApplicant` runs entirely in the zero-knowledge circuit. It reads the user's credit data from the witness, verifies the attestation signature, and returns the eligibility tier. Only the *outcome* crosses from private to public via `disclose()`. The credit score, income, and tenure stay private.
+`evaluateApplicant` runs entirely in the zero-knowledge circuit. It reads the user's credit data from the witness, verifies the attestation signature, and returns the eligibility tier. `disclose()` does not itself make anything public — it is a compile-time annotation that marks a witness-derived value as safe to leave the private domain. A value only *becomes* public when it crosses a public boundary: written to a ledger field, or returned from an exported circuit. The credit score, income, and tenure are never disclosed and never cross such a boundary, so they stay private; only the eligibility *outcome* (amount and status) is disclosed and then written to the ledger, which is what actually publishes it.
 :::
 
 Also, `evaluateApplicant` is an internal circuit (not exported, cannot be called from outside). It:
