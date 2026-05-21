@@ -13,15 +13,15 @@ tags: [tutorials, advanced, zero-knowledge, loan, dapp]
 
 A smart contract that nobody can talk to is just a proof of concept sitting in a compiler's output directory.
 
-[Part 1](./smart-contract) covered the implementation of a zero-knowledge loan-scoring smart contract using Compact. Credit scores, income, and employment tenure remain private, while only the loan outcome lands on-chain. It also covered the Schnorr signature module that prevents users from fabricating their own credit data, and the TypeScript witness that feeds private inputs to the prover.
+[Part 1](./smart-contract) covered the implementation of a zero-knowledge (ZK) loan-scoring smart contract using Compact. Credit scores, income, and employment tenure remain private, while only the loan outcome lands on-chain. It also covered the Schnorr signature module that prevents users from fabricating their own credit data, and the TypeScript witness that feeds private inputs to the prover.
 
-But right now, that smart contract has no way to receive signed credit data or generate zero-knowledge proofs. This part builds the two pieces of off-chain infrastructure that make the smart contract functional:
+But right now, that smart contract has no way to receive signed credit data or generate ZK proofs. This part builds the two pieces of off-chain infrastructure that make the smart contract functional:
 
-- **Attestation API**: A REST server that signs credit data with Schnorr signatures on the Jubjub curve. It acts as the trusted data provider, a stand-in for a bank or credit bureau, whose signatures the smart contract verifies inside the zero-knowledge circuit.
+- **Attestation API**: A REST server that signs credit data with Schnorr signatures on the Jubjub curve. It acts as the trusted data provider, a stand-in for a bank or credit bureau, whose signatures the smart contract verifies inside the ZK circuit.
 
-- **Proof server**: A Docker container running Midnight's proof generation service locally. Every transaction that touches the smart contract requires a zero-knowledge proof, and this service produces them.
+- **Proof server**: A Docker container running Midnight's proof generation service locally. Every transaction that touches the smart contract requires a ZK proof, and this service produces them.
 
-This section also walks through the attestation flow end-to-end, showing how credit data flows from the attestation API to the zero-knowledge proof without ever appearing on-chain.
+This section also walks through the attestation flow end-to-end, showing how credit data flows from the attestation API to the ZK proof without ever appearing on-chain.
 
 **Prerequisites**: Make sure you have completed [Part 1](./smart-contract) and have the compiled smart contract package ready in the `contract/dist/` directory.
 
@@ -176,7 +176,7 @@ The signing uses the Jubjub elliptic curve (Midnight's native internal curve). H
 
 The resulting signature is `(R, s)`. The smart contract verifies it by checking: `G * s == R + publicKey * c`.
 
-The critical detail is step 3. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` covered in [Part 1](./smart-contract). Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the zero-knowledge circuit. If a different hash were used, then every signature would fail verification.
+The critical detail is step 3. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` covered in [Part 1](./smart-contract). Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the ZK circuit. If a different hash were used, then every signature would fail verification.
 
 The `signCreditData` function is a convenience wrapper. It takes the four credit data fields (credit score, monthly income, months as customer, and the user public key hash). It converts them to `bigint` and passes them to the generic `sign` function.
 
@@ -471,15 +471,15 @@ Here is a walkthrough of each step, matching the numbers in the diagram above:
 1. **Register the provider.** The admin calls `registerProvider` on-chain, storing the attestation API's Jubjub public key in the smart contract's `providers` map. This is the only setup step that touches the blockchain.
 2. **Request attestation.** The CLI sends the user's credit data and the derived public-key hash to the attestation API. The CLI computes the public key hash from the user's wallet key and secret PIN using the `publicKey` pure circuit from [Part 1](./smart-contract).
 3. **Sign and return.** The attestation API signs all four fields (credit score, monthly income, months as a customer, and user public key hash) as a single Schnorr signature. Including the public key hash in the signed message binds the attestation to a specific user; a different user cannot reuse this signature.
-4. **Submit the loan request.** The CLI stores the signature in the user's private state and calls `requestLoan`. The signature is sent to the proof server as part of the zero-knowledge witness. It never appears in the transaction data that reaches the blockchain.
-5. **Verify in zero-knowledge.** Inside the circuit, `evaluateApplicant` retrieves the signature from the witness, looks up the provider's public key from the ledger, and runs `schnorrVerify`. Verification fails if the data was tampered with, the wrong provider signed it, or the attestation belongs to a different user. When that happens, the assertion fails and the transaction reverts.
+4. **Submit the loan request.** The CLI stores the signature in the user's private state and calls `requestLoan`. The signature is sent to the proof server as part of the ZK witness. It never appears in the transaction data that reaches the blockchain.
+5. **Verify in ZK.** Inside the circuit, `evaluateApplicant` retrieves the signature from the witness, looks up the provider's public key from the ledger, and runs `schnorrVerify`. Verification fails if the data was tampered with, the wrong provider signed it, or the attestation belongs to a different user. When that happens, the assertion fails and the transaction reverts.
 6. **Record the outcome.** Only the loan status (Approved, Proposed, or Rejected) and the authorized amount are written to the ledger via [`disclose()`](/compact/reference/explicit-disclosure). The credit score, income, tenure, PIN, and attestation signature remain private.
 
 This creates a two-sided privacy guarantee:
 
 *   **The user cannot lie**: The smart contract verifies the attestation provider's signature inside the circuit, so fabricated credit data fails verification.
 
-*   **The provider cannot see the outcome**: The zero-knowledge proof treats the signed data as a private input, so the attestation API has no visibility into on-chain activity.
+*   **The provider cannot see the outcome**: The ZK proof treats the signed data as a private input, so the attestation API has no visibility into on-chain activity.
 
 ## Set up Docker for the proof server
 
@@ -487,7 +487,7 @@ This creates a two-sided privacy guarantee:
 If you are testing with [Midnight Local Dev](/guides/midnight-local-network) instead of Preprod, then skip this step. The local dev environment already includes a proof server on port `6300`.
 :::
 
-The [proof server](/guides/run-proof-server) generates zero-knowledge proofs for every transaction that interacts with the smart contract. For Preprod, you run it locally via Docker while the blockchain node and indexer are remote (hosted by Midnight Network).
+The [proof server](/guides/run-proof-server) generates ZK proofs for every transaction that interacts with the smart contract. For Preprod, you run it locally via Docker while the blockchain node and indexer are remote (hosted by Midnight Network).
 
 Create `zkloan-credit-scorer-cli/proof-server.yml`:
 
@@ -520,7 +520,7 @@ docker compose -f proof-server.yml ps
 
 You should see the `proof-server` container running on port `6300`.
 
-The proof server is the most compute-intensive component in the stack. When you submit a transaction through the CLI in [Part 3](./cli), the proof server receives the circuit definition, the public inputs (ledger state), and the private inputs (witness data). It then produces a zero-knowledge proof, which is submitted to the Midnight Network. This proof demonstrates that the computation was performed correctly without revealing the private inputs.
+The proof server is the most compute-intensive component in the stack. When you submit a transaction through the CLI in [Part 3](./cli), the proof server receives the circuit definition, the public inputs (ledger state), and the private inputs (witness data). It then produces a ZK proof, which is submitted to the Midnight Network. This proof demonstrates that the computation was performed correctly without revealing the private inputs.
 
 For development, running it locally via Docker is sufficient. In production, the proof server would run on dedicated infrastructure with more compute resources.
 

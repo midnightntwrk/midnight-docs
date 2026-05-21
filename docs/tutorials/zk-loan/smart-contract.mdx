@@ -11,13 +11,13 @@ tags: [tutorials, advanced, zero-knowledge, loan, dapp]
 
 # ZK Loan smart contract
 
-This tutorial builds a zero-knowledge loan application from scratch on [Midnight Network](/concepts/network-architecture/onchain-logic). The app privately evaluates a user's credit data (credit score, income, and employment tenure) using [zero-knowledge proofs](/concepts/zero-knowledge-proofs) and records only the loan outcome on-chain. The sensitive financial data never leaves your machine.
+This tutorial builds a zero-knowledge (ZK) loan application from scratch on [Midnight Network](/concepts/network-architecture/onchain-logic). The app privately evaluates a user's credit data (credit score, income, and employment tenure) using [ZK proofs](/concepts/zero-knowledge-proofs) and records only the loan outcome on-chain. The sensitive financial data never leaves your machine.
 
-Traditional lending requires sharing sensitive financial data with lenders, brokers, and underwriters. That data gets stored, shared, and inevitably leaked. In 2024 alone, financial data breaches exposed hundreds of millions of records. Zero-knowledge proofs flip this model. Instead of showing your data, you prove a statement about it: "My credit score is above 700, and my income exceeds $2,000/month," and the verifier learns nothing else. Midnight Network makes this practical — it is a blockchain purpose-built for [data protection](/concepts/how-midnight-works/keeping-data-private), where smart contracts can process private inputs and commit only the results on-chain.
+Traditional lending requires sharing sensitive financial data with lenders, brokers, and underwriters. That data gets stored, shared, and inevitably leaked. In 2024 alone, financial data breaches exposed hundreds of millions of records. ZK proofs flip this model. Instead of showing your data, you prove a statement about it: "My credit score is above 700, and my income exceeds $2,000/month," and the verifier learns nothing else. Midnight Network makes this practical — it is a blockchain purpose-built for [data protection](/concepts/how-midnight-works/keeping-data-private), where smart contracts can process private inputs and commit only the results on-chain.
 
 The tutorial is split into three parts:
 
-1.  **Smart contract**: Written in [Compact](/compact) (Midnight's zero-knowledge language). It defines the loan logic, eligibility tiers, and on-chain state.
+1.  **Smart contract**: Written in [Compact](/compact) (Midnight's ZK language). It defines the loan logic, eligibility tiers, and on-chain state.
 2.  **Attestation API**: A server that signs credit data with [Schnorr signatures](https://en.wikipedia.org/wiki/Schnorr_signature) so the smart contract can verify the data came from a trusted source.
 3.  **CLI**: A command-line tool to deploy the smart contract, register the attestation provider, request loans, and interact with the system — all pointing at Midnight's local network.
 
@@ -55,7 +55,7 @@ Run `compact update` to install the latest Compact toolchain. The workspace `pac
 
 :::
 
-Also, Docker is required to run the Midnight proof server, which generates the zero-knowledge proofs for your transactions locally. Install it from [docker.com/get-docker](https://www.docker.com/get-docker) if you have not already, and make sure the Docker daemon is running.
+Also, Docker is required to run the Midnight proof server, which generates the ZK proofs for your transactions locally. Install it from [docker.com/get-docker](https://www.docker.com/get-docker) if you have not already, and make sure the Docker daemon is running.
 
 ### Create the project structure
 
@@ -164,12 +164,12 @@ Before writing the main smart contract, you need a module for verifying Schnorr 
 
 This signature is important because of a fundamental problem: the witness's data cannot be trusted on its own. The witness runs on your machine, which means you could feed in any credit score you want. A user claiming a 750 credit score with $5,000 monthly income? Nothing stops them from lying.
 
-That is why the attestation solution exists. A trusted provider (a bank, credit bureau, or scoring service) signs your real data with a cryptographic signature. The smart contract then verifies that signature within the zero-knowledge circuit. If the data was tampered with, the signature check fails, and the transaction reverts.
+That is why the attestation solution exists. A trusted provider (a bank, credit bureau, or scoring service) signs your real data with a cryptographic signature. The smart contract then verifies that signature within the ZK circuit. If the data was tampered with, the signature check fails, and the transaction reverts.
 
 For this, the smart contract uses *Schnorr signatures on the Jubjub elliptic curve*, Midnight's native internal curve.
 
 :::info
-The Schnorr verification module below is a *temporary polyfill*. The Midnight team is building `jubjubSchnorrVerify` directly into the [Compact Standard Library](/compact/standard-library/exports). Once that ships, this entire module gets replaced by a single built-in function call. For now, implementing it manually is a useful exercise in understanding how signature verification works inside a zero-knowledge circuit.
+The Schnorr verification module below is a *temporary polyfill*. The Midnight team is building `jubjubSchnorrVerify` directly into the [Compact Standard Library](/compact/standard-library/exports). Once that ships, this entire module gets replaced by a single built-in function call. For now, implementing it manually is a useful exercise in understanding how signature verification works inside a ZK circuit.
 :::
 
 Now, create a file called `schnorr.compact` inside `contract/src/` and add the following code snippet:
@@ -252,7 +252,7 @@ In the Schnorr code above:
 Since Compact language version `0.22`, two `JubjubPoint` values can no longer be compared with `==`. The compiler emits JS reference equality for struct equality, which is always `false` for freshly constructed points and would make the assertion silently impossible to satisfy. Compare the `x` and `y` coordinates explicitly with `jubjubPointX()` / `jubjubPointY()`, as shown above.
 :::
 
-The truncation uses a *witness* (`getSchnorrReduction`). The TypeScript code provides the quotient and remainder of dividing by 2^248, and the circuit verifies `q * 2^248 + r == cFull`. This is a common pattern in zero-knowledge systems: let the prover compute something expensive off-chain, then verify the result cheaply on-chain.
+The truncation uses a *witness* (`getSchnorrReduction`). The TypeScript code provides the quotient and remainder of dividing by 2^248, and the circuit verifies `q * 2^248 + r == cFull`. This is a common pattern in ZK systems: let the prover compute something expensive off-chain, then verify the result cheaply on-chain.
 
 `schnorrChallenge` is a `pure` circuit (no side effects, no ledger access). It computes the same challenge hash that `schnorrVerify` uses. It is exported so the attestation API can compute the same hash off-chain when signing.
 
@@ -348,7 +348,7 @@ Every Compact smart contract starts with a pragma (the language version) and imp
 
 Define the data types next. Note two key things:
 - `LoanApplication` and `LoanStatus` are *exported* — they are visible on-chain. Anyone can read a loan's status and authorized amount.
-- `Applicant` is *not exported* — it only exists inside the zero-knowledge circuit. The credit score, income, and tenure never appear on-chain.
+- `Applicant` is *not exported* — it only exists inside the ZK circuit. The credit score, income, and tenure never appear on-chain.
 
 `UserSecretKey`, `UserPublicKey`, and `AdminPublicKey` each wrap a single `Bytes<32>`. The wrapper structs are deliberate: they are all 32-byte values, but giving each a distinct named type makes them *nominally* distinct in Compact, so the compiler rejects passing a `UserPublicKey` where an `AdminPublicKey` is expected (and vice versa). A bare `Bytes<32>` everywhere would compile too, but it would let a user key and an admin key be used interchangeably — exactly the kind of confusion this contract's security depends on avoiding.
 
@@ -470,7 +470,7 @@ const authorizedAmount = amountRequested > topTierAmount ? topTierAmount : amoun
 5.  [`disclose()`](/compact/reference/explicit-disclosure) only the results (amount and status), and write the loan record to the ledger.
 
 :::important
-`evaluateApplicant` runs entirely in the zero-knowledge circuit. It reads the user's credit data from the witness, verifies the attestation signature, and returns the eligibility tier. `disclose()` does not itself make anything public — it is a compile-time annotation that marks a witness-derived value as safe to leave the private domain. A value only *becomes* public when it crosses a public boundary: written to a ledger field, or returned from an exported circuit. The credit score, income, and tenure are never disclosed and never cross such a boundary, so they stay private; only the eligibility *outcome* (amount and status) is disclosed and then written to the ledger, which is what actually publishes it.
+`evaluateApplicant` runs entirely in the ZK circuit. It reads the user's credit data from the witness, verifies the attestation signature, and returns the eligibility tier. `disclose()` does not itself make anything public — it is a compile-time annotation that marks a witness-derived value as safe to leave the private domain. A value only *becomes* public when it crosses a public boundary: written to a ledger field, or returned from an exported circuit. The credit score, income, and tenure are never disclosed and never cross such a boundary, so they stay private; only the eligibility *outcome* (amount and status) is disclosed and then written to the ledger, which is what actually publishes it.
 :::
 
 Also, `evaluateApplicant` is an internal circuit (not exported, cannot be called from outside). It:
@@ -562,7 +562,7 @@ Per-user identity is `deriveUserPublicKey(getUserSecret(), pin)`, defined in the
 
 `changePin` is the most complex circuit. When a user changes their PIN, the derivation yields a new on-chain identity. But their existing loans are tied to the old identity. All loans need to migrate from the old `UserPublicKey` to the new one.
 
-The catch: zero-knowledge circuits cannot loop over variable-length data. If a user has 12 loans, you cannot write `for i in 0..loans.size()`. The loop bound must be known at compile time. The solution is batched migration:
+The catch: ZK circuits cannot loop over variable-length data. If a user has 12 loans, you cannot write `for i in 0..loans.size()`. The loop bound must be known at compile time. The solution is batched migration:
 - Process exactly 5 loans per transaction (fixed at compile time with `for (const i of 0..5)`).
 - Track progress in `onGoingPinMigration` — it stores how far the migration has gotten.
 - The user calls `changePin` repeatedly until all loans are migrated.
@@ -647,14 +647,14 @@ Your smart contract file is now complete. Before moving on, here is a summary of
 | 32-byte user secret | Private (witness only) | Authoritative caller identity; never leaves the user's machine |
 | Credit score, income, and tenure | Private (witness only) | Never leaves the user's machine |
 | Secret PIN | Private (circuit input) | Hashed with the user secret into per-user identity, never stored |
-| Attestation signature | Private (zero-knowledge proof input) | Verified inside the circuit |
+| Attestation signature | Private (ZK proof input) | Verified inside the circuit |
 | Derived `UserPublicKey` (loan map key) | Public (ledger) | Unlinkable without both the user secret and the PIN |
 | Loan status and amount | Public (ledger) | The on-chain outcome |
 | `contractAdmin`, blocklist | Public (ledger) | Smart contract governance |
 
 ## Create the witness function (private data provider)
 
-The witness is the TypeScript code that provides private data to the zero-knowledge circuit at proving time. It runs on your machine, never on-chain.
+The witness is the TypeScript code that provides private data to the ZK circuit at proving time. It runs on your machine, never on-chain.
 
 Create `contract/src/witnesses.ts`:
 
@@ -844,7 +844,7 @@ This creates the `src/managed/zkloan-credit-scorer/` directory containing:
 
 *   `keys/` — Proving and verifying keys for each circuit
 
-*   `zkir/` — Zero-knowledge intermediate representation files
+*   `zkir/` — ZK intermediate representation files
 
 *   `compiler/` — Compiler metadata
 
@@ -859,12 +859,12 @@ At this point, the smart contract package is compiled and ready to be consumed b
 
 ## What you built in Part 1
 
-This part covered the foundation of the zero-knowledge loan application:
+This part covered the foundation of the ZK loan application:
 
-*   **Schnorr signature module**: A Compact module that verifies cryptographic signatures inside a zero-knowledge circuit, ensuring credit data comes from a trusted source.
+*   **Schnorr signature module**: A Compact module that verifies cryptographic signatures inside a ZK circuit, ensuring credit data comes from a trusted source.
 *   **Loan smart contract**: The full Compact smart contract with loan request logic, tiered eligibility evaluation, admin controls, PIN-based identity derivation, and batched PIN migration.
-*   **Witness implementation**: TypeScript code that feeds private credit data into the zero-knowledge circuit at proving time, without exposing it on-chain.
-*   **TypeScript exports and compilation**: Package configuration, compiler output, and the generated zero-knowledge circuits, keys, and bindings.
+*   **Witness implementation**: TypeScript code that feeds private credit data into the ZK circuit at proving time, without exposing it on-chain.
+*   **TypeScript exports and compilation**: Package configuration, compiler output, and the generated ZK circuits, keys, and bindings.
 
 The smart contract has been compiled and is ready. No credit data touches the blockchain; only the loan outcome does.
 
@@ -874,4 +874,4 @@ The next part builds the off-chain infrastructure that makes the smart contract 
 
 *   [Attestation API](./attestation-api): A REST server that signs credit data with Schnorr signatures, acting as the trusted data provider that the smart contract verifies against.
 *   **Attestation flow**: A walkthrough of how the user, attestation API, and Midnight Network interact end-to-end.
-*   **Docker setup for the proof server**: Configuring the local proof server that generates zero-knowledge proofs for your transactions.
+*   **Docker setup for the proof server**: Configuring the local proof server that generates ZK proofs for your transactions.
