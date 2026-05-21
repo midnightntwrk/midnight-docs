@@ -1,51 +1,61 @@
-# Contributing
+# Contribute
 
 We welcome your contributions to the Midnight network! By contributing, you'll play a vital role in shaping the future of a blockchain focused on data privacy.
 
-## Getting Started
+## Get started
 
-* **Review Existing Contributions and Issues:** Before submitting, please check if a similar issue or feature request already exists by searching our issue tracker.
-* **Understand the Project:** Familiarize yourself with Midnight's architecture, technology, and coding standards. You can find relevant information in our litepaper.
-* **Set up Your Development Environment:** Ensure you have the necessary tools and dependencies installed. See our developer [documentation](https://docs.midnight.network/) for detailed instructions.
+* **Review existing contributions and issues**: Before submitting, check if a similar issue or feature request already exists by searching the issue tracker.
+* **Understand the project**: Familiarize yourself with Midnight's architecture, technology, and coding standards. You can find relevant information in our litepaper.
+* **Set up your development environment**: Ensure you have the necessary tools and dependencies installed. See our developer [documentation](https://docs.midnight.network/) for detailed instructions.
 
-## Submitting Issues
+## Submit issues
 
-Use one of the [templates] to submit an issue to the Project Board. The Midnight team or a community member will address it if it's relevant.
+Use one of the [issue templates](https://github.com/midnightntwrk/midnight-docs/issues/new/choose) to submit an issue to the Midnight docs repository. The Midnight team or a community member triages and addresses relevant issues.
+
 Ensure the title is a clear summary of the requirement and provides enough context.
 
-**Issue Types:**
+Supported issue types include:
 
-* **Bug Report:** Provide detailed information about the issue, including steps to reproduce it, expected behavior, and actual behavior, screenshots, or any other relevant information.
-* **Documentation Improvement:** Clearly describe the improvement requested for existing content and/or raise missing areas of documentation and provide details for what should be included.
-* **Feature Request:** Clearly describe your feature, its benefits, and most importantly, the expected outcome. This helps us analyze the proposed solution and develop alternatives.
-* **Enhancement:** (WIP)
+- **Contribute a blog**: Suggest or submit a blog post for the Midnight community site.
+- **Fix content**: Report issues with the Midnight documentation content.
+- **New content**: Suggest new documentation content or request documentation for a new Midnight feature.
+- **Site**: Request updates to the Midnight documentation site that affect its interface, functionality, or infrastructure.
 
-## Code Contribution Process
+## Documentation contribution guidelines
 
-* **Pull Requests:** Code contributions are submitted via Pull Requests.
-* **Fork the Repository:** Create your own fork of the Midnight repository.
-* **Create a Branch:** Make your changes in a separate branch,
-  prefixed with a short name moniker (e.g. `jill-my-feature`).
-* **Follow Coding Standards:** Adhere to the coding style guides specified in our documentation.
-* **Write Tests:** Include unit tests and integration tests to cover your changes.
-* **Commit Messages:** Write clear and concise commit messages.
-* **Submit Pull Request:** Submit your pull request to the appropriate branch in the main repository.
-* **Please do not `--force` pushes** - doing so means that reviewers will have to re-review all
-  commits in the PR rather than commits since last review.
-* **Code Review:** All pull requests undergo code review by project maintainers.
-  Be prepared to address feedback from reviewers.
+Before contributing to the doc, review the following guides:
 
-## Requirements for Acceptable Contributions:
+- **[Doc contribution guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/contribute-docs.mdx)**: A step-by-step guide to setting up your GitHub environment, creating pull requests, and following file naming conventions.
+- **[Style guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/style-guide.mdx)**: The style guide helps contributors adhere to writing and formatting standards for the Midnight blockchain.
+- **[Formatting guide](https://github.com/midnightntwrk/midnight-docs/blob/main/docs/_contribute/formatting-guide.mdx)**: This includes a detailed guide on markdown syntax and components used in the Midnight documentation.
 
-* **Coding Standards:** Code must adhere to the coding style guides defined in our documentation
-* **Testing:** New functionality must include corresponding unit tests and integration tests.
-* **Documentation:** Code changes should be accompanied by proposed relevant documentation updates.
-* **License:** All contributions must be compatible with the project's license.
+## Code contribution guidelines
+
+All code contributions must follow these guidelines. Adhering to them helps maintainers review your changes efficiently and keeps the review history clean.
+
+* **Pull requests**:  Submit code contributions via pull requests.
+* **Fork the repository**: Create your own fork of the Midnight docs repository.
+* **Create a branch**: Make your changes in a separate branch, prefixed with a short name moniker (for example, `jill-my-feature`).
+* **Follow coding standards**: Adhere to the coding style guides specified in our documentation.
+* **Write tests**: Include unit tests and integration tests to cover your changes.
+* **Commit messages**: Write clear and concise commit messages.
+* **Submit pull request**: Submit your pull request to the appropriate branch in the main repository.
+* **Do not `--force` push**: Doing so requires reviewers to re-review all commits in the PR rather than only the commits since the last review.
+* **Code review**: All pull requests undergo code review by project maintainers. Be prepared to address feedback from reviewers.
+
+## Requirements for acceptable contributions
+
+Follow these standards so your contributions can be reviewed and merged:
+
+* **Coding**: Code must adhere to the coding style guides defined in the project documentation.
+* **Testing**: New functionality must include corresponding unit tests and integration tests.
+* **Documentation**: Code changes should be accompanied by proposed relevant documentation updates.
+* **License**: All contributions must be compatible with the project's license.
   Where possible all files should have this license header:
 
 ```
 // This file is part of <REPLACE WITH REPOSITORY NAME>.
-// Copyright (C) 2025 Midnight Foundation
+// Copyright (C) Midnight Foundation
 // SPDX-License-Identifier: Apache-2.0
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -62,7 +72,7 @@ Ensure the title is a clear summary of the requirement and provides enough conte
 
 Where this is not possible, a copy of the Apache 2.0 or the repository's top-level LICENSE file in the same directory is required
 
-## Support and Communication:
+## Support and communication
 
 Ask anything about Midnight! We're here to help. Connect with us on [Discord](https://discord.com/invite/midnightnetwork), [Telegram](https://t.me/Midnight_Network_Official), and [X](https://x.com/MidnightNtwrk) and Join the Community to stay updated and engage with other Midnight enthusiasts.
 
