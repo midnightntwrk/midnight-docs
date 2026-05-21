@@ -17,9 +17,9 @@ A smart contract that nobody can talk to is just a proof of concept sitting in a
 
 But right now, that smart contract has no way to receive signed credit data or generate zero-knowledge proofs. This part builds the two pieces of off-chain infrastructure that make the smart contract functional:
 
-1.  **Attestation API**: A REST server that signs credit data with Schnorr signatures on the Jubjub curve. It acts as the trusted data provider (a stand-in for a bank or credit bureau) whose signatures the smart contract verifies inside the zero-knowledge circuit.
+- **Attestation API**: A REST server that signs credit data with Schnorr signatures on the Jubjub curve. It acts as the trusted data provider, a stand-in for a bank or credit bureau, whose signatures the smart contract verifies inside the zero-knowledge circuit.
 
-2.  **Proof server**: A Docker container running Midnight's proof generation service locally. Every transaction that touches the smart contract requires a zero-knowledge proof, and this service produces them.
+- **Proof server**: A Docker container running Midnight's proof generation service locally. Every transaction that touches the smart contract requires a zero-knowledge proof, and this service produces them.
 
 This section also walks through the attestation flow end-to-end, showing how credit data flows from the attestation API to the zero-knowledge proof without ever appearing on-chain.
 
@@ -33,7 +33,7 @@ The API has three endpoints:
 
 *   `POST /attest`: Accepts credit data and a user's public key hash, returns a Schnorr signature
 
-*   `GET /provider-info`: Returns the provider's ID and public key (needed to register the provider on-chain)
+*   `GET /provider-info`: Returns the provider's ID and public key. The CLI uses these to register the provider on-chain.
 
 *   `GET /health`: Returns the server's status
 
@@ -466,14 +466,14 @@ With the API built, here is how attestation works end-to-end across all three co
      │<─────────────────────────────────────────│
 ```
 
-Here is a walkthrough of each step:
+Here is a walkthrough of each step, matching the numbers in the diagram above:
 
-- **Register the provider.** The admin calls `registerProvider` on-chain, storing the attestation API's Jubjub public key in the smart contract's `providers` map. This is the only setup step that touches the blockchain.
-- **Request attestation.** The CLI sends the user's credit data and the derived public-key hash to the attestation API. The CLI computes the public key hash from the user's wallet key and secret PIN using the `publicKey` pure circuit from [Part 1](./smart-contract).
-- **Sign and return.** The attestation API signs all four fields (credit score, monthly income, months as a customer, and user public key hash) as a single Schnorr signature. Including the public key hash in the signed message binds the attestation to a specific user; a different user cannot reuse this signature.
-- **Submit the loan request.** The CLI stores the signature in the user's private state and calls `requestLoan`. The signature is sent to the proof server as part of the zero-knowledge witness. It never appears in the transaction data that reaches the blockchain.
-- **Verify in zero-knowledge.** Inside the circuit, `evaluateApplicant` retrieves the signature from the witness, looks up the provider's public key from the ledger, and runs `schnorrVerify`. If the signature is invalid because the data was tampered with, the wrong provider signed it, or the attestation belongs to a different user, then the assertion fails and the transaction reverts.
-- **Record the outcome.** Only the loan status (Approved, Proposed, or Rejected) and the authorized amount are written to the ledger via [`disclose()`](/compact/reference/explicit-disclosure). The credit score, income, tenure, PIN, and attestation signature remain private.
+1. **Register the provider.** The admin calls `registerProvider` on-chain, storing the attestation API's Jubjub public key in the smart contract's `providers` map. This is the only setup step that touches the blockchain.
+2. **Request attestation.** The CLI sends the user's credit data and the derived public-key hash to the attestation API. The CLI computes the public key hash from the user's wallet key and secret PIN using the `publicKey` pure circuit from [Part 1](./smart-contract).
+3. **Sign and return.** The attestation API signs all four fields (credit score, monthly income, months as a customer, and user public key hash) as a single Schnorr signature. Including the public key hash in the signed message binds the attestation to a specific user; a different user cannot reuse this signature.
+4. **Submit the loan request.** The CLI stores the signature in the user's private state and calls `requestLoan`. The signature is sent to the proof server as part of the zero-knowledge witness. It never appears in the transaction data that reaches the blockchain.
+5. **Verify in zero-knowledge.** Inside the circuit, `evaluateApplicant` retrieves the signature from the witness, looks up the provider's public key from the ledger, and runs `schnorrVerify`. Verification fails if the data was tampered with, the wrong provider signed it, or the attestation belongs to a different user. When that happens, the assertion fails and the transaction reverts.
+6. **Record the outcome.** Only the loan status (Approved, Proposed, or Rejected) and the authorized amount are written to the ledger via [`disclose()`](/compact/reference/explicit-disclosure). The credit score, income, tenure, PIN, and attestation signature remain private.
 
 This creates a two-sided privacy guarantee:
 
