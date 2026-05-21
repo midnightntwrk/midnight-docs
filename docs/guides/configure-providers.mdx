@@ -1,25 +1,35 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-sidebar_label: "Configure providers"
-title: "Configure providers"
-description: "How to configure the MidnightProviders object for deploying and interacting with Compact smart contracts."
-sidebar_position: 10
+copyright: This file is part of Midnight Docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: How to configure providers
+title: How to configure providers
+description: "Learn how to configure the MidnightProviders object for deploying and interacting with Compact smart contracts."
+sidebar_position: 22
 toc_max_heading_level: 2
+keywords: [midnight, javascript, providers, configure Midnight providers]
+tags: [midnight, javascript, wallet]
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Configure providers
+# How to configure providers
 
-Providers are the modular, pluggable components that the Midnight.js SDK uses to interact with the Midnight network. Each provider handles one specific capability in the transaction pipeline: storing private state, querying the indexer, generating ZK proofs, balancing transactions, and submitting them on-chain.
+Providers are the modular components that the Midnight.js packages use to interact with the Midnight Network.
 
-You assemble all providers into a single `MidnightProviders` object and pass it to `deployContract`, `findDeployedContract`, and other SDK functions.
+This guide covers how to configure the Midnight.js providers before deploying or interacting with a Compactsmart contract.
+
+## Prerequisites
+
+To follow along with this guide, ensure you have:
+
+- A compiled Compact smart contract with the `keys/` and `zkir/` directories generated. If you haven't done so yet, then follow the [build your first contract](../getting-started/hello-world) tutorial to get started.
+- Node.js version 22.x or higher installed. Install it using [NVM](https://github.com/nvm-sh/nvm).
+- Docker installed and running. This is required to run the [proof server](./run-proof-server) and generate zero-knowledge (ZK) proofs.
 
 ## The `MidnightProviders` type
 
-`MidnightProviders` is a generic type imported from `@midnight-ntwrk/midnight-js-types`. It is parameterized by three arguments that are specific to your contract:
+`MidnightProviders` is a generic type imported from `@midnight-ntwrk/midnight-js-types`. It accepts three arguments that are specific to your contract:
 
 ```typescript
 import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
@@ -30,7 +40,7 @@ import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
 type MyProviders = MidnightProviders<CircuitKeys, PrivateStateId, PrivateState>;
 ```
 
-In practice, you define these aliases in a `common-types.ts` file shared between your API and UI packages, for example:
+A `common-types.ts` file is a good place to keep these aliases, especially if your API and UI packages share the same contract types:
 
 ```typescript
 import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
@@ -47,26 +57,13 @@ export type MyProviders = MidnightProviders<MyCircuitKeys, PrivateStateId, MyPri
 
 Call `setNetworkId` before initializing any providers. All Midnight.js packages read this value to target the correct network.
 
-<Tabs groupId="network">
-<TabItem value="preprod">
-
 ```typescript
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
-setNetworkId('preprod');
+setNetworkId('preprod'); 
+
+/** Supported network IDs: 'mainnet', 'preview', 'preprod', 'undeployed' */
 ```
-
-</TabItem>
-<TabItem value="undeployed">
-
-```typescript
-import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-
-setNetworkId('undeployed');
-```
-
-</TabItem>
-</Tabs>
 
 In Node.js environments, also polyfill `WebSocket` so that GraphQL subscriptions to the indexer work:
 
@@ -76,14 +73,21 @@ import { WebSocket } from 'ws';
 globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
 ```
 
-## Providers
+## Configure the providers
+
+Each provider handles one specific capability in the transaction pipeline: 
+
+- Storing private state
+- Querying the indexer
+- Generating ZK proofs
+- Balancing transactions
+- Submitting transactions on-chain
+
+The following sections cover how to configure each provider.
 
 ### `privateStateProvider`
 
 The private state provider stores and retrieves the contract's private state on the local device. Private state is never sent to the network.
-
-<Tabs groupId="runtime">
-<TabItem value="nodejs">
 
 Use `levelPrivateStateProvider` from `@midnight-ntwrk/midnight-js-level-private-state-provider`. It persists private state to a LevelDB database encrypted with AES-256-GCM.
 
@@ -97,141 +101,19 @@ const privateStateProvider = levelPrivateStateProvider<PrivateStateId, MyPrivate
 });
 ```
 
+The table below describes the parameters for the `levelPrivateStateProvider` function.
+
 | Parameter | Description |
 |-----------|-------------|
 | `privateStateStoreName` | Name of the LevelDB store for private state |
 | `signingKeyStoreName` | Name of the LevelDB store for signing keys |
 | `privateStoragePasswordProvider` | Function returning the encryption password |
 
-:::warning
+:::warning Password security
+
 Do not use a hardcoded password in production. Derive it from wallet credentials or a secure key management system.
+
 :::
-
-</TabItem>
-<TabItem value="browser">
-
-In the browser, use an in-memory provider. Private state is held in memory, scoped by contract address. It is lost on page reload, so the caller is responsible for persisting and restoring any state that must survive across sessions (such as a secret key stored in `localStorage`).
-
-```typescript
-import type { ContractAddress, SigningKey } from '@midnight-ntwrk/compact-runtime';
-import type {
-  ExportPrivateStatesOptions,
-  ExportSigningKeysOptions,
-  ImportPrivateStatesOptions,
-  ImportPrivateStatesResult,
-  ImportSigningKeysOptions,
-  ImportSigningKeysResult,
-  PrivateStateExport,
-  PrivateStateId,
-  PrivateStateProvider,
-  SigningKeyExport,
-} from '@midnight-ntwrk/midnight-js-types';
-
-export const inMemoryPrivateStateProvider = <PSI extends PrivateStateId, PS = unknown>(): PrivateStateProvider<PSI, PS> => {
-  const privateStates = new Map<ContractAddress, Map<PSI, PS>>();
-  const signingKeys = new Map<ContractAddress, SigningKey>();
-  let contractAddress: ContractAddress | null = null;
-
-  const requireContractAddress = (): ContractAddress => {
-    if (contractAddress === null) throw new Error('Contract address not set');
-    return contractAddress;
-  };
-
-  const getScopedStates = (address: ContractAddress): Map<PSI, PS> => {
-    let scoped = privateStates.get(address);
-    if (!scoped) { scoped = new Map<PSI, PS>(); privateStates.set(address, scoped); }
-    return scoped;
-  };
-
-  const encode = <T>(v: T): string => JSON.stringify(v);
-  const decode = <T>(v: string): T => JSON.parse(v) as T;
-
-  return {
-    setContractAddress(address: ContractAddress): void { contractAddress = address; },
-    set(key: PSI, state: PS): Promise<void> {
-      getScopedStates(requireContractAddress()).set(key, state);
-      return Promise.resolve();
-    },
-    get(key: PSI): Promise<PS | null> {
-      return Promise.resolve(getScopedStates(requireContractAddress()).get(key) ?? null);
-    },
-    remove(key: PSI): Promise<void> {
-      getScopedStates(requireContractAddress()).delete(key);
-      return Promise.resolve();
-    },
-    clear(): Promise<void> {
-      privateStates.delete(requireContractAddress());
-      return Promise.resolve();
-    },
-    setSigningKey(addr: ContractAddress, key: SigningKey): Promise<void> {
-      signingKeys.set(addr, key); return Promise.resolve();
-    },
-    getSigningKey(addr: ContractAddress): Promise<SigningKey | null> {
-      return Promise.resolve(signingKeys.get(addr) ?? null);
-    },
-    removeSigningKey(addr: ContractAddress): Promise<void> {
-      signingKeys.delete(addr); return Promise.resolve();
-    },
-    clearSigningKeys(): Promise<void> {
-      signingKeys.clear(); return Promise.resolve();
-    },
-    exportPrivateStates(_options?: ExportPrivateStatesOptions): Promise<PrivateStateExport> {
-      const address = requireContractAddress();
-      const states = Object.fromEntries(
-        Array.from(getScopedStates(address).entries()).map(([k, v]) => [k, encode(v)]),
-      );
-      return Promise.resolve({
-        format: 'midnight-private-state-export',
-        encryptedPayload: encode({ contractAddress: address, states }),
-        salt: 'in-memory',
-      });
-    },
-    importPrivateStates(exportData: PrivateStateExport, options?: ImportPrivateStatesOptions): Promise<ImportPrivateStatesResult> {
-      const address = requireContractAddress();
-      const strategy = options?.conflictStrategy ?? 'error';
-      const payload = decode<{ states?: Record<string, string> }>(exportData.encryptedPayload);
-      const scoped = getScopedStates(address);
-      let imported = 0, skipped = 0, overwritten = 0;
-      for (const [rawId, serialized] of Object.entries(payload.states ?? {})) {
-        const id = rawId as PSI;
-        if (scoped.has(id)) {
-          if (strategy === 'skip') { skipped++; continue; }
-          if (strategy === 'error') return Promise.reject(new Error(`Conflict: ${id}`));
-          overwritten++;
-        } else { imported++; }
-        scoped.set(id, decode<PS>(serialized));
-      }
-      return Promise.resolve({ imported, skipped, overwritten });
-    },
-    exportSigningKeys(_options?: ExportSigningKeysOptions): Promise<SigningKeyExport> {
-      return Promise.resolve({
-        format: 'midnight-signing-key-export',
-        encryptedPayload: encode({ keys: Object.fromEntries(signingKeys.entries()) }),
-        salt: 'in-memory',
-      });
-    },
-    importSigningKeys(exportData: SigningKeyExport, options?: ImportSigningKeysOptions): Promise<ImportSigningKeysResult> {
-      const strategy = options?.conflictStrategy ?? 'error';
-      const payload = decode<{ keys?: Record<string, SigningKey> }>(exportData.encryptedPayload);
-      let imported = 0, skipped = 0, overwritten = 0;
-      for (const [addr, key] of Object.entries(payload.keys ?? {})) {
-        if (signingKeys.has(addr)) {
-          if (strategy === 'skip') { skipped++; continue; }
-          if (strategy === 'error') return Promise.reject(new Error(`Conflict: ${addr}`));
-          overwritten++;
-        } else { imported++; }
-        signingKeys.set(addr, key);
-      }
-      return Promise.resolve({ imported, skipped, overwritten });
-    },
-  };
-};
-```
-
-</TabItem>
-</Tabs>
-
----
 
 ### `publicDataProvider`
 
@@ -255,16 +137,21 @@ const publicDataProvider = indexerPublicDataProvider(
 );
 ```
 
----
+:::info Local development
+
+Midnight provides a local network for development and testing purposes. Use the local network to test your contract and providers before deploying to the main network. 
+For more information, see the [Midnight local network](./midnight-local-network) guide.
+
+:::
 
 ### `zkConfigProvider`
 
-The ZK configuration provider supplies the prover key, verifier key, and ZKIR artifacts that the proof provider needs to generate zero-knowledge proofs. The right implementation depends on where your artifacts are stored.
+The ZK configuration provider supplies the prover key, verifier key, and ZKIR artifacts that the proof provider needs to generate zero-knowledge proofs. The right implementation depends on where you store your ZK artifacts.
 
 <Tabs groupId="runtime">
-<TabItem value="nodejs">
+<TabItem value="nodejs" label="Node.js">
 
-Use `NodeZkConfigProvider` from `@midnight-ntwrk/midnight-js-node-zk-config-provider`. It reads artifacts from the local filesystem. The path should point to the directory containing the compiled contract's `keys/` and `zkir/` output.
+If you are running your contract in a Node.js environment, then use `NodeZkConfigProvider` from `@midnight-ntwrk/midnight-js-node-zk-config-provider`. It reads artifacts from the local filesystem. The path should point to the directory containing the compiled contract's `keys/` and `zkir/` output.
 
 ```typescript
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
@@ -277,30 +164,19 @@ const zkConfigProvider = new NodeZkConfigProvider<'circuitA' | 'circuitB'>(
 The type parameter is the union of circuit names your contract exposes. This is typically the same type as your `CircuitKeys` alias.
 
 </TabItem>
-<TabItem value="browser">
+<TabItem value="remote" label="Remote">
 
-Use `FetchZkConfigProvider` from `@midnight-ntwrk/midnight-js-fetch-zk-config-provider`. It fetches artifacts over HTTP from a URL base — typically the origin of your deployed app, where the `keys/` and `zkir/` directories are served as static assets.
+If your ZK artifacts are hosted on a remote server, then you can use `FetchZkConfigProvider` 
+from the `@midnight-ntwrk/midnight-js-fetch-zk-config-provider` package. It fetches artifacts over HTTP from a URL.
 
 ```typescript
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
 
-const zkConfigProvider = new FetchZkConfigProvider<'circuitA' | 'circuitB'>(
-  window.location.origin,
-  fetch.bind(window),
-);
-```
-
-During development, copy the compiled ZK artifacts into the `public/` directory so Vite serves them:
-
-```bash
-cp -r contract/managed/my-contract/keys public/keys
-cp -r contract/managed/my-contract/zkir  public/zkir
+const zkConfigProvider = new FetchZkConfigProvider<'circuitA' | 'circuitB'>('https://example.com/zk-artifacts');
 ```
 
 </TabItem>
 </Tabs>
-
----
 
 ### `proofProvider`
 
@@ -317,20 +193,17 @@ const proofProvider = httpClientProofProvider(
 );
 ```
 
-:::info
-The proof server is a Docker container you run locally or point to a hosted instance. See the [proof server guide](./run-proof-server) for setup instructions.
-:::
+:::info Proof server
 
----
+The proof server is a Docker container you run locally or point to a hosted instance. See the [proof server guide](./run-proof-server) for setup instructions.
+
+:::
 
 ### `walletProvider`
 
 The wallet provider exposes the public keys needed to receive shielded tokens and decrypts transaction data. It also balances unbound transactions by selecting UTXOs to cover fees and adding change outputs.
 
-<Tabs groupId="runtime">
-<TabItem value="nodejs">
-
-In a Node.js CLI, implement `WalletProvider` using the Wallet SDK facade. The following is the pattern used in the bulletin board tutorial:
+In a Node.js CLI, you can implement `WalletProvider` using the [Wallet SDK](/sdks/official/wallet-developer-guide) facade.
 
 ```typescript
 import {
@@ -370,44 +243,19 @@ class MyWalletProvider implements WalletProvider {
 }
 ```
 
-</TabItem>
-<TabItem value="browser">
+The class takes a `WalletFacade` instance together with the `ZswapSecretKeys` and `DustSecretKey` derived from the wallet seed. It exposes three methods that the SDK calls during the transaction lifecycle:
 
-In the browser, the Lace wallet handles balancing via the DApp Connector API. Construct an inline `walletProvider` object from the connected wallet's shielded addresses:
+- `getCoinPublicKey`: Returns the shielded address used to receive tokens.
+- `getEncryptionPublicKey`: Returns the key used to decrypt incoming shielded transaction data.
+- `balanceTx`: Selects UTXOs to cover fees, adds change outputs, and finalizes the transaction ready for proof generation and submission.
 
-```typescript
-import { type ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
-import { Binding, type FinalizedTransaction, Proof, SignatureEnabled, Transaction } from '@midnight-ntwrk/ledger-v8';
-import { fromHex, toHex } from '@midnight-ntwrk/compact-runtime';
-import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
+:::warning DUST requirements
 
-const shieldedAddresses = await connectedAPI.getShieldedAddresses();
+DUST is the network resource that fuels transactions on the Midnight Network. You must have DUST in your wallet to pay for transaction fees. For more information, see the [Generating DUST programmatically](./generating-dust-programmatically) guide.
 
-const walletProvider = {
-  getCoinPublicKey: () => shieldedAddresses.shieldedCoinPublicKey,
-  getEncryptionPublicKey: () => shieldedAddresses.shieldedEncryptionPublicKey,
-  balanceTx: async (tx: UnboundTransaction): Promise<FinalizedTransaction> => {
-    const received = await connectedAPI.balanceUnsealedTransaction(toHex(tx.serialize()));
-    return Transaction.deserialize<SignatureEnabled, Proof, Binding>(
-      'signature', 'proof', 'binding', fromHex(received.tx),
-    );
-  },
-};
-```
+:::
 
-</TabItem>
-</Tabs>
-
----
-
-### `midnightProvider`
-
-The midnight provider submits finalized transactions to the network and returns the transaction ID.
-
-<Tabs groupId="runtime">
-<TabItem value="nodejs">
-
-In a Node.js CLI, the same class that implements `WalletProvider` can also implement `MidnightProvider`, since the `WalletFacade` exposes both capabilities:
+The same class that implements `WalletProvider` can also implement `MidnightProvider`, since the `WalletFacade` exposes both capabilities.
 
 ```typescript
 import { type MidnightProvider } from '@midnight-ntwrk/midnight-js-types';
@@ -424,34 +272,9 @@ class MyWalletProvider implements WalletProvider, MidnightProvider {
 
 A single instance is then passed as both `walletProvider` and `midnightProvider` in the providers object.
 
-</TabItem>
-<TabItem value="browser">
-
-In the browser, the DApp Connector API handles submission. Construct an inline `midnightProvider` from the connected wallet:
-
-```typescript
-import type { TransactionId } from '@midnight-ntwrk/ledger-v8';
-import { toHex } from '@midnight-ntwrk/compact-runtime';
-
-const midnightProvider = {
-  submitTx: async (tx: FinalizedTransaction): Promise<TransactionId> => {
-    await connectedAPI.submitTransaction(toHex(tx.serialize()));
-    return tx.identifiers()[0];
-  },
-};
-```
-
-</TabItem>
-</Tabs>
-
----
-
 ## Assemble the providers object
 
-Once each provider is initialized, assemble them into the `MidnightProviders` object and pass it to the contract API.
-
-<Tabs groupId="runtime">
-<TabItem value="nodejs">
+Once each provider is initialized, assemble them into the `MidnightProviders` object and pass it to your smart contract API.
 
 ```typescript
 import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
@@ -480,51 +303,6 @@ const providers: MyProviders = {
 };
 ```
 
-</TabItem>
-<TabItem value="browser">
-
-```typescript
-import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
-import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
-import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
-import { setNetworkId, type NetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-
-setNetworkId('preprod');
-
-const connectedAPI = await connectToWallet();
-const config = await connectedAPI.getConfiguration();
-const shieldedAddresses = await connectedAPI.getShieldedAddresses();
-
-const zkConfigProvider = new FetchZkConfigProvider<MyCircuitKeys>(
-  window.location.origin,
-  fetch.bind(window),
-);
-
-const providers: MyProviders = {
-  privateStateProvider: inMemoryPrivateStateProvider<PrivateStateId, MyPrivateState>(),
-  publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),
-  zkConfigProvider,
-  proofProvider: httpClientProofProvider(config.proverServerUri!, zkConfigProvider),
-  walletProvider: {
-    getCoinPublicKey: () => shieldedAddresses.shieldedCoinPublicKey,
-    getEncryptionPublicKey: () => shieldedAddresses.shieldedEncryptionPublicKey,
-    balanceTx: async (tx) => {
-      const received = await connectedAPI.balanceUnsealedTransaction(toHex(tx.serialize()));
-      return Transaction.deserialize('signature', 'proof', 'binding', fromHex(received.tx));
-    },
-  },
-  midnightProvider: {
-    submitTx: async (tx) => {
-      await connectedAPI.submitTransaction(toHex(tx.serialize()));
-      return tx.identifiers()[0];
-    },
-  },
-};
-```
-
-</TabItem>
-</Tabs>
-
 Pass this object to `deployContract` or `findDeployedContract`:
 
 ```typescript
@@ -546,13 +324,17 @@ const deployed = await findDeployedContract(providers, {
 });
 ```
 
-## Provider summary
+The `deployContract` and `findDeployedContract` functions take the `MidnightProviders` object and the contract details as parameters.
 
-| Provider | Package | Node.js implementation | Browser implementation |
-|----------|---------|------------------------|------------------------|
-| `privateStateProvider` | `midnight-js-level-private-state-provider` | `levelPrivateStateProvider` | In-memory implementation |
-| `publicDataProvider` | `midnight-js-indexer-public-data-provider` | `indexerPublicDataProvider` | `indexerPublicDataProvider` |
-| `zkConfigProvider` | `midnight-js-node-zk-config-provider` | `NodeZkConfigProvider` | `FetchZkConfigProvider` |
-| `proofProvider` | `midnight-js-http-client-proof-provider` | `httpClientProofProvider` | `httpClientProofProvider` |
-| `walletProvider` | `midnight-js-types` | Custom class (Wallet SDK) | Inline object (DApp Connector) |
-| `midnightProvider` | `midnight-js-types` | Same class as `walletProvider` | Inline object (DApp Connector) |
+:::note Note
+
+For more information on using these functions, see the [Midnight.js SDK](/sdks/official/midnight-js) documentation.
+
+:::
+
+## Next steps
+
+With your providers configured, you are ready to deploy and interact with smart contracts on the Midnight Network. The following resources cover the next steps in that workflow:
+
+- [Deploy your first contract](./deploy-mn-app)
+- [Leaderboard tutorial](../tutorials/leaderboard/overview)
