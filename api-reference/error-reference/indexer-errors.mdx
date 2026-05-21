@@ -1,0 +1,211 @@
+---
+title: Indexer error codes
+description: Error codes and messages returned by the Midnight Indexer API and infrastructure services.
+sidebar_position: 10
+sidebar_label: Indexer errors
+tags: [error reference, api reference, indexer]
+toc_max_heading_level: 3
+---
+
+# Midnight indexer error codes
+
+The Midnight indexer is a Rust service built on Axum that serves a GraphQL API via `async-graphql`, typically on port 8088. All errors use `thiserror` derives.
+
+Errors fall into two categories:
+
+- **Client errors**: Appear verbatim in GraphQL error responses and indicate invalid caller input.
+- **Server errors**: Logged internally by the indexer. Callers receive a generic `"Internal Server Error"` message.
+
+You encounter these errors when:
+
+- The node rejects a GraphQL query or mutation due to invalid input
+- The `/ready` health endpoint returns non-200 during startup or when the indexer lags behind the node
+- Infrastructure failures occur (database, messaging, cipher)
+
+## HTTP status codes
+
+The Axum HTTP layer returns these codes before any GraphQL processing occurs.
+
+| Code | Endpoint / context | Description | Fix |
+|------|--------------------|---------|-----|
+| 200 OK | `GET /ready` | Indexer is caught up with the node. | Service is healthy. |
+| 400 Bad Request | GraphQL body | Invalid request body (malformed JSON or missing required fields). | Check GraphQL query syntax and ensure `Content-Type: application/json` is set. |
+| 413 Payload Too Large | GraphQL body | Request body exceeds the configured size limit. | Reduce query complexity, paginate results, or split into multiple smaller queries. |
+| 503 Service Unavailable | `GET /ready` | Indexer has not caught up with the node. | Wait for the indexer to finish syncing, check node connectivity, and indexer logs. |
+
+## GraphQL client error messages
+
+These strings appear verbatim in GraphQL error responses (`errors[].message`). They indicate invalid input from the caller.
+
+### Block errors
+
+These errors occur when the indexer cannot resolve a block reference in a query.
+
+| Message | Description | Fix |
+|---------|---------|-----|
+| `"block with hash {hash} not found"` | No block with the given hash exists in the indexed chain. | The block might not be final yet, or the hash is incorrect; verify the hash and try again. |
+| `"block with height {height} not found"` | The indexer has not yet indexed a block at that height. | The indexer might not have reached that height yet; check sync status via `GET /ready`. |
+| `"invalid block hash"` | The supplied block hash is not valid hex or has the wrong length. | Verify the block hash format; it must be a valid 32-byte hex-encoded string. |
+
+### Viewing key and session errors
+
+These errors occur when wallet credentials or session tokens fail validation.
+
+| Message | Description | Fix |
+|---------|---------|-----|
+| `"invalid session ID"` | The session ID has an invalid format (not a valid UUID). | Use the session ID exactly as returned during session creation. |
+| `"invalid viewing key"` | The supplied viewing key failed to decode or validate. | Ensure a compatible SDK version generated the viewing key and that it is correctly encoded. |
+| `"unknown or expired session ID"` | The session ID does not exist or has timed out. | Re-authenticate to obtain a fresh session ID. |
+
+### Transaction errors
+
+These errors occur when a transaction reference or identifier supplied in a query is invalid.
+
+| Message | Description | Fix |
+|---------|---------|-----|
+| `"invalid transaction hash"` | The transaction hash is not a valid hex-encoded hash. | Verify the hash format; it must be a valid 32-byte hex string. |
+| `"invalid transaction identifier"` | The transaction identifier failed validation. | Check the identifier format; it may be base58 or hex depending on context. |
+
+### Address errors
+
+These errors occur when an address supplied in a query fails format or checksum validation.
+
+| Message | Description | Fix |
+|---------|---------|-----|
+| `"invalid address"` | The supplied address (unshielded, shielded, or DUST) failed Bech32m decode or HRP validation. | Verify the address format. For expected HRP prefixes, see the [Address format errors](#address-format-errors) section. |
+| `"invalid Cardano reward address"` | The Cardano stake address failed validation. | Use a valid Bech32-encoded Cardano stake address with HRP `stake` for Mainnet or `stake_test` for Testnet and ensure it is 29 bytes. |
+| `"invalid hex-encoded DUST address"` | The DUST address hex encoding is invalid. | Supply a correctly hex-encoded DUST address. |
+| `"invalid hex-encoded nullifier prefix"` | The nullifier prefix is not valid hex. | Supply a correctly hex-encoded nullifier prefix. |
+
+### Pagination and identifier errors
+
+These errors occur when pagination parameters or generic identifiers fail validation.
+
+| Message | Description | Fix |
+|---------|---------|-----|
+| `"invalid identifier"` | A generic identifier (for example, contract address or key) failed validation. | Verify the format of the identifier you are passing. |
+| `"invalid offset"` | The pagination offset value is not a valid non-negative integer. | Use a non-negative integer for the offset parameter. |
+| `"maximum of ten reward addresses allowed"` | You supplied more than 10 Cardano reward addresses in a single query. | Split the request into batches of 10 or fewer addresses. |
+
+## Domain errors
+
+Domain errors arise from validation of structured values such as network IDs and protocol versions.
+
+### `InvalidNetworkIdError`
+
+Returned when a network ID value fails validation.
+
+| Variant | Description | Fix |
+|---------|---------|-----|
+| `Empty` | Network ID must not be empty | Provide a non-empty network ID string. |
+| `NotLowercase` | Network ID must be all lowercase | Convert the network ID to lowercase before use. |
+
+### `ProtocolVersionError`
+
+Returned when the system cannot resolve a protocol version value to a known version.
+
+| Variant | Description | Fix |
+|---------|---------|-----|
+| `ScaleDecode` | SCALE decoding of the protocol version failed. | The raw bytes are invalid; this typically indicates a node/indexer version mismatch. |
+| `TryFromI64` | The system cannot convert the version value from i64. | The raw version value is negative or out of i64 representable range; internal error. |
+| `Unsupported(u32)` | Protocol version number is not in a recognized range. | Valid ranges: 22000-23000 (maps to `V0_22`), 1000000-1001000 (maps to `V1_0`); update the indexer if a newer version is available. |
+
+### `ledger::Error`
+
+Internal ledger errors (13 variants). These are server errors. Callers see only "Internal Server Error". Check indexer logs for details.
+
+| Variant | Description |
+|---------|-------------|
+| `BackwardsLedgerStateTranslation` | Ledger state translation went backwards (version regression). |
+| `BlockLimitExceeded` | Operation exceeds block-level limits. |
+| `ByteArrayLen` | Byte array has unexpected length. |
+| `Deserialize` | Failed to deserialize ledger data. |
+| `FromUtf8` | Failed to convert bytes to UTF-8 string. |
+| `GetContractState` | Failed to retrieve contract state. |
+| `InvalidUpdate` | The node rejected the ledger state update as invalid. |
+| `LedgerStateTranslation` | Generic ledger state translation failure. |
+| `LoadLedgerState` | Failed to load ledger state from storage. |
+| `MalformedTransaction` | Transaction data is structurally malformed. |
+| `Serialize` | Failed to serialize ledger data. |
+| `SystemTransaction` | Error processing a system transaction. |
+| `TransactionCost` | Failed to calculate transaction cost. |
+| `UnsupportedLedgerStateTranslation` | No translation path available for this ledger state version. |
+
+## Address format errors
+
+These errors surface when a Midnight or Cardano address supplied to the indexer fails to decode.
+
+### `DecodeAddressError`
+
+Returned when a Midnight address fails to decode.
+
+| Variant | Description | Fix |
+|---------|---------|-----|
+| `Decode` | Bech32m decode failed (invalid characters, bad checksum, or truncated). | Ensure the address is a valid Bech32m string. |
+| `InvalidHrp` | Human-readable part (HRP) does not match the expected prefix. | Use the correct address type for the operation; see expected HRP prefixes below. |
+
+Expected HRP prefixes:
+
+| Address type | Mainnet HRP | Non-Mainnet HRP |
+|-------------|-------------|-----------------|
+| Unshielded | `mn_addr` | `mn_addr_{network_id}` |
+| Encryption key (shielded) | `mn_shield-esk` | `mn_shield-esk_{network_id}` |
+| DUST | `mn_dust` | `mn_dust_{network_id}` |
+
+### `DecodeCardanoRewardAddressError`
+
+Returned when a Cardano stake (reward) address fails to decode.
+
+| Variant | Description | Fix |
+|---------|---------|-----|
+| `Decode` | Bech32 decode failed. | Ensure the address is a valid Bech32-encoded Cardano stake address. |
+| `InvalidHrp` | HRP is not `stake` or `stake_test`. | Use a Cardano Mainnet (`stake`) or Testnet (`stake_test`) reward address. |
+| `InvalidLength` | Decoded bytes are not 29 bytes. | The address payload must be exactly 29 bytes; verify the address is not truncated or padded. |
+| `WrongNetwork` | Address network byte does not match the expected network. | Ensure the Cardano address is for the correct network (Mainnet vs. Testnet). |
+
+## Chain indexer errors (`SubxtNodeError`)
+
+These errors arise from the streaming layer that connects the indexer to the Midnight node via Subxt. Most variants trigger automatic reconnection; persistent errors indicate node connectivity or compatibility issues.
+
+There are 22 variants in total. The following table lists the most common ones.
+
+| Variant | Description | Action |
+|---------|-------------|--------|
+| `GenesisLedgerStateNotFound` | No genesis ledger state found in system parameters. | Node system parameters storage is missing genesis data; might indicate a misconfigured or corrupted node. |
+| `GetContractState` | The indexer cannot fetch contract state from the node. | Node RPC failure; check node logs and connectivity. |
+| `ProtocolVersion` | The indexer encountered an unsupported protocol version during sync. | The indexer does not recognize this protocol version; upgrade the indexer. |
+| `ReceiveBlock` | Node disconnected mid-stream. | The indexer auto-reconnects. If persistent, check node stability. |
+| `ScaleDecode` | SCALE decode failure when processing a block or event. | The indexer could not decode data from the node; likely a version mismatch. |
+| `SubscribeFinalizedBlocks` | The indexer cannot subscribe to the finalized block stream from the node. | Verify the node's WebSocket endpoint is reachable; check node logs. |
+
+## Infrastructure errors
+
+These are server errors. The indexer logs them internally and returns "Internal Server Error" to callers. Investigate via indexer logs.
+
+### Database
+
+Database errors occur when the indexer cannot connect to or query its storage backend.
+
+| Category | Examples | Common causes |
+|----------|---------|---------------|
+| `PostgresPool` | Connection pool exhaustion, failed to acquire connection. | PostgreSQL unreachable, connection limit exceeded, or credentials wrong. |
+| `SqlitePool` | SQLite pool failure. | SQLite file locked, disk full, or permissions issue. |
+| Migration errors | Schema migration failed on startup. | Database schema out of date or incompatible; run pending migrations. |
+
+### Messaging (NATS)
+
+Messaging errors occur when the indexer cannot publish or receive events through the NATS message broker.
+
+| Category | Description | Common causes |
+|----------|-------------|---------------|
+| NATS publisher errors | Failed to publish a message to NATS. | NATS server unreachable or subject permissions denied. |
+| NATS subscriber errors | Failed to subscribe to or receive from a NATS subject. | NATS server connectivity issue or subject not found. |
+
+### Cipher
+
+Cipher errors occur when the indexer cannot initialize its encryption key from configuration.
+
+| Variant | Description | Fix |
+|-------|---------|-----|
+| Hex decode failure | Cipher key or encrypted value is not valid hex. | Verify the cipher key configuration is correctly hex-encoded. |
+| Key too short | Cipher key is below the minimum required length. | Provide a key of at least 32 bytes (64 hex characters). |
