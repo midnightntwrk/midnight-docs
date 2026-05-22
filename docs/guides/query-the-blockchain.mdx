@@ -1,0 +1,127 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: How to query the blockchain
+sidebar_label: How to query the blockchain
+description: A guide on how to query the Midnight blockchain.
+keywords: [midnight, blockchain, query]
+sidebar_position: 47
+tags: [midnight, javascript]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+This guide walks you through connecting to the Midnight blockchain and listening for new blocks.
+It also covers extracting data from these blocks using the Polkadot API and the various methods it provides to connect to Substrate-based blockchain networks.
+
+## Prerequisites
+
+Before you start, make sure you have the following:
+
+- [Node.js](https://nodejs.org/en/download/) installed on your machine.
+- Basic knowledge of TypeScript.
+
+## Connect to the Midnight blockchain
+
+The [`@polkadot/api`](https://polkadot.js.org/docs/api/) library includes a WebSocket provider (`WsProvider`) to connect to Substrate-based blockchain networks, including Midnight.
+
+### Installation
+
+Install the dependencies:
+
+<Tabs>
+  <TabItem value="npm">
+    ```bash  
+    npm install @polkadot/api  
+    ```
+  </TabItem>
+  <TabItem value="yarn">
+    ```bash  
+    yarn add @polkadot/api  
+    ```
+  </TabItem>
+</Tabs>
+
+### Connect to the Midnight node
+
+Use the `WsProvider` to connect to a Midnight node using the RPC endpoint:
+
+```typescript  
+import { ApiPromise, WsProvider } from '@polkadot/api';
+
+// Define the WebSocket endpoint for the Midnight node  
+const wsProvider = new WsProvider('wss://rpc.preview.midnight.network');
+
+// Create the API instance  
+const api = await ApiPromise.create({ provider: wsProvider });  
+```
+
+:::note
+
+The PRC endpoint in the example above is for the preview network. However, you can use the same code and update the endpoint to match the 
+environment you intend to connect to. Supported environments are:
+- **Preview**: `wss://rpc.preview.midnight.network`
+- **Preprod**: `wss://rpc.preprod.midnight.network`
+- **Mainnet**: `wss://rpc.mainnet.midnight.network`
+
+For more information on the supported environments, see the [Environments and endpoints](../relnotes/network) reference.
+
+:::
+
+## Listen for new blocks
+
+Once connected, you can subscribe to new block headers to listen for new blocks:
+
+```typescript  
+api.rpc.chain.subscribeNewHeads((lastHeader) => {  
+  console.log(`New block #${lastHeader.number} has been added`);  
+});  
+```
+
+This function logs the block number each time a new block is added to the chain.
+
+## Extract data from blocks
+
+To extract detailed information from each new block, such as transactions and events, use the snippet below:
+
+```typescript  
+api.rpc.chain.subscribeNewHeads(async (lastHeader) => {  
+  const blockHash = await api.rpc.chain.getBlockHash(lastHeader.number);  
+  const signedBlock = await api.rpc.chain.getBlock(blockHash);  
+  const allEvents = await api.query.system.events.at(blockHash);
+
+  console.log(`nBlock #${lastHeader.number}`);
+
+  signedBlock.block.extrinsics.forEach((extrinsic, index) => {  
+    console.log(`nExtrinsic ${index}: ${extrinsic.method.section}.${extrinsic.method.method}`);  
+    console.log(`Arguments: ${extrinsic.args.map((arg) => arg.toString()).join(', ')}`);  
+  });
+
+  allEvents.forEach(({ event, phase }, index) => {  
+    console.log(`nEvent ${index}: ${event.section}.${event.method}`);  
+    console.log(`Phase: ${phase.toString()}`);  
+    console.log(`Data: ${event.data.toString()}`);  
+  });  
+});  
+```
+
+The code above performs the following:
+- Subscribes to new block headers
+- Retrieves the full block and its associated events
+- Logs detailed information about each extrinsic (transaction) and event
+
+## What is an extrinsic?
+
+An extrinsic is a piece of data sent from outside the blockchain into it, asking the network to perform an action. 
+The term is often used in Substrate-based blockchains to refer to transactions.
+
+There are three main types of extrinsics:
+
+- **Signed extrinsics**: These are transactions submitted by users that include a digital signature such as transferring tokens or interacting with smart contracts.
+- **Unsigned extrinsics**: These are submitted without a signature and are typically used for operations that don't require user authentication.
+- **Inherent extrinsics**: These are used for system-level operations, such as setting the timestamp for a new block. The blockchain usually generates them itself.
+
+## Next steps
+
+You now know how to connect to the Midnight blockchain and listen for new blocks. For more information on running a node, see the [Node RPC](../nodes/rpc-node) guide.

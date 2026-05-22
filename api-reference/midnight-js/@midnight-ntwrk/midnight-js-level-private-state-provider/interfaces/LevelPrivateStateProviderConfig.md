@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.4**](../../../README.md)
 
 ***
 
@@ -27,6 +27,18 @@ in storage paths, so any unique identifier can be used (e.g., wallet address).
   accountId: walletAddress
 }
 ```
+
+***
+
+### cryptoBackend?
+
+> `readonly` `optional` **cryptoBackend?**: [`CryptoBackendType`](../type-aliases/CryptoBackendType.md)
+
+***
+
+### levelFactory?
+
+> `readonly` `optional` **levelFactory?**: [`LevelFactory`](../type-aliases/LevelFactory.md)
 
 ***
 

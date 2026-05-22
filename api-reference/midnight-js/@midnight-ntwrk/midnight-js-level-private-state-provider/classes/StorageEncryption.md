@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.2**](../../../README.md)
+[**Midnight.js API Reference v4.0.4**](../../../README.md)
 
 ***
 
@@ -6,31 +6,11 @@
 
 # Class: StorageEncryption
 
-## Constructors
-
-### Constructor
-
-> **new StorageEncryption**(`password`, `existingSalt?`): `StorageEncryption`
-
-#### Parameters
-
-##### password
-
-`string`
-
-##### existingSalt?
-
-`Buffer`\<`ArrayBufferLike`\>
-
-#### Returns
-
-`StorageEncryption`
-
 ## Methods
 
 ### decrypt()
 
-> **decrypt**(`encryptedData`): `string`
+> **decrypt**(`encryptedData`): `Promise`\<`string`\>
 
 #### Parameters
 
@@ -40,13 +20,13 @@
 
 #### Returns
 
-`string`
+`Promise`\<`string`\>
 
 ***
 
 ### decryptWithPassword()
 
-> **decryptWithPassword**(`encryptedData`, `password`): `string`
+> **decryptWithPassword**(`encryptedData`, `password`): `Promise`\<`string`\>
 
 #### Parameters
 
@@ -60,13 +40,13 @@
 
 #### Returns
 
-`string`
+`Promise`\<`string`\>
 
 ***
 
 ### encrypt()
 
-> **encrypt**(`data`): `string`
+> **encrypt**(`data`): `Promise`\<`string`\>
 
 #### Parameters
 
@@ -76,7 +56,7 @@
 
 #### Returns
 
-`string`
+`Promise`\<`string`\>
 
 ***
 
@@ -92,7 +72,7 @@
 
 ### verifyPassword()
 
-> **verifyPassword**(`password`): `boolean`
+> **verifyPassword**(`password`): `Promise`\<`boolean`\>
 
 #### Parameters
 
@@ -102,7 +82,27 @@
 
 #### Returns
 
-`boolean`
+`Promise`\<`boolean`\>
+
+***
+
+### create()
+
+> `static` **create**(`password`, `options?`): `Promise`\<`StorageEncryption`\>
+
+#### Parameters
+
+##### password
+
+`string`
+
+##### options?
+
+[`StorageEncryptionOptions`](../interfaces/StorageEncryptionOptions.md)
+
+#### Returns
+
+`Promise`\<`StorageEncryption`\>
 
 ***
 
