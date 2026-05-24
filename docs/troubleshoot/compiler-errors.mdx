@@ -1,0 +1,216 @@
+---
+title: Troubleshoot compiler errors
+description: Common Compact compiler errors and their solutions, including lexer, parser, witness, disclosure, ZKIR, and runtime errors with fix instructions.
+sidebar_label: Troubleshoot compiler errors
+sidebar_position: 11
+tags: [troubleshooting, compiler, errors]
+---
+
+# Troubleshoot compiler errors
+
+This guide covers common Compact compiler errors, their causes, and how to fix them.
+
+## Exit codes
+
+The Compact compiler returns the following exit codes:
+
+| Code | Meaning | Fix |
+|------|---------|-----|
+| 0 | Compilation succeeded | No action required |
+| 1 | Bad command-line arguments | Check `compact compile --help` for correct flags |
+| 255 | Compilation failed | Fix the reported source errors and recompile |
+
+## Error severity levels
+
+The Compact compiler uses the following error severity levels:
+
+| Mechanism | Severity | Description |
+|-----------|----------|-------------|
+| `source-errorf` | Fatal | User-visible error with source location |
+| `source-warningf` | Warning | Continuable warning with source location |
+| `pending-errorf` | Deferred | Collected and shown together after the pass |
+| `internal-errorf` | Fatal | Compiler internal bug; report this to the Compact team |
+| `external-errorf` | Fatal | External tool or file system error |
+
+## Lexer errors
+
+These errors occur during tokenization, before any parsing takes place.
+
+### Unexpected end of file
+
+**Message**: `"unexpected end of file"`
+
+**Triggers**: The compiler reaches the end of the file while inside an unclosed string literal or block comment.
+
+**Fix**: Check for unclosed strings (`"…`) and unclosed block comments (`/* …`) in the source file.
+
+### Unexpected newline
+
+**Message**: `"unexpected newline"`
+
+**Triggers**: The compiler encounters a line break inside a context where a newline is not valid, such as inside a single-line string literal.
+
+**Fix**: Ensure string literals do not span multiple lines. Use concatenation or a supported multi-line construct instead.
+
+### Unexpected character
+
+**Message**: `"unexpected character '<c>'"`
+
+**Triggers**: The compiler encounters a character that is not valid in Compact source code.
+
+**Fix**: Remove or replace the invalid character. Check for non-ASCII characters, stray punctuation, or invisible Unicode characters copied from external sources.
+
+### Nested block comment
+
+**Message**: `"attempt to nest block comment"`
+
+**Triggers**: Using `/*` inside an already-open `/* */` block comment.
+
+**Fix**: Compact does not support nested block comments. Use line comments (`//`) for inner comments, or restructure to avoid nesting.
+
+### Numeric literal out of Field range
+
+**Message**: `"<value> is out of Field range"`
+
+**Triggers**: A numeric literal exceeds the maximum representable Field value.
+
+**Fix**: Use a smaller number. Field values are bounded by the prime used in the ZK proof system.
+
+### Invalid digit in binary literal
+
+**Message**: `"unexpected digit <d> (expected 0 or 1)"`
+
+**Triggers**: A digit other than `0` or `1` appears in a `0b…` literal.
+
+**Fix**: Binary literals may only contain the digits `0` and `1`.
+
+### Invalid digit in octal literal
+
+**Message**: `"unexpected digit <d> (expected 0 through 7)"`
+
+**Triggers**: A digit `8` or `9` appears in a `0o…` literal.
+
+**Fix**: Octal literals may only contain digits `0` through `7`.
+
+## Parser errors
+
+These errors occur after tokenization, while the compiler builds the AST.
+
+### Parse error
+
+**Message**: `"parse error: found <token> looking for <expected>"`
+
+**Triggers**: Any syntax that does not match the Compact grammar at the current parse position.
+
+**Fix**: Read the location carefully. Common causes include:
+- Missing semicolons at the end of statements
+- Mismatched braces `{` / `}`
+- Wrong or misspelled keyword
+- Extra or missing commas in argument lists
+
+### Unrecognized pragma setting
+
+**Message**: `"unrecognized pragma setting <value>"`
+
+**Triggers**: A `pragma` directive uses a value the compiler does not recognize.
+
+**Fix**: Check supported pragma directives. Example of a valid pragma:
+
+```compact
+pragma language_version >= 0.22;
+```
+
+### File I/O errors
+
+The compiler returns the following messages:
+- `"error opening source file"`
+- `"error reading source file"`
+- `"<path> is a directory"`
+
+**Triggers**: The compiler encounters an error opening or reading the specified source file, or the path points to a directory.
+
+**Fix**: Verify the file path is correct, the file exists, and it has a `.compact` extension. Do not pass a directory path where the compiler expects a file.
+
+## Witness and disclosure errors
+
+These errors enforce Compact's privacy model around witness values.
+
+### Undeclared witness disclosure
+
+**Message**: `"potential witness-value disclosure must be declared but is not"`
+
+**Triggers**: A witness value flows to the ledger or a public output without a `disclose()` wrapper.
+
+**Fix**: Wrap the witness value in `disclose()` before it reaches any ledger state or public output:
+
+```compact
+disclose(witnessValue)
+```
+
+The `disclose()` wrapper declares private data as safe to write to the public ledger state.
+
+### Witness returns contract-typed value
+
+**Message**: `"invalid type <T> for witness <W> return value: witness return values cannot include contract values"`
+
+**Triggers**: A witness function declares a return type that includes a contract-typed value.
+
+**Fix**: Remove any contract-typed values from the witness return type. Witnesses can return structs, enums, and other regular types, but not contract values. Pass any contract-related information as individual fields instead.
+
+## ZKIR generation errors
+
+These errors occur when the compiler generates the ZK Intermediate Representation (ZKIR) from the type-checked AST.
+
+### Cross-contract calls not yet supported
+
+**Message**: `"cross-contract calls are not yet supported"`
+
+**Triggers**: The contract attempts a cross-contract call, which the ZKIR output stage does not yet support.
+
+**Fix**: This is a current compiler limitation. Restructure to avoid cross-contract calls until the feature is available.
+
+### ZKIR non-zero exit status
+
+**Message**: `"zkir returned a non-zero exit status <N>"`
+
+**Triggers**: The external ZKIR compilation tool exited with an error.
+
+**Fix**: Review the output for details on the unsupported operation. Check for operations in circuits that the ZKIR backend does not yet support.
+
+## Runtime errors
+
+These errors originate from compiled contracts executing in the Midnight runtime, not from the compiler itself.
+
+### Base error class
+
+**Class**: `CompactError`
+
+**Description**: `CompactError` is the base class for all contract runtime errors. Catch this type to handle any Compact contract error generically.
+
+### Failed assertion
+
+**Message**: `"failed assert: <message>"`
+
+**Triggers**: A Compact `assert` expression evaluated to `false` at runtime.
+
+**Fix**: Investigate the assertion condition. The `<message>` text is the string you provided to `assert`. Use it to locate the assertion in your contract source and determine why the condition was not satisfied.
+
+### Runtime type error
+
+**Message**: `"type error: <who> <what> at <where>; expected value of type <type> but received <value>"`
+
+**Triggers**: A runtime type mismatch in the generated code, typically caused by a mismatch between declared witness return types and the actual values produced at runtime.
+
+**Fix**: Check witness return types. Ensure that the TypeScript witness implementation returns values that conform to the types declared in the Compact contract.
+
+### Version mismatch
+
+**Message**: `"version mismatch: compiled code expects X.Y.Z, runtime is A.B.C"`
+
+**Triggers**: You compiled the smart contract with one version of the Compact compiler but run it against a different version of `@midnight-ntwrk/compact-runtime`.
+
+**Fix**: Update `@midnight-ntwrk/compact-runtime` in your project to match the compiler version used to build the contract. Alternatively, recompile the contract with the compiler version that matches your runtime.
+
+:::info[Version compatibility]
+Always refer to the [compatibility matrix](../relnotes/support-matrix) to verify which versions work together.
+:::
