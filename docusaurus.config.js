@@ -14,7 +14,13 @@ const config = {
   tagline: "Midnight DUST is cool",
   favicon: "img/favicon.ico",
 
-  markdown: { mermaid: true },
+  markdown: { 
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+      onBrokenMarkdownImages: "warn",
+    } 
+  },
   themes: [
     "@docusaurus/theme-mermaid",
   ],
@@ -27,7 +33,6 @@ const config = {
   projectName: "midnight-docs",
 
   onBrokenLinks: "warn",
-  onBrokenMarkdownLinks: "warn",
 
   plugins: [
     // MAIN DOCS
