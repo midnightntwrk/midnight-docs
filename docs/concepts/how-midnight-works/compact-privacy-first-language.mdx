@@ -1,0 +1,102 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact as a privacy-first language
+sidebar_label: Compact as a privacy-first language
+sidebar_position: 6
+description: Explains why Midnight uses its own smart contract language and how Compact treats privacy-aware circuits as first-class citizens.
+tags: [compact, concepts, design, privacy, zero-knowledge, smart-contracts, language-design, circuits]
+---
+
+# Compact as a privacy-first language
+
+Midnight's smart contract model centers on private computation, public transcripts, [zero-knowledge proofs](/concepts/zero-knowledge-proofs), and verifier keys. A language for that model cannot treat privacy as an add-on.
+
+Compact reflects that design decision. Privacy-aware circuits are first-class citizens in the development model, and the language expresses the boundaries between public state, off-chain logic, and private data. This page builds on the concepts in [Smart contracts on Midnight](/concepts/how-midnight-works/smart-contracts) and [Kachina](/concepts/kachina). For Compact syntax and code examples, see [Compact language](/compact).
+
+## A privacy-first model needs more than a Solidity extension
+
+In many public smart contract platforms, data, logic, inputs, and outputs are visible unless special techniques hide them. Smart contracts run on-chain as programs, and the network verifies execution by re-running or checking the public computation. That model is well established, but it starts from public visibility.
+
+Midnight starts from a different premise. Privacy-preserving smart contracts are not public contracts with an extra privacy layer attached. The model separates what can be public from what should remain private and uses zero-knowledge proofs to connect those two sides. That difference changes what the language needs to express.
+
+Extending an existing language with a privacy library leaves the developer juggling two mental models: the public smart contract model and the privacy model layered on top. Compact takes a different approach. It gives the privacy-aware model its own language surface, making Midnight's privacy structure visible in how developers describe smart contract behavior.
+
+## Compact treats circuits as first-class citizens
+
+The most important design shift is that Compact treats circuits as a core part of the smart contract model.
+
+In a conventional public smart contract environment, developers understand the smart contract as code that runs on-chain. The network sees the inputs, executes the logic, and checks the resulting state transition.
+
+Midnight's model is different. Midnight [splits smart contract interactions](/concepts/how-midnight-works/smart-contracts#transcripts-and-zk-snarks) into three parts: a `local` part that runs on the user's machine, a `ledger` part that records public state, and a `circuit` part that encodes the rules connecting the two. The blockchain does not need to see every private input to validate an interaction. It needs a proof that the interaction followed the rules and a public transcript it can apply to the ledger state.
+
+Compact exists to describe those rules. Think of Compact as a language for defining what must be proven, not merely for writing executable on-chain code.
+
+The Compact compiler outputs zero-knowledge circuits that prove the correctness of interactions with the ledger. A Compact smart contract does not only produce application logic. It contributes to the proof system that lets a transaction demonstrate that a contract interaction followed the required rules.
+
+The circuit is not a side artifact. It is one of the central objects the language expresses.
+
+## Public, private, and proof environments
+
+Once privacy and proofs become central, the language needs to make different kinds of data and execution visible to the developer.
+
+Compact does this by separating the main environments involved in a Midnight smart contract interaction. In the language, these map to three constructs:
+
+- **`ledger`**: public state that belongs to the on-chain contract state.
+- **`circuit`**: logic that participates in proof generation and encodes the rules validators check.
+- **`witness`**: private data known only to the party executing the interaction, provided by callbacks on the user's machine.
+
+For a walkthrough of how these constructs work together in practice, see [Writing a contract](/compact/reference/writing).
+
+This separation maps back to the trust model. The public side needs to be visible to the network. Developers should not reveal the private side unnecessarily. The proof connects the two by showing that the hidden inputs and local computation justify the public result.
+
+Without explicit boundaries, developers lose track of where a value lives, who can see it, and what they must prove about it. That risk is especially high in privacy-preserving applications.
+
+A value meant to stay private should not become public by accident. The network should not accept a public state transition without proof that the interaction satisfied private-side rules. Developers should be able to see, from the shape of the smart contract, where those boundaries are.
+
+Compact's language model makes that separation part of the development surface.
+
+## Explicit disclosure turns privacy into a deliberate choice
+
+Privacy-preserving systems still need disclosure.
+
+A payment system may need to reveal that a transaction is valid. A compliance workflow may need to show a specific fact to an authorized party. A game may need to update a public score while keeping some player input private.
+
+The question is not whether anything should ever become public, but who sees what, and when.
+
+Compact enforces explicit disclosure through the [`disclose()` keyword](/compact/reference/explicit-disclosure). The compiler rejects any program that writes witness-derived data to the ledger, returns it from an exported circuit, or passes it to another contract without a `disclose()` wrapper. Privacy is the default; disclosure requires a deliberate declaration.
+
+That design fits directly with Midnight's broader selective disclosure direction. Selective disclosure is not privacy as total secrecy. It is privacy as controlled visibility. A system can reveal the information needed for a specific interaction while keeping unrelated data private. For practical shielding patterns such as hashes, commitments, and Merkle trees, see [Keeping data private](/concepts/how-midnight-works/keeping-data-private).
+
+## Why a domain-specific language makes sense here
+
+Compact is a domain-specific language. That choice matters because Midnight needs developers to express privacy-aware smart contract rules that compile into the proof-oriented workflow the protocol requires.
+
+A general-purpose language can be flexible, but flexibility is not always the same as clarity. When privacy boundaries, proof logic, and ledger state are core parts of the model, a language needs to make those concepts visible. Developers should not have to infer them from a library call buried inside otherwise public execution logic.
+
+A domain-specific language can surface the important concepts at the right level of abstraction. A developer still has to learn how Midnight structures smart contract interactions, but Compact guides that learning by making the relevant concepts part of the language itself.
+
+Compact has a TypeScript-like surface, which reduces the learning curve for developers who are not cryptography specialists, while exposing privacy-specific structure that a general-purpose language would obscure.
+
+## Compact is a design boundary, not a syntax choice
+
+Compact draws a boundary. Where an EVM-style smart contract starts from "what does this execute on-chain?", a Midnight smart contract starts from "what must be public, what can remain private, and what proof shows that the transition is valid?" Compact is the language layer built around that second framing.
+
+## Start learning Compact
+
+If you are ready to move from concepts to code, the recommended path is:
+
+1. **[Write your first contract](/compact/reference/writing)**: build a complete Compact smart contract and see how `ledger`, `circuit`, and `witness` work together.
+2. **[Understand explicit disclosure](/compact/reference/explicit-disclosure)**: learn how the `disclose()` keyword enforces deliberate data visibility at the compiler level.
+3. **[Keep data private](/concepts/how-midnight-works/keeping-data-private)**: explore practical shielding patterns including hashes, commitments, Merkle trees, and the commitment/nullifier pattern.
+4. **[Build a bulletin board DApp](/tutorials/bboard/smart-contract)**: apply what you have learned in a tutorial that combines a Compact contract with a working DApp.
+
+If you prefer to set up your environment first, start with [Install the toolchain](/getting-started/installation) and [Create your first contract](/getting-started/hello-world).
+
+## Additional resources
+
+- [Compact language](/compact): overview of Compact and its role in generating zero-knowledge circuits.
+- [Smart contracts on Midnight](/concepts/how-midnight-works/smart-contracts): the transcript, proof, and verifier key model that Compact compiles into.
+- [Zero-knowledge proofs](/concepts/zero-knowledge-proofs): how ZK Snarks work and how Midnight uses them.
+- [Kachina](/concepts/kachina): the formal model behind public and private state separation.
+- [Example contracts](/examples/contracts/calculator): browse Compact contracts for elections, auctions, token transfers, and more.
