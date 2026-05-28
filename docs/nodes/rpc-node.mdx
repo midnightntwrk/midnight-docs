@@ -27,6 +27,8 @@ Before setting up your Midnight RPC node, ensure you have the following:
 
 Use the following command to run Midnight node in RPC mode. Choose the configuration for your target network.
 
+By default, the node binds its RPC interface to `127.0.0.1` (localhost) and exposes only the `Safe` method set. This is the recommended starting point: the endpoint is reachable from the local machine only, so it is not directly exposed to the internet. To make it available to external clients, place a hardened reverse proxy in front of it rather than binding the node itself to a public interface. See [Exposing the RPC endpoint](#exposing-the-rpc-endpoint).
+
 <Tabs>
 <TabItem value="preview" label="Preview">
 
@@ -35,11 +37,7 @@ midnight-node \
   --chain /home/midnight/res/preview/chain-spec-raw.json \
   --base-path /home/midnight/data \
   --rpc-port 9933 \
-  --rpc-methods Safe \
-  --rpc-cors all \
-  --rpc-external \
-  --ws-external \
-  --no-private-ip
+  --rpc-methods Safe
 ```
 
 </TabItem>
@@ -50,11 +48,7 @@ midnight-node \
   --chain /home/midnight/res/preprod/chain-spec-raw.json \
   --base-path /home/midnight/data \
   --rpc-port 9933 \
-  --rpc-methods Safe \
-  --rpc-cors all \
-  --rpc-external \
-  --ws-external \
-  --no-private-ip
+  --rpc-methods Safe
 ```
 
 </TabItem>
@@ -62,10 +56,25 @@ midnight-node \
 
 ### Configure RPC methods
 
-* `--rpc-methods Safe`: Exposes only safe RPC methods (recommended for public nodes)
-* `--rpc-cors all`: Allows cross-origin requests from any domain
-* `--rpc-external`: Makes RPC accessible from external networks
-* `--ws-external`: Makes WebSocket accessible from external networks
+* `--rpc-port 9933`: The TCP port the RPC server listens on.
+* `--rpc-methods Safe`: Exposes only the safe RPC method set. Avoid `Unsafe`/`Auto` on any node that is reachable beyond localhost, as they expose methods that can control the node.
+
+## Exposing the RPC endpoint
+
+For a public RPC node, the recommended approach is to keep the node bound to localhost (the default above) and front it with a reverse proxy (for example, nginx or Caddy) that terminates TLS, restricts allowed origins, and applies rate limiting. Combine this with a firewall that only permits the P2P port and your proxy's port.
+
+The node can also expose RPC directly with the flags below. These bypass the localhost default, so only use them on a trusted, firewalled network and never point them at the open internet without a proxy in front.
+
+:::warning
+
+Binding the RPC interface to a public address with permissive CORS exposes your node to abuse, resource exhaustion, and data scraping. Treat the options below as advanced and secure them with a firewall, TLS, and scoped origins.
+
+:::
+
+* `--rpc-external`: Binds the RPC server to all interfaces so it is reachable from external networks. Without this flag, RPC stays on `127.0.0.1`.
+* `--ws-external`: Makes the WebSocket interface reachable from external networks.
+* `--rpc-cors <origins>`: Sets the allowed CORS origins. Prefer an explicit comma-separated list of trusted domains (for example, `--rpc-cors https://app.example.com`) over `all`, which permits requests from any origin.
+* `--no-private-ip`: Disables the safety check that refuses external binding on private IP ranges. Only relevant when intentionally exposing the node.
 
 ### Test connectivity
 
@@ -82,7 +91,7 @@ curl -H "Content-Type: application/json" \
            "method":"rpc_methods",
            "params":[]
          }' \
-     http://127.0.0.1:9944
+     http://127.0.0.1:9933
 ```
 
 ## Next steps
