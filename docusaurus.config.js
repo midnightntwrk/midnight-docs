@@ -309,6 +309,9 @@ const config = {
         gtag: process.env.GOOGLE_TAG_MANAGER_ID
           ? { trackingID: process.env.GOOGLE_TAG_MANAGER_ID }
           : undefined,
+        googleTagManager: {
+          containerId: 'GTM-NQ6MC73Q',
+        },
         docs: false, // we use standalone docs plugins
         blog: false,
         theme: {
