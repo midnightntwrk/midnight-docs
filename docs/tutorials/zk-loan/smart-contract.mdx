@@ -347,8 +347,8 @@ export pure circuit deriveAdminPublicKey(sk: UserSecretKey): AdminPublicKey {
 Every Compact smart contract starts with a pragma (the language version) and imports. The standard library and the Schnorr module are imported with a prefix so their names do not collide.
 
 Define the data types next. Note two key things:
-- `LoanApplication` and `LoanStatus` are *exported* — they are visible on-chain. Anyone can read a loan's status and authorized amount.
-- `Applicant` is *not exported* — it only exists inside the ZK circuit. The credit score, income, and tenure never appear on-chain.
+- `LoanApplication` and `LoanStatus` are *exported*. The `export` keyword does not make them public — it generates TypeScript bindings in the compiled artifacts so the DApp can read and construct these types. They are visible on-chain because they are the value and field types stored in the `loans` ledger map; all ledger state is public, so anyone can read a loan's status and authorized amount.
+- `Applicant` is *not exported*, so no TypeScript binding is generated for it. It stays private because it is only ever used as witness and circuit-internal data and is never written to ledger state — not because of the missing `export`. The credit score, income, and tenure never appear on-chain.
 
 `UserSecretKey`, `UserPublicKey`, and `AdminPublicKey` each wrap a single `Bytes<32>`. The wrapper structs are deliberate: they are all 32-byte values, but giving each a distinct named type makes them *nominally* distinct in Compact, so the compiler rejects passing a `UserPublicKey` where an `AdminPublicKey` is expected (and vice versa). A bare `Bytes<32>` everywhere would compile too, but it would let a user key and an admin key be used interchangeably — exactly the kind of confusion this contract's security depends on avoiding.
 
@@ -383,7 +383,6 @@ export circuit requestLoan(amountRequested: Uint<16>, secretPin: Uint<16>): [] {
     const disclosedTopTierAmount = disclose(topTierAmount);
     const disclosedStatus = disclose(status);
     createLoan(disclosedRequesterPubKey.bytes, amountRequested, disclosedTopTierAmount, disclosedStatus);
-    return [];
 }
 
 export circuit respondToLoan(loanId: Uint<16>, secretPin: Uint<16>, accept: Boolean): [] {
@@ -404,7 +403,6 @@ export circuit respondToLoan(loanId: Uint<16>, secretPin: Uint<16>, accept: Bool
         : LoanApplication { authorizedAmount: 0, status: LoanStatus.NotAccepted };
 
     loans.lookup(disclosedPubKey).insert(disclosedLoanId, disclose(updatedLoan));
-    return [];
 }
 
 
@@ -457,7 +455,6 @@ const authorizedAmount = amountRequested > topTierAmount ? topTierAmount : amoun
     assert(totalLoans < 65535, "Maximum number of loans reached");
     const loanNumber = (totalLoans + 1) as Uint<16>;
     loans.lookup(requester).insert(loanNumber, disclose(loan));
-    return [];
 }
 ```
 
@@ -465,7 +462,7 @@ const authorizedAmount = amountRequested > topTierAmount ? topTierAmount : amoun
 
 1.  Derive the caller's per-user identity with `deriveUserPublicKey(getUserSecret(), secretPin)`. The witness secret is the only authoritative caller identity in this contract.
 2.  `disclose()` the derived pubkey so the compiler will let the value flow into ledger reads (`blacklist.member`, `onGoingPinMigration.member`). The value is witness-derived, so explicit disclosure is required.
-3.  Check the user is not on the blocklist or mid-PIN-change.
+3.  Check the user is not on the blacklist or mid-PIN-change.
 4.  Call `evaluateApplicant()` — this is where the private credit scoring happens. The `transientHash` of the disclosed pubkey becomes the `userPubKeyHash` that the attestation message is signed against, binding the off-chain attestation to this specific in-circuit identity.
 5.  [`disclose()`](/compact/reference/explicit-disclosure) only the results (amount and status), and write the loan record to the ledger.
 
@@ -513,7 +510,7 @@ The strict rule is: **if your contract is not routing shielded tokens to a targe
 
 The five admin circuits are:
 
-*   `blacklistUser` / `removeBlacklistUser`: Add or remove a derived `UserPublicKey` from the blocklist. The admin obtains the target's `UserPublicKey` from the on-chain `loans` map keys (where it appears whenever the target has interacted) or from the target out-of-band. An admin cannot blacklist by wallet address — `ownPublicKey()` is not trusted by the contract.
+*   `blacklistUser` / `removeBlacklistUser`: Add or remove a derived `UserPublicKey` from the blacklist. The admin obtains the target's `UserPublicKey` from the on-chain `loans` map keys (where it appears whenever the target has interacted) or from the target out-of-band. An admin cannot blacklist by wallet address — `ownPublicKey()` is not trusted by the contract.
 
 *   `registerProvider` / `removeProvider`: Add or remove an attestation provider's public key.
 
@@ -525,32 +522,27 @@ Add the following code snippet:
 export circuit blacklistUser(account: UserPublicKey): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can blacklist users");
     blacklist.insert(disclose(account));
-    return [];
 }
 
 export circuit removeBlacklistUser(account: UserPublicKey): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can remove from blacklist");
     blacklist.remove(disclose(account));
-    return [];
 }
 
 export circuit registerProvider(providerId: Uint<16>, providerPk: JubjubPoint): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can register providers");
     providers.insert(disclose(providerId), disclose(providerPk));
-    return [];
 }
 
 export circuit removeProvider(providerId: Uint<16>): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can remove providers");
     assert(providers.member(disclose(providerId)), "Provider not found");
     providers.remove(disclose(providerId));
-    return [];
 }
 
 export circuit rotateAdmin(newAdmin: AdminPublicKey): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can rotate admin role");
     contractAdmin = disclose(newAdmin);
-    return [];
 }
 ```
 
@@ -623,8 +615,6 @@ export circuit changePin(oldPin: Uint<16>, newPin: Uint<16>): [] {
             }
         }
     }
-
-    return [];
 }
 
 export pure circuit schnorrChallenge(
@@ -650,7 +640,7 @@ Your smart contract file is now complete. Before moving on, here is a summary of
 | Attestation signature | Private (ZK proof input) | Verified inside the circuit |
 | Derived `UserPublicKey` (loan map key) | Public (ledger) | Unlinkable without both the user secret and the PIN |
 | Loan status and amount | Public (ledger) | The on-chain outcome |
-| `contractAdmin`, blocklist | Public (ledger) | Smart contract governance |
+| `contractAdmin`, blacklist | Public (ledger) | Smart contract governance |
 
 ## Create the witness function (private data provider)
 
