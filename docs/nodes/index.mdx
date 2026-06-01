@@ -5,63 +5,121 @@ description: A reference on Midnight nodes.
 keywords: [node]
 ---
 
-# Midnight Node Overview
+# Midnight Node overview
 
-The Midnight Node provides the foundational infrastructure for operating on the Midnight network. It implements core protocol logic, manages P2P networking, and supports decentralized operations through integration with the Cardano network as a Partnerchain.
+The Midnight Node provides the foundational infrastructure for operating on the Midnight Network. It implements core protocol logic, manages peer-to-peer networking, and supports decentralized operations through integration with the Cardano network as a Partner Chain.
 
 ## Functions
 
-The Midnight Node is responsible for:
+The Midnight node is responsible for:
 
-* Running the Midnight Ledger (as a separate component), enforcing protocol rules and maintaining internal state integrity.
-* Enabling peer-to-peer (P2P) capabilities: node discovery, connection establishment, and state gossip.
-* Enabling decentralization by supporting both trustless and permissioned nodes, and fulfilling the criteria for a Cardano Partnerchain.
-
+* Processing privacy-preserving smart contract transactions with zero-knowledge proofs
+* Enforcing protocol rules and maintaining blockchain state integrity
+* Enabling peer-to-peer (P2P) capabilities: node discovery, connection establishment, and block gossip
+* Supporting decentralization through both permissioned FNOs (Federated Node Operators) and registered SPOs (Stake Pool Operators) validators
+                                                                                     
 ## Characteristics
 
-* Built on Polkadot SDK.
-* Implements Partnerchain components and the Midnight Ledger.
-* Acts as a Partnerchain node, with defined mechanisms to connect to Cardano.
+* Built on Polkadot SDK (Substrate framework)
+* Implements Partner Chain components for Cardano integration
+* Acts as a Partner Chain node with cross-chain communication
+* Requires persistent connection to Cardano via PostgreSQL database populated by Cardano-db-sync
 
 ## Architecture
 
-![Node Architecture](/img/node-architecture.png)
+```
+┌─────────────┐      ┌─────────────────┐      ┌──────────────┐
+│   Cardano   │ ───▶ │ Cardano Indexer │ ───▶ │  PostgreSQL  │
+│  Mainchain  │      │ (db-sync)       │      │  (cexplorer) │
+└─────────────┘      └─────────────────┘      └──────────────┘
+                                                      │ Observes mainchain state
+                                                      │ Queries Cardano data
+                                                      │ (cNIGHT, governance)
+                                                      ▼
+     ┌────────────────────────────────────────────────────────────────────┐
+     │                         Midnight Node                              │
+     ├────────────────────────────────────────────────────────────────────┤
+     │                                                                    │
+     │  ┌──────────────────────────────────────────────────────────────┐  │
+     │  │                          Runtime                             │  │
+     │  │                                                              │  │
+     │  │  ┌────────────────────────────────────────────────────────┐  │  │
+     │  │  │                       Pallets                          │  │  │
+     │  │  │                                                        │  │  │
+     │  │  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐   │  │  │
+     │  │  │  │  Midnight   │  │   Native     │  │  Federated   │   │  │  │
+     │  │  │  │   System    │  │    Token     │  │  Authority   │   │  │  │
+     │  │  │  │             │  │ Observation  │  │              │   │  │  │
+     │  │  │  └─────────────┘  └──────────────┘  └──────────────┘   │  │  │
+     │  │  │                                                        │  │  │
+     │  │  │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐   │  │  │
+     │  │  │  │   Version   │  │   Midnight   │  │  Federated   │   │  │  │
+     │  │  │  │             │  │              │  │  Authority   │   │  │  │
+     │  │  │  │             │  │              │  │ Observation  │   │  │  │
+     │  │  │  └─────────────┘  └──────────────┘  └──────────────┘   │  │  │
+     │  │  └────────────────────────────────────────────────────────┘  │  │
+     │  └──────────────────────────────────────────────────────────────┘  │
+     │                                                                    │
+     │  ┌──────────────────────────────────────────────────────────────┐  │
+     │  │                      Node Services                           │  │
+     │  │                                                              │  │
+     │  │    ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐    │  │
+     │  │    │   RPC    │  │Consensus │  │ Keystore │  │ Network  │    │  │
+     │  │    │  Server  │  │   AURA   │  │          │  │   P2P    │◀───│──│────▶ Other Midnight Nodes
+     │  │    │Port 9944 │  │ GRANDPA  │  │          │  │Port 30333│    │  │
+     │  │    └──────────┘  └──────────┘  └──────────┘  └──────────┘    │  │
+     │  └──────────────────────────────────────────────────────────────┘  │
+     └────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ WebSocket RPC
+                                    │ Port: 9944
+                                    ▼
+            ┌─────────────────────────────────────────────────────────┐
+            │   External Clients: DApps, Indexers, Block Explorers    │
+            └─────────────────────────────────────────────────────────┘
+```
 
-## Core Parameters
+## Core parameters
 
 | Parameter                       | Value                        |
 |--------------------------------|------------------------------|
-| Block Time                     | 6 seconds                    |
-| Session Length                 | 1200 slots                   |
-| Ledger Transactions per Block  | TBD  |
-| Hash Function                  | `blake2_256`                 |
-| Account Type                   | `sr25519` public key         |
-
-## Genesis Configuration
-
-### Ledger
-
-* Initial coin supply (testnet only): 100,000,000,000,000,000 units.
-* Distribution: Split into five outputs each across four wallets (4 × 5 × 5,000,000,000,000,000).
-* Note: This configuration is for testnet use only and does **not** reflect the final mainnet supply.
-
+| Block time                     | 6 seconds                    |
+| Session length                 | 1200 slots (2 hours)         |
+| Epoch length                   | 300 blocks                   |
+| Hash function                  | `blake2_256`                 |
+| Account type                   | `sr25519` public key         |
+| P2P port                       | 30333 (default)              |
+| RPC port                       | 9944 (WebSocket, default)    |
 
 ### Consensus
 
-* Initial validator set: 12 trusted nodes operated by Shielded and many more registered nodes operated by the community.
-* The 'D' parameter controls the split of permissioned to registered nodes.
+* Initial validator set: Permissioned nodes operated by Federated Node Operators (FNOs). Stake Pool Operators (SPOs) supported at a later date.
+* The `D` parameter (`system_parameters`) controls the split between permissioned and registered validators.
 
-### Onchain Governance
+## Runtime pallets
 
-* A master ("sudo") key with elevated privileges — temporary placeholder for a future governance system.
-* Support for tx-pause functionality: governance-authorized transactions can pause specific transaction types.
+The Midnight Node includes eight custom pallets that implement core blockchain functionality:
 
-## Signature Schemes
+* **pallet-midnight**: Core ledger state and privacy-preserving transaction processing
+* **pallet-midnight-system**: System-level administrative operations
+* **pallet-cnight-observation**: Cardano bridge integration for cNIGHT token management and DUST generation
+* **pallet-federated-authority**: Multi-collective governance requiring consensus from multiple bodies
+* **pallet-federated-authority-observation**: Governance synchronization with Cardano Mainchain
+* **pallet-system-parameters**: Manages governance-controlled network parameters
+* **pallet-throttle**: Limits signed transaction throughput per governance member account
+* **pallet-version**: Runtime version tracking and upgrade monitoring
 
-Different cryptographic schemes are used for various node operations:
+## Signature schemes
 
-* ECDSA – used for Partnerchain consensus message signing.
-* ed25519 – used for finality-related message signing.
-* sr25519 – used for AURA block authorship signing (based on Schnorrkel / Ristretto / x25519).
+The Midnight Node uses different cryptographic schemes for various operations:
 
-Refer to the [Cryptography](./cryptography) section for more on this.
+* **ECDSA**: Partner Chain consensus message signing and BEEFY aggregated proofs
+* **Ed25519**: GRANDPA finality message signing
+* **Sr25519**: AURA block authorship signing (based on Schnorrkel / Ristretto / x25519)
+
+## Node types
+
+* **[Full node](../nodes/full-node)**: Validates transactions and maintains current blockchain state
+* **[Archive node](../nodes/full-node#full-node-vs-archive-node)**: Stores complete blockchain history with all historical states
+* **[Boot node](../nodes/boot-node)**: Provides initial connection points for nodes joining the network
+* **[RPC node](../nodes/rpc-node)**: Exposes HTTP/WebSocket APIs for external client interactions
