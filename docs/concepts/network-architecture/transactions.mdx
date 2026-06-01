@@ -3,7 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Transactions
 sidebar_label: Transactions
-description: A reference on transactions in Midnight nodes.
+description: A reference on the Midnight transaction format, its classification vocabulary, and the non-ledger transaction categories the node owns.
 keywords: [node]
 ---
 
@@ -11,8 +11,80 @@ keywords: [node]
 
 The Midnight node supports the standard Polkadot SDK transaction format, but these default-style transactions are uncommon in practice. Midnight relies on a proof-based verification model that is tightly coupled with the Midnight Ledger design.
 
+A block is an ordered list of extrinsics. As on any [Substrate](/concepts/network-architecture/onchain-logic) chain, those extrinsics fall into two kinds: transactions that users or tooling submit into the transaction pool, and inherents that the block author injects directly (no signature, not gossiped) and every other node re-checks. Midnight layers a second distinction on top of this — between ledger transactions and non-ledger transactions — which this page describes.
+
+## The transaction format and its classification
+
+When you decode a transaction from the chain, you classify it against a published vocabulary that the node exposes through runtime metadata. The `TransactionTypeV2` enumeration names the categories a decoder can expect:
+
+- `MidnightTx` — a ledger-carrying transaction. It holds the opaque ledger payload together with the result of decoding it.
+- `TimestampTx` — the block timestamp, surfaced as a first-class transaction value.
+- `UnknownTx` — any transaction the classifier does not recognize, such as a future or unknown variant.
+
+:::info
+This classification is a vocabulary for off-node consumers. Indexers, the toolkit, and other downstream tooling read it through runtime metadata to label a decoded transaction. The node does **not** match on these categories to decide how to process a transaction — dispatch happens through the runtime's pallet calls and inherents, not through this enumeration. An earlier `TransactionType` enumeration carried an optional decoded transaction; `TransactionTypeV2` supersedes it by carrying the full decode result, so a consumer can see why a payload failed to decode.
+:::
+
+## The ledger and non-ledger boundary
+
+The node and the ledger own different parts of a transaction, and the boundary between them is precise:
+
+- The **node** frames, validates, weighs, and routes a transaction. It owns the extrinsic shape, the validation and weighting rules, the events it emits, and the classification vocabulary above.
+- The **ledger** decodes and interprets the opaque payload. A ledger transaction crosses into the ledger as a byte vector; everything inside that payload — the shielded and unshielded state changes, the proofs, the contract operations — is owned and interpreted by the Midnight Ledger.
+
+A **ledger transaction** is the proof-based state change carried by this opaque payload. The node applies it through `pallet-midnight` and emits ledger events (such as contract calls, contract deployments, and applied-transaction markers), but it never inspects the payload's contents.
+
+A **non-ledger transaction** is every other node-defined extrinsic or inherent: system transactions, the bridge transfer flow, the cNIGHT observation inherent, the timestamp, and the classification envelope itself. The rest of this page documents these categories.
+
+:::info
+The ledger team documents the contents of a ledger transaction payload. See the [ledgers concept page](/concepts/ledgers) and the [ledger API reference](/api-reference/ledger/) for the shielded and unshielded transaction model. This page stops at the node boundary and does not describe the payload internals.
+:::
+
+## Non-ledger transaction categories
+
+Each non-ledger category has a distinct origin and privilege. The table below summarizes them; the sections that follow give the detail. Treat origin and privilege as load-bearing — the categories are structurally different, and a bridge transfer in particular is not a peer of a user-submitted transaction.
+
+| Category | Origin | Privilege | Owning component | Observable effect |
+| --- | --- | --- | --- | --- |
+| Ledger transaction | User or tooling (pool) | Unsigned, proof-validated | `pallet-midnight` (envelope) | Ledger events (contract call, deploy, applied) |
+| System transaction | Governance | Root, governance-gated | `pallet-midnight-system` | `SystemTransactionApplied` event |
+| Timestamp | Block author (inherent) | Inherent | `pallet-timestamp` | Classified as `TimestampTx` |
+| Unknown | Classifier fallback | None (off-node label) | classification vocabulary | Decoded as `UnknownTx` |
+| cNIGHT observation | Block author (inherent) | Inherent | `pallet-cnight-observation` | Recorded Cardano token movements |
+| Bridge transfer | Block author (inherent), then system transaction | Inherent, then root path | `pallet-c2m-bridge` | Bridge transfer event plus a system transaction |
+
+### System transaction
+
+A system transaction applies a state change to the ledger through a privileged, audited channel rather than through the user transaction pool. Governance submits it with root origin, and the node gates it against an allow-check before applying it, so only the system transactions governance is permitted to run reach the ledger. When the node applies one, it emits a `SystemTransactionApplied` event that carries the transaction hash and its serialized form, which lets an indexer correlate the effect on the ledger with the originating call.
+
+A system transaction differs from a ledger transaction in three ways: its origin (governance rather than any user), its privilege (root, plus the governance allow-check), and its event. Both ultimately reach the ledger's apply path, but only the system transaction does so through this privileged channel.
+
+### Timestamp
+
+The block author supplies the block timestamp as an inherent, and the standard timestamp pallet applies it. The classification vocabulary surfaces it as `TimestampTx`, so a downstream decoder can read the block's timestamp as a first-class transaction value. The timestamp is not a separately submitted transaction; it is the classification of the inherent's value.
+
+### Unknown
+
+`UnknownTx` is a classifier fallback rather than an on-chain object. A decoder yields it when an encoded transaction matches neither the ledger-carrying nor the timestamp category — for example, a variant a future runtime introduces. It signals forward compatibility: a consumer can recognize that a transaction exists without being able to interpret it.
+
+### cNIGHT observation
+
+The node observes cNIGHT token movements on Cardano and records them on Midnight through an inherent. The block author injects the observed movements, and every other node re-derives and compares them when it validates the block, so the observation is a consensus-checked fact rather than a user-submitted claim. This inherent underpins the registration and DUST-generation tracking that the cNIGHT observation pallet owns.
+
+### Bridge transfer
+
+A bridge transfer moves tokens from Cardano to Midnight. It is **not** a user-submittable transaction and is not a peer of a ledger transaction. The block author injects the observed Cardano transfer as an inherent; the bridge handler then validates it against the approved-transfers list (single-use, to prevent replay), constructs the corresponding ledger system transaction, and applies it through the system transaction path.
+
+The net effect on the ledger therefore arrives as a system transaction, while the bridge emits its own event (such as a user transfer, reserve transfer, or invalid transfer) so that an indexer can correlate the Cardano-side movement with the Midnight-side result. Model a bridge transfer as an inherent that produces a system transaction, never as a standalone transaction type.
+
+## Consensus inherents
+
+Beyond the categories above, the block author also injects consensus inherents that the Cardano Partner-Chains SDK supplies — the AURA slot, the main-chain hash, and authority selection. These are consensus infrastructure rather than Midnight transaction categories; see [onchain logic and state](/concepts/network-architecture/onchain-logic) and [consensus](/concepts/network-architecture/consensus) for how they fit block production and finality.
+
+## The ledger transaction lifecycle
+
 Most Midnight transactions are unsigned and follow a format defined by the Midnight Ledger. Instead of traditional signature-based authorization, these transactions embed a cryptographic proof that attests to the validity of a specific action, such as a contract invocation, contract deployment, or ZSwap transaction. This proof lets the network validate state transitions without exposing sensitive data or signatures directly.
 
-When a transaction is submitted, it passes through several processing stages. First, the transaction pool validates its well-formedness, ensuring it meets the structural and logical requirements defined by the runtime and ledger specification.
+When you submit a transaction, it passes through several processing stages. First, the transaction pool validates its well-formedness, ensuring it meets the structural and logical requirements that the runtime and ledger specification define.
 
 Once a block includes the transaction, the runtime fully verifies the embedded proof. If the proof is valid, the runtime executes the corresponding state transition. It then commits the resulting state update to on-chain storage, completing the transaction lifecycle.
