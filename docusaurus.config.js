@@ -99,20 +99,6 @@ const config = {
     //   },
     // ],
 
-    // ACADEMY DOCS
-    // [
-    //   "@docusaurus/plugin-content-docs",
-    //   {
-    //     id: "academy",
-    //     path: "academy",
-    //     routeBasePath: "academy",
-    //     sidebarPath: require.resolve("./sidebars.academy.js"),
-    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
-    //     showLastUpdateTime: true,
-    //     showLastUpdateAuthor: false,
-    //   },
-    // ],    
-
     // API REFERENCE DOCS
     [
       "@docusaurus/plugin-content-docs",
