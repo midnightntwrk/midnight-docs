@@ -28,8 +28,6 @@ function MetaTitleUpdater({ children }) {
   let titleSuffix = 'Midnight Docs';
   if (path.startsWith('/blog') || path.includes('dev-diaries')) {
     titleSuffix = 'Midnight Dev Diaries';
-  } else if (path.includes('/academy')) {
-    titleSuffix = 'Midnight Academy';
   }
 
   const [finalTitle, setFinalTitle] = useState(titleSuffix);
