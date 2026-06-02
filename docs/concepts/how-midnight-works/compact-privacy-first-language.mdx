@@ -28,7 +28,7 @@ The most important design shift is that Compact treats circuits as a core part o
 
 In a conventional public smart contract environment, developers understand the smart contract as code that runs on-chain. The network sees the inputs, executes the logic, and checks the resulting state transition.
 
-Midnight's model is different. Midnight [splits smart contract interactions](/concepts/how-midnight-works/smart-contracts#transcripts-and-zk-snarks) into three parts: a `local` part that runs on the user's machine, a `ledger` part that records public state, and a `circuit` part that encodes the rules connecting the two. The blockchain does not need to see every private input to validate an interaction. It needs a proof that the interaction followed the rules and a public transcript it can apply to the ledger state.
+Midnight's model is different. When you [write a Midnight smart contract](/concepts/how-midnight-works/smart-contracts#transcripts-and-zk-snarks), your interaction splits into three parts: a `local` part that runs on your machine, a `ledger` part that records public state, and a `circuit` part that encodes the rules connecting the two. The blockchain does not need to see every private input to validate your interaction. It needs a zero-knowledge proof that the interaction followed the rules and a public transcript it can apply to the ledger state.
 
 Compact exists to describe those rules. Think of Compact as a language for defining what must be proven, not merely for writing executable on-chain code.
 
@@ -44,7 +44,7 @@ Compact does this by separating the main environments involved in a Midnight sma
 
 - **`ledger`**: public state that belongs to the on-chain contract state.
 - **`circuit`**: logic that participates in proof generation and encodes the rules validators check.
-- **`witness`**: private data known only to the party executing the interaction, provided by callbacks on the user's machine.
+- **`witness`**: off-chain functions that run on the user's machine. You can use witnesses to retrieve private state, but also to perform computation that is not feasible or not supported on-chain, such as division. The contract verifies witness results in-circuit, giving you on-chain verification of off-chain compute. See the [calculator example](/examples/contracts/calculator) for a practical demonstration of this pattern.
 
 For a walkthrough of how these constructs work together in practice, see [Writing a contract](/compact/reference/writing).
 
@@ -52,7 +52,7 @@ This separation maps back to the trust model. The public side needs to be visibl
 
 Without explicit boundaries, developers lose track of where a value lives, who can see it, and what they must prove about it. That risk is especially high in privacy-preserving applications.
 
-A value meant to stay private should not become public by accident. The network should not accept a public state transition without proof that the interaction satisfied private-side rules. Developers should be able to see, from the shape of the smart contract, where those boundaries are.
+A value meant to stay private should not become public by accident. The network should not accept a public state transition without verification that the interaction satisfied private-side rules. You should be able to see, from the shape of the smart contract, where those boundaries are.
 
 Compact's language model makes that separation part of the development surface.
 
@@ -64,7 +64,7 @@ A payment system may need to reveal that a transaction is valid. A compliance wo
 
 The question is not whether anything should ever become public, but who sees what, and when.
 
-Compact enforces explicit disclosure through the [`disclose()` keyword](/compact/reference/explicit-disclosure). The compiler rejects any program that writes witness-derived data to the ledger, returns it from an exported circuit, or passes it to another contract without a `disclose()` wrapper. Privacy is the default; disclosure requires a deliberate declaration.
+Compact enforces explicit disclosure through the [`disclose()` keyword](/compact/reference/explicit-disclosure). The `disclose()` call itself does not make data public. It tells the compiler that you intend for a witness-derived value to enter a public domain. Values only become public when they cross a visibility boundary: a ledger write, a return from an exported circuit, or a contract-to-contract call. The compiler rejects any program where a witness-derived value crosses one of those boundaries without a `disclose()` wrapper. Privacy is the default; disclosure requires a deliberate annotation.
 
 That design fits directly with Midnight's broader selective disclosure direction. Selective disclosure is not privacy as total secrecy. It is privacy as controlled visibility. A system can reveal the information needed for a specific interaction while keeping unrelated data private. For practical shielding patterns such as hashes, commitments, and Merkle trees, see [Keeping data private](/concepts/how-midnight-works/keeping-data-private).
 
@@ -91,12 +91,12 @@ If you are ready to move from concepts to code, the recommended path is:
 3. **[Keep data private](/concepts/how-midnight-works/keeping-data-private)**: explore practical shielding patterns including hashes, commitments, Merkle trees, and the commitment/nullifier pattern.
 4. **[Build a bulletin board DApp](/tutorials/bboard/smart-contract)**: apply what you have learned in a tutorial that combines a Compact contract with a working DApp.
 
-If you prefer to set up your environment first, start with [Install the toolchain](/getting-started/installation) and [Create your first contract](/getting-started/hello-world).
+If you prefer to set up your environment first, start with [Install the Toolchain](/getting-started/installation) and [Create your first contract](/getting-started/hello-world).
 
 ## Additional resources
 
 - [Compact language](/compact): overview of Compact and its role in generating zero-knowledge circuits.
 - [Smart contracts on Midnight](/concepts/how-midnight-works/smart-contracts): the transcript, proof, and verifier key model that Compact compiles into.
-- [Zero-knowledge proofs](/concepts/zero-knowledge-proofs): how ZK Snarks work and how Midnight uses them.
+- [Zero-knowledge proofs](/concepts/zero-knowledge-proofs): how ZK-SNARKs work and how Midnight uses them.
 - [Kachina](/concepts/kachina): the formal model behind public and private state separation.
-- [Example contracts](/examples/contracts/calculator): browse Compact contracts for elections, auctions, token transfers, and more.
+- [Example contracts](/category/contracts): browse Compact contracts for elections, auctions, token transfers, and more.
