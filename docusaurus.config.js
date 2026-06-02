@@ -14,7 +14,13 @@ const config = {
   tagline: "Midnight DUST is cool",
   favicon: "img/favicon.ico",
 
-  markdown: { mermaid: true },
+  markdown: { 
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: "warn",
+      onBrokenMarkdownImages: "warn",
+    } 
+  },
   themes: [
     "@docusaurus/theme-mermaid",
   ],
@@ -27,7 +33,6 @@ const config = {
   projectName: "midnight-docs",
 
   onBrokenLinks: "warn",
-  onBrokenMarkdownLinks: "warn",
 
   plugins: [
     // MAIN DOCS
@@ -93,20 +98,6 @@ const config = {
     //     showLastUpdateAuthor: false,
     //   },
     // ],
-
-    // ACADEMY DOCS
-    // [
-    //   "@docusaurus/plugin-content-docs",
-    //   {
-    //     id: "academy",
-    //     path: "academy",
-    //     routeBasePath: "academy",
-    //     sidebarPath: require.resolve("./sidebars.academy.js"),
-    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
-    //     showLastUpdateTime: true,
-    //     showLastUpdateAuthor: false,
-    //   },
-    // ],    
 
     // API REFERENCE DOCS
     [
@@ -304,6 +295,9 @@ const config = {
         gtag: process.env.GOOGLE_TAG_MANAGER_ID
           ? { trackingID: process.env.GOOGLE_TAG_MANAGER_ID }
           : undefined,
+        googleTagManager: {
+          containerId: 'GTM-NQ6MC73Q',
+        },
         docs: false, // we use standalone docs plugins
         blog: false,
         theme: {

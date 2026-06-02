@@ -1,0 +1,69 @@
+---
+title: Proof server errors
+description: Error codes returned by the Midnight proof server during zero-knowledge proof generation.
+sidebar_position: 30
+sidebar_label: Proof server errors
+tags: [error reference, api reference, proof server]
+toc_max_heading_level: 3
+---
+
+# Proof server errors
+
+The proof server is a standalone HTTP service that generates zero-knowledge proofs for transactions. It is part of the `midnight-ledger` repository and typically runs on port 6300.
+
+It is the only crate in `midnight-ledger` that uses `thiserror` derives for error handling. The server maps errors to HTTP status codes and returns them as HTTP responses.
+
+## Worker pool errors (`WorkerPoolError`)
+
+These errors arise from the proof server's internal job queue and worker pool management.
+
+| HTTP status | Error | Description | Fix |
+|-------------|-------|-------------|-----|
+| 400 Bad Request | `JobNotPending(Uuid)` | Tried to cancel a non-pending job. | Job is already processing, completed, or cancelled. |
+| 428 Precondition Required | `JobMissing(Uuid)` | Referenced job not found. | The job ID is invalid or has expired. |
+| 429 Too Many Requests | `JobQueueFull` | The proof generation job queue is full. | Wait and retry; the server is under heavy load. |
+| 500 Internal Server Error | `ChannelClosed` | Internal work channel closed. | Restart the proof server. |
+
+## Work errors (`WorkError`)
+
+These errors occur during the actual proof generation process.
+
+| HTTP Status | Error | Description | Fix |
+|-------------|-------|-------------|-----|
+| 400 Bad Request | `BadInput(String)` | Proof request input data is invalid. | Check the transaction data being sent for proving. |
+| 500 Internal Server Error | `CancelledUnexpectedly` | The system cancelled the job without an explicit request | Internal error; retry the proof request |
+| 500 Internal Server Error | `InternalError(String)` | Internal proof generation error. | Check proof server logs; restart the proof server if the error persists. |
+| 500 Internal Server Error | `JoinError` | Task join error during proof generation. | Internal threading error; retry or restart. |
+
+## Job status enum
+
+The proof server tracks each proof job through the following states.
+
+| Status | Description |
+|--------|-------------|
+| `Pending` | Job queued, waiting for a worker. |
+| `Processing` | Proof generation in progress. |
+| `Cancelled` | The system cancelled this job. |
+| `Error(WorkError)` | Job failed with an error. |
+| `Success(Vec<u8>)` | Proof generated successfully. |
+
+## Health endpoint
+
+Use the `/ready` endpoint to check whether the proof server is accepting new requests.
+
+| Endpoint | HTTP status | Description |
+|----------|-------------|---------|
+| `GET /ready` | 200 OK | Server is ready to accept proof requests. |
+| `GET /ready` | 503 Service Unavailable | Server is busy (all workers occupied). |
+
+## Common issues
+
+The following table covers the most frequent problems and their likely causes.
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| 429 responses | Too many concurrent proof requests are being sent to the server. | Reduce the number of parallel proof requests and implement an exponential backoff retry strategy so requests are spaced out under load. |
+| 503 from `/ready` | All proof workers are busy. | Wait for current proofs to complete or increase the worker count in config. |
+| 500 with "BadInput" | Malformed transaction data | Verify the transaction was built correctly with the SDK. |
+| Connection refused on port 6300 | Proof server not running | Start the proof server container, check Docker status. |
+| Slow proof generation | Large circuit or insufficient resources | Allocate more CPU or memory to the proof server container. |

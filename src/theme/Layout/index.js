@@ -1,5 +1,5 @@
 // This file is part of midnight-docs.
-// Copyright (C) 2025 Midnight Foundation
+// Copyright (C) Midnight Foundation
 // SPDX-License-Identifier: Apache-2.0
 // Licensed under the Apache License, Version 2.0 (the "License");
 // You may not use this file except in compliance with the License.
@@ -28,8 +28,6 @@ function MetaTitleUpdater({ children }) {
   let titleSuffix = 'Midnight Docs';
   if (path.startsWith('/blog') || path.includes('dev-diaries')) {
     titleSuffix = 'Midnight Dev Diaries';
-  } else if (path.includes('/academy')) {
-    titleSuffix = 'Midnight Academy';
   }
 
   const [finalTitle, setFinalTitle] = useState(titleSuffix);

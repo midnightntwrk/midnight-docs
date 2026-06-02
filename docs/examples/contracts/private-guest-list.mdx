@@ -1,6 +1,6 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: "Private Guest List"
 sidebar_position: 3
 title: Private Guest List Contract
@@ -9,104 +9,139 @@ toc_max_heading_level: 2
 ---
 
 This Compact contract implements a party with a private guest list. It offers demonstration of the following features:
-- Hiding information on the public ledger
-- Verifying hidden ledger information
-- Access control to circuits
 - Operations on a `Set`
-- Introduction to witness functions
+- Native token (NIGHT) operations 
+- Privacy boundary in Midnight DApps
 
 ```compact
 pragma language_version 0.23;
 import CompactStandardLibrary;
 
 export enum PartyState {
-    NOT_READY,
-    READY
+    NOT_STARTED,
+    READY,
+    STARTED,
+    DOORS_CLOSED,
+    FEES_CLAIMED
 }
 
-export ledger organizers: Set<Bytes<32>>;// organizers are public
-export ledger hashedPartyGoers: Set<Bytes<32>>;// participants are hashed until they arrive
-export ledger checkedInParty: Set<Bytes<32>>;
+export sealed ledger organizer: Bytes<32>;
+export sealed ledger maxListSize: Uint<16>;
+export sealed ledger entryFee: Uint<16>;
 export ledger partyState: PartyState;
-export sealed ledger maxListSize: Uint<8>;
+export ledger hashedPartyGoers: Set<Bytes<32>>;
+export ledger checkedInParty: Set<UserAddress>;
 
-witness localStartParty(): PartyState;
-witness localSk(): Bytes<32>;
+witness localSecret(): Bytes<32>;
 
-constructor(){
-    const _sk = localSk();
-    const pubKey = publicKey(_sk);
-    organizers.insert(disclose(pubKey));
+constructor (partySize: Uint<16>, fee: Uint<16>) {
+    const _secret = localSecret();
+    const pubKey = getDappPublicKey(_secret);
+    organizer = disclose(pubKey);
 
-    partyState = PartyState.NOT_READY;
-    maxListSize = 99;
+    assert(partySize > 0, "The party size must be greater than zero");
+    assert(fee > 0, "Fee must be greater than zero");
+
+    entryFee = disclose(fee);
+    maxListSize = disclose(partySize);
+    partyState = PartyState.NOT_STARTED;
 }
 
-export circuit addOrganizer(_organizerSk: Bytes<32>): [] {
-    const _sk = localSk();
-    const pubKey = publicKey(_sk);
-    assert(organizers.member(disclose(pubKey)), "You are not an organizer");
+// called by party goers
+export circuit rsvp(_address: UserAddress): [] {
+    const _secret = localSecret();
+    const pubKey = getDappPublicKey(_secret);
+    // caller authentication check
+    assert(pubKey != organizer, "Organizer cannot RSVP to the party");
 
-    const newOrgPubKey = publicKey(_organizerSk);
-    assert(!organizers.member(disclose(newOrgPubKey)), "You are already in the organizer list");
-    assert(partyState == PartyState.NOT_READY, "The party has already started");
-    
-    organizers.insert(disclose(newOrgPubKey));
-}
-
-export circuit addParticipant(_participantPk: Bytes<32>): [] {
-    // only organizers can add party goers
-    const _sk = localSk();
-    const pubKey = publicKey(_sk);
-    assert(organizers.member(disclose(pubKey)), "You are not an organizer");
-
-    assert(partyState == PartyState.NOT_READY, "The party has already started");
+    // state verification check
+    assert(partyState == PartyState.NOT_STARTED, "The party has already started");
     assert(hashedPartyGoers.size() < maxListSize, "The list is full");
 
-    const participant = commitWithSk(_participantPk, _sk);
-    assert(!hashedPartyGoers.member(disclose(participant)), "You are already in the list");
-    hashedPartyGoers.insert(disclose(participant));
+    // party goer address remains private
+    const commitHash = commitAddress(_secret, _address.bytes);
+    assert(!hashedPartyGoers.member(commitHash), "You are already on the list");
+    hashedPartyGoers.insert(commitHash);// doesn't need disclose bc persistentCommit
 
     if (hashedPartyGoers.size() == maxListSize) {
-        const localPartyState = localStartParty();
-        // don't trust, verify
-        assert(localPartyState == PartyState.READY, "Please start the party, the list is full");
+        // @TODO -- In the future, emit an event to the organizer here (MIP-0002)
         partyState = PartyState.READY;
     }
 }
 
-export circuit checkIn(participantPk: Bytes<32>): [] {
-    const _sk = localSk();
-    const pubKey = publicKey(_sk);
-    assert(organizers.member(disclose(pubKey)), "You are not an organizer");
+// start the party (organizer)
+export circuit startParty(): [] {
+    const _secret = localSecret();
+    const pubKey = getDappPublicKey(_secret);
+    assert(organizer == pubKey, "Only the organizer can start the party");
+    assert(partyState == PartyState.READY || partyState == PartyState.NOT_STARTED, 
+        "The party is not in the correct state for this operation");
 
-    assert(partyState == PartyState.READY, "The party has not started yet");
+    partyState = PartyState.STARTED;
+}
+
+export circuit closeEntry(): [] {
+    const _secret = localSecret();
+    const pubKey = getDappPublicKey(_secret);
+    assert(organizer == pubKey, "Only organizer can close the doors");
+    assert(partyState == PartyState.STARTED, "Party in wrong state");
+
+    partyState = PartyState.DOORS_CLOSED;
+}
+
+// called by the party goer, so the payment can be prompted to the caller
+// after the execution of this circuit, party goers are public
+export circuit checkIn(address: UserAddress): [] {
+    // state verification checks
+    assert(partyState == PartyState.STARTED, "The party has not been started. Call the party police");
     assert(checkedInParty.size() < hashedPartyGoers.size(), "All guests have already checked in");
-    assert(hashedPartyGoers.member(commitWithSk(participantPk, _sk)), "You are not on the list");
 
-    checkedInParty.insert(disclose(participantPk));
+    const _secret = localSecret();
+    const commitHash = commitAddress(_secret, address.bytes);
+
+    // caller verification checks
+    assert(hashedPartyGoers.member(commitHash), "You are not on the list");
+    assert(!checkedInParty.member(disclose(address)), "You have already checked in");
+   
+    // take in unshielded payment, party goers are now public
+    receiveUnshielded(nativeToken(), entryFee as Uint<128>);
+    checkedInParty.insert(disclose(address));
+
+    if(checkedInParty.size() == maxListSize) {
+        partyState = PartyState.DOORS_CLOSED;
+    }
 }
 
-export circuit chainStartParty(): [] {
-    const _sk = localSk();
-    const pubKey = publicKey(_sk);
-    assert(organizers.member(disclose(pubKey)), "Only organizers can start the party");
-    
-    assert(partyState == PartyState.NOT_READY, "The party has already started");
+export circuit claimFees(address: UserAddress): [] {
+    const _secret = localSecret();
+    const pubKey = getDappPublicKey(_secret);
+    assert(organizer == pubKey, "You are not the organizer");
 
-    const localPartyState = disclose(localStartParty());
-    assert(localPartyState == PartyState.READY, "Please start the party locally");
-    partyState = localPartyState;
+    // state verification checks
+    assert(partyState == PartyState.DOORS_CLOSED, "The doors are not yet closed");
+    assert(checkedInParty.size() > 0, "No fees to claim");
+
+    // calculate contract balance of NIGHT tokens
+    const totalCollected = checkedInParty.size() * entryFee;
+    assert(unshieldedBalanceGte(nativeToken(), totalCollected), "Contract balance wrong");
+
+    // send to organizer
+    sendUnshielded(
+        nativeToken(),
+        disclose(totalCollected) as Uint<128>,
+        right<ContractAddress, UserAddress>(disclose(address))
+    );
+    partyState = PartyState.FEES_CLAIMED;
 }
 
-circuit commitWithSk(_participantPk: Bytes<32>, _sk: Bytes<32>): Bytes<32> {
-    const hash = persistentHash<Vector<2, Bytes<32>>>([_participantPk, _sk]);
-    return disclose(hash);
+circuit commitAddress(_secret: Bytes<32>, _address: Bytes<32>): Bytes<32> {
+    return persistentCommit<Bytes<32>>(_address, _secret);
 }
 
 // hash a publicKey specific to this DApp so that users cannot be tracked
-circuit publicKey(_sk: Bytes<32>): Bytes<32> {
-    return persistentHash<Vector<2, Bytes<32>>>([pad(32, "guest-list:pk:"), _sk]);
+// the _secret should be a highly complex one
+circuit getDappPublicKey(_secret: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([pad(32, "private-party:pk:"), _secret]);
 }
 
 ```
