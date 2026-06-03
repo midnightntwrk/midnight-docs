@@ -186,7 +186,14 @@ const config = {
             ],
             to: 'https://academy.midnight.network/',
           },
-        
+          {
+            from: '/category/examples',
+            to: '/examples',
+          },
+          {
+            from: '/category/tutorials',
+            to: '/tutorials',
+          },
         ],
       },
     ],
