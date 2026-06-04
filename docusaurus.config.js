@@ -194,6 +194,34 @@ const config = {
             from: '/category/tutorials',
             to: '/tutorials',
           },
+          {
+            from: '/category/contracts',
+            to: '/examples/contracts',
+          },
+          {
+            from: '/category/dapps',
+            to: '/examples/dapps',
+          },
+          {
+            from: '/category/counter',
+            to: '/tutorials/counter',
+          },
+          {
+            from: '/category/bulletin-board',
+            to: '/tutorials/bboard',
+          },
+          {
+            from: '/category/battleship',
+            to: '/tutorials/bship',
+          },
+          {
+            from: '/category/leaderboard',
+            to: '/tutorials/leaderboard',
+          },
+          {
+            from: '/category/zk-loan',
+            to: '/tutorials/zk-loan',
+          },
         ],
       },
     ],
