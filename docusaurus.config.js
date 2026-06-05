@@ -99,20 +99,6 @@ const config = {
     //   },
     // ],
 
-    // ACADEMY DOCS
-    // [
-    //   "@docusaurus/plugin-content-docs",
-    //   {
-    //     id: "academy",
-    //     path: "academy",
-    //     routeBasePath: "academy",
-    //     sidebarPath: require.resolve("./sidebars.academy.js"),
-    //     editUrl: "https://github.com/midnightntwrk/midnight-docs/edit/main/",
-    //     showLastUpdateTime: true,
-    //     showLastUpdateAuthor: false,
-    //   },
-    // ],    
-
     // API REFERENCE DOCS
     [
       "@docusaurus/plugin-content-docs",
@@ -200,7 +186,42 @@ const config = {
             ],
             to: 'https://academy.midnight.network/',
           },
-        
+          {
+            from: '/category/examples',
+            to: '/examples',
+          },
+          {
+            from: '/category/tutorials',
+            to: '/tutorials',
+          },
+          {
+            from: '/category/contracts',
+            to: '/examples/contracts',
+          },
+          {
+            from: '/category/dapps',
+            to: '/examples/dapps',
+          },
+          {
+            from: '/category/counter',
+            to: '/tutorials/counter',
+          },
+          {
+            from: '/category/bulletin-board',
+            to: '/tutorials/bboard',
+          },
+          {
+            from: '/category/battleship',
+            to: '/tutorials/bship',
+          },
+          {
+            from: '/category/leaderboard',
+            to: '/tutorials/leaderboard',
+          },
+          {
+            from: '/category/zk-loan',
+            to: '/tutorials/zk-loan',
+          },
         ],
       },
     ],
