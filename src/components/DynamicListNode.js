@@ -17,8 +17,29 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.22.5',
+    version: '1.0.0',
     status: 'LATEST',
+    date: '20 May 2026',
+    summary: 'Mainnet GA release with runtime upgrade, TransactionExtension migration, and audit-driven hardenings.',
+    details: [
+      'Mainnet GA release: bumps `spec_version` to `1_000_000` and `transaction_version` to `3`.',
+      'Migrated runtime from `SignedExtension` to `TransactionExtension` (adds `AuthorizeCall` and `WeightReclaim`).',
+      'Aligned with `polkadot-stable2603` Substrate SDK.',
+      'Added self-describing `rpc.discover` endpoint serving OpenRPC v1.4 specification.',
+      'Added per-account transaction-count limit (`MaxTxs`) to throttle pallet with storage migration.',
+      'Landed Cardano-to-Midnight bridge handler hooks (preparatory only, bridge not enabled).',
+      'Bumped `midnight-ledger` to 8.1.0 with incremental GC, race-condition fixes, and memory leak fixes.',
+      'Toolkit ships independently versioned images with `show-block`, `batch-single-tx`, and structured logging.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node:1.0.0' },
+      { name: 'Midnight node toolkit', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit:1.0.0' },
+    ],
+    link: '/relnotes/node/node-1-0-0',
+  },
+  {
+    version: '0.22.5',
+    status: 'SUPPORTED',
     date: '24 April 2026',
     summary: 'Summary of Release 0.22.5',
     details: [

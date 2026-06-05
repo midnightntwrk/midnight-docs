@@ -1,0 +1,180 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Node v1.0.0 release notes
+description: The Midnight Node is the core blockchain node for the Midnight Network, responsible for block production, consensus, transaction validation, and on-chain state management.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v1.0.0
+* **Date**: May 20, 2026
+
+---
+
+## High-level summary
+
+Midnight Node 1.0.0 is the mainnet general availability release. It bumps `spec_version` to `1_000_000` and `transaction_version` to `3`. The runtime adopts `TransactionExtension` (replacing the deprecated `SignedExtension`), tightens the throttle pallet with per-account transaction-count limits, and lands the Midnight-side handler hooks for the Cardano-to-Midnight bridge (the bridge itself is not enabled at this release, preparatory plumbing only). The release also migrates to measured benchmark weights.
+
+The node aligns with the `polkadot-stable2603` Substrate SDK, gains a self-describing `rpc.discover` OpenRPC v1.4 endpoint, and picks up `midnight-ledger` 8.1.0 along with a number of audit-driven hardenings. The toolkit ships as an independently versioned image with new transaction-generation, caching, and observability features. This release requires a runtime upgrade.
+
+## Audience
+
+This release note is most relevant for:
+
+- **Node operators (all networks):** Required upgrade. Roll the binary, then submit the runtime upgrade. Re-check `networkId` against your chainspec (now validated on boot).
+- **DApp developers and SDK consumers:** No action required for live signing. `polkadot.js` and `subxt` fetch `transaction_version` and `spec_version` from chain state on every sign. Pre-signed extrinsics held across the upgrade boundary need re-signing.
+- **Toolkit users and load-test operators:** Required upgrade. The toolkit is now independently versioned and ships a new structured-logging stack, `show-block`, `batch-single-tx`, and per-seed caching subcommands.
+- **Governance signers:** New `proposal_weight_bound` parameter required on `motion_close`.
+- **Cardano bridge consumers:** The Cardano-to-Midnight bridge is not enabled at 1.0.0. The handler hooks ship in the runtime so you can develop against the on-chain shape, but no transfers flow until the bridge is turned on in a later release.
+
+## Summary of updates
+
+- Bumped `spec_version` to `1_000_000` and `transaction_version` to `3`.
+- Migrated runtime from `SignedExtension` to `TransactionExtension` (adds `AuthorizeCall` and `WeightReclaim`).
+- Aligned node, runtime, relay, and partner-chains with `polkadot-stable2603` Substrate SDK.
+- Added self-describing `rpc.discover` endpoint serving an OpenRPC v1.4 specification.
+- Added per-account transaction-count limit (`MaxTxs`) to the throttle pallet with storage migration.
+- Landed Cardano-to-Midnight bridge handler hooks (preparatory only, bridge not enabled).
+- Bumped `midnight-ledger` to 8.1.0 with incremental GC, race-condition fixes, and memory leak fixes.
+- Migrated to measured benchmark weights across FRAME and local pallets.
+- Added `networkId` validation on node boot to catch chainspec mismatches.
+- Toolkit ships independently versioned images with `show-block`, `batch-single-tx`, file-based caches, and structured logging via `tracing_subscriber`.
+
+---
+
+## New features
+
+Below is a detailed breakdown of the new capabilities introduced in this release.
+
+### Cardano-to-Midnight bridge handler (preparatory)
+
+The runtime now includes the Midnight-side handler for the Cardano-to-Midnight bridge. Each transfer carries an `McTxHash` (Cardano transaction hash) for end-to-end traceability, and the handler returns a value attached to the resulting bridge event. The bridge itself is not enabled at 1.0.0. This is preparatory plumbing for a future release. ([#1188](https://github.com/midnightntwrk/midnight-node/pull/1188))
+
+### Self-describing JSON-RPC API (`rpc.discover` / OpenRPC v1.4)
+
+The node exposes a standards-compliant `rpc.discover` JSON-RPC method that returns a complete OpenRPC v1.4 document. It includes 16 custom Midnight methods and 52 standard Substrate methods, with JSON Schema type definitions for every response type. DApp developers and SDK authors can generate clients, validate requests, and discover capabilities without reading the node source. ([#869](https://github.com/midnightntwrk/midnight-node/pull/869))
+
+### Per-account transaction-count limit in throttle pallet
+
+The existing per-account throttle (byte limit, rolling window) gains a per-account transaction-count limit (`MaxTxs`) over the same rolling block window. `AccountUsage` storage migrates from a two-field tuple to a `UsageStats` struct that adds `txs_used`. The old map is cleared on upgrade. ([#1060](https://github.com/midnightntwrk/midnight-node/pull/1060))
+
+### Diagnostic `show-block` toolkit command
+
+A new toolkit subcommand inspects individual blocks, displaying metadata and deserialized transactions in human-readable or JSON output. It reads from the fetch cache first and falls back to live node RPC on cache miss. ([#1068](https://github.com/midnightntwrk/midnight-node/pull/1068))
+
+### Bulk transaction generation (`batch-single-tx`) and file-based caches
+
+The new `batch-single-tx` subcommand supports bulk transaction generation, with file-based wallet and ledger-state caches (default cache directory: `./toolkit_cache`). The `fetch` subcommand gains `--seeds` to allow caching wallet states alongside the fetch cache. ([#820](https://github.com/midnightntwrk/midnight-node/pull/820), [#939](https://github.com/midnightntwrk/midnight-node/pull/939))
+
+### Per-SQL-query Prometheus timing
+
+Midnight-specific data sources now record individual Prometheus timing histograms per SQL query against db-sync. Thirteen sub-query timers are exposed at `:9615/metrics` under `midnight_data_source_query_time_elapsed{query_name=...}`. ([#904](https://github.com/midnightntwrk/midnight-node/pull/904))
+
+### `motion_close` weight bound
+
+The `motion_close` governance extrinsic now takes a `proposal_weight_bound` parameter and is promoted to `DispatchClass::Operational`. This ensures weight accounting covers the inner Root-dispatched call. ([#1032](https://github.com/midnightntwrk/midnight-node/pull/1032))
+
+---
+
+## Breaking changes
+
+### `transaction_version` bumped to 3
+
+The runtime migrated from `SignedExtension` to `TransactionExtension`. Two new extensions (`AuthorizeCall` and `WeightReclaim`) are added, but both are zero-sized, so the encoded transaction byte format is unchanged. The `transaction_version` was bumped from 2 to 3. Live signing through `polkadot.js` and `subxt` continues to work because they fetch `transaction_version` from chain state on every sign. Pre-signed extrinsics held across the upgrade boundary need re-signing. Custom Rust code that constructs `SignedPayload` directly must rename `SignedExtra` to `TxExtension`. ([#597](https://github.com/midnightntwrk/midnight-node/pull/597))
+
+### Throttle pallet `AccountUsage` storage migration
+
+`AccountUsage` storage moves from a two-field tuple to a `UsageStats` struct. External indexers or consumers reading the raw storage layout need to regenerate types from the 1.0.0 metadata after the runtime upgrade. ([#1060](https://github.com/midnightntwrk/midnight-node/pull/1060))
+
+### `motion_close` extrinsic signature change
+
+Callers must now pass `proposal_weight_bound: Weight` to `motion_close`. Any tooling that builds the old two-argument call will fail to encode against the new metadata. ([#1032](https://github.com/midnightntwrk/midnight-node/pull/1032))
+
+### Toolkit JSON log format change
+
+The toolkit drops `structured_logger` in favor of `tracing_subscriber`. JSON output uses a different shape (`timestamp` / `level` / `fields.message` / `target`). Update log-shipping pipelines accordingly. Pass `--log-json` to opt in to JSON output. ([#899](https://github.com/midnightntwrk/midnight-node/pull/899))
+
+### Toolkit image tag scheme
+
+The toolkit Docker image is now versioned independently from the node. Toolkit-only releases use the `toolkit-X.Y.Z` tag format. CI that resolves the toolkit image by the node version must be updated. ([#1261](https://github.com/midnightntwrk/midnight-node/pull/1261))
+
+### `unsafe_allow_symlinks` required in config
+
+The node now rejects symlinks by default when loading chainspec and config files. Set `unsafe_allow_symlinks = true` or `UNSAFE_ALLOW_SYMLINKS=true` if you intentionally use symlinked config paths. ([#832](https://github.com/midnightntwrk/midnight-node/pull/832), [#1372](https://github.com/midnightntwrk/midnight-node/pull/1372))
+
+---
+
+## Bug fixes and quality improvements
+
+The following bug fixes and quality improvements are included in this release.
+
+### Chain-state truncation after unclean shutdown
+
+An explicit DB-backend drop after tokio shutdown now drains parity-db's WAL pipeline, preventing silent chain-state truncation after SIGTERM. ([#1140](https://github.com/midnightntwrk/midnight-node/pull/1140), [#886](https://github.com/midnightntwrk/midnight-node/pull/886))
+
+### Zswap nonce/nullifier encoding fix
+
+The toolkit was incorrectly using the nullifier as the nonce when encoding zswap state. This is now fixed, with regression tests added. ([#895](https://github.com/midnightntwrk/midnight-node/pull/895), [#1128](https://github.com/midnightntwrk/midnight-node/pull/1128))
+
+### DustWallet spend-state propagation
+
+`DustWallet::speculative_spend` now returns the updated `DustLocalState` alongside spends, preventing `utxos()` from returning already-spent outputs in consecutive spend operations. ([#877](https://github.com/midnightntwrk/midnight-node/pull/877))
+
+### Early block-weight check
+
+The midnight pallet `pre_dispatch` now performs an early block-weight check, short-circuiting over-budget transactions before expensive ledger validation. ([#1305](https://github.com/midnightntwrk/midnight-node/pull/1305))
+
+### Audit-driven hardening
+
+- Checked arithmetic replaces unchecked casts in offer creation and wallet seed increment. ([#942](https://github.com/midnightntwrk/midnight-node/pull/942), [#1081](https://github.com/midnightntwrk/midnight-node/pull/1081))
+- Error propagation in ledger state updates and intent persistence replaces `expect` calls. ([#927](https://github.com/midnightntwrk/midnight-node/pull/927), [#873](https://github.com/midnightntwrk/midnight-node/pull/873))
+- CSPRNG for parent-block-hash fallback replaces non-cryptographic RNG. ([#878](https://github.com/midnightntwrk/midnight-node/pull/878))
+- Intent file reads capped at 64 MB. ([#874](https://github.com/midnightntwrk/midnight-node/pull/874))
+- Genesis file loader rejects symlinks, non-regular files, and files larger than 10 MB. ([#832](https://github.com/midnightntwrk/midnight-node/pull/832))
+- System-transaction handler rejects unrecognized variants with an explicit error. ([#840](https://github.com/midnightntwrk/midnight-node/pull/840))
+
+### Security advisory fixes
+
+Bumped `rustls-webpki` for RUSTSEC-2026-0049 and `astral-tokio-tar` for RUSTSEC-2026-0066. ([#1079](https://github.com/midnightntwrk/midnight-node/pull/1079))
+
+### Database and logging improvements
+
+- DB connection strings redacted from error logs (available at debug level). ([#1067](https://github.com/midnightntwrk/midnight-node/pull/1067))
+- cNIGHT observation address logs demoted from error to debug. ([#905](https://github.com/midnightntwrk/midnight-node/pull/905))
+- Improved logging for malformed ledger transactions. ([#961](https://github.com/midnightntwrk/midnight-node/pull/961))
+- `networkId` validated on boot against genesis state. ([#1265](https://github.com/midnightntwrk/midnight-node/pull/1265))
+- `ssl_root_cert` configuration option added for Postgres TLS. ([#1029](https://github.com/midnightntwrk/midnight-node/pull/1029))
+
+### Performance improvements
+
+- In-memory cache for `multi_asset.id` lookups removes repeated joins. ([#934](https://github.com/midnightntwrk/midnight-node/pull/934))
+- Pre-bounding `tx` / `tx_out` / `ma_tx_out` id ranges for cNIGHT observation queries allows Postgres to prune rows before joins. ([#1365](https://github.com/midnightntwrk/midnight-node/pull/1365))
+- Toolkit fetch syncs batch block-number-to-hash RPC calls into single requests. ([#1263](https://github.com/midnightntwrk/midnight-node/pull/1263))
+- Measured benchmark weights replace constant weights across FRAME and local pallets. ([#1495](https://github.com/midnightntwrk/midnight-node/pull/1495))
+- Node Docker image trimmed by approximately 200 MB via multi-stage build. ([#897](https://github.com/midnightntwrk/midnight-node/pull/897))
+
+### Midnight-ledger 8.1.0
+
+Bumps `midnight-ledger` to 8.1.0 with `storage-core` 1.2.0. Fixes include: `force_as_arc` race condition, `Sp` serialization panic, pending-`Updates` memory leak, and lock-ordering violation. Adds incremental GC and shared ParityDB backend access. ([#1301](https://github.com/midnightntwrk/midnight-node/pull/1301), [#1510](https://github.com/midnightntwrk/midnight-node/pull/1510))
+
+---
+
+## Known issues
+
+### `unsafe_allow_symlinks` config field required
+
+The `unsafe_allow_symlinks` field is required in this release and does not have a default value yet. Provide the argument to avoid a startup error. A default will be added in a future release.
+
+### Initial sync performance
+
+Initial sync from genesis is slow on some operator hardware (approximately 0.2 blocks per second observed). Use a curated paritydb snapshot if one is published for your network. Track [#1298](https://github.com/midnightntwrk/midnight-node/issues/1298) for progress.
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight Node repository](https://github.com/midnightntwrk/midnight-node)
+- **Release**: [Node v1.0.0 release](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.0)
+- **Docker image (node)**: `midnightntwrk/midnight-node:1.0.0`
+- **Docker image (toolkit)**: `midnightntwrk/midnight-node-toolkit:1.0.0`
+- **Test evidence**: [test-evidence-1.0.0-rc.8.md](https://github.com/midnightntwrk/midnight-node/blob/main/docs/releases/1.0.0/test-evidence/test-evidence-1.0.0-rc.8.md)
