@@ -222,6 +222,13 @@ const config = {
             from: '/category/zk-loan',
             to: '/tutorials/zk-loan',
           },
+          {
+            from: [
+              '/ai-tools/midnight-mcp-ai-assisted-development',
+              '/category/ai-tools',
+            ],
+            to: '/',
+          },
         ],
       },
     ],
