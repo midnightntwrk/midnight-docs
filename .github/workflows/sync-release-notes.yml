@@ -197,9 +197,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          VERSION="${VERSION}"
-          SLUG="${SLUG}"
-          DEST_FILE="${DEST_FILE}"
           TODAY=$(date +'%d %B %Y')
 
           # --- Component-to-DynamicList mapping ---
@@ -226,29 +223,12 @@ jobs:
           # --- Demote current LATEST to SUPPORTED ---
           sed -i "s/status: 'LATEST'/status: 'SUPPORTED'/" "$DYNAMIC_LIST"
 
-          # --- Build new entry ---
+          # --- Build new entry (single line to avoid YAML block scalar issues) ---
           if [[ "$COMPONENT" == "compact" && -n "$COMPACT_LANG_VER" ]]; then
             COMPACT_VER="${COMPACT_LANG_VER#v}"
-            NEW_ENTRY="  {\n\
-    version: '${VERSION}',\n\
-    compactVersion: '${COMPACT_VER}',\n\
-    status: 'LATEST',\n\
-    date: '${TODAY}',\n\
-    summary: 'Summary of Release ${VERSION}',\n\
-    details: [],\n\
-    artifacts: [],\n\
-    link: '/relnotes/${COMPONENT}/${SLUG}',\n\
-  },"
+            NEW_ENTRY="  {\n    version: '${VERSION}',\n    compactVersion: '${COMPACT_VER}',\n    status: 'LATEST',\n    date: '${TODAY}',\n    summary: 'Summary of Release ${VERSION}',\n    details: [],\n    artifacts: [],\n    link: '/relnotes/${COMPONENT}/${SLUG}',\n  },"
           else
-            NEW_ENTRY="  {\n\
-    version: '${VERSION}',\n\
-    status: 'LATEST',\n\
-    date: '${TODAY}',\n\
-    summary: 'Summary of Release ${VERSION}',\n\
-    details: [],\n\
-    artifacts: [],\n\
-    link: '/relnotes/${COMPONENT}/${SLUG}',\n\
-  },"
+            NEW_ENTRY="  {\n    version: '${VERSION}',\n    status: 'LATEST',\n    date: '${TODAY}',\n    summary: 'Summary of Release ${VERSION}',\n    details: [],\n    artifacts: [],\n    link: '/relnotes/${COMPONENT}/${SLUG}',\n  },"
           fi
 
           # --- Insert after 'const releases = [' ---
@@ -258,6 +238,13 @@ jobs:
 
           # --- Create branch, commit, push, open PR ---
           BRANCH="relnotes/$(date +'%Y%m%d')-${COMPONENT}-${VERSION}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "Error: branch '$BRANCH' already exists on remote."
+            echo "A PR for ${COMPONENT} v${VERSION} may already be open."
+            echo "Delete the remote branch first: git push origin --delete $BRANCH"
+            exit 1
+          fi
 
           git checkout -b "$BRANCH"
           git add "$DEST_FILE" "$DYNAMIC_LIST"
@@ -271,22 +258,26 @@ jobs:
             TITLE="Add ${COMPONENT} v${VERSION} release notes"
           fi
 
-          PR_URL=$(gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "$TITLE" \
-            --body "Automated release notes copy for **${COMPONENT} v${VERSION}**.
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json url --jq '.[0].url' 2>/dev/null || true)
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "PR already exists: $EXISTING_PR"
+          else
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "$TITLE" \
+              --body "Automated release notes copy for **${COMPONENT} v${VERSION}**.
 
-Source: \`${SOURCE_URL:-${SOURCE_PATH}}\`
+          Source: \`${SOURCE_URL:-${SOURCE_PATH}}\`
 
-### What to fill in manually
+          ### What to fill in manually
 
-- [ ] \`summary\`: replace the placeholder in \`${DYNAMIC_LIST}\`
-- [ ] \`details\`: add 5-8 bullet strings describing user-facing changes
-- [ ] \`artifacts\`: add NPM/Docker links
-- [ ] Reformat \`${DEST_FILE}\` to match the existing version file template")
-
-          echo "PR created: $PR_URL"
+          - [ ] \`summary\`: replace the placeholder in \`${DYNAMIC_LIST}\`
+          - [ ] \`details\`: add 5-8 bullet strings describing user-facing changes
+          - [ ] \`artifacts\`: add NPM/Docker links
+          - [ ] Reformat \`${DEST_FILE}\` to match the existing version file template")
+            echo "PR created: $PR_URL"
+          fi
 
         env:
           COMPONENT: ${{ github.event.inputs.component }}
