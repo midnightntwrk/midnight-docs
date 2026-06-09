@@ -63,6 +63,7 @@ const releases = [
   {
     version: '4.0.2',
     status: 'SUPPORTED',
+    note: 'Maintenance line for Node 0.22.x',
     date: '23 April 2026',
     summary: 'Patch release correcting paidFees computation.',
     details: [
@@ -78,6 +79,7 @@ const releases = [
   {
     version: '4.0.1',
     status: 'SUPPORTED',
+    note: 'Maintenance line for Node 0.22.x',
     date: '25 March 2026',
     summary: 'Patch release correcting timestamp unit mismatch in capacity calculation.',
     details: [
@@ -395,6 +397,13 @@ const DynamicListWithDropdownFilters = () => {
 
           {/* Release date */}
           <p style={{ fontSize: '0.9rem', marginTop: '1rem', marginBottom: '1rem' }}>{release.date}</p>
+
+          {/* Optional note */}
+          {release.note && (
+            <p style={{ fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)', marginTop: '0', marginBottom: '1rem' }}>
+              {release.note}
+            </p>
+          )}
 
           {/* Artifacts Section */}
           {release.artifacts.length > 0 && (

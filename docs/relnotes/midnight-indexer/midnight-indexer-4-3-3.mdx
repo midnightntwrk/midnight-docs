@@ -61,19 +61,19 @@ Adds per-connection and per-client subscription limits to the GraphQL WebSocket.
 
 ### `@beta` GraphQL directive for in-flight API fields
 
-Introduces a `@beta` schema directive (applicable to `FIELD_DEFINITION` and `OBJECT`) to mark API surface that is still in flight and carries no stability guarantee. Several dust and nullifier fields in this release are annotated `@beta`. Consumers should treat those fields as subject to change without a major version bump.
+Introduces a `@beta` schema directive (applicable to `FIELD_DEFINITION` and `OBJECT`) to mark API surface that is still in flight and carries no stability guarantee. This release annotates several dust and nullifier fields with `@beta`. Consumers should treat those fields as subject to change without a major version bump.
 
 ### Per-tree end indexes on `Block`
 
-Adds `zswapEndIndex` and the `@beta` fields `dustCommitmentEndIndex` and `dustGenerationEndIndex` to `Block`. Each value is the chain's `first_free` (exclusive) for that tree as of the block, written after all transactions are applied. The values are monotonic non-decreasing across the chain. This lets clients track per-tree growth directly from a block without a separate query.
+Adds `zswapEndIndex` and the `@beta` fields `dustCommitmentEndIndex` and `dustGenerationEndIndex` to `Block`. Each value is the chain's `first_free` (exclusive) for that tree as of the block, written after the chain applies all transactions. The values are monotonic non-decreasing across the chain. This lets clients track per-tree growth directly from a block without a separate query.
 
 ### Transaction reference on nullifier event types
 
-Adds a `transaction: Transaction!` field (`@beta`) to `DustNullifierTransaction` and `ShieldedNullifierTransaction`, resolved lazily via the existing transaction DataLoader. The field is fetched only when selected, with no payload cost for consumers that do not request it. This lets wallet sync pull the full transaction inline from a nullifier match instead of gathering hashes and querying separately. The existing `transactionId` and `transactionHash` fields are retained.
+Adds a `transaction: Transaction!` field (`@beta`) to `DustNullifierTransaction` and `ShieldedNullifierTransaction`, resolved lazily via the existing transaction DataLoader. The DataLoader fetches the field only when selected, with no payload cost for consumers that do not request it. This lets wallet sync pull the full transaction inline from a nullifier match instead of gathering hashes and querying separately. The existing `transactionId` and `transactionHash` fields remain available.
 
 ### Tighter shielded nullifier transactions input validation
 
-Hardens input validation on the shielded nullifier transactions surface. Malformed or out-of-range arguments are rejected at the API boundary rather than propagating into query execution.
+Hardens input validation on the shielded nullifier transactions surface. The API boundary now rejects malformed or out-of-range arguments rather than propagating them into query execution.
 
 ---
 
@@ -81,21 +81,21 @@ Hardens input validation on the shielded nullifier transactions surface. Malform
 
 ### Dust nullifier byte fields renamed with `LeBytes` suffix
 
-Confined to `@beta` (in-flight) fields, so there is no impact on stable-API consumers. These fields are new in the 4.3.x API line and are not present in the 4.0.x production line, so production deployments are unaffected. Consumers of the beta dust nullifier API must update field and argument names:
+Confined to `@beta` (in-flight) fields, so there is no impact on stable-API consumers. If you are on the 4.0.x production line (paired with Node 0.22.x), this change does not affect you. These fields do not exist in the 4.0.x API surface. Only consumers of the beta dust nullifier API on the 4.3.x line need to update field and argument names:
 
 - `DustNullifierTransaction.nullifier` becomes `nullifierLeBytes`
 - `DustNullifierTransaction.commitment` becomes `commitmentLeBytes`
 - `dustNullifierTransactions(...)` subscription argument `nullifierPrefixes` becomes `nullifierLeBytesPrefixes`
 
-The shielded nullifier types are unchanged. The rename makes the little-endian byte encoding explicit in the field name.
+The shielded nullifier types remain the same. The rename makes the little-endian byte encoding explicit in the field name.
 
 ---
 
 ## Bug fixes
 
-### `dustGenerations` subscription dtime update fix
+### Fix for `dustGenerations` subscription dtime updates
 
-Fresh `dustGenerations` subscriptions (starting from index 0 with no prior cutoff) now deliver their `DustGenerationDtimeUpdate` items instead of short-circuiting the dtime drain. A freshly connected wallet receives dtime updates for the historical range. ([#1166](https://github.com/midnightntwrk/midnight-indexer/pull/1166))
+Fresh `dustGenerations` subscriptions (starting from index 0 with no prior cutoff) previously short-circuited the dtime drain, causing the subscription to skip `DustGenerationDtimeUpdate` items. The subscription now delivers these items correctly, so a freshly connected wallet receives dtime updates for the full historical range. ([#1166](https://github.com/midnightntwrk/midnight-indexer/pull/1166))
 
 ---
 
