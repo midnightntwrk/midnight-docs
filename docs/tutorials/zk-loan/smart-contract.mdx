@@ -295,15 +295,9 @@ struct Applicant {
 // `ownPublicKey()` is never used: it returns a prover-claimed value with no
 // cryptographic binding to the transaction signer, so any assertion that
 // depends on it is bypassable.
-export struct UserSecretKey {
-    bytes: Bytes<32>;
-}
-export struct UserPublicKey {
-    bytes: Bytes<32>;
-}
-export struct AdminPublicKey {
-    bytes: Bytes<32>;
-}
+export new type UserSecretKey = Bytes<32>;
+export new type UserPublicKey = Bytes<32>;
+export new type AdminPublicKey = Bytes<32>;
 
 constructor() {
     contractAdmin = disclose(deriveAdminPublicKey(getUserSecret()));
@@ -322,25 +316,21 @@ witness getUserSecret(): UserSecretKey;
 // public key, breaking linkability to the old identity.
 export pure circuit deriveUserPublicKey(sk: UserSecretKey, pin: Uint<16>): UserPublicKey {
     const pinBytes = persistentHash<Uint<16>>(pin);
-    return UserPublicKey {
-        bytes: persistentHash<Vector<3, Bytes<32>>>([
-            pad(32, "zkloan:user:pk:v1"),
-            pinBytes,
-            sk.bytes
-        ])
-    };
+    return persistentHash<[Bytes<17>, Bytes<32>, UserSecretKey]>([
+        "zkloan:user:pk:v1",
+        pinBytes,
+        sk
+    ]) as UserPublicKey;
 }
 
 // Admin identity. No PIN binding — the admin role is stable across the
 // admin's PIN rotations. The deployer's `deriveAdminPublicKey(secret)` is
 // frozen into `contractAdmin` at construction.
 export pure circuit deriveAdminPublicKey(sk: UserSecretKey): AdminPublicKey {
-    return AdminPublicKey {
-        bytes: persistentHash<Vector<2, Bytes<32>>>([
-            pad(32, "zkloan:admin:pk:v1"),
-            sk.bytes
-        ])
-    };
+    return persistentHash<[Bytes<18>, UserSecretKey]>([
+        "zkloan:admin:pk:v1",
+        sk
+    ]) as AdminPublicKey;
 }
 ```
 
@@ -350,7 +340,9 @@ Define the data types next. Note two key things:
 - `LoanApplication` and `LoanStatus` are *exported*. The `export` keyword does not make them public — it generates TypeScript bindings in the compiled artifacts so the DApp can read and construct these types. They are visible on-chain because they are the value and field types stored in the `loans` ledger map; all ledger state is public, so anyone can read a loan's status and authorized amount.
 - `Applicant` is *not exported*, so no TypeScript binding is generated for it. It stays private because it is only ever used as witness and circuit-internal data and is never written to ledger state — not because of the missing `export`. The credit score, income, and tenure never appear on-chain.
 
-`UserSecretKey`, `UserPublicKey`, and `AdminPublicKey` each wrap a single `Bytes<32>`. The wrapper structs are deliberate: they are all 32-byte values, but giving each a distinct named type makes them *nominally* distinct in Compact, so the compiler rejects passing a `UserPublicKey` where an `AdminPublicKey` is expected (and vice versa). A bare `Bytes<32>` everywhere would compile too, but it would let a user key and an admin key be used interchangeably — exactly the kind of confusion this contract's security depends on avoiding.
+`UserSecretKey`, `UserPublicKey`, and `AdminPublicKey` are each declared with `new type` — a *nominal* alias over `Bytes<32>`. The form is `new type X = T;`, which creates a distinct type with the same representation as `T`. The three share the same 32-byte layout, but the compiler treats them as distinct: it rejects passing a `UserPublicKey` where a circuit expects an `AdminPublicKey` (or a raw `Bytes<32>`), and vice versa. A bare `Bytes<32>` everywhere would compile too, but it would let callers swap a user key for an admin key — exactly the confusion this contract's security depends on avoiding.
+
+A `new type` is lighter than the single-field wrapper struct it replaces (`struct UserPublicKey { bytes: Bytes<32>; }`). It adds no object wrapper, so the value is a bare `Bytes<32>` in Compact and a plain `Uint8Array` in the generated TypeScript — not a `{ bytes: ... }` object. There is no `UserPublicKey { ... }` or `UserPublicKey(...)` constructor: you go *into* the type with `value as UserPublicKey` and *out* with `pk as Bytes<32>` to recover the underlying bytes. Add `export` to a `new type` whenever it appears in an exported circuit or ledger signature, so the compiler generates the TypeScript binding.
 
 The [ledger](/concepts/ledgers) declarations define what lives on the blockchain:
 - `loans` is a *nested map*: the outer key is the user's derived public key bytes (`Bytes<32>`), the inner key is a loan ID (`Uint<16>`), and the value is the `LoanApplication`. This lets each user have multiple loans.
@@ -359,6 +351,12 @@ The [ledger](/concepts/ledgers) declarations define what lives on the blockchain
 - `blacklist` stores derived `UserPublicKey` values, not wallet addresses. A user's `UserPublicKey` at a given PIN is `persistentHash("zkloan:user:pk:v1" || hash(pin) || userSecret)`. A malicious caller cannot bypass the blacklist check by claiming a different wallet pubkey — their identity in this contract is whatever their witness secret hashes to.
 - `onGoingPinMigration` tracks progress when a user changes their PIN (more on this in the identity section).
 - `deriveUserPublicKey(sk, pin)` is the per-user identity derivation; `deriveAdminPublicKey(sk)` is the admin derivation. Both consume the same 32-byte witness secret. Different domain-separator strings keep the two derivations uncorrelated.
+
+Two details about how these hashes are built. First, `persistentHash` hashes *any* type, not just a `Vector` — here it takes a heterogeneous tuple (`[Bytes<17>, Bytes<32>, UserSecretKey]`) and hashes the `UserSecretKey` value directly, with no `.bytes` field to extract. Second, a domain-separator string literal goes straight into the tuple at its real byte length; there is no `pad()`. Count the bytes exactly: `"zkloan:user:pk:v1"` is **17 bytes** (`Bytes<17>`), while `"zkloan:admin:pk:v1"` is **18 bytes** (`Bytes<18>`) — the longer `admin` segment makes it one byte longer, so always count rather than copying a length from elsewhere. Each circuit ends with `... as UserPublicKey` / `... as AdminPublicKey` to tag the resulting `Bytes<32>` as the nominal type the signature promises.
+
+:::note
+These circuits stay exported because the off-chain code derives keys through them: the CLI/UI calls `pureCircuits.deriveUserPublicKey` for the per-user key and `pureCircuits.deriveAdminPublicKey` for the admin key. `export` on a circuit is a choice, not a requirement — if a contract derives keys only on-chain, the derivation circuit can stay unexported. Note also that dropping `pad()` changes the hash preimage (a raw 17/18-byte string instead of a 32-byte zero-padded one), so a given secret now derives a *different* public key than the earlier struct-based code did. Every consumer derives through this one compiled circuit, so they all agree; but an already-deployed instance built from the old code derives different identities, so treat it as a fresh deploy.
+:::
 
 Two witnesses. `getAttestedScoringWitness` returns the applicant's credit profile and the Schnorr-signed attestation. `getUserSecret` returns the 32-byte secret that drives all identity in the contract — the admin role and per-user PIN-bound identity. The TypeScript implementation is covered in the next section.
 
@@ -376,19 +374,19 @@ export circuit requestLoan(amountRequested: Uint<16>, secretPin: Uint<16>): [] {
     const requesterPubKey = deriveUserPublicKey(getUserSecret(), secretPin);
     const disclosedRequesterPubKey = disclose(requesterPubKey);
     assert(!blacklist.member(disclosedRequesterPubKey), "Requester is blacklisted");
-    assert(!onGoingPinMigration.member(disclosedRequesterPubKey.bytes),
+    assert(!onGoingPinMigration.member(disclosedRequesterPubKey as Bytes<32>),
            "PIN migration is in progress for this user");
-    const userPubKeyHash = transientHash<Bytes<32>>(disclosedRequesterPubKey.bytes);
+    const userPubKeyHash = transientHash<Bytes<32>>(disclosedRequesterPubKey as Bytes<32>);
     const [topTierAmount, status] = evaluateApplicant(userPubKeyHash);
     const disclosedTopTierAmount = disclose(topTierAmount);
     const disclosedStatus = disclose(status);
-    createLoan(disclosedRequesterPubKey.bytes, amountRequested, disclosedTopTierAmount, disclosedStatus);
+    createLoan(disclosedRequesterPubKey as Bytes<32>, amountRequested, disclosedTopTierAmount, disclosedStatus);
 }
 
 export circuit respondToLoan(loanId: Uint<16>, secretPin: Uint<16>, accept: Boolean): [] {
     const requesterPubKey = deriveUserPublicKey(getUserSecret(), secretPin);
     const disclosedRequesterPubKey = disclose(requesterPubKey);
-    const disclosedPubKey = disclosedRequesterPubKey.bytes;
+    const disclosedPubKey = disclosedRequesterPubKey as Bytes<32>;
     const disclosedLoanId = disclose(loanId);
 
     assert(!blacklist.member(disclosedRequesterPubKey), "User is blacklisted");
@@ -582,8 +580,8 @@ export circuit changePin(oldPin: Uint<16>, newPin: Uint<16>): [] {
     assert(!blacklist.member(disclosedOldUserPk), "User is blacklisted");
     assert(oldPin != newPin, "New PIN must be different from old PIN");
 
-    const disclosedOldPk = disclosedOldUserPk.bytes;
-    const disclosedNewPk = disclosedNewUserPk.bytes;
+    const disclosedOldPk = disclosedOldUserPk as Bytes<32>;
+    const disclosedNewPk = disclosedNewUserPk as Bytes<32>;
 
     assert(loans.member(disclosedOldPk), "Old PIN does not match any user");
 
@@ -705,12 +703,12 @@ export const witnesses = {
     privateState,
   }: WitnessContext<Ledger, ZKLoanCreditScorerPrivateState>): [
     ZKLoanCreditScorerPrivateState,
-    { bytes: Uint8Array },
+    Uint8Array,
   ] => {
     if (!privateState.userSecretKey || privateState.userSecretKey.length !== 32) {
       throw new Error("getUserSecret: userSecretKey is missing or wrong length");
     }
-    return [privateState, { bytes: privateState.userSecretKey }];
+    return [privateState, privateState.userSecretKey];
   },
 };
 ```
@@ -723,7 +721,7 @@ In the code above, each witness function receives a `WitnessContext` containing 
 
 *   `getSchnorrReduction`: computes the quotient and remainder of dividing the challenge hash by 2^248 (Jubjub scalar field truncation).
 
-*   `getUserSecret`: returns the 32-byte secret that drives all caller identity in this contract. The contract feeds it into two pure circuits — `deriveUserPublicKey(secret, pin)` for per-user PIN-bound identity, and `deriveAdminPublicKey(secret)` for the admin role. Only the deploying admin's secret hashes to the value stored in `contractAdmin`; everyone else's `getUserSecret` returns a value whose admin-derivation does not match, so admin assertions fail for them. Domain-separator strings (`"zkloan:admin:pk:v1"` vs `"zkloan:user:pk:v1"`) keep the two derivations from the same secret uncorrelated. The runtime length check ensures malformed witnesses are rejected at proof time.
+*   `getUserSecret`: returns the 32-byte secret that drives all caller identity in this contract. Because `UserSecretKey` is now a `new type` over `Bytes<32>`, its generated TypeScript type is a plain `Uint8Array` — the witness returns the bare secret, with no `{ bytes: ... }` wrapper. The contract feeds it into two pure circuits — `deriveUserPublicKey(secret, pin)` for per-user PIN-bound identity, and `deriveAdminPublicKey(secret)` for the admin role. Only the deploying admin's secret hashes to the value stored in `contractAdmin`; everyone else's `getUserSecret` returns a value whose admin-derivation does not match, so admin assertions fail for them. Domain-separator strings (`"zkloan:admin:pk:v1"` vs `"zkloan:user:pk:v1"`) keep the two derivations from the same secret uncorrelated. The runtime length check rejects malformed witnesses at proof time.
 
 ## Create the smart contract TypeScript exports
 
