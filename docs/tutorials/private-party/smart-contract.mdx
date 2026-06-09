@@ -32,7 +32,7 @@ Before you begin this tutorial, ensure you have:
 
 ## Problem analysis
 
-The private party contract provides a mechanism for the party organizer to collect RSVP notifications for a party while maintaining the privacy of party attendees up until a specific boundary, where attendees then become public. This tutorial will refer to this as the "privacy boundary" and it is an important element to understand when developing Midnight DApps. In this example, the privacy boundary is crossed with an entry fee paid in Unshielded NIGHT tokens.
+The private party contract provides a mechanism for the party organizer to collect RSVP notifications for a party while maintaining the privacy of party attendees up until a specific boundary, where attendees then become public. This tutorial will refer to this as the "privacy boundary" and it is an important element to understand when developing Midnight DApps. In this example paying the entry fee in Unshielded NIGHT tokens crosses the privacy boundary.
 
 In Compact, privacy is the default and you as the DApp developer hold the responsibility to manually transition a piece of data from private to public. However, certain functions in Compact will *always be public*. 
 
@@ -44,7 +44,7 @@ This tutorial will demonstrate absolute privacy for party attendees until the Un
 
 ## Program design
 
-The private party program will maintain privacy of party attendees by letting them RSVP to a party with a DApp specific public key that hides their identity. The party organizer will collect an entry fee in NIGHT tokens, which are Unshielded and therefore public transactions. This means that the attendees of the party will be private until they pay the entry fee and arrive at the party.
+The private party program will maintain privacy of party attendees by letting them RSVP to a party with a DApp specific public key that hides their identity. The party organizer will collect an entry fee in NIGHT tokens. NIGHT is an Unshielded and therefore these transactions are public. This means that the attendees of the party will be private until they pay the entry fee and arrive at the party.
 
 The organizer will maintain privacy within the DApp until the contract pays out the fees claimed by the organizer.
 
@@ -79,7 +79,7 @@ An important aspect of developing smart contracts in open public systems, like t
 
 ## Compact tutorial
 
-Compact provides a significant amount of flexibility for a DApp developer to precisely define a mix of public and private data. This tutorial will focus primarily on the Compact code and the remainaing setup code will be provided.
+Compact provides a significant amount of flexibility for a DApp developer to precisely define a mix of public and private data. This tutorial will focus primarily on the Compact code and the remainaing setup code comes with the repository.
 
 ### Setup
 
@@ -144,7 +144,7 @@ constructor (partySize: Uint<16>, fee: Uint<16>, _secret: Bytes<32>) {
 }// end of constructor
 ```
 
-The implementation for `getDappPublicKey()` will come later, for now, just understand that the organizer provides a secret that is hashed to provide a "public key" that is specific to this DApp. Compact circuit inputs are private, so the `_secret` can be passed from private state directly to the circuit inputs and never be exposed publicly. The `pubKey` is safe to store on the ledger publicly, because it does not tie to the organizers address or any other identifying information.
+The implementation for `getDappPublicKey()` will come later, for now, just understand that the organizer provides a secret that is hashed to provide a "public key" that is specific to this DApp. Compact circuit inputs are private, so the `_secret` is passed from private state directly to the circuit inputs and never exposed publicly. The `pubKey` is safe to store on the ledger publicly, because it does not tie to the organizers address or any other identifying information.
 
 Now that you have verified the inputs and privately identified the party organizer, set the remaining ledger fields:
 ```compact
@@ -224,11 +224,11 @@ export circuit checkIn(address: UserAddress, _secret: Bytes<32>): [] {
 }// end of checkIn
 ```
 
-This circuit is intended to be called only by attendees who have already RSVP'd and restricts access to those on the `hashedPartyGoers` list. If the circuit caller is not on this list, or has provided a different `address` or `_secret` their circuit call will not pass the caller verification checks.
+This circuit intends to be called only by attendees who have already RSVP'd and restricts access to those on the `hashedPartyGoers` list. If the circuit caller is not on this list, or has provided a different `address` or `_secret` their circuit call will not pass the caller verification checks.
 
 The `commitAddress()` circuit makes use of a one-way, deterministic hashing function. In order to prove that the caller is some previously stored caller, they provide the same values and those values are hashed again. Comparing these two hashes should match if the caller provided the same value.
 
-Now that the caller has been identified and state is as expected, the contract needs to accept payment. Payment for the party is denominated in NIGHT, which is an Unshielded token. All Unshielded tokens are public transactions.
+Now that the caller is identified and state is as expected, the contract needs to accept payment. Payment for the party is denominated in NIGHT, which is an Unshielded token. All Unshielded tokens are public transactions.
 
 The private party attendees are now public:
 ```compact
@@ -264,7 +264,7 @@ export circuit closeEntry(_secret: Bytes<32>): [] {
 }// end of closeEntry
 ```
 
-The contract accepted the NIGHT tokens and now holds them to be claimed by the organizer. The contract needs to provide a circuit that allows the organizer to claim these fees:
+The contract accepted the NIGHT tokens and now holds them for claiming by the organizer. The contract needs to provide a circuit that allows the organizer to claim these fees:
 ```compact
 export circuit claimFees(address: UserAddress, _secret: Bytes<32>): [] {
     const pubKey = getDappPublicKey(_secret);
@@ -292,7 +292,7 @@ This circuit has similar components to previous circuits, except that it calcula
 
 It is important to verify through `unshieldedBalanceGte()` that the contract balance is as expected. If the balance is too low to perform the `sendUnshielded()` transaction, the circuit execution will fail.
 
-Now the `commitAddress()` circuit is implemented:
+Now the `commitAddress()` circuit:
 ```compact
 circuit commitAddress(_address: Bytes<32>, _secret: Bytes<32>): Bytes<32> {
     return persistentCommit<Bytes<32>>(_address, _secret);
@@ -310,7 +310,7 @@ circuit getDappPublicKey(_secret: Bytes<32>): Bytes<32> {
 
 By contrast, the `persistentHash` function is for arbitrary binary data, like the `_secret`. Hashed with the domain seperator specific to this DApp, it produces a "DApp specific public key" that needs to be disclosed if intending to cross into the public domain. This is currently the only safe way to verify the caller of a Compact circuit.
 
-That is all of the Compact code needed to enable our private party!
+That is all of the Compact code needed to enable your private party!
 
 ### Compilation
 
@@ -441,8 +441,8 @@ Read through the MidnightJS components that enable these tests in `/src/test/par
 
 This concludes the private party tutorial, hopefully you enjoyed the private party -- or was it really private? The inclusion of the Unshielded NIGHT token exposed the party attendees. To maintain their privacy, rework this contract and test suite to use Shielded tokens.
 
-To inspect the full private-party repository see [example-private-party](https://github.com/midnightntwrk/example-private-party). Drop a message in Discord dev-chat that you've completed this tutorial and you are now a party planner or if you *mustache* us any questions.
+To inspect the full private-party repository see [example-private-party](https://github.com/midnightntwrk/example-private-party). Drop a message in Discord dev-chat that you've completed this tutorial and you are now a party planner or if you *mustache* any questions.
 
-## Next Steps
+## Next steps
 
 For a more comprehensive, from scratch tutorial, see [Battleship](../bship/index.mdx) or move on to a more advanced use case with [ZK-loan](../zk-loan/index.mdx).
