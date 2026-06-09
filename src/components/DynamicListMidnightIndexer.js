@@ -17,8 +17,31 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.3.2',
+    version: '4.3.3',
     status: 'LATEST',
+    date: '4 June 2026',
+    summary: 'Subscription quotas, @beta directive, per-tree end indexes, and dustGenerations fix.',
+    details: [
+      'Added per-connection and per-client subscription quotas to GraphQL WebSocket',
+      'Introduced `@beta` GraphQL directive for in-flight API fields',
+      'Added per-tree end indexes (`zswapEndIndex`, `dustCommitmentEndIndex`, `dustGenerationEndIndex`) to `Block`',
+      'Added lazy `transaction` reference on nullifier event types',
+      'Tightened shielded nullifier transactions input validation',
+      'Renamed dust nullifier byte fields with `LeBytes` suffix (breaking, `@beta` only)',
+      'Fixed `dustGenerations` subscription to deliver dtime updates on fresh subscriptions',
+    ],
+    artifacts: [
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+      { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-3-3',
+  },
+  {
+    version: '4.3.2',
+    status: 'SUPPORTED',
     date: '15 May 2026',
     summary: 'Kubernetes liveness endpoint and dustGenerations subscription fix',
     details: [

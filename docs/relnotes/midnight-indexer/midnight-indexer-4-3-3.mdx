@@ -1,0 +1,107 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight Indexer v4.3.3 release notes
+displayed_sidebar: sidebar
+description: Release notes for Midnight Indexer v4.3.3, including subscription quotas, the @beta directive, per-tree end indexes, and bug fixes.
+toc_max_heading_level: 2
+---
+
+* **Version**: v4.3.3
+* **Date**: June 4, 2026
+* **Paired node**: 1.0.0
+* **Paired ledger**: 8.1.0
+
+---
+
+## High-level summary
+
+Midnight Indexer 4.3.3 is a patch release on the 4.3.x development line, shipping as part of the Midnight 1.1 bundle. It adds GraphQL WebSocket subscription quotas, introduces the `@beta` directive for in-flight API fields, exposes per-tree end indexes on `Block`, and adds a lazy `transaction` reference on nullifier event types. It also tightens shielded nullifier input validation and fixes `dustGenerations` subscriptions to deliver dtime updates on fresh connections.
+
+This release pairs with Node 1.0.0 and Ledger 8.1.0. Operators on Node 0.22.x should track the 4.0.x maintenance line instead.
+
+:::caution[Upgrading from 4.0.x]
+Upgrading from the 4.0.x line to 4.3.3 requires an indexer reset and re-index from genesis. Budget approximately 3-4 days at Mainnet/Preprod scale. Upgrades within the 4.3.x line (from 4.3.2 to 4.3.3) are drop-in: bump the image tag and rolling-restart. One additive migration (`003_block_tree_end_indexes` / `004_block_tree_end_indexes`) runs automatically with no chain reset.
+:::
+
+---
+
+## Audience
+
+This release note is relevant for:
+
+- Operators running the Midnight Indexer against Node 1.0.0 or later
+- DApp and wallet developers integrating against the Indexer GraphQL API
+- Wallet integrators consuming dust subscriptions (`dustGenerations`, `dustNullifierTransactions`)
+- SREs configuring kubernetes probes on `indexer-api`
+
+Operators on Node 0.22.x should track the 4.0.x maintenance line, not this release.
+
+---
+
+## What changed
+
+- Added per-connection and per-client subscription quotas to the GraphQL WebSocket ([#1104](https://github.com/midnightntwrk/midnight-indexer/pull/1104))
+- Tightened shielded nullifier transactions input validation ([#1126](https://github.com/midnightntwrk/midnight-indexer/pull/1126))
+- Introduced `@beta` GraphQL directive for in-flight API fields ([#1186](https://github.com/midnightntwrk/midnight-indexer/pull/1186))
+- Added per-tree end indexes (`zswapEndIndex`, `dustCommitmentEndIndex`, `dustGenerationEndIndex`) to `Block` ([#1197](https://github.com/midnightntwrk/midnight-indexer/pull/1197))
+- Renamed dust nullifier byte fields with `LeBytes` suffix, breaking change confined to `@beta` fields ([#1199](https://github.com/midnightntwrk/midnight-indexer/pull/1199))
+- Added lazy `transaction` reference on `DustNullifierTransaction` and `ShieldedNullifierTransaction` ([#1208](https://github.com/midnightntwrk/midnight-indexer/pull/1208))
+- Fixed `dustGenerations` subscription to deliver `DustGenerationDtimeUpdate` items on fresh subscriptions ([#1166](https://github.com/midnightntwrk/midnight-indexer/pull/1166))
+
+---
+
+## New features
+
+Below are the new features introduced in this release.
+
+### Subscription quotas on GraphQL WebSocket
+
+Adds per-connection and per-client subscription limits to the GraphQL WebSocket. A single connection or client can no longer open an unbounded number of concurrent subscriptions. This is the indexer-side guardrail for the unbounded-subscription pen-test finding (HAL-02), bounding the database load a single client can drive.
+
+### `@beta` GraphQL directive for in-flight API fields
+
+Introduces a `@beta` schema directive (applicable to `FIELD_DEFINITION` and `OBJECT`) to mark API surface that is still in flight and carries no stability guarantee. Several dust and nullifier fields in this release are annotated `@beta`. Consumers should treat those fields as subject to change without a major version bump.
+
+### Per-tree end indexes on `Block`
+
+Adds `zswapEndIndex` and the `@beta` fields `dustCommitmentEndIndex` and `dustGenerationEndIndex` to `Block`. Each value is the chain's `first_free` (exclusive) for that tree as of the block, written after all transactions are applied. The values are monotonic non-decreasing across the chain. This lets clients track per-tree growth directly from a block without a separate query.
+
+### Transaction reference on nullifier event types
+
+Adds a `transaction: Transaction!` field (`@beta`) to `DustNullifierTransaction` and `ShieldedNullifierTransaction`, resolved lazily via the existing transaction DataLoader. The field is fetched only when selected, with no payload cost for consumers that do not request it. This lets wallet sync pull the full transaction inline from a nullifier match instead of gathering hashes and querying separately. The existing `transactionId` and `transactionHash` fields are retained.
+
+### Tighter shielded nullifier transactions input validation
+
+Hardens input validation on the shielded nullifier transactions surface. Malformed or out-of-range arguments are rejected at the API boundary rather than propagating into query execution.
+
+---
+
+## Breaking changes
+
+### Dust nullifier byte fields renamed with `LeBytes` suffix
+
+Confined to `@beta` (in-flight) fields, so there is no impact on stable-API consumers. These fields are new in the 4.3.x API line and are not present in the 4.0.x production line, so production deployments are unaffected. Consumers of the beta dust nullifier API must update field and argument names:
+
+- `DustNullifierTransaction.nullifier` becomes `nullifierLeBytes`
+- `DustNullifierTransaction.commitment` becomes `commitmentLeBytes`
+- `dustNullifierTransactions(...)` subscription argument `nullifierPrefixes` becomes `nullifierLeBytesPrefixes`
+
+The shielded nullifier types are unchanged. The rename makes the little-endian byte encoding explicit in the field name.
+
+---
+
+## Bug fixes
+
+### `dustGenerations` subscription dtime update fix
+
+Fresh `dustGenerations` subscriptions (starting from index 0 with no prior cutoff) now deliver their `DustGenerationDtimeUpdate` items instead of short-circuiting the dtime drain. A freshly connected wallet receives dtime updates for the historical range. ([#1166](https://github.com/midnightntwrk/midnight-indexer/pull/1166))
+
+---
+
+## Links and references
+
+- **GitHub release**: [v4.3.3 on GitHub](https://github.com/midnightntwrk/midnight-indexer/releases/tag/v4.3.3)
+- **Schema**: [Indexer API v4 schema](https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.3/indexer-api/graphql/schema-v4.graphql)
+- **API reference**: [Midnight Indexer API v4](/api-reference/midnight-indexer/)
+- **Docker images**: [Chain Indexer](https://hub.docker.com/r/midnightntwrk/chain-indexer), [Indexer API](https://hub.docker.com/r/midnightntwrk/indexer-api), [Wallet Indexer](https://hub.docker.com/r/midnightntwrk/wallet-indexer), [Indexer Standalone](https://hub.docker.com/r/midnightntwrk/indexer-standalone), [SPO Indexer](https://hub.docker.com/r/midnightntwrk/spo-indexer)
