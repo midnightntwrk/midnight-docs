@@ -1,0 +1,91 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight Indexer v4.3.2 release notes
+description: The Midnight Indexer indexes on-chain data and exposes it through a GraphQL API for DApps and wallets on the Midnight Network.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v4.3.2
+* **Date**: May 15, 2026
+* **Paired node**: 1.0.0
+* **Paired ledger**: 8.1.0
+
+---
+
+## High-level summary
+
+Midnight Indexer 4.3.2 is a patch release on the development line, shipping as part of the Midnight 1.1 bundle. It adds an HTTP `/live` liveness endpoint to indexer-api for kubernetes probe integration and fixes a `dustGenerations` subscription bug where the termination signal could miss in-flight wallet entries.
+
+This release pairs with Node 1.0.0 and Ledger 8.1.0. Operators on Node 0.22.x should track the 4.0.x maintenance line instead.
+
+:::caution
+Upgrading from the 4.0.x line to 4.3.2 requires an indexer reset and re-index from genesis. Budget approximately 3-4 days at mainnet/preprod scale. Upgrades within the 4.3.x line (4.3.0 to 4.3.1 to 4.3.2) are drop-in and require no reset.
+:::
+
+## Audience
+
+This release note is most relevant for:
+
+- Operators running the Midnight Indexer against Node 1.0.0 or later.
+- Wallet integrators consuming the `dustGenerations` subscription.
+- SREs configuring kubernetes liveness probes on indexer-api.
+
+Operators on Node 0.22.x should track the 4.0.x maintenance line, not this release.
+
+## Summary of updates
+
+- Added `/live` HTTP endpoint for kubernetes liveness probes in indexer-api.
+- Fixed `dustGenerations` subscription termination to use chain progress instead of per-wallet cursor.
+- Added re-drain step to close the race window between storage drain and chain-progress read.
+
+---
+
+## New features
+
+Below is a detailed breakdown of the new capabilities introduced in this release.
+
+### `/live` HTTP endpoint for kubernetes liveness probe
+
+Adds an HTTP `/live` endpoint to indexer-api alongside the existing `/ready` endpoint. SREs can configure this as the kubernetes liveness probe, replacing the previous file-existence check (`cat /var/run/indexer-api/running`) which could not detect a stuck HTTP server.
+
+With `/live`, kubelet auto-recovers indexer-api pods that enter an unresponsive state by triggering a restart after the probe failure threshold.
+
+This is opt-in. To use it, update the deployment manifest's `livenessProbe` to an `httpGet` against `/live` on the API port. The file-existence probe continues to work for backward compatibility.
+
+---
+
+## Breaking changes
+
+No breaking changes are introduced in v4.3.2. This is a drop-in upgrade for operators already on the indexer 4.x development line.
+
+---
+
+## Bug fixes and quality improvements
+
+The following bug fixes and quality improvements are included in this release.
+
+### `dustGenerations` subscription termination fix
+
+The `dustGenerations` subscription could hang in live-tail when the user-supplied `endIndex` did not coincide with a wallet-owned generation index. The termination signal now uses chain progress (`chain_first_free > end_index`) instead of the per-wallet cursor (`cursor > end_index` strict), aligning with the pattern used by `dustNullifierTransactions` and `shieldedNullifierTransactions`.
+
+A re-drain step before yielding `Progress` closes the small race window between the storage drain ending and the chain-progress read. Wallets passing the chain's current `dustGenerationEndIndex` as `endIndex` now terminate cleanly.
+
+---
+
+## Known issues
+
+### Runtime-park hang under heavy concurrent merkle-tree-update load
+
+Under heavy concurrent merkle-tree-update load, `Sp::force_as_arc` (called via `BackendLoader::get` from collapsed-update paths) can park the entire tokio runtime indefinitely. The pod produces zero log output until kubelet's `/live` probe fails and the container receives SIGTERM.
+
+The `/live` HTTP endpoint shipped in this release is the detection half of that mitigation; the kubernetes restart path closes the loop. Root cause investigation is ongoing at [midnight-ledger#521](https://github.com/midnightntwrk/midnight-ledger/issues/521).
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight Indexer repository](https://github.com/midnightntwrk/midnight-indexer)
+- **Release**: [v4.3.2 on GitHub](https://github.com/midnightntwrk/midnight-indexer/releases/tag/v4.3.2)
+- **GraphQL schema**: [schema-v4.graphql](https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.2/indexer-api/graphql/schema-v4.graphql)
+- **Indexer API docs**: [Indexer documentation](/develop/indexer)

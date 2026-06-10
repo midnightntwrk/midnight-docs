@@ -17,8 +17,29 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.0.2',
+    version: '4.3.2',
     status: 'LATEST',
+    date: '15 May 2026',
+    summary: 'Kubernetes liveness endpoint and dustGenerations subscription fix',
+    details: [
+      'Added `/live` HTTP endpoint for kubernetes liveness probes in indexer-api',
+      'Fixed `dustGenerations` subscription hang when `endIndex` misses wallet-owned generation index',
+      'Termination signal moved from per-wallet cursor to chain progress for subscription reliability',
+      'Added re-drain step to close race window between storage drain and chain-progress read',
+      'Pairs with Node 1.0.0 and Ledger 8.1.0 (Midnight 1.1 bundle)',
+    ],
+    artifacts: [
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+      { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-3-2',
+  },
+  {
+    version: '4.0.2',
+    status: 'SUPPORTED',
     date: '23 April 2026',
     summary: 'Patch release correcting paidFees computation.',
     details: [
