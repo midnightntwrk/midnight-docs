@@ -48,18 +48,18 @@ Populate the file:
     "test:local": "MIDNIGHT_NETWORK=local yarn test",
     "env:up": "docker compose up -d --wait",
     "env:down": "docker compose down",
-    "validate": "yarn env:up && yarn test:local; yarn env:down"
+    "wait:dust": "vite-node scripts/wait-for-dust.ts",
+    "validate": "yarn env:up && yarn wait:dust && yarn test:local; yarn env:down"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-runtime": "0.16.0",
-    "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js": "4.0.4",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.4",
-    "@midnight-ntwrk/testkit-js": "4.0.4",
-    "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/testkit-js": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.0.0",
     "axios": "^1.13.6",
     "pino": "^9.0.0",
     "pino-pretty": "^13.0.0",
@@ -68,16 +68,10 @@ Populate the file:
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "@midnight-ntwrk/midnight-js-compact": "4.0.4",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.9",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
-  },
-  "resolutions": {
-    "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js": "4.0.4",
-    "@midnight-ntwrk/compact-runtime": "0.16.0"
+    "vitest": "^4.1.0"
   },
   "packageManager": "yarn@1.22.22"
 }
@@ -138,7 +132,7 @@ services:
       start_period: 10s
 
   indexer:
-    image: 'midnightntwrk/indexer-standalone:4.0.0'
+    image: 'midnightntwrk/indexer-standalone:4.0.1'
     ports:
       - '127.0.0.1:8088:8088'
     environment:
@@ -160,7 +154,7 @@ services:
         condition: service_healthy
 
   node:
-    image: 'midnightntwrk/midnight-node:0.22.3'
+    image: 'midnightntwrk/midnight-node:0.22.5'
     ports:
       - '127.0.0.1:9944:9944'
     healthcheck:
@@ -233,6 +227,21 @@ touch wallet.ts
 
 Populate the file:
 ```typescript
+// This file is part of example-battleship.
+// Copyright (C) Midnight Foundation
+// SPDX-License-Identifier: Apache-2.0
+// Licensed under the Apache License, Version 2.0 (the "License");
+// You may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import {
   type CoinPublicKey,
   DustSecretKey,
@@ -240,8 +249,13 @@ import {
   type FinalizedTransaction,
   LedgerParameters,
   ZswapSecretKeys,
-} from '@midnight-ntwrk/ledger-v8';
-import { types, utils } from '@midnight-ntwrk/midnight-js';
+} from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import {
+  type MidnightProvider,
+  type UnboundTransaction,
+  type WalletProvider,
+} from '@midnight-ntwrk/midnight-js-types';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
 import { type WalletFacade, type FacadeState } from '@midnight-ntwrk/wallet-sdk-facade';
 import {
   type DustWalletOptions,
@@ -251,7 +265,7 @@ import {
 import * as Rx from 'rxjs';
 import type { Logger } from 'pino';
 
-export class MidnightWalletProvider implements types.MidnightProvider, types.WalletProvider {
+export class MidnightWalletProvider implements MidnightProvider, WalletProvider {
   readonly wallet: WalletFacade;
 
   private constructor(
@@ -273,8 +287,8 @@ export class MidnightWalletProvider implements types.MidnightProvider, types.Wal
   }
 
   async balanceTx(
-    tx: types.UnboundTransaction,
-    ttl: Date = utils.ttlOneHour(),
+    tx: UnboundTransaction,
+    ttl: Date = ttlOneHour(),
   ): Promise<FinalizedTransaction> {
     const recipe = await this.wallet.balanceUnboundTransaction(
       tx,
@@ -464,9 +478,9 @@ The test file is an extremely important component of this process, so it is impo
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import pino from 'pino';
-import { submitCallTx, deployContract } from '@midnight-ntwrk/midnight-js/contracts';
-import { setNetworkId } from '@midnight-ntwrk/midnight-js/network-id';
-import type { ContractAddress } from '@midnight-ntwrk/compact-runtime';
+import { submitCallTx, deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import type { ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import type { EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
 import { getConfig } from '../config.js';
 import { MidnightWalletProvider, syncWallet } from '../wallet.js';
@@ -484,7 +498,7 @@ import {
     Contract
 } from '../../contract/managed/battleship/contract/index.js';
 import { createBattlePrivateState } from '../../contract/witnesses.js';
-import type { DeployedContract,FinalizedCallTxData } from '@midnight-ntwrk/midnight-js/contracts';
+import type { FinalizedCallTxData } from '@midnight-ntwrk/midnight-js-contracts';
 ```
 
 ### Wallet preparation
