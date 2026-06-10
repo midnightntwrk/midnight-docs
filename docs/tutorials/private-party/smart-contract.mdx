@@ -1,0 +1,456 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Private party contract"
+title: "Private party contract"
+description: "Build a private party contract on Midnight that demonstrates the privacy boundary, Unshielded NIGHT tokens, and access control in Compact."
+sidebar_position: 10
+toc_max_heading_level: 2
+tags:
+  - tutorials
+  - private-party
+  - compact
+  - beginner
+  - unshielded-tokens
+  - privacy
+  - midnight-network
+---
+
+# Private party contract
+
+The private party tutorial is a beginner-level demonstration of the following features:
+- Unshielded token send/receive (NIGHT)
+- The privacy boundary
+- persistentCommit
+- DApp-specific public keys
+
+It has two main components:
+1. Compact contract
+1. Test script
+
+This tutorial demonstrates writing safe and secure Compact contracts with no witnesses and private data, and verifying the contract's operation with MidnightJS in a local devnet test script. Write each code block by hand rather than copying and pasting code.
+
+The focus in this tutorial is on Compact, the test script is provided.
+
+## Prerequisites
+
+Before you begin this tutorial, ensure you have:
+- [Installed the toolchain](../../getting-started/installation)
+- Node.js v22+
+
+## Problem analysis
+
+The private party contract lets the party organizer collect RSVP notifications while maintaining attendee privacy up to a specific boundary, where attendees then become public. This tutorial refers to this as the "privacy boundary," an important element to understand when developing Midnight DApps. In this example, paying the entry fee in Unshielded NIGHT tokens crosses the privacy boundary.
+
+In Compact, privacy is the default and you as the DApp developer hold the responsibility to manually transition a piece of data from private to public. However, certain functions in Compact are *always public*.
+
+For example, ledger writes, returns from exported circuits, contract-to-contract calls, and Unshielded token transfers are all public. Hashing and commitment schemes in Compact can obfuscate data passed through the first three of these domains, but what about Unshielded tokens?
+
+Unshielded tokens are always public.
+
+This tutorial will demonstrate absolute privacy for party attendees until the Unshielded token transfer, at which point the privacy boundary is crossed and privacy is no longer maintained.
+
+## Program design
+
+The private party program maintains privacy of party attendees by letting them RSVP to a party with a DApp-specific public key that hides their identity. The party organizer collects an entry fee in NIGHT tokens. NIGHT is an Unshielded token, and therefore these transactions are public. The attendees of the party remain private until they pay the entry fee and arrive at the party.
+
+The organizer maintains privacy within the DApp until the contract pays out the fees claimed by the organizer.
+
+### Operational steps
+
+First, consider the operational components of the contract. What does the contract need to do?
+
+In order, it needs to:
+1. Deploy the contract and allow the organizer to set some initial values
+1. Privately allow attendees to RSVP to the party
+1. Give access to the organizer (and only the organizer) to start the party
+1. Allow attendees who have previously RSVP'd to check-in to the party
+1. Close the doors for entry (organizer only)
+1. Payout fees to the organizer
+
+### Data: private by default
+
+Compact treats data as private by default. This application demonstrates setting a piece of private state data and passing it privately into Compact circuits. No party attendee data is public until the Unshielded token transfer occurs.
+
+::::note[Always-public domains]
+While Compact treats all data as private by default, certain domains are *always public*. This includes:
+- Ledger fields
+- Returns from exported circuits
+- Contract to contract calls
+- Unshielded transactions
+
+::::
+
+### Access control
+
+An important aspect of developing smart contracts in open public systems, like the Midnight blockchain, is access control to circuits. Once you deploy the contract to the blockchain, its circuits effectively become public APIs that *anyone* can call. Secure Compact contracts need to guard access to circuits intended for only a specific user or type of user.
+
+## Compact tutorial
+
+Compact provides a significant amount of flexibility for a DApp developer to precisely define a mix of public and private data. This tutorial focuses primarily on the Compact code and the remaining setup code comes with the repository.
+
+### Setup
+
+Start by cloning the private party repository:
+```bash
+git clone git@github.com:midnightntwrk/example-private-party.git
+```
+
+Open the project in your text editor and navigate to the `contracts` directory before creating a new `.compact` file.
+```bash
+cd example-private-party/contracts && touch private-party.compact
+```
+
+The first thing to do is declare the language version and imports:
+```compact
+pragma language_version 0.23;
+import CompactStandardLibrary;
+```
+
+Then declare an enum of custom states:
+```compact
+export enum PartyState {
+    NOT_STARTED,
+    READY,
+    STARTED,
+    DOORS_CLOSED,
+    FEES_CLAIMED
+}
+```
+
+Next, declare the *public* ledger fields:
+```compact
+export sealed ledger organizer: Bytes<32>;
+export sealed ledger maxListSize: Uint<16>;
+export sealed ledger entryFee: Uint<16>;
+export ledger partyState: PartyState;
+export ledger hashedPartyGoers: Set<Bytes<32>>;
+export ledger checkedInParty: Set<UserAddress>;
+```
+
+The keyword `sealed` denotes immutable ledger fields that can only be set during constructor execution and cannot be changed after the constructor completes.
+
+### Witnesses
+
+This contract uses no witness functions, but they can be useful to modify private state data in-circuit, provide off-chain computation, or enable functionality that does not exist in Compact, such as division. Witnesses are only declared in Compact. They are implemented in the off-chain TypeScript code, and therefore the return from a witness cannot be trusted without prior validation. For a demonstration of witness functions, see the [Battleship tutorial](../bship/smart-contract#witnesses).
+
+This tutorial will access private state data via Compact circuit inputs.
+
+### Constructor
+
+Next, set up the constructor that executes on contract deployment. The party organizer will deploy this contract.
+
+First, validate the inputs are non-zero before creating a unique identifier for the organizer:
+```compact
+constructor (partySize: Uint<16>, fee: Uint<16>, _secret: Bytes<32>) {
+    assert(partySize > 0, "The party size must be greater than zero");
+    assert(fee > 0, "Fee must be greater than zero");
+
+    const pubKey = getDappPublicKey(_secret);
+    organizer = disclose(pubKey);
+
+}// end of constructor
+```
+
+The implementation for `getDappPublicKey()` comes later. For now, understand that the organizer provides a secret that is hashed to provide a "public key" specific to this DApp. Compact circuit inputs are private, so `_secret` passes from private state directly to the circuit inputs and is never exposed publicly. The `pubKey` is safe to store on the ledger publicly, because it does not tie to the organizer's address or any other identifying information.
+
+Now that you have verified the inputs and privately identified the party organizer, set the remaining ledger fields:
+```compact
+    entryFee = disclose(fee);
+    maxListSize = disclose(partySize);
+    partyState = PartyState.NOT_STARTED;
+
+}// end of constructor
+```
+
+Before the party starts, attendees need to RSVP that they plan to attend the party. You will implement the following circuit to allow this privately:
+```compact
+export circuit rsvp(_address: UserAddress, _secret: Bytes<32>): [] {
+    const pubKey = getDappPublicKey(_secret);
+    // caller authentication check
+    assert(pubKey != organizer, "Organizer cannot RSVP to the party");
+
+    // state verification check
+    assert(partyState == PartyState.NOT_STARTED, "The party has already started");
+    assert(hashedPartyGoers.size() < maxListSize, "The list is full");
+
+}// end of rsvp
+```
+
+The same `getDappPublicKey()` circuit can be used for both organizers and party attendees to create a unique identifier that maintains privacy. The unique `_secret` passed into this circuit returns a different hash for each secret.
+
+After `assert`ing that the organizer isn't trying to attend their own party, the state of the contract is verified to be correct to accept RSVPs.
+
+Next, create a commitment to the `UserAddress` provided by the caller:
+```compact
+    // party goer address remains private
+    const commitHash = commitAddress(_secret, _address.bytes);
+    assert(!hashedPartyGoers.member(commitHash), "You are already on the list");
+    hashedPartyGoers.insert(commitHash);// doesn't need disclose bc persistentCommit
+
+}// end of rsvp
+```
+
+With this pattern, the caller of this circuit ties the provided address to their secret and creates a cryptographic commitment to these values. The `commitAddress()` circuit will be written later, but it allows public storage of the hash while maintaining privacy of the underlying values and enabling a check of these values later.
+
+The last thing to do in this circuit is automatically trigger a state change if the list is full:
+```compact
+
+    if (hashedPartyGoers.size() == maxListSize) {
+        partyState = PartyState.READY;
+    }
+}// end of rsvp
+```
+
+Now that the RSVP circuit is working, add the ability for the organizer to start the party:
+```compact
+export circuit startParty(_secret: Bytes<32>): [] {
+    const pubKey = getDappPublicKey(_secret);
+    assert(organizer == pubKey, "Only the organizer can start the party");
+    assert(partyState == PartyState.READY || partyState == PartyState.NOT_STARTED, 
+        "The party is not in the correct state for this operation");
+
+    partyState = PartyState.STARTED;
+}// end of startParty
+```
+
+This circuit identifies the caller's `pubKey`, checks that it matches the previously stored organizer's public key, and ensures the contract state is one of two possible values before updating the contract state. Changing the contract state allows party attendees to check in to the party.
+
+Start the `checkIn` circuit:
+```compact
+export circuit checkIn(address: UserAddress, _secret: Bytes<32>): [] {
+    // state verification checks
+    assert(partyState == PartyState.STARTED, "The party has not been started. Call the party police");
+    assert(checkedInParty.size() < hashedPartyGoers.size(), "All guests have already checked in");
+
+    const commitHash = commitAddress(_secret, address.bytes);
+
+    // caller verification checks
+    assert(hashedPartyGoers.member(commitHash), "You are not on the list");
+    assert(!checkedInParty.member(disclose(address)), "You have already checked in");
+   
+}// end of checkIn
+```
+
+This circuit intends to be called only by attendees who have already RSVP'd and restricts access to those on the `hashedPartyGoers` list. If the circuit caller is not on this list, or has provided a different `address` or `_secret` their circuit call will not pass the caller verification checks.
+
+The `commitAddress()` circuit makes use of a one-way, deterministic hashing function. In order to prove that the caller is some previously stored caller, they provide the same values and those values are hashed again. Comparing these two hashes should match if the caller provided the same value.
+
+Now that the caller is identified and state is as expected, the contract needs to accept payment. Payment for the party is denominated in NIGHT, which is an Unshielded token. All Unshielded tokens are public transactions.
+
+The private party attendees are now public:
+```compact
+    // take in unshielded payment, party goers are now public
+    receiveUnshielded(nativeToken(), entryFee as Uint<128>);
+    checkedInParty.insert(disclose(address));
+
+}// end of checkIn
+```
+
+The `nativeToken()` function returns the default color of all zeroes, indicating the NIGHT token. After the payment transaction completes, the `address` is `disclose()` and written to the ledger publicly.
+
+::::note[What disclose() does]
+`disclose()` itself *does not* make a value public. It only tells the compiler that you, the DApp developer, are marking this value as safe to store publicly.
+::::
+
+The last thing to do in this circuit is to automatically close the doors to the party if everyone has checked in:
+```compact
+    if(checkedInParty.size() == maxListSize) {
+        partyState = PartyState.DOORS_CLOSED;
+    }
+}// end of checkIn
+```
+
+If the `maxListSize` is never reached, a manual circuit needs to be provided for the organizer to change this state:
+```compact
+export circuit closeEntry(_secret: Bytes<32>): [] {
+    const pubKey = getDappPublicKey(_secret);
+    assert(organizer == pubKey, "Only organizer can close the doors");
+    assert(partyState == PartyState.STARTED, "Party in wrong state");
+
+    partyState = PartyState.DOORS_CLOSED;
+}// end of closeEntry
+```
+
+The contract accepted the NIGHT tokens and now holds them for claiming by the organizer. The contract needs to provide a circuit that allows the organizer to claim these fees:
+```compact
+export circuit claimFees(address: UserAddress, _secret: Bytes<32>): [] {
+    const pubKey = getDappPublicKey(_secret);
+    assert(organizer == pubKey, "You are not the organizer");
+
+    // state verification checks
+    assert(partyState == PartyState.DOORS_CLOSED, "The doors are not yet closed");
+    assert(checkedInParty.size() > 0, "No fees to claim");
+
+    // calculate contract balance of NIGHT tokens
+    const totalCollected = checkedInParty.size() * entryFee;
+    assert(unshieldedBalanceGte(nativeToken(), totalCollected), "Contract balance wrong");
+
+    // send to organizer, they are now public
+    sendUnshielded(
+        nativeToken(),
+        disclose(totalCollected) as Uint<128>,
+        right<ContractAddress, UserAddress>(disclose(address))
+    );
+    partyState = PartyState.FEES_CLAIMED;
+}
+```
+
+This circuit has similar components to previous circuits, except that it calculates the available balance of tokens before sending them to the organizer. This makes the organizer public through the `sendUnshielded()` function.
+
+It is important to verify through `unshieldedBalanceGte()` that the contract balance is as expected. If the balance is too low to perform the `sendUnshielded()` transaction, the circuit execution will fail.
+
+Now the `commitAddress()` circuit:
+```compact
+circuit commitAddress(_address: Bytes<32>, _secret: Bytes<32>): Bytes<32> {
+    return persistentCommit<Bytes<32>>(_address, _secret);
+}
+```
+
+This circuit makes use of `persistentCommit` to obfuscate the `_address` which is hashed with a random salt value, in this case the `_secret`. It is important to always use sufficiently random salt values, because the inputs to `persistentCommit` can be any simple value that is easily guessable. Due to the sufficiently random salt value, the hash returned does not need to be passed through `disclose()` before crossing into the public domain. It is already considered safe to do so.
+
+Now the `getDappPublicKey()` circuit:
+```compact
+circuit getDappPublicKey(_secret: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([pad(32, "private-party:pk:"), _secret]);
+}
+```
+
+By contrast, the `persistentHash` function is for arbitrary binary data, like the `_secret`. Hashed with the domain separator specific to this DApp, it produces a "DApp-specific public key" that needs to be disclosed if intending to cross into the public domain. This is currently the only safe way to verify the caller of a Compact circuit.
+
+That is all of the Compact code needed to enable your private party!
+
+### Compilation
+
+To compile the contract:
+```bash
+yarn compile
+```
+
+Successful output:
+```
+$ compact compile contract/private-party.compact contract/managed/private-party
+Compiling 5 circuits:
+  circuit "checkIn" (k=13, rows=4530)  
+  circuit "claimFees" (k=13, rows=4512)  
+  circuit "closeEntry" (k=13, rows=4203)  
+  circuit "rsvp" (k=14, rows=8423)  
+  circuit "startParty" (k=13, rows=4232)  
+Done in 8.24s.
+```
+
+If compilation is not successful, carefully read and understand the compiler error message and correct the error. Fighting the compiler is one of the most useful ways to learn new languages.
+
+To further inspect circuit data run the zkir linter (optional), from the `/contract` directory:
+```bash
+npx compact-zkir-lint -r managed/private-party/zkir
+```
+
+Successful output:
+```
+zkir-lint: scanned 5 file(s)
+
+  checkIn (v2, k=11): clean
+    instructions: 258  inputs: 4  constrain_bits: 4  cond_select: 6
+    guarded regions: 0 (max depth 0)  proof payload: ~96KB
+
+  claimFees (v2, k=11): clean
+    instructions: 303  inputs: 4  constrain_bits: 4  cond_select: 2
+    guarded regions: 0 (max depth 0)  proof payload: ~96KB
+
+  closeEntry (v2, k=11): clean
+    instructions: 63  inputs: 2  constrain_bits: 2  cond_select: 1
+    guarded regions: 0 (max depth 0)  proof payload: ~96KB
+
+  rsvp (v2, k=12): clean
+    instructions: 179  inputs: 4  constrain_bits: 4  cond_select: 7
+    guarded regions: 0 (max depth 0)  proof payload: ~192KB
+
+  startParty (v2, k=11): clean
+    instructions: 84  inputs: 2  constrain_bits: 2  cond_select: 8
+    guarded regions: 0 (max depth 1)  proof payload: ~96KB
+
+0 error(s), 0 warning(s), 0 info(s) | 5/5 clean
+```
+
+### Testing
+
+Compilation only satisfies the Compact compiler with proper syntax. To ensure the contract operates as expected, run the test suite. Comprehensive test suites are essential in writing safe and secure contracts.
+
+Be sure the Docker engine is running and start the local devnet:
+```bash
+yarn env:up
+```
+
+This will create a small local blockchain in a Docker container that consists of:
+- Midnight Node
+- Midnight Indexer
+- Midnight proof server
+
+The proof server is a vital component of Midnight's zero-knowledge proof system. To learn more, see [Zero-knowledge proofs](../../concepts/zero-knowledge-proofs.mdx).
+
+Run the test suite:
+```bash
+yarn test:local
+```
+
+Successful output:
+```
+[17:27:12.796] INFO (46073): Wallet sync [22]: shielded=true, unshielded=true, dust=true
+[17:27:12.796] INFO (46073): Wallet sync complete after 22 emissions
+[17:27:12.800] INFO (46073): Providers initialized. Ready to test.
+[17:27:12.800] INFO (46073): Bob providers successfully initialized
+[17:27:12.801] INFO (46073): Claire providers successfully initialized
+[17:27:12.802] INFO (46073): Deploying a contract the easy way...
+[17:27:32.867] INFO (46073): Contract deployed at 7da6acdcd5792da7f7278fb5362ec61b35e6693763bb3c7459720ef7945287e8
+[17:27:33.013] INFO (46073): Bob is sending an RSVP...
+[17:27:51.082] INFO (46073): Bob rsvp'd successfully!
+[17:27:51.158] INFO (46073): Alice tries to rsvp...
+[17:27:51.232] INFO (46073): Alice was rejected!
+[17:27:51.373] INFO (46073): Claire is attempting to rsvp...
+[17:28:08.412] INFO (46073): Claire successfully rsvp'd!
+[17:28:08.492] INFO (46073): Bob tries to start the party...
+[17:28:08.567] INFO (46073): Bob was rejected!
+[17:28:08.636] INFO (46073): Alice starts the party...
+[17:28:26.688] INFO (46073): Alice started the party successfully!
+[17:28:26.761] INFO (46073): Bob is checking in...
+[17:28:44.976] INFO (46073): Bob has successfully checked in and is now public!
+[17:28:45.055] INFO (46073): Bob is attempting to close the doors...
+[17:28:45.128] INFO (46073): Bob was rejected!
+[17:28:45.196] INFO (46073): Alice is closing the doors...
+[17:29:02.303] INFO (46073): Alice has successfully closed the doors!
+[17:29:02.381] INFO (46073): Alice NIGHT balance before claimFees: 250000000000000
+[17:29:02.381] INFO (46073): Alice is claiming fees...
+[17:29:21.979] INFO (46073): Alice has successfully claimed fees!
+[17:29:45.155] INFO (46073): Alice NIGHT balance after claimFees:  250000000000005
+[17:29:45.155] INFO (46073): Alice NIGHT balance delta:            5
+[17:29:45.177] INFO (46073): Unproven tx created. Pending contract address: 33b39d93fcd9b1c06df5d44020776b291cbb356bd40b75e1e928eb9e41f15656
+[17:29:45.178] INFO (46073): proven tx received from proof server
+[17:29:46.082] INFO (46073): Balanced tx ready for submission
+[17:30:01.943] INFO (46073): Submitted tx id: 004081caf449e3cdd86f9c0abfac77b06e9b635ae9e6b5954c10200f8d6eac3ace
+[17:30:02.952] INFO (46073): Finalized! Status: SucceedEntirely, block: 31
+ ✓ src/test/party.test.ts (11 tests) 166950ms
+   ✓ Private Party smart contract via midnight-js > Deploys a contract (the easy way)  20076ms
+   ✓ Private Party smart contract via midnight-js > Allows Bob to rsvp (privately)  17232ms
+   ✓ Private Party smart contract via midnight-js > Blocks organizers from rsvp 145ms
+   ✓ Private Party smart contract via midnight-js > Allows Claire to rsvp(privately)  17184ms
+   ✓ Private Party smart contract via midnight-js > Blocks non-organizers from starting the party 154ms
+   ✓ Private Party smart contract via midnight-js > starts the party  17177ms
+   ✓ Private Party smart contract via midnight-js > Allows Bob to check in  17338ms
+   ✓ Private Party smart contract via midnight-js > Blocks non-organizers from closing the doors 150ms
+   ✓ Private Party smart contract via midnight-js > Closes the doors to the party  17175ms
+   ✓ Private Party smart contract via midnight-js > Allows Alice to claimFees  41849ms
+   ✓ Private Party smart contract via midnight-js > Deploys the contract(the hard way)  16823ms
+```
+
+Read through the MidnightJS components that enable these tests in `/src/test/party.test.ts`. To learn more about testing specifically, see [Test and debug](../../compact/test-and-debug.mdx).
+
+## Conclusion
+
+This concludes the private party tutorial. The inclusion of the Unshielded NIGHT token exposed the party attendees. To maintain their privacy, rework this contract and test suite to use Shielded tokens.
+
+To inspect the full private-party repository, see [example-private-party](https://github.com/midnightntwrk/example-private-party). If you have questions, reach out in the Discord dev-chat channel.
+
+## Next steps
+
+For a more comprehensive, from scratch tutorial, see [Battleship](../bship/index.mdx) or move on to a more advanced use case with [ZK-loan](../zk-loan/index.mdx).
