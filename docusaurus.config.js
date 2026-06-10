@@ -203,8 +203,20 @@ const config = {
             to: '/examples/dapps',
           },
           {
-            from: '/category/counter',
-            to: '/tutorials/counter',
+            from: ['/category/counter', '/tutorials/counter'],
+            to: '/tutorials/bboard',
+          },
+          {
+            from: '/tutorials/counter/smart-contract',
+            to: '/tutorials/bboard/smart-contract',
+          },
+          {
+            from: '/tutorials/counter/counter-cli',
+            to: '/tutorials/bboard/bboard-cli',
+          },
+          {
+            from: '/examples/dapps/counter',
+            to: '/examples/dapps/bboard',
           },
           {
             from: '/category/bulletin-board',
