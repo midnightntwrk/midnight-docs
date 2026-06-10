@@ -172,7 +172,7 @@ async function indexDocuments() {
         console.log(`❌ Skipping ${path.basename(file)}: No content`);
       }
     } catch (error) {
-      console.error(`❌ Error parsing ${file}:`, error.message);
+      console.error('❌ Error parsing', file, error.message);
     }
   });
 
