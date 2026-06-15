@@ -203,8 +203,20 @@ const config = {
             to: '/examples/dapps',
           },
           {
-            from: '/category/counter',
-            to: '/tutorials/counter',
+            from: ['/category/counter', '/tutorials/counter'],
+            to: '/tutorials/bboard',
+          },
+          {
+            from: '/tutorials/counter/smart-contract',
+            to: '/tutorials/bboard/smart-contract',
+          },
+          {
+            from: '/tutorials/counter/counter-cli',
+            to: '/tutorials/bboard/bboard-cli',
+          },
+          {
+            from: '/examples/dapps/counter',
+            to: '/examples/dapps/bboard',
           },
           {
             from: '/category/bulletin-board',
@@ -310,7 +322,7 @@ const config = {
   {
     src: "https://widget.kapa.ai/kapa-widget.bundle.js",
     "data-website-id": "54f87db5-cd75-47b9-8bcc-94cd1c5cc86f",
-    "data-project-name": "Shielded",
+    "data-project-name": "Midnight",
     "data-project-color": "#000000",
     "data-project-logo":
       "https://pbs.twimg.com/profile_images/1707073625214582784/MsMpvtzV_200x200.jpg",
@@ -319,6 +331,8 @@ const config = {
     "data-button-position-right": "10px",
     "data-modal-override-open-id": "custom-ask-ai-button",
     "data-modal-title": "Need help with Midnight? Ask me anything!",
+    "data-mcp-enabled": "true",
+    "data-mcp-server-url": "https://midnight.mcp.kapa.ai",
     async: true,
   },
 ],
