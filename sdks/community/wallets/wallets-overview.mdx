@@ -3,9 +3,9 @@ SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_position: 10
 sidebar_label: Overview
-description: "Guide to choosing and integrating community wallets on the Midnight Network, with a custody-interface model and DApp Connector code."
+description: "Choose a community wallet on the Midnight Network using a custody and interface model, coverage footprints, and per-wallet profiles for Lace, 1AM, and more."
 title: Community wallets
-tags: [community, wallets, integration, dapp-connector, custody, self-custody, lace, 1am, proving, mcp]
+tags: [community, wallets, custody, self-custody, lace, 1am, kuira, mobile, matrix]
 toc_max_heading_level: 2
 id: community-wallets-overview
 ---
@@ -22,96 +22,39 @@ Their respective authors maintain the projects listed here, not the Midnight Fou
 
 ## Choosing and integrating a wallet
 
-A reference for choosing and integrating a wallet on the Midnight Network for a DApp, a backend, an
-agent, or personal use. Instead of just listing wallets, it gives you a **mental model** for the whole
-landscape (a **custody x interface matrix**), shows which cells each wallet covers (its *coverage
-footprint*), and lets you pick by *scenario*, then keeps the per-wallet detail and integration code as
-reference.
+This guide helps you choose and integrate a wallet on the Midnight Network for a DApp, a backend, an agent, or personal use. It organizes the wallet landscape into a **custody x interface** model so you can match your scenario to the right wallet, and the per-wallet profiles plus the [integration guide](./integration.mdx) give you the code to ship it.
 
-Midnight is a Cardano partnerchain built by IOG: a dual ledger (public *unshielded* + private
-*shielded* state), two tokens (**NIGHT** for value, **DUST** for fees), and **Compact** smart contracts
-that compile to zero-knowledge circuits. This guide assumes you know those basics. Prefer video? See the
-[Lace & 1AM walkthrough](https://www.youtube.com/watch?v=m7mU7k5lgqU) (Edda Labs).
-
-| | |
-|---|---|
-| **Guide version** | v1 — 2026-06 |
-| **DApp Connector API** | `@midnight-ntwrk/dapp-connector-api` **v4.0.1** |
-| **Local proof server** | `http://localhost:6300` (Lace); CLI connector on `ws://localhost:9932` |
-| **Networks** | `mainnet`, `preview`, `preprod`, `undeployed` (local) — only `'mainnet'` is connector-standard; other ids are wallet-defined ([§5.2](#52-connect-and-the-connectedapi-surface)) |
-
-:::tip[Start here]
-
-In practice, today's decision collapses to a **single custody row, self-custody,**
-because the other three models (custodial, smart-contract/AA, MPC) are barely populated on Midnight yet;
-you only choose *how to reach it*: a **browser**, the **CLI**, or an **AI agent**. So: for a
-**browser dApp**, integrate **1AM + Lace** via the DApp Connector. For **backend / CI / agents**, use
-the **wallet CLI** (`midnight serve` + its MCP server). For **institutional** custody of NIGHT,
-**Fireblocks**. Everything else is a variant of those.
-
-- **Privacy by default?** **1AM** (shielded-by-default, in-browser proving).
-- **Mobile-first / embedded wallet?** **Kuira** (Android SDK, on-device proving — [§6](#kuira)).
-- **One multi-chain wallet?** **Ctrl** (feature-detect its connector).
-- **Consumer wallet of the future?** **Midnight Passport** (announced — [§6](#midnight-passport-announced)).
-- **urble** is a consumer privacy-savings app, not a dApp-integration target.
-
-:::
+Midnight is a Cardano partnerchain built by IOG: a dual ledger (public *unshielded* plus private *shielded* state), two tokens (**NIGHT** for value, **DUST** for fees), and **Compact** smart contracts that compile to zero-knowledge circuits. This guide assumes you know those basics. Prefer video? See the [Lace and 1AM walkthrough](https://www.youtube.com/watch?v=m7mU7k5lgqU) (Edda Labs).
 
 :::note[Freshness]
 
-The Midnight wallet ecosystem evolves quickly — some integrations are newly launched and
-others are **announced** or **not yet publicly documented**, and this guide labels them as such. Details
-are accurate as of **June 2026**; for the latest, follow the linked [Sources](#sources) and the
-[Midnight forum](https://forum.midnight.network/).
+The Midnight wallet ecosystem evolves quickly. Some integrations are newly launched and others are **announced** or **not yet publicly documented**, and this guide labels them as such. Details are accurate as of **June 2026**; for the latest, follow the linked [sources](./reference.mdx#sources) and the [Midnight forum](https://forum.midnight.network/).
 
 :::
 
----
+## Quick answer
 
-## 1. How to read this guide
+For most projects the decision is simple, because nearly every Midnight wallet today is self-custody and the only real choice is *how you reach it*:
 
-Ask **two questions** about any wallet and you've placed it on the map:
+- **Browser DApp:** integrate **1AM and Lace** through the [DApp Connector](./integration.mdx).
+- **Backend, CI, or AI agents:** use the [wallet CLI](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) (`midnight serve` and its MCP server).
+- **Institutional custody of NIGHT:** **Fireblocks** (see [Broader ecosystem](./reference.mdx#broader-ecosystem-compatibility)).
 
-1. **Custody: who controls the keys?** (the *trust* axis) On the user's device, held by a provider,
-   governed by a contract, or split into shares?
-2. **Interface: how is it reached?** (the *access* axis) A human in a **browser** or **mobile** app, an
-   automation via **CLI/SDK**, or an **AI agent** via **MCP**?
+Then refine by need:
 
-Put those on a grid → a **4 × 4 matrix** ([§2](#2-the-mental-model-custody-and-interface)). Every wallet
-fills **one or more cells** — its *coverage footprint* ([§3](#3-reading-a-wallet-as-a-coverage-footprint)).
-Choosing then becomes "find the cell my scenario needs, pick a wallet that covers it"
-([§4](#4-choose-by-scenario)). The rest is reference: how to integrate ([§5](#5-integrate)), the wallets
-in detail ([§6](#6-the-wallets)), the feature matrix ([§7](#7-functionality-matrix)), and the dev
-workflow / troubleshooting / security that follow.
+- **Privacy by default:** **1AM** (shielded by default, in-browser proving).
+- **Mobile-first or embedded wallet:** **Kuira** (Android SDK, on-device proving; see [Kuira](#kuira)).
+- **One multi-chain wallet:** **Ctrl** (feature-detect its connector).
+- **Consumer wallet of the future:** **Midnight Passport** (announced; see [Midnight Passport](#midnight-passport-announced)).
+- **urble** is a consumer privacy-savings app, not a DApp-integration target.
 
-A secondary lens for integration — the seven detailed wallets fall into three product categories:
+The rest of this page explains the model behind those picks; the matrix and per-wallet profiles below are the detail.
 
-| Category | Wallets | What it means for you |
-|----------|---------|------------------------|
-| **Midnight-native** | 1AM, urble, Kuira | Built for Midnight's dual-state / ZK model; shielded-capable. 1AM has the browser dev-integration story; urble is an end-user app; **Kuira** is mobile (Android) + an embeddable SDK ([§6](#kuira)). |
-| **Cardano multi-chain + Midnight** | Lace, Ctrl, Gero | Established wallets bolting on Midnight. Lace is the IOG reference; Ctrl/Gero are third-party. |
-| **Embedded / Wallet-as-a-Service (WaaS)** | Dynamic, Kuira | An SDK you embed to mint wallets. Dynamic is social/passkey **WaaS** (Wallet-as-a-Service) with Midnight support **not first-party documented** ([§6](#dynamic)); **Kuira** is a Midnight-native, self-custody Android SDK ([§6](#kuira)). |
+## The custody and interface model
 
-Building a **browser** dApp? The connectors you can target today are **Lace** and **1AM** (Ctrl connects
-per its own claims; Gero/others appear in the ecosystem catalog).
+Ask **two questions** about any wallet and you have placed it on the map: *who controls the keys* (custody, the trust axis) and *how is it reached* (interface, the access axis). The axes are independent, a self-custody key can be reached from a browser, a CLI, or an agent, which is why a grid fits and why one wallet often spans several cells.
 
----
-
-## 2. The mental model: custody and interface
-
-### 2.1 Why two axes
-
-- **Custody (rows) = the trust model.** *Where do the keys live, and who can sign?* This decides what can
-  go wrong and who is in control. It maps onto Midnight's custody spectrum —
-  **Full Sovereignty → Delegated → Smart Custody**.
-- **Interface (columns) = how the wallet is reached.** The first two are how **humans** interact
-  (browser, mobile); the third is how we **automate** (CLI/SDK); the fourth is how **AI agents** act
-  (MCP). Same keys, different access patterns and threat models.
-
-The axes are independent — a self-custody key can be reached from a browser, a CLI, or an agent — which
-is why a grid fits, and why one wallet often spans several cells.
-
-The four custody rows line up with Midnight's three-point custody spectrum like this:
+The custody rows line up with Midnight's three-point custody spectrum like this:
 
 | Matrix custody row | Midnight spectrum | Example on Midnight |
 |---|---|---|
@@ -120,146 +63,63 @@ The four custody rows line up with Midnight's three-point custody spectrum like 
 | Smart contract / AA | n/a (not native) | n/a |
 | MPC / threshold | Smart Custody | Fireblocks (NIGHT) |
 
-### 2.2 The four custody models
+### The four custody models
 
-**1. Self-custody: keys on the user's device.** Key lives in the extension, mobile secure storage, or
-hardware. No third party can sign. *Trust yourself.* Full control and privacy; lose the seed phrase, lose
-the funds. **On Midnight:** where almost every wallet lives today (Lace, 1AM, Ctrl, Gero, SubWallet,
-NuFi). Maps to **Full Sovereignty**.
+- **Self-custody (keys on the user's device).** The key lives in the extension, mobile secure storage, or hardware; no third party can sign. Full control and privacy, but losing the seed phrase loses the funds. This is where almost every Midnight wallet lives today (Lace, 1AM, Kuira, Ctrl, Gero, SubWallet, NuFi). Maps to **Full Sovereignty**.
+- **Custodial (a provider holds the keys).** An exchange or fintech signs on the user's behalf: easy onboarding, but counterparty risk and no privacy from the provider. No first-party consumer custodial wallet is documented on Midnight yet; the path today is institutional (MPC, below) plus exchange or Wallet-IaaS provisioning as the network matures. Maps to **Delegated**.
+- **Smart contract / Account Abstraction (the account is a contract).** Programmable authorization (multisig, social recovery, session keys). Midnight has **no native ERC-4337-style AA today**; its programmability lives in Compact contracts, which is orthogonal to account-level abstraction. AA-like UX can be approximated with the connector's relayer (sponsored fees) or an embedded SDK such as [Kuira](#kuira), but none of these is a smart contract account.
+- **MPC / threshold (the key is split into shares).** An *m*-of-*n* quorum signs without reconstructing a full key: institutional-grade governance. On Midnight this is the institutional path, led by **Fireblocks**, which announced MPC custody of NIGHT. Maps to **Smart Custody**.
 
-**2. Custodial: a provider holds the keys.** An exchange/fintech signs on the user's behalf. *Trust the
-custodian* (single point of failure); easy onboarding, counterparty risk, no privacy from the provider.
-**On Midnight:** no first-party *consumer* custodial wallet documented yet; the custodial path today is
-institutional (MPC, below) + exchange/Wallet-IaaS (managed wallet provisioning, the same idea as WaaS) as
-the network matures. *(An emerging area on Midnight.)*
+### The four interfaces
 
-**3. Smart-contract / Account Abstraction (AA) — the account is a contract.** Programmable authorization
-(multisig, social recovery, session keys, sponsored fees). *Trust the contract code.* **On Midnight:**
-**no native ERC-4337-style AA today** — Midnight's programmability lives in **Compact contracts** + its
-dual-state privacy model, which is *orthogonal* to account-level abstraction. So this row is **Not yet on
-Midnight** *(illustrative: Safe, ERC-4337)*. Some AA-*like* UX can still be approximated, though. Sponsored
-fees come via the connector's relayer, and social login via embedded wallets (Wallet-IaaS / [Dynamic](#dynamic)).
-An **embedded-SDK** approach — where the app itself carries a self-custody wallet ([Kuira](#kuira)) — gives a
-similar "no separate wallet, no seed" feel. But **none of these is a smart-contract account**, so the row
-stays *Not yet*.
+- **Browser:** extension or web UI, interactive; where the [DApp Connector](./integration.mdx) (`window.midnight`) lives. On Midnight: Lace, 1AM, Ctrl, Gero, SubWallet, NuFi.
+- **Mobile native:** biometric, secure-enclave keys. On Midnight: 1AM (beta), urble, and [Kuira](#kuira) (Android, alpha; on-device proving and an embeddable SDK). Lace mobile is Cardano and Bitcoin only; on Midnight, Lace is the desktop extension.
+- **CLI:** scriptable, unattended automation (backend payouts, CI) and building or testing with no extension; the [wallet CLI](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) exposes the same `ConnectedAPI` over a local WebSocket. (An app-embed SDK such as Kuira's Android library is a delivery mechanism for the Mobile cell, not a separate column.)
+- **MCP:** an AI agent calls **tools**, in two flavors: *wallet-control* (an agent that holds or moves funds, via the wallet CLI's MCP server) and *dev-assistant* (an agent that helps you build); see [AI and agent tooling](./cli-and-mcp.mdx#ai-and-agent-tooling-the-mcp-column). The newest interface, and the cell that most needs guardrails.
 
-**4. MPC / threshold — the key is split into shares.** No single share signs; an *m*-of-*n* quorum
-produces the signature without reconstructing a full key. *Trust distributed across shareholders;*
-institutional-grade governance. **On Midnight:** the **institutional** path — **Fireblocks** (MPC-based)
-announced custody of **NIGHT**, letting clients securely claim/hold it (e.g. during the Glacier Drop —
-Midnight's NIGHT token distribution event).
-([Midnight × Fireblocks](https://midnight.network/blog/midnight-foundation-collaborates-with-fireblocks-to-expand-institutional-access-to-web3),
-[Fireblocks MPC 101](https://www.fireblocks.com/report/what-is-mpc)) Embedded SDKs like Dynamic also use
-**TSS** (threshold signature scheme) MPC. Maps to **Smart Custody**.
+### The matrix
 
-### 2.3 The four interfaces
+Legend: **Available** (a real, usable Midnight product, including beta/alpha); **Emerging** (announced or institutional, not yet a shippable self-custody product); **Not yet** (none on Midnight, an *italic* industry example illustrates); **n/a**.
 
-- **Browser** — extension / web UI, human and interactive; where the **DApp Connector**
-  (`window.midnight`) lives ([§5](#5-integrate)). *On Midnight:* Lace, 1AM, Ctrl, Gero, SubWallet, NuFi.
-- **Mobile native** — biometric, secure-enclave keys, on the go. *On Midnight:* 1AM (beta), urble, and
-  **Kuira** (Android, alpha — on-device proving + an embeddable SDK; [§6](#kuira));
-  **Lace mobile is Cardano/Bitcoin only — Midnight is the desktop extension.**
-- **CLI** — scriptable, unattended automation: backend payouts, CI, and **building/testing with no
-  extension** (the wallet CLI exposes the same `ConnectedAPI` over a local WebSocket —
-  [§8](#8-develop-and-test-without-a-wallet)). *Note — two senses of "SDK":* this column is the
-  **automation** SDK/CLI (the wallet CLI). An **app-embed** SDK (e.g. [Kuira](#kuira)'s Android library)
-  is a delivery mechanism for the **Mobile** cell — a wallet built *into* an app — not a separate column.
-- **MCP** — an AI agent calls **tools**, in two flavors: *wallet-control* (an agent that holds/moves
-  funds — the wallet CLI's MCP server) and *dev-assistant* (an agent that helps you build —
-  [§9](#9-ai-and-agent-tooling-the-mcp-column)). The **newest** interface — and the cell that most needs guardrails.
-
-### 2.4 The matrix
-
-Legend: **Available** (a real, usable Midnight product — incl. beta/alpha) · **Emerging** (announced or
-institutional — not yet a shippable self-custody product) ·
-**Not yet** (none on Midnight — an *italic* industry example illustrates) · **—** (n/a).
-
-| Custody ↓ / Interface → | Browser | Mobile Native | CLI (SDK / CI) | MCP (AI agents) |
+| Custody ↓ / Interface → | Browser | Mobile native | CLI (SDK / CI) | MCP (AI agents) |
 |---|---|---|---|---|
-| **Self-custody** (keys on device) | **Available** — Lace, 1AM, Ctrl, Gero, SubWallet, NuFi | **Available** — 1AM (beta), urble, **Kuira** (Android, alpha) | **Available** — midnight-wallet-cli (`midnight serve`) | **Available** — midnight-wallet-cli MCP server |
-| **Custodial** (provider holds keys) | **Not yet** · *CEX web wallets* | **Not yet** · *CEX apps* | **Not yet** · *exchange custody APIs* | **Not yet** · *provider agent tooling* |
-| **Smart-contract / AA** (account is a contract) | **Not yet** · *Safe, ERC-4337* | **Not yet** | **Not yet** | **Not yet** |
-| **MPC / threshold** (key split into shares) | **Emerging** — *Midnight Passport* (announced; seedless — [§6](#midnight-passport-announced)); institutional console | **Emerging** — *Midnight Passport* (announced) | **Emerging (institutional)** — Fireblocks; Dynamic (TSS-MPC; Midnight *not documented*) | **Emerging** — MPC + agent custody *(industry)* |
+| **Self-custody** (keys on device) | **Available:** Lace, 1AM, Ctrl, Gero, SubWallet, NuFi | **Available:** 1AM (beta), urble, Kuira (Android, alpha) | **Available:** midnight-wallet-cli (`midnight serve`) | **Available:** midnight-wallet-cli MCP server |
+| **Custodial** (provider holds keys) | **Not yet** (*CEX web wallets*) | **Not yet** (*CEX apps*) | **Not yet** (*exchange custody APIs*) | **Not yet** (*provider agent tooling*) |
+| **Smart contract / AA** (account is a contract) | **Not yet** (*Safe, ERC-4337*) | **Not yet** | **Not yet** | **Not yet** |
+| **MPC / threshold** (key split into shares) | **Emerging:** *Midnight Passport* (announced, seedless; see [Midnight Passport](#midnight-passport-announced)); institutional console | **Emerging:** *Midnight Passport* (announced) | **Emerging (institutional):** Fireblocks; Dynamic (TSS-MPC; Midnight *not documented*) | **Emerging:** MPC plus agent custody (*industry*) |
 
-**Reading the grid:** the **entire self-custody row is live today** — reachable from browser, mobile, CLI,
-and AI agents; most dApps target **Self-custody × Browser** (and Mobile). The **AA
-row is empty** (no native smart accounts). The **MPC row is mostly institutional** (Fireblocks), with one
-*consumer* entry on the way — **Midnight Passport** (its full technical details are not yet public;
-[§6](#midnight-passport-announced)). **Empty cells are a roadmap**, not a dead end.
+**Reading the grid:** the **entire self-custody row is live today**, reachable from browser, mobile, CLI, and AI agents; most DApps target **Self-custody × Browser** (and Mobile). The **AA row is empty** (no native smart accounts). The **MPC row is mostly institutional** (Fireblocks), with one *consumer* entry on the way, **Midnight Passport** (full technical details are not yet public; see [Midnight Passport](#midnight-passport-announced)). **Empty cells are a roadmap**, not a dead end.
 
 :::note[The ecosystem evolves quickly]
 
-For the current state of wallet and custody support, see the live
-[ecosystem catalog](https://midnight.network/ecosystem-catalog) (use the
-[institutional-custody](https://midnight.network/ecosystem-catalog?tag=institutional-custody) tag for
-the custody/MPC slice).
+For the current state of wallet and custody support, see the live [ecosystem catalog](https://midnight.network/ecosystem-catalog) (use the [institutional-custody](https://midnight.network/ecosystem-catalog?tag=institutional-custody) tag for the custody/MPC slice).
 
 :::
 
----
+## Reading a wallet as a coverage footprint
 
-## 3. Reading a wallet as a coverage footprint
+**A wallet is a set of cells, not a point.** The cells it fills show *who can use it and how*; the empty cells show what it will not do. One consolidated view of the wallets with a distinct footprint:
 
-**A wallet is a set of cells, not a point.** Scan the cells it fills and you see *who can use it and how*;
-the empty cells tell you what it won't do. Three contrasting footprints:
-
-**1AM — a person's wallet** (human interfaces, private by default)
-
-| Custody \ Interface | Browser | Mobile | CLI | MCP |
+| Wallet | Browser | Mobile | CLI | MCP |
 |---|---|---|---|---|
-| **Self-custody** | ✓ (Chrome/Firefox) | ✓ beta (iOS/Android) | — | — |
+| Lace | Yes (Chrome/Edge) | No (Midnight; Cardano-side only) | No | No |
+| 1AM | Yes (Chrome/Firefox) | Beta (iOS/Android) | No | No |
+| Kuira | No | Yes (Android, alpha) | No | No |
+| midnight-wallet-cli | No | No | Yes (`midnight serve`) | Yes (31-tool MCP server) |
 
-**midnight-wallet-cli — the automation & agent footprint**
-connector, but no first-party CLI/MCP.)
-
-**midnight-wallet-cli — the automation & agent footprint**
-
-| Custody \ Interface | Browser | Mobile | CLI | MCP |
-|---|---|---|---|---|
-| **Self-custody** | — | — | ✓ commands + `midnight serve` | ✓ 31-tool MCP server (contract deploy/call + spend confirmation) |
-
-→ "not a consumer wallet — it's how scripts, CI, and agents hold and move funds." One network-agnostic
-seed serves all networks. Reach for it in [§8](#8-develop-and-test-without-a-wallet) and
-[§9](#9-ai-and-agent-tooling-the-mcp-column).
-
-**Lace — a focused reference footprint**
-
-| Custody \ Interface | Browser | Mobile | CLI | MCP |
-|---|---|---|---|---|
-| **Self-custody** | ✓ (Chrome/Edge) | — *(Cardano only)* | — | — |
-
-→ "the safe desktop default; its mobile/hardware reach is Cardano-side — pair it with the wallet CLI for
-automation." Narrow isn't bad: it tells you exactly where Lace fits.
-
-**Kuira — a mobile footprint shipped as an embeddable SDK** (the wallet apps carry inside themselves)
-
-| Custody \ Interface | Browser | Mobile | CLI | MCP |
-|---|---|---|---|---|
-| **Self-custody** | — | ✓ Android (alpha) | — | — |
-
-→ "a wallet that ships *inside* an Android app — on-device proving, passkey identity, no separate
-install." A genuinely different shape: not a tile you connect to, but an SDK you build *into* a mobile
-app. (Its embeddable SDK is *how the Mobile cell ships*, not a CLI/automation surface — see the note in
-[§2.3](#23-the-four-interfaces).)
+Read it as shape, not score. **1AM** spans the human interfaces (browser plus mobile), private by default. **Lace** is a focused desktop default; its mobile and hardware reach is Cardano-side, so pair it with the wallet CLI for automation. **Kuira** is a wallet that ships *inside* an Android app (on-device proving, passkey identity, no separate install), an SDK you build into a mobile app rather than a tile you connect to. **midnight-wallet-cli** is not a consumer wallet at all: it is how scripts, CI, and agents hold and move funds, covered in the [CLI and MCP workflow](./cli-and-mcp.mdx).
 
 :::tip[Takeaway]
 
-Sketch the footprint before comparing features — *where* a wallet sits and *how far* it
-reaches answers most of "is this right for my scenario?". The matrix in
-[§7](#7-functionality-matrix) is for the tie-breakers.
+Sketch the footprint before comparing features: *where* a wallet sits and *how far* it reaches answers most of "is this right for my scenario?". The [functionality matrix](./reference.mdx#functionality-matrix) is for the tie-breakers.
 
 :::
 
----
+## Choose by scenario
 
-## 4. Choose by scenario
+Answer two questions, land on a cell, and pick a wallet whose footprint covers it.
 
-Answer two questions, land on a cell, pick a wallet whose footprint covers it.
-
-**Who controls the keys?** end user → **Self-custody** · provider → **Custodial** *(not on Midnight for
-consumers)* · institution/DAO → **MPC** · programmable account → **AA** *(not native yet)*.
-**Who reaches it?** person in a browser → **Browser** · on a phone → **Mobile** · script/CI → **CLI** ·
-AI agent → **MCP**.
+**Who controls the keys?** end user → **Self-custody**; provider → **Custodial** (*not on Midnight for consumers*); institution or DAO → **MPC**; programmable account → **AA** (*not native yet*). **Who reaches it?** person in a browser → **Browser**; on a phone → **Mobile**; script or CI → **CLI**; AI agent → **MCP**.
 
 The same two questions as a quick decision tree:
 
@@ -276,740 +136,96 @@ Who controls the keys?
 
 | Your scenario | Cell(s) | Reach for |
 |---|---|---|
-| Consumer privacy dApp; desktop & phone | Self-custody × Browser/Mobile | **1AM** (+ **Lace**); **Kuira** for Android; **Ctrl** for multi-chain |
-| Mobile-first app with a **built-in** wallet (no separate install) | Self-custody × Mobile (SDK) | **Kuira** (Android; iOS/RN later — [§6](#kuira)) |
+| Consumer privacy DApp; desktop and phone | Self-custody × Browser/Mobile | **1AM** (plus **Lace**); **Kuira** for Android; **Ctrl** for multi-chain |
+| Mobile-first app with a **built-in** wallet (no separate install) | Self-custody × Mobile (SDK) | **Kuira** (Android; iOS/RN later; see [Kuira](#kuira)) |
 | "One wallet for all my chains" | Self-custody × Browser/Mobile | **Ctrl** (feature-detect first) |
-| Just claim / hold **NIGHT** (Cardano side) | Self-custody × Browser/Mobile | **Lace, Gero, Yoroi, Eternl, NuFi, Vespr…** ([§12](#12-broader-ecosystem-compatibility)) |
+| Just claim or hold **NIGHT** (Cardano side) | Self-custody × Browser/Mobile | **Lace, Gero, Yoroi, Eternl, NuFi, Vespr** (see [Broader ecosystem](./reference.mdx#broader-ecosystem-compatibility)) |
 | Consumer privacy **savings** app | Self-custody × Mobile | **urble** |
-| Backend payouts, airdrops, CI / E2E | Self-custody × CLI | **wallet CLI** / `midnight serve` ([§8](#8-develop-and-test-without-a-wallet)) |
-| An **AI agent** that holds/moves funds | Self-custody × MCP | **wallet-cli MCP server** (with guardrails — [§9](#9-ai-and-agent-tooling-the-mcp-column)) |
-| **AI-assisted building** | dev-assistant MCP | **Midnight MCP / Midnight Expert + Edda** ([§9](#9-ai-and-agent-tooling-the-mcp-column)) |
+| Backend payouts, airdrops, CI / E2E | Self-custody × CLI | **wallet CLI** / `midnight serve` (see [CLI workflow](./cli-and-mcp.mdx#develop-and-test-without-a-wallet)) |
+| An **AI agent** that holds or moves funds | Self-custody × MCP | **wallet-cli MCP server** (with guardrails; see [AI and agent tooling](./cli-and-mcp.mdx#ai-and-agent-tooling-the-mcp-column)) |
+| **AI-assisted building** | dev-assistant MCP | **Midnight MCP / Midnight Expert and Edda** (see [AI and agent tooling](./cli-and-mcp.mdx#ai-and-agent-tooling-the-mcp-column)) |
 | Institutional / regulated custody | MPC × console / API | **Fireblocks** |
-| Embedded social-/passkey onboarding | MPC / Smart-Custody | **Dynamic** *(confirm Midnight support)* or Wallet-IaaS |
+| Embedded social or passkey onboarding | MPC / Smart Custody | **Dynamic** (*confirm Midnight support*) or Wallet-IaaS |
 
-Each wallet's **"Best for"** and feature breakdown is in [§6](#6-the-wallets); the feature matrix is
-[§7](#7-functionality-matrix). Rules of thumb:
+Each wallet's **Best for** and feature breakdown is in [The wallets](#the-wallets); the feature matrix is on the [reference page](./reference.mdx#functionality-matrix). Rules of thumb:
 
-- **Browser dApp today?** Target **1AM and Lace** via the standard connector; add Ctrl/others only after
-  runtime feature-detection.
-- **Automating / agent-driving?** Use the **CLI / MCP** column (the wallet CLI), not a consumer extension.
+- **Browser DApp today?** Target **1AM and Lace** via the standard connector; add Ctrl or others only after runtime feature-detection.
+- **Automating or agent-driving?** Use the **CLI / MCP** column (the wallet CLI), not a consumer extension.
 - **Privacy by default?** 1AM and urble default to shielded; Lace and the multi-chain wallets are opt-in.
-- **Who proves?** 1AM proves in-browser (`getProvingProvider`); **Kuira proves on-device** (Android);
-  Lace needs a local proof server and does *not* expose it — feature-detect to support both
-  ([§5.3](#53-where-zk-proofs-come-from)).
+- **Who proves?** 1AM proves in-browser (`getProvingProvider`); **Kuira proves on-device** (Android); Lace needs a local proof server and does *not* expose it, so feature-detect to support both (see [Where ZK proofs come from](./integration.mdx#where-zk-proofs-come-from)).
 
----
+## The wallets
 
-## 5. Integrate
+Each entry opens with a **Footprint** (which matrix cells it covers). Lace, 1AM, and Kuira get the full treatment; non-integration wallets are compact cards. Feature status lives in the [functionality matrix](./reference.mdx#functionality-matrix); integration gotchas in [Where wallets diverge](./integration.mdx#where-wallets-diverge); errors in [Troubleshooting](./reference.mdx#troubleshooting-and-error-reference).
 
-Everything below is the **Self-custody × Browser** cell in depth — the connector model plus the code to
-ship it. (For no-extension, headless, or agent flows, see [§8](#8-develop-and-test-without-a-wallet) /
-[§9](#9-ai-and-agent-tooling-the-mcp-column).)
+The profiled wallets fall into three product categories:
 
-### 5.1 The DApp Connector API (CAIP-372)
-
-A Midnight browser wallet injects an **Initial API** under the global `window.midnight`, keyed by an
-identifier — compatible with the draft
-[CAIP-372](https://github.com/ChainAgnostic/CAIPs/pull/372/files) (Chain Agnostic Improvement Proposal)
-standard, so the *same dApp code* works across wallets.
-([npm](https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api),
-[connector repo + SPEC](https://github.com/midnightntwrk/midnight-dapp-connector-api),
-[API reference](https://docs.midnight.network/api-reference/dapp-connector))
-
-```ts
-type InitialAPI = {
-  rdns: string;        // reverse-DNS id, stable per product
-  name: string;        // display name (sanitize before rendering — XSS)
-  icon: string;        // URL or data: URL (render via <img>, not innerHTML)
-  apiVersion: string;  // version of @midnight-ntwrk/dapp-connector-api implemented
-  connect: (networkId: string) => Promise<ConnectedAPI>;
-};
-```
-
-**Discovery has two generations — support both.** Legacy direct key (Lace at `window.midnight.mnLace`,
-1AM at `window.midnight['1am']`) **and** the v4 rdns scan (iterate keys, match on `name`/`rdns`,
-EIP-6963-style — the Ethereum Improvement Proposal for multi-wallet discovery). ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
-
-### 5.2 Connect and the ConnectedAPI surface
-
-`connect(networkId)` prompts the user and resolves to a **ConnectedAPI** spanning Midnight's three asset
-kinds (*shielded*, *unshielded*, *DUST*). **Only `'mainnet'` is standardized by the connector spec** —
-every other network id is **wallet-defined**, and they really do differ (the CLI connector, for example,
-expects capitalized `'Preview'`/`'PreProd'`/`'Undeployed'` — which is why the [§8](#8-develop-and-test-without-a-wallet)
-snippet uses `networkId: "Preview"`). Check your target wallet's docs for the exact strings.
-
-| Method | Purpose |
-|--------|---------|
-| `getShieldedAddresses()` / `getUnshieldedAddress()` / `getDustAddress()` | Bech32m addresses per asset kind |
-| `getShieldedBalances()` / `getUnshieldedBalances()` | per-token balances |
-| `getDustBalance()` | `{ balance, cap }` — DUST regenerates toward `cap` |
-| `makeTransfer(outputs, {payFees})` / `makeIntent(inputs, outputs, {...})` | build a transfer / unbalanced intent |
-| `balanceUnsealedTransaction(tx)` / `balanceSealedTransaction(tx)` | balance + pay fees for a contract-built tx |
-| `signData(data, {encoding, keyType})` | sign arbitrary data with the unshielded key |
-| `submitTransaction(tx)` | broadcast a sealed tx — *the wallet acts as relayer* |
-| `getProvingProvider(keyMaterialProvider)` | delegate ZK proving to the wallet |
-| `getConfiguration()` / `getConnectionStatus()` / `hintUsage(methodNames)` | config; status (+networkId); pre-request hints |
-
-:::warning[Feature-detect — coverage varies]
-
-The connector is a contract, but not every wallet implements
-every method. **Lace does not implement `getProvingProvider()` or `signData()`** (see [Lace](#lace)).
-Always check, e.g. `typeof api.getProvingProvider === "function"`, before calling.
-
-:::
-
-:::warning[The #1 connect gotcha: call connect() synchronously inside the click handler]
-
-Lace opens a real
-authorization pop-up, and the browser silently blocks it if transient user activation was lost (you
-`await`ed something, or used `setTimeout`/an rxjs `interval` first). For page-load auto-reconnect there
-is no gesture — poll `window.midnight` until injected (extensions inject slightly after
-`DOMContentLoaded`; users may need to **refresh after installing**), then connect.
-
-:::
-
-### 5.3 Where ZK proofs come from
-
-A Midnight tx needs a ZK proof; *who generates it* is the main axis between wallets (and maps onto the
-custody models):
-
-- **Local proof server (Lace).** Lace requires a **local proof server** (Settings » Midnight » Local,
-  `http://localhost:6300`). Witness data stays on the user's machine — but they must run the server, and
-  Lace does **not** expose `getProvingProvider()`, so a dApp can't delegate proving to it.
-- **In-browser WASM (1AM).** 1AM compiles the prover to WebAssembly (Halo2, ~2.9 MB) and proves *in the
-  tab* — no separate process, sub-second after a cold-start load. 1AM **does** implement
-  `getProvingProvider()` and offers a hosted **Proof Station**.
-- **Delegated (`getProvingProvider`).** The v4 connector abstracts proving behind it; the old
-  `Configuration.proverServerUri` is **deprecated**. Obtain a proving provider from the wallet when
-  available, and fall back to a configured proof server for Lace.
-
-### 5.4 Fees, DUST, and "gas sponsorship"
-
-Fees are paid in DUST, generated by holding NIGHT and regenerating over time. `getDustBalance()` returns
-`{ balance, cap }`, and `submitTransaction` "uses the wallet as a relayer" with a `payFees` option — so a
-wallet *can* sponsor fees, but **sponsorship is a capability the connector allows, not a guarantee any
-wallet ships**. On a fresh wallet, DUST takes time to generate — **≈12 h on Lace mainnet/testnet, ≈5 min
-on a local network** — and overspending surfaces as `BalanceCheckOverspend` (138)
-([Troubleshooting](#10-troubleshooting-and-error-reference)).
-
-### 5.5 Integrate: the portable code
-
-Works for any standard-connector wallet (Lace, 1AM); the [CLI connector](#8-develop-and-test-without-a-wallet)
-is a no-extension dev fallback.
-
-```ts
-import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
-import type { InitialAPI, ConnectedAPI } from "@midnight-ntwrk/dapp-connector-api";
-
-// 1. Discover (legacy key first, then v4 rdns scan)
-const wallets = Object.values(window.midnight ?? {})
-  .filter((w): w is InitialAPI => !!w?.name && !!w?.apiVersion);
-
-// 2. Connect — MUST be synchronous in the click handler (pop-up blocking)
-//    networkId: only 'mainnet' is standard; others are wallet-defined (CLI uses 'Preview' etc.)
-async function connect(w: InitialAPI, networkId = "preprod"): Promise<ConnectedAPI> {
-  const api = await w.connect(networkId);             // user authorizes here
-  const status = await api.getConnectionStatus();
-  if (status.status !== "connected") throw new Error("wallet disconnected");
-  setNetworkId(status.networkId);                     // align the dApp to the wallet's network
-  return api;
-}
-// To submit: build the tx (api.makeTransfer / your contract), prove (feature-detect
-// api.getProvingProvider, else local proof server), then api.submitTransaction(tx).
-```
-
-**Where wallets diverge — handle these:**
-
-- **Proving** — feature-detect `getProvingProvider`; 1AM has it, **Lace doesn't** (fall back to the local
-  proof server; don't hard-code the deprecated `proverServerUri`).
-- **`signData`** — not on Lace; feature-detect before signature-based auth.
-- **Pop-up** — Lace opens an auth pop-up (keep `connect()` synchronous); the reconnect path has no
-  gesture, so poll `window.midnight` then connect.
-- **Network** — always reconcile the dApp to `getConnectionStatus().networkId`.
-- **DUST** — read `getDustBalance()`, handle `{ balance: 0n }` and the `cap`; don't assume sponsored fees.
-- **Non-standard tiles** — Ctrl/Gero may not inject a conformant connector; feature-detect and degrade to
-  Lace/1AM.
-
-### 5.6 React (the production pattern)
-
-The Edda Labs **midnight-starter-template** (demo at `counter.nebula.builders`) wires Lace + 1AM through a
-copy-pasteable wallet-widget — use it rather than re-deriving:
-
-```tsx
-import { useWallet } from "@/modules/midnight/wallet-widget/hooks/useWallet";
-
-function ConnectButton() {
-  const { connectWallet, disconnect, status, dustBalance } = useWallet();
-  if (status?.status === "connected")
-    return <button onClick={() => disconnect()}>Connected · DUST {String(dustBalance?.balance)}</button>;
-  return <button onClick={() => connectWallet("mnLace", "preprod")}>Connect Lace</button>;
-}
-```
-
-Key files in the repo, under `frontend-vite-react/src/modules/midnight/`: `wallet-widget/api/walletController.ts`
-(discovery + pop-up-safe connect + proof-server check), `wallet-widget/hooks/useWallet.ts` +
-`contexts/wallet.tsx` (state), `wallet-widget/ui/midnightWallet.tsx` (connect modal), `counter-sdk/`
-(wiring a connected wallet into a Compact call).
-([starter template](https://github.com/eddalabs/midnight-starter-template),
-[React guide](https://docs.midnight.network/guides/react-wallet-connect),
-[Mesh SDK](https://meshjs.dev/midnight/midnight-setup/wallet))
-
----
-
-## 6. The wallets
-
-Each entry opens with a **Footprint** (which matrix cells it covers). Lace, 1AM, and Kuira get the full
-treatment; non-integration wallets are compact cards. Feature status lives in the [matrix](#7-functionality-matrix);
-integration gotchas in [§5.5](#55-integrate-the-portable-code); errors in
-[§10](#10-troubleshooting-and-error-reference).
+| Category | Wallets | What it means for you |
+|---|---|---|
+| **Midnight-native** | 1AM, urble, Kuira | Built for Midnight's dual-state / ZK model, shielded-capable. 1AM has the browser dev-integration story; urble is an end-user app; [Kuira](#kuira) is mobile (Android) plus an embeddable SDK. |
+| **Cardano multi-chain + Midnight** | Lace, Ctrl, Gero | Established wallets adding Midnight. Lace is the IOG reference; Ctrl and Gero are third-party. |
+| **Embedded / Wallet-as-a-Service (WaaS)** | Dynamic, Kuira | An SDK you embed to mint wallets. Dynamic is social/passkey WaaS with Midnight support not first-party documented; [Kuira](#kuira) is a Midnight-native, self-custody Android SDK. |
 
 ### Lace
 
-> **Footprint:** Self-custody × **Browser** (Midnight); mobile/hardware are Cardano-side only.
-> **Verdict:** the IOG "reference" wallet — safest Chrome/Edge desktop default.
-> **Best for:** standard dApps whose users can run a local proof server.
-> **Status:** live; partial `ConnectedAPI` (no `getProvingProvider`/`signData` yet). **Open source:** yes.
+> **Footprint:** Self-custody × **Browser** (Midnight); mobile and hardware are Cardano-side only.
+> **Best for:** standard DApps whose users can run a local proof server.
+> **Status:** live; partial `ConnectedAPI` (no `getProvingProvider` or `signData` yet). **Open source:** yes.
 
-- **Overview:** IOG's multi-chain wallet (Cardano, Bitcoin, Midnight); for Midnight it's a **Chrome/Edge
-  extension** (not its mobile app). Open source.
-  ([lace.io/midnight](https://www.lace.io/midnight),
-  [docs](https://docs.midnight.network/guides/lace-wallet),
-  [GitHub](https://github.com/input-output-hk/lace))
-- **Supports:** NIGHT management; DUST generation (via the Dust Generation DApp; ~12 h initialization —
-  see [§5.4](#54-fees-dust-and-gas-sponsorship)); shielded + unshielded txns (privacy is **opt-in**);
-  Cardano assets, staking, and hardware wallets on the Cardano side; the standard connector at
-  `window.midnight.mnLace`.
-- **Doesn't (yet):** no in-browser proving (**local proof server required**); **`getProvingProvider()` /
-  `signData()` not implemented** → feature-detect and fall back ([§5.5](#55-integrate-the-portable-code)).
-- **Known issues:** `getProvingProvider` ([lace#2224](https://github.com/input-output-hk/lace/issues),
-  [forum/1213](https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213));
-  `signData` ([lace#2165](https://github.com/input-output-hk/lace/issues)); some 2.0 builds block shielded
-  transfers ([lace#2212](https://github.com/input-output-hk/lace/issues)); Firefox build too old
-  ([lace#2206](https://github.com/input-output-hk/lace/issues)); large contracts can fail to deploy on
-  preprod ([lace#2179](https://github.com/input-output-hk/lace/issues)); "Unable to get wallet address" =
-  not-installed/not-refreshed ([forum/922](https://forum.midnight.network/t/unable-to-get-wallet-address-from-lace-wallet/922)).
-  On Brave, disable Shields so the dApp can reach the local proof server. Actively maintained by **IOG**.
+- **Overview:** IOG's multi-chain wallet (Cardano, Bitcoin, Midnight); for Midnight it is a **Chrome/Edge extension** (not its mobile app). Open source. ([lace.io/midnight](https://www.lace.io/midnight), [docs](https://docs.midnight.network/guides/lace-wallet), [GitHub](https://github.com/input-output-hk/lace))
+- **Supports:** NIGHT management; DUST generation (via the Dust Generation DApp; about 12 h initialization, see [Fees and DUST](./integration.mdx#fees-and-dust)); shielded and unshielded transactions (privacy is **opt-in**); Cardano assets, staking, and hardware wallets on the Cardano side; the standard connector at `window.midnight.mnLace`.
+- **Doesn't (yet):** no in-browser proving (**local proof server required**); **`getProvingProvider()` and `signData()` not implemented**, so feature-detect and fall back (see [Where wallets diverge](./integration.mdx#where-wallets-diverge)).
+- **Known issues:** `getProvingProvider` ([lace#2224](https://github.com/input-output-hk/lace/issues), [forum/1213](https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213)); `signData` ([lace#2165](https://github.com/input-output-hk/lace/issues)); some 2.0 builds block shielded transfers ([lace#2212](https://github.com/input-output-hk/lace/issues)); Firefox build too old ([lace#2206](https://github.com/input-output-hk/lace/issues)); large contracts can fail to deploy on preprod ([lace#2179](https://github.com/input-output-hk/lace/issues)); "Unable to get wallet address" means not installed or not refreshed ([forum/922](https://forum.midnight.network/t/unable-to-get-wallet-address-from-lace-wallet/922)). On Brave, disable Shields so the DApp can reach the local proof server. Actively maintained by **IOG**.
 
 ### 1AM
 
-> **Footprint:** Self-custody × **Browser** + **Mobile** (beta); drivable from code via the connector.
-> **Verdict:** the best Midnight-native developer + privacy experience.
-> **Best for:** new Midnight-first dApps; users wanting shielded-by-default + mobile.
+> **Footprint:** Self-custody × **Browser** plus **Mobile** (beta); drivable from code via the connector.
+> **Best for:** new Midnight-first DApps; users wanting shielded-by-default plus mobile.
 > **Status:** live; implements `getProvingProvider` (in-browser proving). **Open source:** not published.
 
-- **Overview:** purpose-built for Midnight. Extensions for **Chrome + Firefox** live; **iOS/Android in
-  beta** (Android: `com.webisoft.oneam`); Safari "coming soon". Non-custodial; mobile keys in device
-  secure storage. ([1am.xyz](https://1am.xyz/),
-  [Chrome](https://chromewebstore.google.com/detail/1am/bphnkdkcnfhompoegfpgnkidcjfbojjp),
-  [Play](https://play.google.com/store/apps/details?id=com.webisoft.oneam&hl=en_GB),
-  [forum guide](https://forum.midnight.network/t/a-comprehensive-guide-to-the-1am-crypto-wallet-on-the-midnight-network/1173))
-- **Supports:** NIGHT + DUST with real-time regeneration tracking; **shielded by default**; selective
-  disclosure; **in-browser WASM proving** + hosted **Proof Station** ([§5.3](#53-where-zk-proofs-come-from));
-  `getProvingProvider`; built-in dApp browser; a small first-party app ecosystem. Injects at
-  `window.midnight['1am']` (Standard Connector v4).
-- **Not documented:** no Cardano / multi-chain support; hardware support and open-source status are not
-  documented. 1AM's site advertises a **"Proof Station SDK"** with a code snippet, but it is **not
-  published** — no npm package, no docs, and (since 1AM isn't open source) no public code an SDK could
-  live in. Treat it as **announced, not documented**: integrate 1AM via the standard connector, not a
-  bespoke SDK.
+- **Overview:** purpose-built for Midnight. Extensions for **Chrome and Firefox** live; **iOS/Android in beta** (Android: `com.webisoft.oneam`); Safari "coming soon". Non-custodial; mobile keys in device secure storage. ([1am.xyz](https://1am.xyz/), [Chrome](https://chromewebstore.google.com/detail/1am/bphnkdkcnfhompoegfpgnkidcjfbojjp), [Play](https://play.google.com/store/apps/details?id=com.webisoft.oneam&hl=en_GB), [forum guide](https://forum.midnight.network/t/a-comprehensive-guide-to-the-1am-crypto-wallet-on-the-midnight-network/1173))
+- **Supports:** NIGHT plus DUST with real-time regeneration tracking; **shielded by default**; selective disclosure; **in-browser WASM proving** plus a hosted **Proof Station** (see [Where ZK proofs come from](./integration.mdx#where-zk-proofs-come-from)); `getProvingProvider`; built-in DApp browser; a small first-party app ecosystem. Injects at `window.midnight['1am']` (Standard Connector v4).
+- **Not documented:** no Cardano or multi-chain support; hardware support and open-source status are not documented. 1AM's site advertises a **"Proof Station SDK"** with a code snippet, but it is **not published** (no npm package, no docs, and, since 1AM is not open source, no public code an SDK could live in). Treat it as **announced, not documented**: integrate 1AM via the standard connector, not a bespoke SDK.
 
 :::note[Note on fee sponsorship]
 
-1AM has not publicly documented automatic fee sponsorship — don't assume a
-zero-DUST UX; confirm fee handling on your target network before relying on it.
+1AM has not publicly documented automatic fee sponsorship, so don't assume a zero-DUST UX; confirm fee handling on your target network before relying on it.
 
 :::
 
 ### Kuira
 
-> **Footprint:** Self-custody × **Mobile** (Android) + an embeddable **SDK** dev path; on-device proving.
-> **Verdict:** the concrete entry in the long-empty mobile cell — a wallet apps carry *inside* themselves.
+> **Footprint:** Self-custody × **Mobile** (Android) plus an embeddable **SDK** dev path; on-device proving.
 > **Best for:** mobile-first apps that want a built-in wallet (no separate install, no seed phrase).
 > **Status:** alpha (`v0.1.0-alpha02`). **Open source:** partial (source jars on Maven Central; repo private).
 
-- **Overview:** a native **Android** wallet **and** an embeddable SDK — drop the wallet *inside* an
-  Android app so it can hold and move funds on Midnight by itself, no external wallet required. Built by
-  **Kuira Labs**; distributed on Maven Central (`io.github.kuiralabs:dapp-ui:0.1.0-alpha02`); **Apache-2.0**
-  but the **source repo is private** (only source jars ship). Public developer docs.
-  ([Kuira SDK docs](https://kuiralabs.github.io/kuira-sdk-android/))
-- **Supports:** shielded **and** unshielded transactions; **on-device ZK proving** (in seconds, no proof
-  server to run — unlike Lace's local server or 1AM's in-browser WASM); an **embedded self-custody wallet**
-  in the app's own process; DUST regeneration + indexer sync; example apps (a Kuira Starter counter and
-  **BBoard**, a shared on-chain bulletin board).
-- **Identity — the "Sigil":** in plain terms, your identity is a **passkey + fingerprint** instead of a
-  seed phrase — Kuira calls it a *Sigil*. Under the hood it's a **passkey-derived DID (decentralized
-  identifier)** minted by a single biometric, so onboarding is seedless and you recover on any device that
-  shares the Google account. The `SigilIdentityProvider` is a swappable seam:
-  **[Midnight Passport](#midnight-passport-announced)** is named as a planned future identity backend — so
-  the "announced" Passport row and this "emerging mobile" cell may converge (Passport as the identity,
-  Kuira as where it lives on the phone).
-- **Doesn't (yet):** **Android-only today** (iOS planned; the vendor says iOS + React Native later in
-  2026), so the SDK path is platform-locked for now; the browser **DApp Connector is not documented** (a
-  `connector` module exists, but conformance with the `window.midnight` standard isn't publicly stated);
-  alpha, with documented limitations closing in future releases.
+- **Overview:** a native **Android** wallet **and** an embeddable SDK: drop the wallet *inside* an Android app so it can hold and move funds on Midnight by itself, no external wallet required. Built by **Kuira Labs**; distributed on Maven Central (`io.github.kuiralabs:dapp-ui:0.1.0-alpha02`); **Apache-2.0**, but the **source repo is private** (only source jars ship). Public developer docs. ([Kuira SDK docs](https://kuiralabs.github.io/kuira-sdk-android/))
+- **Supports:** shielded **and** unshielded transactions; **on-device ZK proving** (in seconds, no proof server to run, unlike Lace's local server or 1AM's in-browser WASM); an **embedded self-custody wallet** in the app's own process; DUST regeneration plus indexer sync; example apps (a Kuira Starter counter and **BBoard**, a shared on-chain bulletin board).
+- **Identity, the "Sigil":** in plain terms, your identity is a **passkey plus fingerprint** instead of a seed phrase, which Kuira calls a *Sigil*. Under the hood it is a **passkey-derived DID (decentralized identifier)** minted by a single biometric, so onboarding is seedless and you recover on any device that shares the Google account. The `SigilIdentityProvider` is a swappable seam: **[Midnight Passport](#midnight-passport-announced)** is named as a planned future identity backend, so the "announced" Passport row and this "emerging mobile" cell may converge (Passport as the identity, Kuira as where it lives on the phone).
+- **Doesn't (yet):** **Android-only today** (iOS planned; the vendor says iOS plus React Native later in 2026), so the SDK path is platform-locked for now; the browser **DApp Connector is not documented** (a `connector` module exists, but conformance with the `window.midnight` standard is not publicly stated); alpha, with documented limitations closing in future releases.
 
 ### Ctrl
 
-> **Footprint:** Self-custody × **Browser** + **Mobile** (multi-chain; Midnight privacy depth not documented).
+> **Footprint:** Self-custody × **Browser** plus **Mobile** (multi-chain; Midnight privacy depth not documented).
 > **Best for:** users who want one multi-chain wallet (BTC/EVM/Cardano/Midnight) with hardware support.
 
-- **Overview:** Ctrl (formerly **XDEFI**) lists Midnight among supported chains; Chrome extension + iOS
-  (`6630386336`) / Android (`xyz.ctrl.wallet`), Ledger/Trezor support, and ran Midnight programs
-  (Scavenger Mine, the Glacier Airdrop). ([ctrl.xyz](https://ctrl.xyz/),
-  [Scavenger Mine](https://ctrl.xyz/news/scavenger-mine-by-ctrl-wallet-claim-your-night-tokens-today/))
-- **Connector & feature-detection:** appears as `ctrl_wallet` in the catalog and Ctrl says its extension
-  connects to Midnight apps, but **standard-connector conformance is confirmed only at the marketing
-  level** — feature-detect the injected provider at runtime before listing it
-  ([§5.5](#55-integrate-the-portable-code)). No Midnight-specific SDK documented.
-- **Known limitations:** Midnight privacy depth (shielded-by-default, DUST, selective disclosure,
-  proving) is **not individually documented** — don't promise it without testing. Not open source.
+- **Overview:** Ctrl (formerly **XDEFI**) lists Midnight among supported chains; Chrome extension plus iOS (`6630386336`) / Android (`xyz.ctrl.wallet`), Ledger/Trezor support, and ran Midnight programs (Scavenger Mine, the Glacier Airdrop). ([ctrl.xyz](https://ctrl.xyz/), [Scavenger Mine](https://ctrl.xyz/news/scavenger-mine-by-ctrl-wallet-claim-your-night-tokens-today/))
+- **Connector and feature-detection:** appears as `ctrl_wallet` in the catalog and Ctrl says its extension connects to Midnight apps, but **standard-connector conformance is confirmed only at the marketing level**, so feature-detect the injected provider at runtime before listing it (see [Where wallets diverge](./integration.mdx#where-wallets-diverge)). No Midnight-specific SDK documented.
+- **Known limitations:** Midnight privacy depth (shielded-by-default, DUST, selective disclosure, proving) is **not individually documented**, so don't promise it without testing. Not open source.
 
 ### urble
 
-> **Footprint:** Self-custody × **Mobile**. **What:** a consumer privacy-savings app on Midnight
-> (shielded send/receive + selective disclosure; rule-based savings *announced*), built by **Brick
-> Towers**. **For dApps?** No — not a connector target; use 1AM for mobile. **Open source:** not
-> documented. **Links:** [Brick Towers](https://bricktowers.io/solutions/urble-the-future-of-personal-savings/).
-
-### Dynamic
-
-> **Footprint:** MPC (TSS) × **embedded SDK** — **no documented Midnight support**. **What:** an
-> embedded-wallet / WaaS + auth product (social/passkey login, TSS-MPC keys, gas sponsorship). Its
-> documented chains (EVM, Solana, Bitcoin, Sui, …) **don't list Midnight/Cardano**; it appears as
-> `dynamic_xyz` in the catalog but there's **no first-party Midnight support** as of June 2026. **For
-> Midnight?** Don't commit without written confirmation; for passkey onboarding + Midnight, use
-> Wallet-IaaS / Smart-Custody. Conceptually maps to *Smart Custody*. **Links:**
-> [dynamic.xyz](https://www.dynamic.xyz/),
-> [TSS-MPC](https://www.dynamic.xyz/blog/introducing-dynamic-embedded-wallets-with-tss-mpc).
+> **Footprint:** Self-custody × **Mobile**. **What:** a consumer privacy-savings app on Midnight (shielded send/receive plus selective disclosure; rule-based savings *announced*), built by **Brick Towers**. **For DApps?** No, it is not a connector target; use 1AM for mobile. **Open source:** not documented. **Links:** [Brick Towers](https://bricktowers.io/solutions/urble-the-future-of-personal-savings/).
 
 ### Gero
 
-> **Footprint:** Self-custody × **Browser** + **Mobile** — Midnight integration **announced / in
-> progress**. **What:** a privacy-focused Cardano multi-chain wallet (Gero Dashboard, blog Apr 2025) with
-> a "**zkFiat**" roadmap; a valid **Glacier Drop / NIGHT claim** wallet on the Cardano side. Its Midnight
-> page advertises ZK proofs / shielded txns / selective disclosure / "anonymous staking" but **doesn't
-> yet mention NIGHT/DUST or the Midnight connector, and gives no live date** — these are **vendor-stated**,
-> pending public documentation. **For dApps?** Use as a **NIGHT claim** wallet today, not a tested
-> connector. **Links:**
-> [Gero × Midnight](https://www.gerowallet.io/post/gero-dashboard-integrates-midnight-network-for-private-web3),
-> [Midnight page](https://gerowallet.io/midnight-wallet/),
-> [Glacier Drop](https://www.midnight.gd/news/glacier-drop-wallets-and-address-type-compatibility).
+> **Footprint:** Self-custody × **Browser** plus **Mobile**; Midnight integration **announced / in progress**. **What:** a privacy-focused Cardano multi-chain wallet (Gero Dashboard, blog Apr 2025) with a "**zkFiat**" roadmap; a valid **Glacier Drop / NIGHT claim** wallet on the Cardano side. Its Midnight page advertises ZK proofs, shielded transactions, selective disclosure, and "anonymous staking", but **does not yet mention NIGHT/DUST or the Midnight connector, and gives no live date**; these are **vendor-stated**, pending public documentation. **For DApps?** Use as a **NIGHT claim** wallet today, not a tested connector. **Links:** [Gero × Midnight](https://www.gerowallet.io/post/gero-dashboard-integrates-midnight-network-for-private-web3), [Midnight page](https://gerowallet.io/midnight-wallet/), [Glacier Drop](https://www.midnight.gd/news/glacier-drop-wallets-and-address-type-compatibility).
 
 ### Midnight Passport (announced)
 
-> **Footprint:** **MPC / threshold** row × **Browser** + **Mobile** (placed provisionally — exact key
-> scheme not yet public) — **announced, not yet live**.
-> **Verdict:** Midnight's bet on mainstream onboarding — a seedless, QR-onboarded consumer wallet.
-> **Status:** announced; publicly previewed (~2026–2027). **Built by:** IOG.
-
-- **What it is:** an **announced IOG initiative**, introduced by Charles Hoskinson in **April 2026** —
-  scan a **QR code** and get a working wallet + name service + multi-chain access in **under 60 seconds,
-  with no seed phrase**. Based on what has been shared publicly, it features: **per-device,
-  hardware-resident keys** (held in the device security chip, scrubbed after signing); **multi-device**
-  with independent keys + **trusted-helper recovery** (no paper backup); **selective disclosure** (e.g.
-  prove age > 18 without revealing it); **chain abstraction** ("send to `alice.midnight`", ties into the
-  `.night` name service) and **multi-chain** reach; with a post-quantum cryptography lineage.
-- **Why it's in the MPC / threshold row:** it's the first *consumer* (browser + mobile) example on
-  Midnight of custody **beyond plain self-custody** — but it's not a true share-split MPC scheme either
-  (its keys are hardware-resident per device). Its full key-management scheme has not yet been detailed
-  publicly, so it's placed in this row provisionally pending complete specifications.
-- **Status:** full technical specifications have not yet been published, and as an announced product it is
-  **not yet available for integration** — included here as a signal of where Midnight's consumer
-  onboarding is heading.
-
----
-
-## 7. Functionality matrix
-
-The granular tie-breakers, once the [matrix](#24-the-matrix) and a wallet's
-[footprint](#3-reading-a-wallet-as-a-coverage-footprint) have narrowed your choice. Legend: **Yes** /
-**No** / **Partial** (caveats below) / **Not documented** (not publicly documented as of June 2026) / **—** (n/a).
-
-### 7.1 Platforms & availability
-
-| Wallet | Browser extension | Mobile app | Midnight-native | Open source |
-|---|---|---|---|---|
-| Lace | Yes (Chrome/Edge) | No (Midnight) | No | Yes |
-| 1AM | Yes (Chrome, Firefox) | Yes (beta) | Yes | No |
-| Kuira | No | Yes (Android, alpha) | Yes | Partial (source jars; repo private) |
-| urble | No | Yes | Yes | Not documented |
-| Dynamic | No (SDK) | Via SDK | No | No |
-| Ctrl | Yes (Chrome) | Yes | No | No |
-| Gero | Yes | Yes | No | No |
-
-### 7.2 Privacy & assets
-
-| Wallet | NIGHT | DUST | Shielded txns | Unshielded txns | Shielded by default | Selective disclosure |
-|---|---|---|---|---|---|---|
-| Lace | Yes | Yes | Yes | Yes | No | Not documented |
-| 1AM | Yes | Yes | Yes | Yes | Yes | Yes |
-| Kuira | Yes | Yes | Yes | Yes | Not documented | Not documented |
-| urble | Not documented | Not documented | Yes | Not documented | Yes | Yes |
-| Dynamic | No | No | No | No | No | No |
-| Ctrl | Yes | Not documented | Not documented | Not documented | No | Not documented |
-| Gero | Yes | Not documented | Not documented | Not documented | Not documented | Not documented |
-
-### 7.3 Proving & fees
-
-| Wallet | In-browser proving | Local prover needed | `getProvingProvider` | Gas sponsorship |
-|---|---|---|---|---|
-| Lace | No | Yes | No | No |
-| 1AM | Yes (WASM/Halo2) | No | Yes | Not documented |
-| Kuira | Yes (on-device, mobile) | No | — | Not documented |
-| urble | Not documented | Not documented | Not documented | Not documented |
-| Dynamic | No | — | Not documented | Yes (non-Midnight) |
-| Ctrl | Not documented | Not documented | Not documented | Not documented |
-| Gero | Not documented | Not documented | Not documented | Not documented |
-
-### 7.4 Developer integration
-
-| Wallet | DApp Connector | `signData` | Dedicated SDK | dApp browser | Hardware wallet | Cardano / multi-chain | Staking |
-|---|---|---|---|---|---|---|---|
-| Lace | Yes (`mnLace`) | No | No | — | Yes (Cardano) | Yes | Yes (Cardano) |
-| 1AM | Yes (`'1am'`) | Not documented | Announced / Not documented | Yes | Not documented | No | Not documented |
-| Kuira | Not documented | Not documented | Yes (Android, public docs) | — | Not documented | No | Not documented |
-| urble | No | Not documented | No | No | Not documented | No | No |
-| Dynamic | No | Not documented | Yes (non-Midnight) | — | No | No (other chains) | No |
-| Ctrl | Partial | Not documented | No | Yes | Yes (Ledger/Trezor) | Yes | Yes |
-| Gero | Not documented | Not documented | No | Not documented | Not documented | Yes | Not documented |
-
-**Key notes.** *Partial* (Ctrl) = connector stated by the vendor — feature-detect at runtime.
-*Not documented* (Gero) = vendor-stated, pending public documentation; Gero is a valid Cardano-side
-**NIGHT claim** wallet. *Dynamic* cells reflect its **lack of documented Midnight support**. *1AM gas
-sponsorship* is **not documented** (see the note in [§6](#1am)). *1AM "Dedicated SDK"* is
-**announced / not documented** — the advertised "Proof Station SDK" has no published package or docs
-([§6](#1am)); integrate 1AM via the standard connector. *Kuira "in-browser proving"* means **on-device
-mobile proving** (Android), not browser WASM. *Kuira "Dedicated SDK: Yes"* is the one mobile SDK with
-public docs ([§6](#kuira)).
-
-### 7.5 Developer experience
-
-The matrix above answers *who holds the keys* and *how the wallet is reached* — but the question you ask
-every day while building is **"which wallet gives me the best development loop?"** Concretely: can it talk
-to a **local network** (`undeployed` — disposable Midnight-in-Docker, no faucets)? Can you point it at
-**custom servers**? Can you create **reproducible test wallets** from a known seed? Can it run **headless
-in CI** with no human clicking *approve*?
-
-| Wallet | Local network (`undeployed`) | Custom servers | Reproducible test wallets | Headless / CI |
-|---|---|---|---|---|
-| **wallet-CLI** | **Yes** (`localnet up`) | **Yes** (`config set`) | **Yes** (seed-based `wallet generate`) | **Yes** (`serve --approve-all`) |
-| Lace | Partial (local proof server) | Partial (proof-server URL) | No (UI-generated seed) | No (manual pop-up approval) |
-| 1AM | Not documented | Not documented | No | No (manual approval) |
-| Kuira | Not documented | Not documented | Partial (`wallet-seed` module) | No (mobile, biometric approval) |
-
-**Takeaway.** For the inner dev loop — local network, reproducible fixtures, no human in the way — the
-**wallet CLI** is purpose-built and wins outright ([§8](#8-develop-and-test-without-a-wallet)). The browser
-and mobile wallets are *end-user* surfaces: build and test against the CLI, then let users connect with
-Lace/1AM (or ship Kuira embedded).
-
----
-
-## 8. Develop and test without a wallet
-
-The **Self-custody × CLI** cell in practice. The **wallet CLI** exposes the **same `ConnectedAPI`** over a
-local WebSocket, so dApp code paths run with zero changes — then users connect with any browser wallet.
-The CLI is **self-custody** (keys in `~/.midnight`, BIP-39/44 — Lace-compatible) and **network-agnostic**
-(one seed → `undeployed`, `preprod`, `preview`).
-
-| Group | Commands |
-|---|---|
-| Wallet | `wallet generate/list/use/info/remove`, `info`, `address`, `genesis-address` |
-| Transactions | `balance`, `transfer`, `airdrop`, `inspect-cost` |
-| DUST | `dust register`, `dust status` |
-| Local network | `localnet up/status/stop/down/clean` |
-| Config / connector | `config get/set/unset`, `cache clear`, `serve` |
-
-`midnight localnet up` orchestrates the full stack in Docker — **node (`9944`), indexer (`8088`), proof
-server (`6300`)** — so you can deploy and transact with no faucet:
-
-```bash
-midnight localnet up                          # node + indexer + proof server (Docker)
-midnight wallet generate alice                # self-custody key in ~/.midnight
-midnight config set network undeployed
-midnight airdrop 1000                          # fund the active wallet (undeployed-only)
-midnight airdrop 1000 mn_addr_undeployed1...   # …or fund ANY address directly (v0.4.1 — no seed import)
-midnight dust register                         # REQUIRED before transfers (else error 138)
-midnight balance
-midnight transfer mn_addr_undeployed1... 100   # positional: <recipient> <amount>
-
-midnight serve --network preview               # headless DApp Connector on ws://localhost:9932
-midnight serve --network preview --approve-all # dev only: auto-approve every request
-```
-
-:::warning[#1 beginner gotcha]
-
-`dust register` **before** transferring, or it fails with
-`BalanceCheckOverspend` (138). DUST regenerates ≈5 min locally
-([§5.4](#54-fees-dust-and-gas-sponsorship), [Troubleshooting](#10-troubleshooting-and-error-reference)).
-
-:::
-
-```ts
-// A dApp connects to the CLI connector exactly like a browser wallet:
-import { createWalletClient } from "midnight-wallet-connector";
-const wallet = await createWalletClient({ url: "ws://localhost:9932", networkId: "Preview" });
-const balances = await wallet.getUnshieldedBalances(); // same ConnectedAPI surface
-```
-
-Build/test against `midnight serve` (fast, scriptable, no pop-ups), then deploy and let users connect with
-Lace/1AM — zero code changes.
-
-:::note[Freshness (v0.4.1)]
-
-`midnight airdrop` can now **fund any address directly** — paste the
-recipient's address, no seed import — which removes a real annoyance when funding browser wallets on a
-local network. The indexer connection also moved to the **v4 API**, fixing connection errors people hit
-on the test networks. ([repo](https://github.com/nel349/midnight-wallet-cli))
-
-:::
-
-([CLI README](https://www.npmjs.com/package/midnight-wallet-cli),
-[connector](https://www.npmjs.com/package/midnight-wallet-connector),
-[local playground](https://forum.midnight.network/t/local-playground-for-midnight-compact-contracts-run-a-full-node-indexer-and-proof-server-via-docker-fund-your-lace-wallet-and-deploy-without-testnets-or-faucets/1002))
-
----
-
-## 9. AI and agent tooling (the MCP column)
-
-The **MCP** column — *agents calling tools* — in two flavors.
-
-**Wallet-control MCP.** The **midnight-wallet-cli** ships an **MCP server** (`midnight-wallet-mcp`) with
-**31 tools** so an AI agent can operate a self-custody wallet — the **Self-custody × MCP** cell. The tools
-mirror the CLI: **wallet & info** (`midnight_wallet_generate/_list/_use/_info/_remove`, `midnight_info`,
-`midnight_address`, `midnight_genesis_address`), **transactions** (`midnight_balance`, `_transfer`,
-`_airdrop`, `midnight_inspect_cost`), **DUST** (`midnight_dust_register/_status`), **local network**
-(`midnight_localnet_up/_stop/_down/_status/_clean`), **config** (`midnight_config_get/_set/_unset`,
-`midnight_cache_clear`). The newest tools are the consequential ones: an agent can now drive the **full
-contract lifecycle** (deploy / call / read state), not just move tokens, and a **two-step confirmation**
-tool makes it *show the human what it is about to spend and get a yes before anything executes*. Point any
-MCP client at the binary — Claude Code (`.mcp.json`), Claude Desktop, Cursor, VS Code (Copilot), Windsurf:
-
-```json
-{ "mcpServers": { "midnight-wallet": { "command": "midnight-wallet-mcp" } } }
-```
-
-This is the highest-risk cell — scope the agent's tools, cap spend, allowlist destinations, and keep a
-human in the loop ([§11](#11-security-checklist)). Walkthrough:
-*"Multi-Language Dev Session #22: midnight-wallet-cli"*
-([YouTube](https://www.youtube.com/watch?v=zgt27WFzQHk),
-[CLI README](https://www.npmjs.com/package/midnight-wallet-cli)).
-
-**Dev-assistant MCP.** Tooling that helps you *build* — write Compact, wire the connector, verify claims.
-See the talk *"Midnight for Developers: Midnight MCP — The AI Tool That Finally Understands Compact"*
-([YouTube](https://www.youtube.com/watch?v=oGDSMDejUkE)). Two marketplaces:
-
-- **Midnight Expert** — 13 plugins (87 skills, 17 agents) across the dev lifecycle. Most relevant here:
-  `midnight-tooling` (CLI, devnet, proof server), `midnight-dapp-dev` (frontend + connector),
-  `midnight-wallet` (wallet SDK), `midnight-verify` (check SDK/connector claims), `midnight-status-codes`.
-  Install via `/plugin` → add `https://midnightntwrk.expert`. ([midnightntwrk.expert](https://midnightntwrk.expert/))
-- **Edda Labs** — the `midnight` plugin: `/midnight-docs`, `/midnight-docs-repos`, `/midnight-examples`,
-  `/midnight-contracts`, `/midnight-starter` (same
-  [`eddalabs/midnight-starter-template`](https://github.com/eddalabs/midnight-starter-template) as
-  [§5.6](#56-react-the-production-pattern)). Install: `/plugin marketplace add eddalabs/edda-marketplace`
-  then `/plugin install midnight`.
-
----
-
-## 10. Troubleshooting and error reference
-
-Symptom → cause → fix. First the **ledger / connector** errors; then the **CLI JSON error contract**
-(`--json` → `{error, code, message, exitCode}`).
-
-| Symptom / error | Likely cause | Fix |
-|---|---|---|
-| `BalanceCheckOverspend` (**138**) | Not enough DUST for fees | Wait for DUST (≈12 h fresh Lace; ≈5 min local) or designate more NIGHT; read `getDustBalance()` first |
-| Authorize pop-up never appears / connect hangs | `connect()` not called synchronously on click | Call `connect()` directly in the click handler; don't `await`/`setTimeout` before it |
-| `window.midnight` is `undefined` | Extension not installed/enabled, or injected after load | Prompt to install, then **refresh**; for auto-reconnect, poll before connecting |
-| `getProvingProvider is not a function` (Lace) | Lace doesn't implement it | Feature-detect; use a local proof server — [lace#2224](https://github.com/input-output-hk/lace/issues) |
-| `signData` "Method not implemented" (Lace) | Unimplemented on Lace | Avoid signature-based auth on Lace — [lace#2165](https://github.com/input-output-hk/lace/issues) |
-| Proof generation fails / prover unreachable | Local proof server down, or Brave Shields blocking it | Start it (`localhost:6300`); disable Brave Shields for the origin |
-| Network mismatch | dApp and wallet on different networks | Reconcile to `getConnectionStatus().networkId` via `setNetworkId(...)` |
-| 1AM first proof very slow | ~2.9 MB WASM cold-start | Pre-warm / show a "loading prover" state |
-| Deploy fails before it starts | Wallet not fully synced | Wait for wallet sync to complete before deploying |
-| CLI `DUST_REQUIRED` (exit 5) | No DUST | `midnight dust register`, retry once DUST generates |
-| CLI `INSUFFICIENT_BALANCE` (exit 5) | Not enough NIGHT | Fund the wallet (faucet on testnets; `airdrop` only on `undeployed`) |
-| CLI `NETWORK_ERROR` (exit 4) | Connection refused / timeout / DNS | Check node/indexer endpoints |
-| CLI `PROOF_TIMEOUT` (exit 6) | ZK proof timed out | Ensure the proof server is healthy; retry; reduce circuit complexity |
-| CLI `STALE_UTXO` (exit 6) | UTXOs consumed by another tx | `midnight cache clear` and rebuild |
-| CLI `TX_REJECTED` (exit 6) | Node rejected the tx (TTL / validity) | Inspect the message; rebuild with current state |
-
-CLI codes are a documented contract (see the [CLI's JSON-output reference](https://www.npmjs.com/package/midnight-wallet-cli));
-for canonical Midnight error/status codes, use the `midnight-status-codes` reference.
-
----
-
-## 11. Security checklist
-
-The connector hands your page data from an untrusted extension — treat it accordingly:
-
-- **Sanitize the wallet `name`**; render the `icon` via `<img src>` — never `innerHTML` (XSS).
-- **Validate `networkId`** — reconcile to `getConnectionStatus().networkId` and refuse mismatches.
-- **Don't trust injected data as authority** — `rdns`/`name` are for display/selection, not security
-  decisions; match the expected `rdns` and tell users to install only from official stores.
-- **Keep witness data local** — prefer in-browser proving (1AM) or a local proof server (Lace); if you
-  ever use a hosted prover, say so.
-- **Confirm fee sponsorship** — not all wallets sponsor fees; verify on your target network before
-  promising a "no DUST needed" experience.
-- **Guard agent (MCP) access hard** — scope tools, cap spend per action and per day, allowlist
-  destinations, require human confirmation for anything irreversible. An agent with unbounded signing
-  authority is the highest-risk cell on the grid.
-
----
-
-## 12. Broader ecosystem compatibility
-
-Beyond the wallets above, a wider set of Cardano wallets announced Midnight / NIGHT compatibility around
-the TGE (token generation event) and Glacier Drop — mostly for **claiming and holding NIGHT** (more entries in the
-**Self-custody × Browser/Mobile** cells), not deep dApp integration:
-
-- **Announced self-custody (pre-mainnet):** Lace, **SubWallet, NuFi, Vespr, Gero, Tokeo, Keystone, Yoroi,
-  Begin Wallet** — forward-looking, so treat as announced.
-  ([Midnight blog](https://midnight.network/blog/looking-ahead-to-midnight-self-custody-wallet-integrations))
-- **Glacier Drop claim wallets (Cardano side):** Yoroi, Typhon, Gero, VESPR, Eternl (desktop), NuFi.
-  ([compatibility](https://www.midnight.gd/news/glacier-drop-wallets-and-address-type-compatibility))
-- **Institutional / MPC:** **Fireblocks** for institutional custody of NIGHT (the MPC × console/API cell).
-  ([Midnight × Fireblocks](https://midnight.network/blog/midnight-foundation-collaborates-with-fireblocks-to-expand-institutional-access-to-web3))
-
-Authoritative current list: the [Midnight wallets docs](https://docs.midnight.network/learn/introduction/wallets/)
-and the [ecosystem catalog](https://midnight.network/ecosystem-catalog) (the
-[`institutional-custody`](https://midnight.network/ecosystem-catalog?tag=institutional-custody) tag for
-the custody/MPC slice).
-
----
-
-## 13. FAQ
-
-- **Support many wallets with one code path?** Yes — that's the connector. Discover via `window.midnight`,
-  `connect(networkId)`, use the common `ConnectedAPI`, feature-detect optional methods
-  ([§5](#5-integrate)).
-- **Integrate which first?** **1AM and Lace**; add others after feature-detection ([§4](#4-choose-by-scenario)).
-- **Test without an extension?** `midnight serve --approve-all` + `midnight-wallet-connector`
-  ([§8](#8-develop-and-test-without-a-wallet)).
-- **Account abstraction / smart-contract wallets?** Not natively today
-  ([§2.2](#22-the-four-custody-models)); for AA-like UX use the connector's relayer + Wallet-IaaS.
-- **How do AI agents use a wallet?** Via MCP — the highest-risk cell ([§9](#9-ai-and-agent-tooling-the-mcp-column),
-  [§11](#11-security-checklist)).
-- **User has no DUST / Lace `getProvingProvider` fails / mobile / privacy-by-default?** See
-  [§5.4](#54-fees-dust-and-gas-sponsorship), [§5.3](#53-where-zk-proofs-come-from),
-  [§2.3](#23-the-four-interfaces), and the [matrix](#72-privacy--assets) respectively.
-
----
-
-## 14. Glossary
-
-Wallet-relevant terms.
-
-- **Custody model** — *who controls the keys*; the matrix rows (self-custody, custodial, AA, MPC). Maps to
-  Full Sovereignty → Delegated → Smart Custody.
-- **Self-custody / Custodial** — keys on the user's device (no third party can sign) / a provider holds
-  and signs.
-- **Account Abstraction (AA)** — the account is on-chain code with programmable auth. **Not native to
-  Midnight as of June 2026.**
-- **MPC / threshold (TSS)** — the key is split into shares; an *m*-of-*n* quorum signs without
-  reconstructing a full key. Basis of institutional custody (Fireblocks for NIGHT).
-- **Interface** — *how the wallet is reached*; the matrix columns (browser, mobile, CLI, MCP).
-- **MCP (Model Context Protocol)** — a standard by which AI agents call tools — wallet tools (move funds)
-  or developer tools (help you build).
-- **Coverage footprint** — the *set of cells* a wallet occupies; reading it shows who can use it and how
-  far it reaches.
-- **Midnight Passport** — *announced* first-party seedless, QR-onboarded consumer wallet (browser +
-  mobile) from IOG; per-device hardware-resident keys with trusted-helper recovery. Exact scheme (MPC vs.
-  secure-enclave) **not yet publicly detailed** ([§6](#midnight-passport-announced)).
-- **Sigil** — [Kuira](#kuira)'s identity primitive: a **passkey-derived DID** minted by one biometric (no
-  seed phrase, seedless onboarding). Exposed in the SDK as a swappable `SigilIdentityProvider`, with
-  [Midnight Passport](#midnight-passport-announced) named as a planned future backend.
-- **On-device proving** — generating a transaction's ZK proof **on the user's phone** (Kuira, Android) in
-  seconds, with no local proof server to run and nothing leaving the device — the mobile counterpart to
-  1AM's in-browser WASM proving.
-- **NIGHT / DUST** — native value token (public; generates DUST) / shielded, non-transferable, decaying
-  fee resource with a `balance` and a `cap`.
-- **Shielded vs unshielded** — Midnight's dual ledger: private vs public state. 1AM/urble default to
-  shielded; Lace is opt-in.
-- **Selective disclosure / viewing key** — reveal specific facts without exposing full data / a read-only
-  key for auditors.
-- **DApp Connector / CAIP-372** — the standard by which a wallet injects an API under `window.midnight`.
-- **rdns** — reverse-DNS wallet id used for discovery (`mnLace`, `'1am'`).
-- **Intent** — an (often unbalanced) set of inputs/outputs; the building block for transfers/swaps.
-- **Sealed vs unsealed tx** — ready-to-submit (proofs + binding) vs pre-binding.
-- **Relayer** — submits a tx and pays its fees on the user's behalf (the basis of "gas sponsorship").
-- **Proving provider** — the abstraction (`getProvingProvider`) for delegating ZK proving to the wallet.
-- **Bech32m** — the address encoding the connector returns.
-- **Local proof server** — the native binary (`localhost:6300`) that generates ZK proofs for wallets that
-  don't prove in-browser.
-- **Wallet-IaaS / Smart Custody** — Midnight infrastructure for delegated/embedded wallet provisioning
-  (a.k.a. **Wallet-as-a-Service, WaaS**); the route for social/passkey onboarding.
-- **DID (decentralized identifier)** — a self-owned identifier (e.g. `did:key:…`) not issued by a central
-  authority; in Kuira a DID is derived from a passkey to form the [Sigil](#14-glossary).
-
----
-
-## Changelog
-
-- **v1 (2026-06)** — Initial release. A custody × interface matrix and coverage-footprint model for
-  choosing a Midnight wallet, per-wallet profiles (Lace, 1AM, Kuira, Ctrl, urble, Dynamic, Gero, Midnight
-  Passport), DApp Connector integration code, the wallet-CLI dev/agent workflow, and troubleshooting /
-  security / glossary reference.
-  - *Author:* **Ivan Romero** (Midnight Aliit Fellow).
-  - *Acknowledgments:* **Norman** (Midnight Aliit Fellow) — for a detailed review whose corrections and
-    suggestions are reflected throughout this release.
-
----
-
-## Sources
-
-**DApp Connector / standard**
-- API reference — https://docs.midnight.network/api-reference/dapp-connector
-- Connector repo + SPECIFICATION — https://github.com/midnightntwrk/midnight-dapp-connector-api
-- `@midnight-ntwrk/dapp-connector-api` (npm, v4.0.1) — https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api
-- React wallet-connect guide — https://docs.midnight.network/guides/react-wallet-connect
-- Mesh SDK Lace (Midnight) — https://meshjs.dev/midnight/midnight-setup/wallet
-- CAIP-372 draft — https://github.com/ChainAgnostic/CAIPs/pull/372/files
-- Midnight wallets (official docs) — https://docs.midnight.network/learn/introduction/wallets/
-- Ecosystem catalog — https://midnight.network/ecosystem-catalog · institutional-custody — https://midnight.network/ecosystem-catalog?tag=institutional-custody
-- Reference dApp (Lace + 1AM): Edda Labs midnight-starter-template — https://github.com/eddalabs/midnight-starter-template
-- Video: Lace & 1AM with the DApp Connector — https://www.youtube.com/watch?v=m7mU7k5lgqU
-
-**Custody models / institutional**
-- Midnight × Fireblocks — https://midnight.network/blog/midnight-foundation-collaborates-with-fireblocks-to-expand-institutional-access-to-web3
-- Fireblocks — What is MPC — https://www.fireblocks.com/report/what-is-mpc
-- Dynamic embedded wallets (TSS-MPC) — https://www.dynamic.xyz/blog/introducing-dynamic-embedded-wallets-with-tss-mpc
-
-**Midnight Passport** — announced by IOG; follow Midnight's official channels for updates.
-
-**Developer / AI & agent tooling (MCP)**
-- Wallet CLI (commands + `midnight serve` + MCP server) — https://www.npmjs.com/package/midnight-wallet-cli
-- Wallet CLI repo (v0.4.1) — https://github.com/nel349/midnight-wallet-cli
-- CLI connector client — https://www.npmjs.com/package/midnight-wallet-connector
-- Video: Multi-Language Dev Session #22 — midnight-wallet-cli — https://www.youtube.com/watch?v=zgt27WFzQHk
-- Video: Midnight for Developers — Midnight MCP — https://www.youtube.com/watch?v=oGDSMDejUkE
-- Midnight Expert — https://midnightntwrk.expert/
-- Edda Labs Marketplace — https://github.com/eddalabs/edda-marketplace
-
-**Lace**
-- https://www.lace.io/midnight · https://docs.midnight.network/guides/lace-wallet
-- https://github.com/input-output-hk/lace · issues #2224, #2212, #2206, #2179, #2165
-- https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213
-- https://forum.midnight.network/t/unable-to-get-wallet-address-from-lace-wallet/922
-
-**1AM**
-- https://1am.xyz/ · https://chromewebstore.google.com/detail/1am/bphnkdkcnfhompoegfpgnkidcjfbojjp
-- https://play.google.com/store/apps/details?id=com.webisoft.oneam&hl=en_GB
-- https://forum.midnight.network/t/a-comprehensive-guide-to-the-1am-crypto-wallet-on-the-midnight-network/1173
-
-**Kuira**
-- Kuira Android SDK docs — https://kuiralabs.github.io/kuira-sdk-android/
-- Maven Central — `io.github.kuiralabs:dapp-ui:0.1.0-alpha02`
-
-**urble · Dynamic · Ctrl · Gero**
-- urble — https://bricktowers.io/solutions/urble-the-future-of-personal-savings/
-- Dynamic — https://www.dynamic.xyz/ · https://www.dynamic.xyz/blog/introducing-dynamic-embedded-wallets-with-tss-mpc
-- Ctrl — https://ctrl.xyz/ · https://ctrl.xyz/news/scavenger-mine-by-ctrl-wallet-claim-your-night-tokens-today/
-- Gero — https://www.gerowallet.io/post/gero-dashboard-integrates-midnight-network-for-private-web3 · https://gerowallet.io/midnight-wallet/
-
-**Broader compatibility / dev workflow**
-- https://midnight.network/blog/looking-ahead-to-midnight-self-custody-wallet-integrations
-- https://www.midnight.gd/news/glacier-drop-wallets-and-address-type-compatibility
-
-> Reference implementation: the connect/discovery patterns above are implemented in the Edda Labs
-> `midnight-starter-template` (`wallet-widget` module), wiring Lace + 1AM through
-> `@midnight-ntwrk/dapp-connector-api` v4.0.1.
+> **Footprint:** **MPC / threshold** row × **Browser** plus **Mobile** (placed provisionally; exact key scheme not yet public). **Announced, not yet live.**
+> **Status:** announced; publicly previewed (about 2026 to 2027). **Built by:** IOG.
+
+- **What it is:** an **announced IOG initiative**, introduced by Charles Hoskinson in **April 2026**: scan a **QR code** and get a working wallet plus name service plus multi-chain access in **under 60 seconds, with no seed phrase**. Based on what has been shared publicly, it features **per-device, hardware-resident keys** (held in the device security chip, scrubbed after signing); **multi-device** with independent keys plus **trusted-helper recovery** (no paper backup); **selective disclosure** (for example, prove age over 18 without revealing it); **chain abstraction** ("send to `alice.midnight`", tying into the `.night` name service) and **multi-chain** reach; with a post-quantum cryptography lineage.
+- **Why it is in the MPC / threshold row:** it is the first *consumer* (browser plus mobile) example on Midnight of custody **beyond plain self-custody**, but it is not a true share-split MPC scheme either (its keys are hardware-resident per device). Its full key-management scheme has not yet been detailed publicly, so it is placed in this row provisionally pending complete specifications.
+- **Status:** full technical specifications have not yet been published, and as an announced product it is **not yet available for integration**; included here as a signal of where Midnight's consumer onboarding is heading.
