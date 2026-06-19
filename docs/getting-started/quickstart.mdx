@@ -17,8 +17,8 @@ This guide explains how to scaffold a Midnight DApp using the `create-mn-app` CL
 
 The following tools are required to run a Midnight DApp:
 
-- Compact compiler installed. See [install the toolchain](./installation) for instructions.
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
+- Compact compiler `0.31.0` installed. See [install the toolchain](./installation) for instructions.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running, with Docker Compose v2. The local devnet uses the proof-server image `8.0.3`.
 - [Node.js](https://nodejs.org/) version 22+ installed. You can use [NVM](https://github.com/nvm-sh/nvm) to install Node.js.
 
 ## Midnight CLI tool
@@ -44,33 +44,29 @@ If you are new to Midnight development, then starting with _contract_ is recomme
 
 #### Contract
 
-Selecting **Contract** scaffolds a minimal project for deploying a Compact smart contract.
+Selecting **Contract** scaffolds a minimal project for deploying a Compact smart contract. You are then prompted to choose a contract template:
 
-You are prompted to choose a contract template. Currently the available option is:
+| Template | Description |
+|----------|-------------|
+| `hello-world` | Default. A message-storage contract bundled with a local devnet for compiling, deploying, and interacting with a Compact contract. |
+| `battleship` | A private-board state machine, cloned from [example-battleship](https://github.com/midnightntwrk/example-battleship). |
 
-- Hello world
-
-The Hello world contract is a basic example that demonstrates how to deploy a Compact contract and interact with it from the CLI.
+Only `hello-world` ships the bundled devnet and the `--network` flag.
 
 #### Full DApp
 
-Selecting **Full DApp** scaffolds a complete decentralized application with contract logic, deployment scripts, and a CLI for interacting with the contract.
+Selecting **Full DApp** scaffolds a complete decentralized application with a browser-based or CLI interface for interacting with the contract. You are then prompted to choose a DApp template:
 
-You are prompted to choose a DApp template. Available options include:
+| Template | Description |
+|----------|-------------|
+| `bboard` | Default. A privacy-preserving bulletin board, cloned from [example-bboard](https://github.com/midnightntwrk/example-bboard). |
+| `leaderboard` | A React + Lace browser DApp with in-browser ZK proving, cloned from [midnight-leaderboard](https://github.com/midnightntwrk/midnight-leaderboard). |
 
-- Counter  
-- Bulletin board
+:::note
+`dex` and `midnight-kitties` appear as _coming soon_ in the template picker. Full DApp templates follow their upstream repository's README rather than the bundled devnet flow described below.
+:::
 
-The Counter template is an example that demonstrates how to maintain and update shared contract state by incrementing or decrementing a counter.
-
-The Bulletin board template is a privacy-preserving message board that allows users to post and remove messages using zero-knowledge (ZK) proofs.
-
-For this guide, select **Contract** at the first prompt and then choose **Hello world** at the template selection prompt. Follow the remaining prompts to complete the setup.
-
-If you select **Full DApp**, then refer to the dedicated resources for each template:
-
-- [example-counter repository](https://github.com/midnightntwrk/example-counter)
-- [Bulletin board DApp](../examples/dapps/bboard)
+For this guide, select **Contract** at the first prompt and then choose **hello-world** at the template selection prompt. Follow the remaining prompts to complete the setup.
 
 ```
 Creating a new Midnight app in /path/to/my-app.
@@ -102,68 +98,52 @@ my-app/
 │   └── hello-world.compact    # Compact smart contract
 ├── src/
 │   ├── cli.ts                 # Interact with deployed contract
-│   ├── deploy.ts              # Deploy contract to Preprod
+│   ├── deploy.ts              # Deploy contract
 │   └── check-balance.ts       # Check wallet balance
-├── docker-compose.yml         # Proof server config
+├── docker-compose.yml         # Local devnet: node, indexer, proof server
 ├── package.json
-└── deployment.json            # Deployment information (contains wallet seed and contract address)
+└── .midnight-state.json       # Deployment state (gitignored; contract address and network)
 ```
 
 The `contracts/hello-world.compact` file contains the Compact smart contract code.
 
 ```compact
-pragma language_version 0.23;
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
 
 export ledger message: Opaque<"string">;
 
-export circuit storeMessage(newMessage: Opaque<"string">): [] {
-  message = disclose(newMessage);
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+    message = disclose(customMessage);
 }
 ```
 
 [Compact](../compact/) is Midnight's smart contract language used to define contract logic. It is similar to TypeScript but is designed for use with the Midnight runtime.
 
-The `docker-compose.yml` file contains the configuration for the [proof server](../guides/run-proof-server). The proof server generates Zero Knowledge (ZK) proofs for smart contracts on the Midnight network. It must be running before you can deploy or interact with the contract.
+The `docker-compose.yml` file defines a local devnet, a Midnight node, indexer, and [proof server](../guides/run-proof-server) that runs in Docker. The proof server generates Zero Knowledge (ZK) proofs for smart contracts on the Midnight network. The devnet must be running before you can deploy or interact with the contract.
 
 ## Set up the project
 
-Run the script to set up the project:
+Run the setup script:
 
 ```bash
 npm run setup
 ```
 
-This script starts the proof server, compiles the contract, and deploys the contract to the Preprod network.
+`npm run setup` boots a local devnet in Docker (node, indexer, and proof server), compiles the contract, and deploys it. No wallet extension and no faucet are required, the local `dev` preset pre-mints NIGHT to a genesis seed, so the deployment is funded automatically.
 
-The CLI prompts you to create a new wallet or restore an existing wallet. If you choose to create a new wallet, then the CLI generates a new wallet seed and displays the wallet address. Save the wallet seed in a secure location. You'll need it to restore your wallet.
-
-:::note
-You'll need to fund your wallet with tNIGHT tokens from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/). tNIGHT is used to generate tDUST, which is required to pay for transaction fees on the Midnight blockchain.
-:::
-
-After funding your wallet, the CLI automatically generates tDUST and deploys the contract to the Preprod network. This process takes a few seconds to complete.
-
-You should see the following output after the deployment is complete:
-
-```
-  ✅ Contract deployed successfully!
-
-  Contract Address: b92d63e566cbcede6............
-
-  Saved to deployment.json
-```
-
-The `deployment.json` file in the root directory contains the deployment information for the contract. The CLI references this file when interacting with the contract.
+Deployment state is written to `.midnight-state.json` (which is gitignored) and holds the contract address and the active network. The CLI references this file when interacting with the contract.
 
 ## Interact with the contract
 
-The tool provides a command-line interface to interact with the contract. Run the following command to start the CLI:
+Once the contract is deployed, start the interactive CLI:
 
 ```bash
 npm run cli
 ```
 
-This command starts the CLI and prompts you to enter your wallet seed. After syncing your wallet with the network, you can interact with the contract using the following commands:
+The CLI lets you interact with the deployed contract:
 
 ```
 1. Store a message
@@ -172,45 +152,75 @@ This command starts the CLI and prompts you to enter your wallet seed. After syn
 4. Exit
 ```
 
-Choose an option from the menu and follow the prompts to interact with the contract.
+Choose an option from the menu and follow the prompts. To read the ledger state directly, run the end-to-end test:
+
+```bash
+npm run test:e2e
+```
+
+### Deploy to a public testnet
+
+The local devnet is the default. Public testnets are opt-in, pass `--network` to `npm run setup`:
+
+```bash
+npm run setup -- --network preview
+```
+
+The first time you target a public network, the CLI generates a wallet and prints a faucet URL to fund it. Open the printed URL to fund the wallet. The network selection is sticky; switch networks later with `npm run network <name>`.
+
+| Network | Source | When to use |
+|---------|--------|-------------|
+| `undeployed` | Local devnet (`docker-compose.yml`) | Default. No funding or wallet extension required. |
+| `preview` | Public preview (faucet URL printed by the CLI) | Shared infrastructure before a release. |
+| `preprod` | Public preprod (faucet URL printed by the CLI) | Closest to mainnet. |
 
 ## Templates
 
-The Midnight CLI tool provides starter templates for the following DApps:
+The Midnight CLI tool provides starter templates for both contracts and full DApps. Pass a template with `--template <name>`, or omit it to be prompted.
 
-### Hello world
+### hello-world
 
-The Hello world template is a message storage DApp that allows you to post and retrieve messages on the blockchain.
+The `hello-world` template is a message storage contract that allows you to post and retrieve messages on the blockchain. It ships with the bundled local devnet.
 
 ```bash
 npx create-mn-app my-app
 ```
 
-The Hello world template is the default and comes with dependencies installed. You don't need to use the `--template` flag when creating a new hello world DApp.
+`hello-world` is the default and comes with dependencies installed. You don't need the `--template` flag to create a new `hello-world` project.
 
-### Counter
+### battleship
 
-The Counter template is a simple counter DApp that allows you to increment and decrement a counter.
+The `battleship` template is a private-board state machine, cloned from [example-battleship](https://github.com/midnightntwrk/example-battleship).
 
 ```bash
-npx create-mn-app my-app --template counter
-cd my-app
-npm install
+npx create-mn-app my-app --template battleship
 ```
 
-To learn more about the Counter template, see the [example-counter repository](https://github.com/midnightntwrk/example-counter) on GitHub.
+### bboard
 
-### Bulletin board
-
-The Bulletin board template is a privacy-preserving bulletin board DApp that allows you to post and remove messages.
+The `bboard` template is a privacy-preserving bulletin board DApp that allows you to post and remove messages, cloned from [example-bboard](https://github.com/midnightntwrk/example-bboard).
 
 ```bash
 npx create-mn-app my-app --template bboard
-cd my-app
-npm install
 ```
 
 This template uses ZK proofs to verify the identity of the poster and the owner of the message without revealing their identity on-chain. To learn more about the Bulletin board DApp, see the [Bulletin board DApp](../examples/dapps/bboard) example.
+
+### leaderboard
+
+The `leaderboard` template is a React + Lace browser DApp with in-browser ZK proving, cloned from [midnight-leaderboard](https://github.com/midnightntwrk/midnight-leaderboard).
+
+```bash
+npx create-mn-app my-app --template leaderboard
+```
+
+:::note
+The Counter template was removed in `create-mn-app` v0.4.2. The retired Counter example is still available with the `--from` flag:
+
+```bash
+npx create-mn-app@latest my-app --from midnightntwrk/example-counter
+```
+:::
 
 ## CLI options
 
@@ -218,13 +228,19 @@ The following options are available when creating a new DApp using the `create-m
 
 | Option | Description |
 |--------|-------------|
-| `-t`, `--template <name>` | Select a template: `hello-world`, `counter`, `bboard` |
+| `-t`, `--template <name>` | Select a template: `hello-world`, `battleship`, `bboard`, `leaderboard` |
+| `--list` | List the available templates |
+| `--from <owner/repo>` | Scaffold from a GitHub repository |
+| `--network <name>` | Set the network for the `hello-world` template (`undeployed`, `preview`, `preprod`) |
+| `-y` | Accept defaults without prompting |
+| `--dry-run` | Show what would be created without writing files |
 | `--use-npm/yarn/pnpm/bun` | Force the use of a specific package manager |
 | `--skip-install` | Skip the installation of dependencies |
 | `--skip-git` | Skip the initialization of a git repository |
 | `--verbose` | Show detailed output when creating the project |
 | `-h`, `--help` | Show help |
 | `-V`, `--version` | Show the version of the CLI tool |
+
 
 
 ## Next steps
