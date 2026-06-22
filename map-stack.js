@@ -14,7 +14,7 @@ const targets = [
     const sm = JSON.parse(fs.readFileSync(path.resolve(t.map), 'utf8'));
     await SourceMapConsumer.with(sm, null, consumer => {
       const pos = consumer.originalPositionFor({ line: t.line, column: t.column });
-      console.log('%s @ %d:%d →', t.map, t.line, t.column, pos);
+      console.log(`${t.map} @ ${t.line}:${t.column} →`, pos);
     });
   }
 })();
