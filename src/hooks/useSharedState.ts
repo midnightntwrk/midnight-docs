@@ -34,7 +34,7 @@ function createStore<T extends any = any>() {
         try {
           fn(value);
         } catch (err: unknown) {
-          console.error(`Error calling listener key:${key}`, {
+          console.error("Error calling listener", {
             key,
             value,
             err
