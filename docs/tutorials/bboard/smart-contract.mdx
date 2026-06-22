@@ -21,7 +21,7 @@ Before you begin, ensure that you have:
 
 - **Compact toolchain installed**: For instructions, refer to the [install the toolchain](../../../getting-started/installation) guide
 - **Proof server running**: For instructions, refer to the [run the proof server](../../../getting-started/installation#set-up-the-proof-server) guide
-- **Node.js version 22+**: Verify with `node --version`
+- **Node.js version 24+**: Verify with `node --version`
 
 ## Set up the project
 
@@ -59,7 +59,7 @@ Open this file in your code editor.
 The `pragma language_version` directive specifies which version of Compact your contract uses:
 
 ```compact
-pragma language_version >= 0.23;
+pragma language_version 0.23;
 ```
 
 This directive:
@@ -72,7 +72,7 @@ This directive:
 Import Compact's standard library for built-in types and functions:
 
 ```compact
-pragma language_version >= 0.23;
+pragma language_version 0.23;
 
 import CompactStandardLibrary;
 ```
@@ -88,7 +88,7 @@ To learn more about what's available in the standard library, see the [Compact s
 The bulletin board has two possible states. Define an enumeration type to represent them:
 
 ```compact
-pragma language_version >= 0.23;
+pragma language_version 0.23;
 
 import CompactStandardLibrary;
 
@@ -110,7 +110,7 @@ This enumeration:
 The ledger represents the public, on-chain state of your contract. For the bulletin board, you need four pieces of public information:
 
 ```compact
-pragma language_version >= 0.23;
+pragma language_version 0.23;
 
 import CompactStandardLibrary;
 
@@ -277,7 +277,7 @@ The domain separator is a security best practice. It ensures that hashes generat
 Your complete bulletin board contract should now look like this:
 
 ```compact
-pragma language_version >= 0.23;
+pragma language_version 0.23;
 
 import CompactStandardLibrary;
 
@@ -346,8 +346,8 @@ You should see output similar to:
 
 ```
 Compiling 2 circuits:
-  circuit "post" (k=13, rows=4569)  
-  circuit "takeDown" (k=13, rows=4580)  
+  circuit "post" (k=14, rows=10070)
+  circuit "takeDown" (k=14, rows=10087)
 Overall progress [====================] 2/2
 ```
 
@@ -508,7 +508,7 @@ Create `contract/src/witnesses.ts`:
 
 ```typescript
 import { Ledger } from "./managed/bboard/contract/index.js";
-import { WitnessContext } from "@midnight-ntwrk/compact-runtime";
+import { WitnessContext } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
 
 export type BBoardPrivateState = {
   readonly secretKey: Uint8Array;
@@ -546,21 +546,19 @@ The `WitnessContext` type is part of the Compact Runtime API. For detailed infor
 Create `contract/src/index.ts` to re-export the contract API:
 
 ```typescript
+import { CompiledContract } from "@midnight-ntwrk/midnight-js-protocol/compact-js";
+
 export * from "./managed/bboard/contract/index.js";
 export * from "./witnesses";
 
 import * as CompiledBBoardContract from "./managed/bboard/contract/index.js";
 import * as Witnesses from "./witnesses";
-import { CompiledContract } from "@midnight-ntwrk/compact-js";
 
 export const CompiledBBoardContractContract = CompiledContract.make<
   CompiledBBoardContract.Contract<Witnesses.BBoardPrivateState>
->(
-  "BBoard",
-  CompiledBBoardContract.Contract<Witnesses.BBoardPrivateState>,
-).pipe(
+>("BBoard", CompiledBBoardContract.Contract<Witnesses.BBoardPrivateState>).pipe(
   CompiledContract.withWitnesses(Witnesses.witnesses),
-  CompiledContract.withCompiledFileAssets("./compiled/bboard"),
+  CompiledContract.withCompiledFileAssets("./managed/bboard"),
 );
 ```
 
@@ -594,7 +592,7 @@ Create a `tsconfig.json` file in the `contract` directory:
     "lib": ["ESNext"],
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "Bundler",
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
@@ -614,7 +612,18 @@ The key configuration options are:
 - `declaration`: Generates `.d.ts` type definition files for TypeScript consumers
 - `outDir`: Compiled JavaScript files go to `./dist`
 - `rootDir`: Source TypeScript files are in `./src`
+- `moduleResolution`: Set to `Bundler` to resolve subpath imports from the Midnight.js packages
 - `strict`: Enables strict type checking for better code quality
+
+Create a `tsconfig.build.json` file in the same directory to exclude test files from the production build:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["src/test/**/*.ts"],
+  "compilerOptions": {}
+}
+```
 
 ### Add build scripts
 
@@ -623,12 +632,9 @@ Update your `contract/package.json` to include build scripts:
 ```json
 {
   "name": "@midnight-ntwrk/bboard-contract",
-  "version": "0.1.0",
-  "license": "Apache-2.0",
-  "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
@@ -639,47 +645,44 @@ Update your `contract/package.json` to include build scripts:
     }
   },
   "scripts": {
-    "clean": "rm -rf dist managed",
-    "compile:compact": "compact compile src/bboard.compact src/managed/bboard",
-    "compile:typescript": "tsc",
-    "build": "npm run clean && npm run compile:compact && npm run compile:typescript && cp -Rf ./src/managed ./dist/managed && cp ./src/bboard.compact ./dist"
+    "build": "rm -rf dist && tsc --project tsconfig.build.json && cp -Rf ./src/managed ./dist/managed && cp ./src/bboard.compact ./dist",
+    "compact": "compact compile src/bboard.compact ./src/managed/bboard",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.8.0"
+    "typescript": "^5.9.3"
   }
 }
 ```
 
 Each script serves the following purpose:
 
-- `clean`: Removes compiled output for a fresh build
-- `compile:compact`: Runs the Compact compiler to generate circuits and TypeScript API
-- `compile:typescript`: Compiles TypeScript to JavaScript
-- `build`: Executes all compilation steps in order and copies necessary files
+- `compact`: Runs the Compact compiler to generate circuits and TypeScript API
+- `typecheck`: Verifies TypeScript types without emitting JavaScript output
+- `build`: Compiles TypeScript using `tsconfig.build.json` and copies the generated `managed/` directory and contract source into `dist/`
 
 ### Build the contract
 
-Run the complete build process:
+The `compact` and `build` scripts run independently so that you can re-run the TypeScript build without recompiling the Compact contract:
 
 ```bash
 npm install
+npm run compact
 npm run build
 ```
 
-This command:
+These commands:
 
-1. Installs dependencies (TypeScript compiler and Node.js types)
-2. Cleans previous build artifacts
-3. Compiles the Compact contract to circuits and TypeScript
-4. Compiles TypeScript to JavaScript
-5. Generates type definition files
-6. Copies managed code and source contract to the `dist` directory
+1. Install dependencies (TypeScript compiler)
+2. Compile the Compact contract to circuits and the generated TypeScript API under `src/managed/bboard/`
+3. Compile TypeScript to JavaScript using `tsconfig.build.json`, which excludes the `src/test` directory
+4. Copy the `managed/` directory and the source `bboard.compact` file into `dist/`
 
-You should see output from both the Compact compiler and TypeScript compiler. If successful, you'll have:
+If successful, you'll have:
 
-- `dist/managed/bboard/`: Generated contract code
+- `src/managed/bboard/`: Generated contract code from the Compact compiler
 - `dist/`: Compiled JavaScript and type definitions
+- `dist/managed/bboard/`: Generated contract code copied for packaging
 - `dist/bboard.compact`: The source contract file
 
 ## Next steps
