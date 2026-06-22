@@ -1,12 +1,12 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-title: Counter
-description: Build a counter DApp from scratch to learn Compact smart contract basics, ledger state, ZK proof generation, and CLI deployment.
-sidebar_position: 1
+title: Private Party
+description: Write a private party contract that demonstrates the privacy boundary in Midnight DApps, then verify it with MidnightJS tests.
+sidebar_position: 20
 tags:
   - tutorials
-  - counter
+  - private-party
   - compact
   - beginner
   - midnight-network
@@ -14,21 +14,15 @@ tags:
 
 import PersonaTiles from '@site/src/components/PersonaTiles';
 
-# Counter tutorial
+# Private party tutorial
 
-Build a counter DApp from scratch. Start with the Compact smart contract, then build a CLI to deploy and interact with it on Midnight Network.
+Write a Compact contract that demonstrates the privacy boundary in Midnight, including Unshielded tokens, then run a test suite to verify it on a local devnet.
 
 <PersonaTiles tiles={[
   {
-    title: "Counter contract",
-    body: "Create a Compact smart contract with public ledger state, define a circuit, compile it to ZK circuits, and implement witness functions.",
-    to: "/tutorials/counter/smart-contract",
+    title: "Private party contract",
+    body: "Build a privacy application that demonstrates the privacy boundary in Midnight DApps.",
+    to: "/tutorials/private-party/smart-contract",
     cta: "Write the contract",
-  },
-  {
-    title: "Counter CLI",
-    body: "Build a CLI that manages wallets, deploys the counter contract, and submits transactions on Midnight Network.",
-    to: "/tutorials/counter/counter-cli",
-    cta: "Build the CLI",
   },
 ]} />

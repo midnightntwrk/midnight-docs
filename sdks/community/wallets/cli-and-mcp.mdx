@@ -1,0 +1,93 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_position: 30
+sidebar_label: CLI and MCP
+description: "Develop and test on the Midnight Network without a browser wallet using the wallet CLI, and drive a self-custody wallet from AI agents over MCP."
+title: Develop with the wallet CLI and MCP
+tags: [community, wallets, cli, mcp, ai-agents, testing, automation, devnet]
+toc_max_heading_level: 2
+id: community-wallets-cli-mcp
+---
+
+# Develop with the wallet CLI and MCP
+
+How scripts, CI, and AI agents hold and move funds on Midnight without a browser extension, using the wallet CLI and its MCP server. For choosing a wallet first, see the [overview](./wallets-overview.mdx); for browser DApp integration, see the [integration guide](./integration.mdx).
+
+## Develop and test without a wallet
+
+The **Self-custody × CLI** cell in practice. The **wallet CLI** exposes the **same `ConnectedAPI`** over a local WebSocket, so DApp code paths run with zero changes, then users connect with any browser wallet. The CLI is **self-custody** (keys in `~/.midnight`, BIP-39/44, Lace-compatible) and **network-agnostic** (one seed serves `undeployed`, `preprod`, `preview`).
+
+| Group | Commands |
+|---|---|
+| Wallet | `wallet generate/list/use/info/remove`, `info`, `address`, `genesis-address` |
+| Transactions | `balance`, `transfer`, `airdrop`, `inspect-cost` |
+| DUST | `dust register`, `dust status` |
+| Local network | `localnet up/status/stop/down/clean` |
+| Config / connector | `config get/set/unset`, `cache clear`, `serve` |
+
+`midnight localnet up` orchestrates the full stack in Docker, **node (`9944`), indexer (`8088`), proof server (`6300`)**, so you can deploy and transact with no faucet:
+
+```bash
+midnight localnet up                          # node + indexer + proof server (Docker)
+midnight wallet generate alice                # self-custody key in ~/.midnight
+midnight config set network undeployed
+midnight airdrop 1000                          # fund the active wallet (undeployed-only)
+midnight airdrop 1000 mn_addr_undeployed1...   # ...or fund ANY address directly (v0.4.1, no seed import)
+midnight dust register                         # REQUIRED before transfers (else error 138)
+midnight balance
+midnight transfer mn_addr_undeployed1... 100   # positional: <recipient> <amount>
+
+midnight serve --network preview               # headless DApp Connector on ws://localhost:9932
+midnight serve --network preview --approve-all # dev only: auto-approve every request
+```
+
+:::warning[#1 beginner gotcha]
+
+`dust register` **before** transferring, or it fails with `BalanceCheckOverspend` (138). DUST regenerates about 5 min locally (see [Fees and DUST](./integration.mdx#fees-and-dust), [Troubleshooting](./reference.mdx#troubleshooting-and-error-reference)).
+
+:::
+
+```ts
+// A DApp connects to the CLI connector exactly like a browser wallet:
+import { createWalletClient } from "midnight-wallet-connector";
+const wallet = await createWalletClient({ url: "ws://localhost:9932", networkId: "Preview" });
+const balances = await wallet.getUnshieldedBalances(); // same ConnectedAPI surface
+```
+
+Build and test against `midnight serve` (fast, scriptable, no pop-ups), then deploy and let users connect with Lace/1AM, zero code changes.
+
+:::note[Freshness (v0.4.1)]
+
+`midnight airdrop` can now **fund any address directly** (paste the recipient's address, no seed import needed), so you no longer need to import a seed to fund browser wallets on a local network. The indexer connection also moved to the **v4 API**, fixing connection errors on the test networks. ([repo](https://github.com/nel349/midnight-wallet-cli))
+
+:::
+
+([CLI README](https://www.npmjs.com/package/midnight-wallet-cli), [connector](https://www.npmjs.com/package/midnight-wallet-connector), [local playground](https://forum.midnight.network/t/local-playground-for-midnight-compact-contracts-run-a-full-node-indexer-and-proof-server-via-docker-fund-your-lace-wallet-and-deploy-without-testnets-or-faucets/1002))
+
+## AI and agent tooling (the MCP column)
+
+The **MCP** column, *agents calling tools*, in two flavors.
+
+**Wallet-control MCP.** The **midnight-wallet-cli** ships an **MCP server** (`midnight-wallet-mcp`) with **31 tools** that mirror the CLI commands, so an AI agent can operate a self-custody wallet, the **Self-custody × MCP** cell:
+
+| Group | MCP tools |
+|---|---|
+| Wallet and info | `midnight_wallet_generate`, `_list`, `_use`, `_info`, `_remove`, `midnight_info`, `midnight_address`, `midnight_genesis_address` |
+| Transactions | `midnight_balance`, `_transfer`, `_airdrop`, `midnight_inspect_cost` |
+| DUST | `midnight_dust_register`, `_status` |
+| Local network | `midnight_localnet_up`, `_stop`, `_down`, `_status`, `_clean` |
+| Config | `midnight_config_get`, `_set`, `_unset`, `midnight_cache_clear` |
+
+The newest tools are the consequential ones: an agent can now drive the **full contract lifecycle** (deploy, call, read state), not just move tokens, and a **two-step confirmation** tool shows the human what the agent is about to spend before anything executes. Point any MCP client at the binary, such as Claude Code (`.mcp.json`), Claude Desktop, Cursor, VS Code (Copilot), or Windsurf:
+
+```json
+{ "mcpServers": { "midnight-wallet": { "command": "midnight-wallet-mcp" } } }
+```
+
+This is the highest-risk cell: scope the agent's tools, cap spend, allowlist destinations, and keep a human in the loop (see [Security checklist](./reference.mdx#security-checklist)). Walkthrough: *"Multi-Language Dev Session #22: midnight-wallet-cli"* ([YouTube](https://www.youtube.com/watch?v=zgt27WFzQHk), [CLI README](https://www.npmjs.com/package/midnight-wallet-cli)).
+
+**Dev-assistant MCP.** Tooling that helps you *build*: write Compact, wire the connector, verify claims. See the talk *"Midnight for Developers: Midnight MCP, The AI Tool That Finally Understands Compact"* ([YouTube](https://www.youtube.com/watch?v=oGDSMDejUkE)). Two marketplaces:
+
+- **Midnight Expert** has 13 plugins (87 skills, 17 agents) across the dev lifecycle. Most relevant here: `midnight-tooling` (CLI, devnet, proof server), `midnight-dapp-dev` (frontend plus connector), `midnight-wallet` (wallet SDK), `midnight-verify` (check SDK/connector claims), `midnight-status-codes`. Install via `/plugin` then add `https://midnightntwrk.expert`. ([midnightntwrk.expert](https://midnightntwrk.expert/))
+- **Edda Labs** ships the `midnight` plugin: `/midnight-docs`, `/midnight-docs-repos`, `/midnight-examples`, `/midnight-contracts`, `/midnight-starter` (the same [`eddalabs/midnight-starter-template`](https://github.com/eddalabs/midnight-starter-template) used in the [React pattern](./integration.mdx#react-the-production-pattern)). Install: `/plugin marketplace add eddalabs/edda-marketplace` then `/plugin install midnight`.

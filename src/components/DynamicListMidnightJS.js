@@ -17,8 +17,27 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.0.4',
+    version: '4.1.1',
     status: 'LATEST',
+    date: '2 June 2026',
+    summary: 'Breaking error handling changes, security hardening, qanet support',
+    details: [
+      'Renamed `IndexerFormattedError.cause` to `.errors` for ES2022 compatibility (breaking)',
+      'Applied full password policy to signing key and private state export operations',
+      'Emitted contract state for `blockHeight`/`blockHash` configurations',
+      'Hardened error handling in `indexer-public-data-provider`',
+      'Added signing key validation on import',
+      'Warned on plain HTTP/WS for non-loopback provider URLs',
+      'Added qanet support via NIGHT/DUST faucet flow in `testkit-js`',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-1-1',
+  },
+  {
+    version: '4.0.4',
+    status: 'SUPPORTED',
     date: '1 April 2026',
     summary: 'Summary of Release 4.0.4',
     details: [

@@ -17,8 +17,29 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '8.0.3',
+    version: '8.1.0',
     status: 'LATEST',
+    date: '13 May 2026',
+    summary: 'Storage layer improvements, deadlock fixes, and enhanced wallet WASM bindings',
+    details: [
+      'Added incremental garbage collector in `storage-core` with time-bounded execution',
+      'Allowed ParityDB to use existing instance and share backends through generic `Deref`',
+      'Fixed race condition in `force_as_arc` that could cause deadlocks',
+      'Fixed panic in `Sp` serialization with mixed promoted/unpromoted keys',
+      'Fixed memory leak from pending `Update` not removed before `cache_insert_new_key`',
+      'Corrected `Sp::into_tracked` behavior',
+      'Exposed finer-grained control and event contents for wallet in WASM bindings',
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnight-ntwrk/ledger-v8' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnight-ntwrk/onchain-runtime-v3' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server/' }
+    ],
+    link: '/relnotes/ledger/ledger-8-1-0',
+  },
+  {
+    version: '8.0.3',
+    status: 'SUPPORTED',
     date: '20 March 2026',
     summary: 'Summary of v8.0.3',
     details: [
