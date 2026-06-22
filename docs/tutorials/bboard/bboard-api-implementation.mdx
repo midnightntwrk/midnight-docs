@@ -41,7 +41,7 @@ Create `api/package.json`:
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf dist && tsc",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
     "ci": "npm run typecheck && npm run lint && npm run build",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -62,7 +62,8 @@ Create `api/tsconfig.json`:
     "lib": ["ESNext", "DOM"],
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "Bundler",
+    "types": [],
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
@@ -73,6 +74,16 @@ Create `api/tsconfig.json`:
     "esModuleInterop": true,
     "skipLibCheck": true
   }
+}
+```
+
+Create `api/tsconfig.build.json` to exclude test files from production builds:
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["src/test/**/*.ts"],
+  "compilerOptions": {}
 }
 ```
 
@@ -147,7 +158,7 @@ Create `api/src/index.ts` and add the following sections.
 ```typescript title="api/src/index.ts"
 import * as BBoard from '../../contract/src/managed/bboard/contract/index.js';
 
-import { type ContractAddress, convertFieldToBytes } from '@midnight-ntwrk/compact-runtime';
+import { type ContractAddress, convertFieldToBytes } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { type Logger } from 'pino';
 import {
   type BBoardDerivedState,
@@ -161,7 +172,7 @@ import * as utils from './utils/index.js';
 import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { combineLatest, map, tap, from, type Observable } from 'rxjs';
 import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-import { BBoardPrivateState, createBBoardPrivateState } from '@midnight-ntwrk/bboard-contract';
+import { BBoardPrivateState, createBBoardPrivateState } from '../../contract/src/witnesses.js';
 ```
 
 ### Define the API interface
@@ -190,6 +201,7 @@ export class BBoardAPI implements DeployedBBoardAPI {
     private readonly logger?: Logger,
   ) {
     this.deployedContractAddress = deployedContract.deployTxData.public.contractAddress;
+    providers.privateStateProvider.setContractAddress(this.deployedContractAddress);
     this.state$ = combineLatest(
       [
         providers.publicDataProvider.contractStateObservable(this.deployedContractAddress, { type: 'latest' }).pipe(
@@ -281,7 +293,7 @@ The `takeDown` method invokes the smart contract's `takeDown` circuit, which req
     const deployedBBoardContract = await deployContract(providers, {
       compiledContract: CompiledBBoardContractContract,
       privateStateId: bboardPrivateStateKey,
-      initialPrivateState: await BBoardAPI.getPrivateState(providers),
+      initialPrivateState: createBBoardPrivateState(utils.randomBytes(32)),
     });
 
     logger?.trace({
@@ -294,7 +306,7 @@ The `takeDown` method invokes the smart contract's `takeDown` circuit, which req
   }
 ```
 
-The `deploy` method creates a new bulletin board contract instance on the blockchain. Each deployed contract gets a unique on-chain address that other users can use to join and interact with the bulletin board.
+The `deploy` method creates a new bulletin board contract instance on the blockchain by generating a fresh 32-byte secret key for the deployer's private state. Each deployed contract gets a unique on-chain address that other users can use to join and interact with the bulletin board.
 
 ### Implement the join method
 
@@ -310,7 +322,7 @@ The `deploy` method creates a new bulletin board contract instance on the blockc
       contractAddress,
       compiledContract: CompiledBBoardContractContract,
       privateStateId: bboardPrivateStateKey,
-      initialPrivateState: await BBoardAPI.getPrivateState(providers),
+      initialPrivateState: await BBoardAPI.getPrivateState(providers, contractAddress),
     });
 
     logger?.trace({
@@ -328,14 +340,18 @@ The `join` method connects to an existing deployed bulletin board contract, allo
 ### Implement private state helper
 
 ```typescript title="api/src/index.ts"
-  private static async getPrivateState(providers: BBoardProviders): Promise<BBoardPrivateState> {
+  private static async getPrivateState(
+    providers: BBoardProviders,
+    contractAddress: ContractAddress,
+  ): Promise<BBoardPrivateState> {
+    providers.privateStateProvider.setContractAddress(contractAddress);
     const existingPrivateState = await providers.privateStateProvider.get(bboardPrivateStateKey);
     return existingPrivateState ?? createBBoardPrivateState(utils.randomBytes(32));
   }
 }
 ```
 
-This helper retrieves existing private state or generates a new random 32-byte secret key if none exists. The private state persists across application restarts, allowing users to prove ownership of their posted messages in future sessions.
+The Midnight.js 4.x private state provider scopes stored state per contract address, so the helper first calls `setContractAddress()` before reading. If no private state exists for the given address, the helper generates a new random 32-byte secret key. The private state persists across application restarts, allowing users to prove ownership of their posted messages in future sessions.
 
 ### Export utilities and types
 
