@@ -17,8 +17,53 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.0.2',
+    version: '4.3.3',
     status: 'LATEST',
+    date: '4 June 2026',
+    summary: 'Subscription quotas, @beta directive, per-tree end indexes, and dustGenerations fix.',
+    details: [
+      'Added per-connection and per-client subscription quotas to GraphQL WebSocket',
+      'Introduced `@beta` GraphQL directive for in-flight API fields',
+      'Added per-tree end indexes (`zswapEndIndex`, `dustCommitmentEndIndex`, `dustGenerationEndIndex`) to `Block`',
+      'Added lazy `transaction` reference on nullifier event types',
+      'Tightened shielded nullifier transactions input validation',
+      'Renamed dust nullifier byte fields with `LeBytes` suffix (breaking, `@beta` only)',
+      'Fixed `dustGenerations` subscription to deliver dtime updates on fresh subscriptions',
+    ],
+    artifacts: [
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+      { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-3-3',
+  },
+  {
+    version: '4.3.2',
+    status: 'SUPPORTED',
+    date: '15 May 2026',
+    summary: 'Kubernetes liveness endpoint and dustGenerations subscription fix',
+    details: [
+      'Added `/live` HTTP endpoint for kubernetes liveness probes in indexer-api',
+      'Fixed `dustGenerations` subscription hang when `endIndex` misses wallet-owned generation index',
+      'Termination signal moved from per-wallet cursor to chain progress for subscription reliability',
+      'Added re-drain step to close race window between storage drain and chain-progress read',
+      'Pairs with Node 1.0.0 and Ledger 8.1.0 (Midnight 1.1 bundle)',
+    ],
+    artifacts: [
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+      { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-3-2',
+  },
+  {
+    version: '4.0.2',
+    status: 'SUPPORTED',
+    note: 'Maintenance line for Node 0.22.x',
     date: '23 April 2026',
     summary: 'Patch release correcting paidFees computation.',
     details: [
@@ -34,6 +79,7 @@ const releases = [
   {
     version: '4.0.1',
     status: 'SUPPORTED',
+    note: 'Maintenance line for Node 0.22.x',
     date: '25 March 2026',
     summary: 'Patch release correcting timestamp unit mismatch in capacity calculation.',
     details: [
@@ -351,6 +397,13 @@ const DynamicListWithDropdownFilters = () => {
 
           {/* Release date */}
           <p style={{ fontSize: '0.9rem', marginTop: '1rem', marginBottom: '1rem' }}>{release.date}</p>
+
+          {/* Optional note */}
+          {release.note && (
+            <p style={{ fontSize: '0.85rem', fontStyle: 'italic', color: 'var(--ifm-color-emphasis-600)', marginTop: '0', marginBottom: '1rem' }}>
+              {release.note}
+            </p>
+          )}
 
           {/* Artifacts Section */}
           {release.artifacts.length > 0 && (
