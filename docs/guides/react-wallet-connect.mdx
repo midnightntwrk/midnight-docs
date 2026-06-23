@@ -149,9 +149,15 @@ const App: React.FC = () => {
     let address = null;
     
     try {
-      // Access the Midnight Lace wallet through the window object
-      const wallet: InitialAPI = window.midnight!.mnLace;
-      
+      // Wallets inject their Initial API into `window.midnight` under a
+      // wallet-specific key (not a fixed key like `mnLace`), so look it up
+      // by the `name` property instead of assuming the key.
+      const wallets = Object.values(window.midnight ?? {});
+      const wallet: InitialAPI | undefined = wallets.find((w) => w.name === 'Lace');
+      if (!wallet) {
+        throw new Error('Lace wallet not found. Please install the Lace wallet extension.');
+      }
+
       // Connect to the specified network (use 'undeployed' for local development)
       const connectedApi = await wallet.connect('preprod');
       
@@ -204,8 +210,8 @@ export default App;
 
 Let's break down the wallet connection process:
 
-1. **Access the wallet**: The DApp Connector API exposes the wallet through `window.midnight.{walletProvider}`. 
-In our example, we used `window.midnight.mnLace` to access the Midnight Lace wallet.
+1. **Access the wallet**: The DApp Connector API exposes each wallet through `window.midnight.{walletId}`, where `{walletId}` is a wallet-specific key chosen by the wallet (not a fixed value). 
+In our example, we find the Lace wallet by looking up `window.midnight` values whose `name` property is `'Lace'`.
 2. **Connect to network**: Call the `connect()` method and pass the network ID as an argument. 
 In our example, we used `'undeployed'` for local development. You can use `'preview'` for the Preview testnet or `'preprod'` for the PreProd network.
 3. **Retrieve addresses**: After connecting to the network, call the `getShieldedAddresses()` method to get the wallet's shielded address.
