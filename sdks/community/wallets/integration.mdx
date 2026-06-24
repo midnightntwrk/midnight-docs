@@ -12,17 +12,17 @@ id: community-wallets-integration
 
 # Integrate a wallet
 
-How to connect a community wallet in a browser DApp using the DApp Connector API (CAIP-372): discovery, connect, ZK proving, fees, and portable React code. For choosing a wallet first, see the [overview](./wallets-overview.mdx); for no-extension, headless, or agent flows, see the [CLI and MCP workflow](./cli-and-mcp.mdx).
+Connect a community wallet in a browser DApp through the DApp Connector API (CAIP-372). This page covers discovery, connect, ZK proving, fees, and portable React code. To choose a wallet first, see the [overview](./wallets-overview.mdx). For headless or agent flows with no extension, see the [CLI and MCP workflow](./cli-and-mcp.mdx).
 
 | Item | Detail |
 |---|---|
-| **DApp Connector API** | `@midnight-ntwrk/dapp-connector-api` **v4.0.1** |
-| **Local proof server** | `http://localhost:6300` (Lace); CLI connector on `ws://localhost:9932` |
-| **Networks** | `mainnet`, `preview`, `preprod`, `undeployed` (local); only `'mainnet'` is connector-standard, other ids are wallet-defined (see [Connect and the ConnectedAPI surface](#connect-and-the-connectedapi-surface)) |
+| DApp Connector API | `@midnight-ntwrk/dapp-connector-api` v4.0.1 |
+| Local proof server | `http://localhost:6300` (Lace and local networks); CLI connector on `ws://localhost:9932` |
+| Networks | `mainnet`, `preview`, `preprod`, `undeployed` (local). Only `'mainnet'` is connector-standard; other ids are wallet-defined (see [Connect and the ConnectedAPI surface](#connect-and-the-connectedapi-surface)) |
 
 ## The DApp Connector API (CAIP-372)
 
-A Midnight browser wallet injects an **Initial API** under the global `window.midnight`, keyed by an identifier, compatible with the draft [CAIP-372](https://github.com/ChainAgnostic/CAIPs/pull/372/files) (Chain Agnostic Improvement Proposal) standard, so the *same DApp code* works across wallets. ([npm](https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api), [connector repo + SPEC](https://github.com/midnightntwrk/midnight-dapp-connector-api), [API reference](https://docs.midnight.network/api-reference/dapp-connector))
+A Midnight browser wallet injects an Initial API under the global `window.midnight`, keyed by an identifier. The shape is compatible with the draft [CAIP-372](https://github.com/ChainAgnostic/CAIPs/pull/372/files) (Chain Agnostic Improvement Proposal), so the same DApp code works across wallets. ([npm](https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api), [connector repo and spec](https://github.com/midnightntwrk/midnight-dapp-connector-api), [API reference](https://docs.midnight.network/api-reference/dapp-connector))
 
 ```ts
 type InitialAPI = {
@@ -34,57 +34,57 @@ type InitialAPI = {
 };
 ```
 
-**Discovery has two generations, support both.** Legacy direct key (Lace at `window.midnight.mnLace`, 1AM at `window.midnight['1am']`) **and** the v4 rdns scan (iterate keys, match on `name`/`rdns`, EIP-6963-style, the Ethereum Improvement Proposal for multi-wallet discovery). ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
+Support both discovery paths. Wallets such as Lace and 1AM inject under a fixed, friendly key (`window.midnight.mnLace`, `window.midnight['1am']`). The v4 specification instead installs each wallet under its own key and exposes a stable `rdns` field. Discover wallets by scanning `Object.values(window.midnight)` and matching on `rdns` or `name`. Before using a wallet, check its `apiVersion` against the range your DApp supports. The spec notes event-based discovery, like Ethereum's EIP-6963, as a possible future addition, but the current mechanism is the shared `window.midnight` object. ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
 
 ## Connect and the ConnectedAPI surface
 
-`connect(networkId)` prompts the user and resolves to a **ConnectedAPI** spanning Midnight's three asset kinds (*shielded*, *unshielded*, *DUST*). **Only `'mainnet'` is standardized by the connector spec**; every other network id is **wallet-defined**, and they differ (the CLI connector, for example, expects capitalized `'Preview'`/`'PreProd'`/`'Undeployed'`, which is why the [CLI snippet](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) uses `networkId: "Preview"`). Check your target wallet's docs for the exact strings.
+`connect(networkId)` prompts the user to authorize, then resolves to a ConnectedAPI that spans Midnight's three asset kinds (shielded, unshielded, and DUST). Only `'mainnet'` is standardized by the connector spec; every other network id is wallet-defined and they differ. The CLI connector, for example, expects capitalized `'Preview'`, `'PreProd'`, and `'Undeployed'`, which is why the [CLI snippet](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) uses `networkId: "Preview"`. Check your target wallet's docs for the exact strings.
 
 | Method | Purpose |
 |--------|---------|
 | `getShieldedAddresses()` / `getUnshieldedAddress()` / `getDustAddress()` | Bech32m addresses per asset kind |
-| `getShieldedBalances()` / `getUnshieldedBalances()` | per-token balances |
+| `getShieldedBalances()` / `getUnshieldedBalances()` | Per-token balances |
 | `getDustBalance()` | `{ balance, cap }`: DUST regenerates toward `cap` |
-| `makeTransfer(outputs, {payFees})` / `makeIntent(inputs, outputs, {...})` | build a transfer / unbalanced intent |
-| `balanceUnsealedTransaction(tx)` / `balanceSealedTransaction(tx)` | balance and pay fees for a contract-built tx |
-| `signData(data, {encoding, keyType})` | sign arbitrary data with the unshielded key |
-| `submitTransaction(tx)` | broadcast a sealed tx (*the wallet acts as relayer*) |
-| `getProvingProvider(keyMaterialProvider)` | delegate ZK proving to the wallet |
-| `getConfiguration()` / `getConnectionStatus()` / `hintUsage(methodNames)` | config; status (plus networkId); pre-request hints |
+| `makeTransfer(outputs, {payFees})` / `makeIntent(inputs, outputs, {...})` | Build a transfer or an unbalanced intent |
+| `balanceUnsealedTransaction(tx)` / `balanceSealedTransaction(tx)` | Balance and pay fees for a contract-built transaction |
+| `signData(data, {encoding, keyType})` | Sign arbitrary data with the unshielded key |
+| `submitTransaction(tx)` | Broadcast a sealed transaction (the wallet acts as relayer) |
+| `getProvingProvider(keyMaterialProvider)` | Delegate ZK proving to the wallet |
+| `getConfiguration()` / `getConnectionStatus()` / `hintUsage(methodNames)` | Config; status (with networkId); pre-request hints |
 
-:::warning[Feature-detect, coverage varies]
+:::warning[Feature-detect, because coverage varies]
 
-The connector is a contract, but not every wallet implements every method. **Lace does not implement `getProvingProvider()` or `signData()`** (see [Lace](./wallets-overview.mdx#lace)). Always check, for example `typeof api.getProvingProvider === "function"`, before calling.
+The connector is a contract, but not every wallet implements every method. Lace does not implement `getProvingProvider()` or `signData()` (see [Lace](./wallets-overview.mdx#lace)). Always check before calling, for example `typeof api.getProvingProvider === "function"`.
 
 :::
 
-:::warning[The #1 connect gotcha: call connect() synchronously inside the click handler]
+:::warning[The #1 connect gotcha: call connect() synchronously in the click handler]
 
-Lace opens a real authorization pop-up, and the browser silently blocks it if transient user activation was lost (you `await`ed something, or used `setTimeout` or an rxjs `interval` first). For page-load auto-reconnect there is no gesture: poll `window.midnight` until injected (extensions inject slightly after `DOMContentLoaded`; users may need to **refresh after installing**), then connect.
+Lace opens a real authorization pop-up. The browser silently blocks it if transient user activation was lost, for example if you `await`ed something, or used `setTimeout` or an RxJS `interval` first. Page-load auto-reconnect has no user gesture, so poll `window.midnight` until the wallet injects it, then connect. Extensions inject slightly after `DOMContentLoaded`, and users may need to refresh after installing.
 
 :::
 
 ## Where ZK proofs come from
 
-A Midnight tx needs a ZK proof; *who generates it* is the main axis between wallets (and maps onto the custody models):
+Every Midnight transaction needs a ZK proof. Who generates that proof is the main difference between wallets, and it maps onto the custody models:
 
-- **Local proof server (Lace).** Lace requires a **local proof server** (Settings » Midnight » Local, `http://localhost:6300`). Witness data stays on the user's machine, but they must run the server, and Lace does **not** expose `getProvingProvider()`, so a DApp cannot delegate proving to it.
-- **In-browser WASM (1AM).** 1AM compiles Midnight's prover (a Halo2-based zk-SNARK over the **BLS12-381** curve, a few MB of WASM) and proves *in the tab*: no separate process, sub-second after a cold-start load. 1AM **does** implement `getProvingProvider()` and offers a hosted **Proof Station**.
-- **Delegated (`getProvingProvider`).** The v4 connector abstracts proving behind it; the old `Configuration.proverServerUri` is **deprecated**. Obtain a proving provider from the wallet when available, and fall back to a configured proof server for Lace.
+- **Local proof server (Lace).** Lace requires a local proof server (Settings, then Midnight, then Local, at `http://localhost:6300`). Witness data stays on the user's machine, but the user must run the server. Lace does not expose `getProvingProvider()`, so a DApp cannot delegate proving to it.
+- **In-browser WASM (1AM).** 1AM compiles Midnight's prover, a Halo2-based zk-SNARK over the BLS12-381 curve, into a few MB of WASM and proves in the tab. There is no separate process, though proving time still depends on circuit size and the one-time cold-start key load. 1AM implements `getProvingProvider()` and offers a hosted Proof Station.
+- **Delegated (`getProvingProvider`).** The v4 connector abstracts proving behind this method; the old `Configuration.proverServerUri` is deprecated. Obtain a proving provider from the wallet when it is available, and fall back to a configured proof server for Lace.
 
 ## Fees and DUST
 
-Fees are paid in DUST, generated by holding NIGHT and regenerating over time. `getDustBalance()` returns `{ balance, cap }`, and `submitTransaction` uses the wallet as a relayer with a `payFees` option, so a wallet *can* sponsor fees, but **sponsorship is a capability the connector allows, not a guarantee any wallet ships**. On a fresh wallet, DUST takes time to generate (about 12 h on Lace mainnet/testnet, about 5 min on a local network), and overspending surfaces as `BalanceCheckOverspend` (138) (see [Troubleshooting](./reference.mdx#troubleshooting-and-error-reference)).
+Fees are paid in DUST, which a wallet generates by holding NIGHT and regenerates over time. `getDustBalance()` returns `{ balance, cap }`, and `submitTransaction` uses the wallet as a relayer with a `payFees` option. A wallet can therefore sponsor fees, but sponsorship is a capability the connector allows, not a guarantee that any given wallet ships. On a fresh wallet, DUST takes time to generate: about 12 hours on Lace mainnet or testnet, and about 5 minutes on a local network. Overspending surfaces as `BalanceCheckOverspend` (138) (see [Troubleshooting](./reference.mdx#troubleshooting-and-error-reference)).
 
 ## The portable integration code
 
-Works for any standard-connector wallet (Lace, 1AM); the [CLI connector](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) is a no-extension dev fallback.
+This works for any standard-connector wallet (Lace, 1AM). The [CLI connector](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) is a no-extension development fallback.
 
 ```ts
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
 import type { InitialAPI, ConnectedAPI } from "@midnight-ntwrk/dapp-connector-api";
 
-// 1. Discover (legacy key first, then v4 rdns scan)
+// 1. Discover (friendly key first, then the v4 rdns scan)
 const wallets = Object.values(window.midnight ?? {})
   .filter((w): w is InitialAPI => !!w?.name && !!w?.apiVersion);
 
@@ -97,7 +97,7 @@ async function connect(w: InitialAPI, networkId = "preprod"): Promise<ConnectedA
   setNetworkId(status.networkId);                     // align the DApp to the wallet's network
   return api;
 }
-// To submit: build the tx (api.makeTransfer / your contract), prove (feature-detect
+// To submit: build the tx (api.makeTransfer or your contract), prove (feature-detect
 // api.getProvingProvider, else local proof server), then api.submitTransaction(tx).
 ```
 
@@ -105,16 +105,16 @@ async function connect(w: InitialAPI, networkId = "preprod"): Promise<ConnectedA
 
 Handle these differences between connectors:
 
-- **Proving:** feature-detect `getProvingProvider`; 1AM has it, **Lace doesn't** (fall back to the local proof server; don't hard-code the deprecated `proverServerUri`).
-- **`signData`:** not on Lace; feature-detect before signature-based auth.
-- **Pop-up:** Lace opens an auth pop-up (keep `connect()` synchronous); the reconnect path has no gesture, so poll `window.midnight` then connect.
+- **Proving:** feature-detect `getProvingProvider`. 1AM has it; Lace does not, so fall back to the local proof server and do not hard-code the deprecated `proverServerUri`.
+- **`signData`:** not on Lace, so feature-detect before any signature-based authentication.
+- **Pop-up:** Lace opens an auth pop-up, so keep `connect()` synchronous. The reconnect path has no gesture, so poll `window.midnight`, then connect.
 - **Network:** always reconcile the DApp to `getConnectionStatus().networkId`.
-- **DUST:** read `getDustBalance()`, handle `{ balance: 0n }` and the `cap`; don't assume sponsored fees.
-- **Non-standard tiles:** Ctrl/Gero may not inject a conformant connector; feature-detect and degrade to Lace/1AM.
+- **DUST:** read `getDustBalance()`, handle `{ balance: 0n }` and the `cap`, and do not assume sponsored fees.
+- **Non-standard tiles:** Ctrl and Gero may not inject a conformant connector, so feature-detect and degrade to Lace or 1AM.
 
 ## React: the production pattern
 
-The Edda Labs **midnight-starter-template** (demo at `counter.nebula.builders`) wires Lace plus 1AM through a copy-pasteable wallet-widget; use it rather than re-deriving:
+The Edda Labs midnight-starter-template (demo at `counter.nebula.builders`) wires Lace and 1AM through a copy-pasteable wallet widget. Use it rather than re-deriving the logic:
 
 ```tsx
 import { useWallet } from "@/modules/midnight/wallet-widget/hooks/useWallet";
@@ -127,4 +127,4 @@ function ConnectButton() {
 }
 ```
 
-Key files in the repo, under `frontend-vite-react/src/modules/midnight/`: `wallet-widget/api/walletController.ts` (discovery, pop-up-safe connect, proof-server check), `wallet-widget/hooks/useWallet.ts` plus `contexts/wallet.tsx` (state), `wallet-widget/ui/midnightWallet.tsx` (connect modal), `counter-sdk/` (wiring a connected wallet into a Compact call). ([starter template](https://github.com/eddalabs/midnight-starter-template), [React guide](https://docs.midnight.network/guides/react-wallet-connect))
+Key files in the repo, under `frontend-vite-react/src/modules/midnight/`: `wallet-widget/api/walletController.ts` (discovery, pop-up-safe connect, proof-server check); `wallet-widget/hooks/useWallet.ts` and `contexts/wallet.tsx` (state); `wallet-widget/ui/midnightWallet.tsx` (connect modal); and `counter-sdk/` (wiring a connected wallet into a Compact call). ([starter template](https://github.com/eddalabs/midnight-starter-template), [React guide](https://docs.midnight.network/guides/react-wallet-connect))
