@@ -1,0 +1,908 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Create and transfer an unshielded token
+description: "Build, deploy, and transfer a transparent (unshielded) token in Compact on Midnight, with on-chain balances you read straight from wallet state."
+sidebar_label: Unshielded token
+sidebar_position: 2
+tags: [tokens, unshielded, compact, tutorial, mint, transfer]
+---
+
+# Create and transfer an unshielded token
+
+On Midnight, the privacy model you choose for a token changes how you write its smart contract. This tutorial shows you how to create and transfer both **unshielded** (transparent) and **shielded** (privacy-preserving) tokens in Compact.
+
+You build two tokens in turn. The unshielded token keeps its balances on-chain, where anyone can read them. The shielded token hides its balances, which forces a different design. Putting them side by side is the fastest way to understand how privacy refines a token on Midnight.
+
+This tutorial is for developers who know the basics of Compact and have deployed a smart contract before. If you are new to Compact, read the [Compact language reference](/compact/reference/compact-reference) first or check out [Midnight Academy](https://academy.midnight.network).
+
+## How tokens work on Midnight
+
+Midnight has no native token live on the network yet. NIGHT exists on Cardano and bridges to Midnight later. Until that lands, every token on Midnight is created by a smart contract — which is exactly what you do here.
+
+It helps to place your token in the wider map. Tokens fall into four types, along two axes: where the token comes from, and whether it is transparent or privacy-preserving.
+
+|  | Unshielded (transparent) | Shielded (privacy-preserving) |
+| :---- | :---- | :---- |
+| **Native** | Protocol-issued, for example NIGHT once bridged | Protocol-issued, amounts hidden |
+| **Contract** | Minted by a smart contract; balances on-chain | Minted by a smart contract; balances hidden |
+
+This tutorial covers the two **contract** rows. Native tokens are protocol-issued and are not yet live. A third group, hybrid tokens, places a native coin under the control of a smart contract; that work depends on protocol changes still in design, so it is out of scope here.
+
+:::info
+
+The token standards for Midnight are still being scoped. The smart contracts in this tutorial use the protocol primitives directly, which work today, rather than any draft standard. For the current direction, see the [token standards discussion](https://github.com/midnightntwrk/midnight-improvement-proposals/discussions/142).
+
+:::
+
+Those primitives share a starting point. Before you can mint, transfer, or check a balance, you need a way to identify the token you are working with — and that identifier is its color.
+
+## Token color
+
+Every token has a *color*, a `Bytes<32>` value that identifies the token type. A contract token's color is derived from the smart contract and a *domain separator*, a fixed label you choose. The minting primitive returns the color, and you use that color in every later operation on the token. Because the color depends on the smart contract, two smart contracts that use the same label still produce different tokens.
+
+Color settles which token you are working with, not who holds how much of it. How a contract keeps track of that — or whether it needs to at all — comes down to the privacy model.
+
+## How privacy changes what you store
+
+This is the core idea of the tutorial. The privacy model is not a flag you toggle at the end; it changes what a smart contract has to store.
+
+On the **unshielded** side, the chain records the balance of each token color held by each address. A smart contract reads its own balance with `unshieldedBalance(color)`. Balances and supply are public, so the transparent equivalents of `balanceOf` and `totalSupply` make sense.
+
+On the **shielded** side, the chain hides balances. It records commitments and nullifiers, not amounts. There is no public balance to read. A smart contract that needs to know who holds what has to track that itself, and it has to guard the value as a shielded *coin*. That is why the shielded smart contract later mints a coin and delivers it to the caller in a single transaction, tracking no balances at all, while the unshielded one leans on the chain's public balances.
+
+|  | Unshielded token | Shielded token |
+| :---- | :---- | :---- |
+| Balance storage | On-chain, per address | Hidden; tracked by the smart contract |
+| Read a balance | `unshieldedBalance(color)` | No public read; smart contract state only |
+| Value the contract holds | A balance | An immutable coin |
+
+A shielded coin is immutable — you cannot change its value in place. To change the amount it holds, a smart contract consumes the current coin and creates a new one at the new value, and a nonce keeps each coin unique. The shielded tutorial's [Going further](/tokens/shielded-token#going-further-with-committed-transfers-and-burns) section shows this consume-and-recreate pattern.
+
+Whether a token sits as a balance or a coin, at some point it moves from one holder to another. That movement takes one of two forms.
+
+## Two ways to transfer
+
+Tokens move in one of two ways, and the difference matters most for shielded tokens.
+
+1. **Wallet to wallet:** Once a holder has tokens in their wallet, the wallet transfers them directly. The smart contract is not involved.
+2. **Contract-mediated:** A smart contract moves tokens it holds — with `sendUnshielded` for a transparent token, or by sending a shielded coin for a shielded token.
+
+For shielded tokens this has a consequence worth stating plainly: a smart contract can enforce rules on shielded value only while it custodies the coin. Once a user holds the coin in their wallet, they spend it with their own key, outside the smart contract. This is why a smart contract that needs to govern a shielded token holds the coin itself, in a vault.
+
+## Set up your project
+
+This section installs the toolchain, starts a local Midnight network, and lays out the project you build on across both parts of this tutorial. If your environment is already configured, skip ahead to [Build an unshielded token](#build-an-unshielded-token).
+
+### Prerequisites
+
+Before you begin, make sure you have:
+
+- The **Compact toolchain** installed — follow [Install the toolchain](/getting-started/installation). This tutorial targets compiler version 0.31.0.
+- Docker and Docker Compose v2 (for the local network and the proof server).
+- Node.js 22 or later.
+
+### Start the local network
+
+This tutorial runs against a local Midnight network. It gives you a genesis wallet that is already funded with NIGHT and registered for fees, so you can deploy in seconds without a faucet. The [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev.git) tool starts the node, the indexer, and the proof server in Docker, and initializes that wallet for you.
+
+Clone it and start it in its **own terminal**:
+
+```bash
+git clone https://github.com/midnightntwrk/midnight-local-dev.git
+cd midnight-local-dev
+npm install
+npm start
+```
+
+When prompted, choose to pull the images and start the network. The tool brings up three containers and funds the genesis master wallet (seed `0x00...001`) with NIGHT and registered DUST. Leave this terminal running for the rest of the tutorial.
+
+The network exposes:
+
+- Node: `http://localhost:9944`
+- Indexer: `http://localhost:8088`
+- Proof server: `http://localhost:6300`
+
+Because midnight-local-dev already runs a proof server, you do not start one separately.
+
+:::info Prefer Preprod?
+
+You can run the exact same code against the public **Preprod** network instead of local. In that case you do not run midnight-local-dev. Start a standalone proof server in its own terminal:
+
+```bash
+docker run -p 6300:6300 midnightntwrk/proof-server:8.0.3 midnight-proof-server -v
+```
+
+and fund your own wallet at the Preprod faucet (covered in [Run it](#run-it)). The flow is identical; it just takes a couple of minutes more than local.
+
+:::
+
+### Create the project
+
+Create a project and install the Midnight dependencies. The versions below are pinned to a known-good set — install them exactly as written rather than letting npm resolve the latest.
+
+```bash
+mkdir midnight-tokens && cd midnight-tokens
+npm init -y
+npm pkg set type=module
+```
+
+Install the contract runtime, the contract framework, and the providers:
+
+```bash
+npm install \
+  @midnight-ntwrk/midnight-js-contracts@4.1.1 \
+  @midnight-ntwrk/midnight-js-indexer-public-data-provider@4.1.1 \
+  @midnight-ntwrk/midnight-js-http-client-proof-provider@4.1.1 \
+  @midnight-ntwrk/midnight-js-node-zk-config-provider@4.1.1 \
+  @midnight-ntwrk/midnight-js-types@4.1.1 \
+  @midnight-ntwrk/midnight-js-utils@4.1.1
+```
+
+You add the wallet packages in the deploy section, where you connect to the network.
+
+## Build an unshielded token
+
+You build the contract one block at a time, in a single file. Create the directory and the empty file first:
+
+```bash
+mkdir -p contracts
+touch contracts/unshielded-token.compact
+```
+
+Open `contracts/unshielded-token.compact` in your editor and add each block below in order. With the last one, the file holds the whole contract.
+
+### Set the language version and import the library
+
+Start the file with the language version and the standard library:
+
+```compact
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+```
+
+The pragma pins the Compact language version, so the compiler rejects the file if it does not match.
+
+`import CompactStandardLibrary` brings in the token primitives you use below, like `mintUnshieldedToken`, `sendUnshielded`, and `unshieldedBalanceGte`.
+
+### Declare the on-chain state
+
+Add the contract's public state:
+
+```compact
+export ledger token_color: Bytes<32>;
+export ledger initialized: Boolean;
+```
+
+A ledger field lives on-chain. `token_color` holds the token's identity, which you set the first time you mint; `initialized` records whether that has happened yet, so the other circuits can check it before acting. On-chain ledger state is public and readable by anyone either way — what `export` adds is the generated JavaScript binding in the compiled artifacts, so your deploy script can read these fields back by name.
+
+### Initialize at deployment
+
+Add a constructor to set the starting state:
+
+```compact
+constructor() {
+  initialized = false;
+}
+```
+
+The constructor sets only `initialized` to false.
+
+### Create the token
+
+Add the mint circuit. This is where the token comes into existence:
+
+```compact
+export circuit mint(amount: Uint<64>): [] {
+  const domain = pad(32, "tutorial:unshielded:token");
+  const color = mintUnshieldedToken(
+    domain,
+    disclose(amount),
+    left<ContractAddress, UserAddress>(kernel.self())
+  );
+  token_color = color;
+  initialized = true;
+}
+```
+
+In the code snippet above:
+
+- `pad(32, "tutorial:unshielded:token")` builds the *domain separator* with a fixed `Bytes<32>` label that, with the contract's address, determines the token color.
+- `mintUnshieldedToken(...)` mints `amount` units and returns the token's color. The recipient is `kernel.self()`, the contract's own address, wrapped in `left<ContractAddress, UserAddress>(...)` to mark it as the contract side of the address type. So the new supply lands with the contract.
+- The last two lines record the color and set `initialized` to true. Two things are worth noting. The mint amount is a `Uint<64>` — the protocol caps a single mint at that width, while transfers use the wider `Uint<128>`. And `disclose(...)` marks a value as safe to reveal on-chain, and minting is a public action, so the amount is disclosed.
+
+Minting to `kernel.self()` credits the contract directly, so the new supply is held by the contract until you transfer it out.
+
+This mint is permissionless — anyone can call it. That suits a faucet-style test token with no real value. A token that carries value needs an authorization check here, which you can add as an extension. The [shielded tutorial](/tokens/shielded-token) shows one way to do this.
+
+### Transfer the token
+
+Add the transfer circuit to move tokens from the contract to a wallet:
+
+```compact
+export circuit transfer(recipient: UserAddress, amount: Uint<128>): [] {
+  assert(initialized, "token not minted yet");
+  assert(unshieldedBalanceGte(token_color, disclose(amount)), "insufficient balance");
+  sendUnshielded(
+    token_color,
+    disclose(amount),
+    right<ContractAddress, UserAddress>(disclose(recipient))
+  );
+}
+```
+
+The two `assert` lines are guards. They run as part of the circuit, and if either condition is false the assertion fails and the whole call is rejected, with nothing committed on-chain. The first fails the call if the token hasn't been minted yet; the second fails if the contract doesn't hold enough, checked with `unshieldedBalanceGte`.
+
+`sendUnshielded(...)` then moves the amount to the recipient. This time the recipient is wrapped in `right<ContractAddress, UserAddress>(...)`, the user side of the address type, because the tokens go to a wallet rather than back to the contract.
+
+### Read the balance
+
+You don't need a circuit to read an unshielded balance. Because the token is transparent, its balances are public on-chain, and Midnight.js reads them straight from wallet state — `getUnshieldedBalances` returns the map of token color to amount (it's `unshielded.balances` under the hood). The deploy script uses exactly this in the next section to confirm the transfer, reading `after.unshielded.balances[color]` rather than calling the contract.
+
+This is precisely where a shielded token differs: there's no public balance to read, which is why the [shielded tutorial](/tokens/shielded-token)'s contract has to track value itself. That contrast is the point of the two parts.
+
+That completes the contract. Your `contracts/unshielded-token.compact` now holds the complete contract, in the order above.
+
+### Compile the contract
+
+Compile the file, sending the output to `src/managed`:
+
+```bash
+compact compile contracts/unshielded-token.compact src/managed/unshielded-token
+```
+
+The compiler generates the contract's TypeScript interface, its prover and verifier keys, and the ZK artifacts the proof server uses, all under `src/managed/unshielded-token`. The deploy script in the next section imports the generated contract from `src/managed/unshielded-token/contract/index.js`, wraps it for deployment, and uses `ledger` to decode the contract's public state for this token, `token_color` and `initialized`. With the contract compiled, you are ready to deploy it and mint your first tokens.
+
+## Deploy and test your token
+
+Now you run the contract on a live network. You add the wallet packages, create four small support files that connect your code to the network, then write a deploy script that creates the token, reads it back, and transfers it to a wallet.
+
+The steps below use the **local** network by default. To run against **Preprod** instead, set `MIDNIGHT_NETWORK=preprod` when you run the script — nothing else changes.
+
+:::info
+
+Keep the local network (or, for Preprod, your standalone proof server) running while you do this. The deployment and every circuit call generate zero-knowledge proofs through the proof server.
+
+:::
+
+### Install the wallet packages
+
+Add the wallet SDK, the supporting libraries the harness imports, and tsx to run the script. As with the earlier install, these versions are pinned — use them exactly:
+
+```bash
+npm install \
+  @midnight-ntwrk/wallet-sdk@1.0.0 \
+  @midnight-ntwrk/testkit-js@4.1.1 \
+  @midnight-ntwrk/midnight-js-protocol@4.1.1 \
+  @midnight-ntwrk/midnight-js-network-id@4.1.1 \
+  @midnight-ntwrk/midnight-js-level-private-state-provider@4.1.1 \
+  rxjs@7.8.2 pino@10.3.1 pino-pretty@13.1.3 ws@8.21.0
+npm install --save-dev tsx@4.22.4
+```
+
+The `wallet-sdk` version matters here. Pin it to 1.0.0 — a newer minor pulls in a ledger version that the network rejects when you deploy a contract.
+
+For reference, your `package.json` dependencies should now read:
+
+```json
+{
+  "dependencies": {
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/testkit-js": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.0.0",
+    "pino": "10.3.1",
+    "pino-pretty": "13.1.3",
+    "rxjs": "7.8.2",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "tsx": "4.22.4"
+  }
+}
+```
+
+### Configure the networks
+
+Create `src/config.ts`:
+
+```bash
+touch src/config.ts
+```
+
+It holds the endpoints for each network and reads `MIDNIGHT_NETWORK` to pick one:
+
+```typescript
+export type NetworkConfig = {
+  networkId: string;
+  indexer: string;
+  indexerWS: string;
+  node: string;
+  nodeWS: string;
+  proofServer: string;
+  faucet: string;
+};
+
+export const LOCAL_CONFIG: NetworkConfig = {
+  networkId: 'undeployed',
+  indexer: 'http://127.0.0.1:8088/api/v4/graphql',
+  indexerWS: 'ws://127.0.0.1:8088/api/v4/graphql/ws',
+  node: 'http://127.0.0.1:9944',
+  nodeWS: 'ws://127.0.0.1:9944',
+  proofServer: 'http://127.0.0.1:6300',
+  faucet: '',
+};
+
+export const PREVIEW_CONFIG: NetworkConfig = {
+  networkId: 'preview',
+  indexer: 'https://indexer.preview.midnight.network/api/v4/graphql',
+  indexerWS: 'wss://indexer.preview.midnight.network/api/v4/graphql/ws',
+  node: 'https://rpc.preview.midnight.network',
+  nodeWS: 'wss://rpc.preview.midnight.network',
+  proofServer: process.env['MIDNIGHT_PROOF_SERVER'] ?? 'http://127.0.0.1:6300',
+  faucet: 'https://faucet.preview.midnight.network/api/drips',
+};
+
+export const PREPROD_CONFIG: NetworkConfig = {
+  networkId: 'preprod',
+  indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+  indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  nodeWS: 'wss://rpc.preprod.midnight.network',
+  proofServer: process.env['MIDNIGHT_PROOF_SERVER'] ?? 'http://127.0.0.1:6300',
+  faucet: 'https://faucet.preprod.midnight.network/api/drips',
+};
+
+export function getConfig(): NetworkConfig {
+  const network = process.env['MIDNIGHT_NETWORK'] ?? 'local';
+  if (network === 'local') return LOCAL_CONFIG;
+  if (network === 'preview') return PREVIEW_CONFIG;
+  if (network === 'preprod') return PREPROD_CONFIG;
+  throw new Error(
+    `Unknown network: ${network}. Supported: 'local', 'preview', 'preprod'.`,
+  );
+}
+```
+
+### Add the wallet
+
+Create `src/wallet.ts`:
+
+```bash
+touch src/wallet.ts
+```
+
+This is the most boilerplate of the support files: it builds a wallet on the wallet-sdk facade and adapts it to the `WalletProvider` and `MidnightProvider` interfaces the contract framework expects. Copy it as-is — you reuse it unchanged in the shielded tutorial.
+
+```typescript
+import {
+  type CoinPublicKey,
+  DustSecretKey,
+  type EncPublicKey,
+  type FinalizedTransaction,
+  LedgerParameters,
+  ZswapSecretKeys,
+} from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import {
+  type MidnightProvider,
+  type UnboundTransaction,
+  type WalletProvider,
+} from '@midnight-ntwrk/midnight-js-types';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import {
+  type WalletFacade,
+  type FacadeState,
+  type UnshieldedKeystore,
+} from '@midnight-ntwrk/wallet-sdk';
+import {
+  type DustWalletOptions,
+  type EnvironmentConfiguration,
+  FluentWalletBuilder,
+} from '@midnight-ntwrk/testkit-js';
+import * as Rx from 'rxjs';
+import type { Logger } from 'pino';
+
+export type WalletSecret =
+  | { kind: 'seed'; value: string }
+  | { kind: 'mnemonic'; value: string };
+
+export class MidnightWalletProvider implements MidnightProvider, WalletProvider {
+  readonly wallet: WalletFacade;
+  readonly unshieldedKeystore: UnshieldedKeystore;
+
+  private constructor(
+    private readonly logger: Logger,
+    wallet: WalletFacade,
+    private readonly zswapSecretKeys: ZswapSecretKeys,
+    private readonly dustSecretKey: DustSecretKey,
+    unshieldedKeystore: UnshieldedKeystore,
+  ) {
+    this.wallet = wallet;
+    this.unshieldedKeystore = unshieldedKeystore;
+  }
+
+  getCoinPublicKey(): CoinPublicKey {
+    return this.zswapSecretKeys.coinPublicKey;
+  }
+
+  getEncryptionPublicKey(): EncPublicKey {
+    return this.zswapSecretKeys.encryptionPublicKey;
+  }
+
+  async balanceTx(
+    tx: UnboundTransaction,
+    ttl: Date = ttlOneHour(),
+  ): Promise<FinalizedTransaction> {
+    const recipe = await this.wallet.balanceUnboundTransaction(
+      tx,
+      {
+        shieldedSecretKeys: this.zswapSecretKeys,
+        dustSecretKey: this.dustSecretKey,
+      },
+      { ttl },
+    );
+    return await this.wallet.finalizeRecipe(recipe);
+  }
+
+  submitTx(tx: FinalizedTransaction): Promise<string> {
+    return this.wallet.submitTransaction(tx);
+  }
+
+  async start(): Promise<void> {
+    this.logger.info('Starting wallet...');
+    await this.wallet.start(this.zswapSecretKeys, this.dustSecretKey);
+  }
+
+  async stop(): Promise<void> {
+    return this.wallet.stop();
+  }
+
+  static async build(
+    logger: Logger,
+    env: EnvironmentConfiguration,
+    secret: WalletSecret,
+  ): Promise<MidnightWalletProvider> {
+    const dustOptions: DustWalletOptions = {
+      ledgerParams: LedgerParameters.initialParameters(),
+      additionalFeeOverhead: 1_000n,
+      feeBlocksMargin: 5,
+    };
+
+    const base = FluentWalletBuilder.forEnvironment(env)
+      .withDustOptions(dustOptions);
+    const builder =
+      secret.kind === 'mnemonic'
+        ? base.withMnemonic(secret.value)
+        : base.withSeed(secret.value);
+
+    const buildResult = await builder.buildWithoutStarting();
+    const { wallet, seeds, keystore } = buildResult as {
+      wallet: WalletFacade;
+      seeds: {
+        masterSeed: string;
+        shielded: Uint8Array;
+        dust: Uint8Array;
+      };
+      keystore: UnshieldedKeystore;
+    };
+
+    logger.info(
+      `Wallet built from ${secret.kind}; master seed: ${seeds.masterSeed.slice(0, 8)}...`,
+    );
+
+    return new MidnightWalletProvider(
+      logger,
+      wallet,
+      ZswapSecretKeys.fromSeed(seeds.shielded),
+      DustSecretKey.fromSeed(seeds.dust),
+      keystore,
+    );
+  }
+}
+
+function isProgressStrictlyComplete(progress: unknown): boolean {
+  if (!progress || typeof progress !== 'object') {
+    return false;
+  }
+  const candidate = progress as { isStrictlyComplete?: unknown };
+  if (typeof candidate.isStrictlyComplete !== 'function') {
+    return false;
+  }
+  return (candidate.isStrictlyComplete as () => boolean)();
+}
+
+export async function syncWallet(
+  logger: Logger,
+  wallet: WalletFacade,
+  timeout = 300_000,
+): Promise<FacadeState> {
+  logger.info('Syncing wallet...');
+  let emissionCount = 0;
+  return Rx.firstValueFrom(
+    wallet.state().pipe(
+      Rx.tap((state: FacadeState) => {
+        emissionCount++;
+        // Heartbeat every 200 updates so a long sync shows progress without flooding the console.
+        if (emissionCount % 200 === 0) {
+          const shielded = isProgressStrictlyComplete(state.shielded.state.progress);
+          const unshielded = isProgressStrictlyComplete(state.unshielded.progress);
+          const dust = isProgressStrictlyComplete(state.dust.state.progress);
+          logger.info(`Still syncing: shielded=${shielded}, unshielded=${unshielded}, dust=${dust}`);
+        }
+      }),
+      // Wait for the shielded and unshielded channels to catch up. We do not gate
+      // on the dust channel here: on the public networks it may never report
+      // "strictly complete", which would hang this wait forever.
+      Rx.filter(
+        (state: FacadeState) =>
+          isProgressStrictlyComplete(state.shielded.state.progress) &&
+          isProgressStrictlyComplete(state.unshielded.progress),
+      ),
+      Rx.tap(() => logger.info('Wallet synced.')),
+      Rx.timeout({
+        each: timeout,
+        with: () =>
+          Rx.throwError(() => new Error(`Wallet sync timed out after ${timeout}ms`)),
+      }),
+    ),
+  );
+}
+```
+
+The two functions you call from the deploy script are `MidnightWalletProvider.build(...)`, which creates the wallet from a seed, and `syncWallet(...)`, which waits until the wallet has caught up with the chain and returns its current state.
+
+### Add the providers
+
+Create `src/providers.ts`:
+
+```bash
+touch src/providers.ts
+```
+
+This assembles the provider set the framework uses — public state from the indexer, proofs from the proof server, ZK config from the compiled output, and the wallet you just built:
+
+```typescript
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { type MidnightWalletProvider } from './wallet.js';
+import { type NetworkConfig } from './config.js';
+
+export type TokenCircuits = 'mint' | 'transfer';
+
+export type TokenProviders = MidnightProviders<any>;
+
+export function buildProviders(
+  wallet: MidnightWalletProvider,
+  zkConfigPath: string,
+  config: NetworkConfig,
+): TokenProviders {
+  const zkConfigProvider = new NodeZkConfigProvider<TokenCircuits>(zkConfigPath);
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: `unshielded-token-${Date.now()}`,
+      privateStoragePasswordProvider: () => 'Unshielded-Token-Test-Password',
+      accountId: wallet.getCoinPublicKey(),
+    }),
+    publicDataProvider: indexerPublicDataProvider(
+      config.indexer,
+      config.indexerWS,
+    ),
+    zkConfigProvider,
+    proofProvider: httpClientProofProvider(
+      config.proofServer,
+      zkConfigProvider,
+    ),
+    walletProvider: wallet,
+    midnightProvider: wallet,
+  };
+}
+```
+
+This token keeps no private state, but the framework still expects a private-state provider, so you include one. It stays empty.
+
+### Wrap the compiled contract
+
+Create `src/contract.ts`:
+
+```bash
+touch src/contract.ts
+```
+
+It imports the generated contract and turns it into a deployable unit:
+
+```typescript
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import path from 'node:path';
+
+export { Contract, ledger, type Ledger } from './managed/unshielded-token/contract/index.js';
+import { Contract } from './managed/unshielded-token/contract/index.js';
+
+const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+export const zkConfigPath = path.resolve(currentDir, 'managed', 'unshielded-token');
+
+export const CompiledUnshieldedToken = CompiledContract.make(
+  'UnshieldedToken',
+  Contract,
+).pipe(
+  CompiledContract.withVacantWitnesses,
+  CompiledContract.withCompiledFileAssets(zkConfigPath),
+);
+```
+
+`withVacantWitnesses` applies because the contract has no witnesses — its state is entirely public. `zkConfigPath` points the proof server at the keys the compiler generated under `src/managed/unshielded-token`.
+
+### Write the deploy script
+
+Now the part specific to your token.
+
+Create `src/deploy.ts` and build it up block by block:
+
+```bash
+touch src/deploy.ts
+```
+
+Start with the imports, the WebSocket global the indexer needs, and a logger:
+
+```typescript
+import { WebSocket } from 'ws';
+import { firstValueFrom } from 'rxjs';
+import { filter, timeout as rxTimeout } from 'rxjs/operators';
+import pino from 'pino';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { deployContract, submitCallTx } from '@midnight-ntwrk/midnight-js-contracts';
+import { type EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
+import { UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk';
+import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { toHex, fromHex } from '@midnight-ntwrk/midnight-js-utils';
+import { getConfig } from './config.js';
+import { MidnightWalletProvider, syncWallet } from './wallet.js';
+import { buildProviders } from './providers.js';
+import { CompiledUnshieldedToken, ledger, zkConfigPath } from './contract.js';
+
+// The indexer's GraphQL subscriptions need a WebSocket global under Node.
+(globalThis as any).WebSocket = WebSocket;
+
+const logger = pino({ level: 'info', transport: { target: 'pino-pretty' } });
+```
+
+Build the wallet from your seed, start it, and print its address so you can fund it:
+
+```typescript
+const config = getConfig();
+setNetworkId(config.networkId);
+
+const env: EnvironmentConfiguration = {
+  walletNetworkId: config.networkId,
+  networkId: config.networkId,
+  indexer: config.indexer,
+  indexerWS: config.indexerWS,
+  node: config.node,
+  nodeWS: config.nodeWS,
+  faucet: config.faucet,
+  proofServer: config.proofServer,
+};
+
+const seed = process.env['MIDNIGHT_SEED'];
+if (!seed) {
+  throw new Error('Set MIDNIGHT_SEED to your wallet seed (hex, no 0x prefix).');
+}
+
+const wallet = await MidnightWalletProvider.build(logger, env, { kind: 'seed', value: seed });
+await wallet.start();
+
+// Read the address from the wallet's first state update and print it, so you can fund it.
+const initialState = await firstValueFrom(wallet.wallet.state());
+const address = UnshieldedAddress.codec
+  .encode(config.networkId, initialState.unshielded.address)
+  .asString();
+logger.info(`Fund this address with tNIGHT, then this continues: ${address}`);
+```
+
+You pass your wallet seed in `MIDNIGHT_SEED`. The script builds the wallet, prints its unshielded address, and then waits for that address to hold NIGHT. On local, the genesis wallet is already funded, so the wait returns immediately. On Preprod, you fund the printed address at the faucet while the script waits.
+
+Wait for the NIGHT to arrive, sync the unshielded channel, then register that NIGHT to generate the tDUST that pays fees:
+
+```typescript
+const nightRaw = unshieldedToken().raw;
+
+// 1) Wait until NIGHT arrives.
+logger.info('Waiting for NIGHT to arrive...');
+await firstValueFrom(
+  wallet.wallet.state().pipe(
+    filter((s: any) => (s.unshielded.balances[nightRaw] ?? 0n) > 0n),
+    rxTimeout({ each: 30 * 60_000 }),
+  ),
+);
+logger.info('NIGHT received.');
+
+// 2) Wait for the unshielded channel to finish syncing before registering, so
+//    the wallet has an accurate view of its NIGHT UTXOs.
+logger.info('Waiting for the unshielded channel to sync...');
+const syncedState = await firstValueFrom(
+  wallet.wallet.state().pipe(
+    filter((s: any) => s.unshielded.progress?.isStrictlyComplete() === true),
+    rxTimeout({ each: 30 * 60_000 }),
+  ),
+);
+logger.info('Unshielded channel synced.');
+
+// 3) Register NIGHT UTXOs for DUST generation. Fresh NIGHT is not registered
+//    automatically, and without DUST the wallet cannot pay any transaction fee.
+const unregistered = syncedState.unshielded.availableCoins.filter(
+  (coin: any) => coin.meta.registeredForDustGeneration === false,
+);
+
+if (unregistered.length > 0) {
+  logger.info(`Registering ${unregistered.length} NIGHT UTXO(s) for DUST generation...`);
+  const recipe = await wallet.wallet.registerNightUtxosForDustGeneration(
+    unregistered,
+    wallet.unshieldedKeystore.getPublicKey(),
+    (payload: Uint8Array) => wallet.unshieldedKeystore.signData(payload),
+  );
+  const finalized = await wallet.wallet.finalizeRecipe(recipe);
+  const txId = await wallet.wallet.submitTransaction(finalized);
+  logger.info(`DUST registration submitted: ${txId}`);
+} else {
+  logger.info('NIGHT is already registered for DUST generation.');
+}
+```
+
+Fees on Midnight are paid in DUST, and DUST is generated by registering NIGHT. Freshly funded NIGHT is not registered, so the script registers it after the unshielded channel has synced. On local, the genesis wallet is already registered, so this step reports that and skips.
+
+Poll until DUST appears, so the wallet can pay for the transactions that follow:
+
+```typescript
+// 4) Wait until DUST is spendable. Poll the balance rather than holding a
+//    subscription open, which keeps memory flat on a long wait.
+logger.info('Waiting for DUST to be generated from your NIGHT...');
+const dustDeadline = Date.now() + 30 * 60_000;
+let dustBalance = 0n;
+while (Date.now() < dustDeadline) {
+  const s = await firstValueFrom(wallet.wallet.state());
+  try {
+    dustBalance = s.dust.balance(new Date());
+  } catch {
+    dustBalance = 0n;
+  }
+  logger.info(`  dust balance: ${dustBalance}`);
+  if (dustBalance > 0n) break;
+  await new Promise((r) => setTimeout(r, 15_000));
+}
+if (dustBalance <= 0n) {
+  throw new Error('Timed out waiting for DUST to be generated.');
+}
+logger.info(`DUST available: ${dustBalance}`);
+```
+
+DUST generates from registered NIGHT over a short period, so the balance starts at 0 and climbs. The script polls every 15 seconds until it goes positive. On local this takes a few seconds.
+
+Build the providers, deploy the contract, and read its initial state:
+
+```typescript
+const providers = buildProviders(wallet, zkConfigPath, config);
+
+const deployed = await deployContract(providers, {
+  compiledContract: CompiledUnshieldedToken,
+  privateStateId: 'unshielded-token',
+  initialPrivateState: {},
+});
+const contractAddress = deployed.deployTxData.public.contractAddress;
+logger.info(`Deployed at ${contractAddress}`);
+
+async function readLedger() {
+  const state = await providers.publicDataProvider.queryContractState(contractAddress);
+  return ledger(state!.data);
+}
+
+logger.info(`initialized at deploy: ${(await readLedger()).initialized}`); // false
+```
+
+`deployContract` returns the on-chain address. `queryContractState` fetches the contract's public state, and `ledger(...)` decodes it into the fields you declared. Right after deployment, `initialized` is false.
+
+Mint the supply, then read the state back to confirm the token exists:
+
+```typescript
+await submitCallTx(providers, {
+  compiledContract: CompiledUnshieldedToken,
+  contractAddress,
+  privateStateId: 'unshielded-token',
+  circuitId: 'mint',
+  args: [1000n],
+});
+
+const afterMint = await readLedger();
+logger.info(`initialized after mint: ${afterMint.initialized}`); // true
+logger.info(`token color: ${toHex(afterMint.token_color)}`);
+```
+
+`submitCallTx` runs the mint circuit on-chain.
+
+After it, `initialized` is true and `token_color` holds the color the mint produced — the token now exists, and the contract holds all 1,000 units.
+
+Transfer some units to your own wallet, then read the wallet's balance to confirm they arrived:
+
+```typescript
+// A UserAddress circuit argument is { bytes: Uint8Array } — the recipient's raw
+// address bytes — so pull those bytes out of the wallet's address object.
+function toUserAddressBytes(unshielded: any): Uint8Array {
+  const pk = unshielded?.state?.publicKey ?? unshielded?.publicKey;
+  if (pk?.address instanceof Uint8Array) return pk.address;
+  if (typeof pk?.addressHex === 'string') return fromHex(pk.addressHex);
+  const addr = unshielded?.address;
+  if (addr?.bytes instanceof Uint8Array) return addr.bytes;
+  if (addr?.data instanceof Uint8Array) return addr.data;
+  if (typeof addr?.addressHex === 'string') return fromHex(addr.addressHex);
+  throw new Error('Could not find raw unshielded address bytes.');
+}
+
+const recipient = { bytes: toUserAddressBytes(syncedState.unshielded) };
+
+await submitCallTx(providers, {
+  compiledContract: CompiledUnshieldedToken,
+  contractAddress,
+  privateStateId: 'unshielded-token',
+  circuitId: 'transfer',
+  args: [recipient, 100n],
+});
+
+const after = await syncWallet(logger, wallet.wallet, 60 * 60_000);
+const color = toHex(afterMint.token_color);
+logger.info(`wallet balance of the token: ${after.unshielded.balances[color] ?? 0n}`); // 100
+
+await wallet.stop();
+```
+
+A UserAddress circuit argument is an object of the form `{ bytes: Uint8Array }`, the recipient's raw address bytes, so `toUserAddressBytes` pulls those bytes out of the wallet's address. The transfer call then moves 100 units from the contract to your wallet address. After syncing again, the wallet reports a balance of 100 for the token's color — which proves the transfer landed on-chain.
+
+### Run it
+
+With the local network running in its own terminal, run the deploy script against it using the genesis wallet seed:
+
+```bash
+MIDNIGHT_NETWORK=local \
+MIDNIGHT_SEED=0000000000000000000000000000000000000000000000000000000000000001 \
+npx tsx src/deploy.ts
+```
+
+That seed is the local network's genesis wallet, which midnight-local-dev already funded with NIGHT and registered for DUST. The script syncs, sees the funds, waits a few seconds for DUST, then deploys, mints, and transfers. You should see the contract address, `initialized` flipping to true after the mint, and a wallet balance of 100 after the transfer. You have now created an unshielded token and moved it, end to end.
+
+#### Run against Preprod instead
+
+The same script runs against Preprod with two differences: you provide your own funded wallet, and you keep a standalone proof server running (see [Start the local network](#start-the-local-network)).
+
+First, generate a throwaway wallet seed, a 32-byte value written as a hex string:
+
+```bash
+openssl rand -hex 32
+```
+
+Treat it as a throwaway test wallet — it only ever holds test funds, and you should not reuse it anywhere real. Then run the script with that seed, giving Node extra memory headroom for the longer remote sync:
+
+```bash
+NODE_OPTIONS="--max-old-space-size=8192" \
+MIDNIGHT_NETWORK=preprod \
+MIDNIGHT_SEED=<your-seed-hex> \
+npx tsx src/deploy.ts
+```
+
+The script prints your wallet's address and waits. Copy that address, open the Preprod faucet, paste it in, and request tNIGHT. Once the funds land the script registers them for DUST, waits for the DUST to generate, then deploys, mints, and transfers exactly as it does on local.
+
+Expect it to take a couple of minutes more than the local run.
+
+## What's next
+
+Next, you build the [shielded version of this token](/tokens/shielded-token). Because a shielded balance is hidden, the chain can't track it for you, so the contract mints a shielded coin and delivers it to the caller in a single transaction, and you confirm the result by reading the wallet's shielded balance.
+
+You reuse the same wallet and provider setup from this part and connect to the same networks.
