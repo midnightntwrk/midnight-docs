@@ -22,7 +22,7 @@ Three ideas carry the whole tutorial. None of them apply to the unshielded token
 
 **There is no public balance.** The chain records commitments and nullifiers, not amounts. A contract cannot call anything like `unshieldedBalance(color)` for shielded value, because that number does not exist on-chain. To know what it holds, a contract has to track its own coins; to prove a transfer worked, you read the *wallet's* shielded balance, not the contract's.
 
-**Value lives in immutable coins.** A shielded coin is described by a `ShieldedCoinInfo`: a nonce, a color, and a value. You cannot change a coin's value in place. To move part of it, you spend the coin and the standard library hands you back a new *change* coin for the remainder. A nonce keeps every coin unique, and you derive nonces deterministically with `evolveNonce` from a private seed.
+**Value lives in immutable coins.** A `ShieldedCoinInfo` describes a shielded coin: a nonce, a color, and a value. You cannot change a coin's value in place. To move part of it, you spend the coin and the standard library hands you back a new *change* coin for the remainder. A nonce keeps every coin unique, and you derive nonces deterministically with `evolveNonce` from a private seed.
 
 Fresh coins and committed coins are spent differently:
 
@@ -31,7 +31,7 @@ Fresh coins and committed coins are spent differently:
 | Fresh (just created, same transaction) | `ShieldedCoinInfo` | `sendImmediateShielded` |
 | Committed (already in the ledger) | `QualifiedShieldedCoinInfo` (adds `mtIndex`) | `sendShielded` |
 
-A freshly minted coin has no Merkle tree position yet, so it cannot be spent with `sendShielded`. Once it is committed on-chain it gains an `mtIndex` and becomes a `QualifiedShieldedCoinInfo`, which is what `sendShielded` requires. This tutorial mints and spends a coin in the *same* transaction, which keeps you on the fresh-coin path and avoids tracking Merkle positions across transactions. The committed path is covered in [Going further](#going-further-with-committed-transfers-and-burns).
+A freshly minted coin has no Merkle tree position yet, so it cannot be spent with `sendShielded`. Once the ledger commits it on-chain, it gains an `mtIndex` and becomes a `QualifiedShieldedCoinInfo`, which is what `sendShielded` requires. This tutorial mints and spends a coin in the *same* transaction, which keeps you on the fresh-coin path and avoids tracking Merkle positions across transactions. [Going further](#going-further-with-committed-transfers-and-burns) covers the committed path.
 
 One more constraint shapes what a contract-mediated shielded transfer can do today. The `sendShielded` primitive does not currently create coin ciphertexts, so sending shielded value to a user other than the current caller will not notify that user of the coin. In practice that means a contract can reliably deliver shielded value to the **caller** (the person signing the transaction). That is the transfer this tutorial demonstrates.
 
@@ -136,10 +136,10 @@ In the code above:
 - `pad(32, "tutorial:shielded:token")` builds the domain separator, exactly as in the unshielded tutorial, but with a label of its own so the shielded token gets a distinct color.
 - `evolveNonce(nonceIndex, localNonceSeed())` derives a unique nonce. The seed is private (from the witness); `disclose(...)` wraps the *derived* nonce because the mint publishes it, while the seed stays secret. You pass a different `nonceIndex` each time you mint so the nonces never repeat.
 - `mintShieldedToken(...)` mints `amount` units and returns a `ShieldedCoinInfo`, a fresh coin. The recipient `right<ZswapCoinPublicKey, ContractAddress>(kernel.self())` is the contract's own address, marked as the contract side of the recipient type, so the new coin belongs to the contract.
-- `sendImmediateShielded(coin, ..., coin.value)` spends that fresh coin in the same transaction, sending the whole value to `ownPublicKey()` — the caller. The recipient is wrapped with `left<ZswapCoinPublicKey, ContractAddress>(...)` because it is a user key, not a contract. Because you send the full value, there is no change coin to manage.
+- `sendImmediateShielded(coin, ..., coin.value)` spends that fresh coin in the same transaction, sending the whole value to `ownPublicKey()` — the caller. You wrap the recipient with `left<ZswapCoinPublicKey, ContractAddress>(...)` because it is a user key, not a contract. Because you send the full value, there is no change coin to manage.
 - The last three lines record the color, flip `initialized`, and bump the counter.
 
-The mint amount is a `Uint<64>` (the protocol caps a single mint at that width); coin values are `Uint<128>`, which is why `coin.value` is the wider type. Unlike the unshielded tutorial's permissionless mint, this one is gated: the opening `assert` restricts minting to the wallet that deployed the contract.
+The mint amount is a `Uint<64>` (the protocol caps a single mint at that width); coin values are `Uint<128>`, which is why `coin.value` is the wider type. Unlike the unshielded tutorial's permissionless mint, this one requires authorization: the opening `assert` restricts minting to the wallet that deployed the contract.
 
 That completes the contract. Compile it the same way as before, into its own output directory:
 
@@ -149,7 +149,7 @@ compact compile contracts/shielded-token.compact src/shielded/managed/shielded-t
 
 ## Wire the contract for deployment
 
-All of the shielded TypeScript goes in `src/shielded/`. Two of the support files differ from the unshielded tutorial; the other two — `config.ts` and `wallet.ts` — are reused from `src/` unchanged, which is why the imports below reach up a level with `../`.
+All of the shielded TypeScript goes in `src/shielded/`. Two of the support files differ from the unshielded tutorial; you reuse the other two — `config.ts` and `wallet.ts` — from `src/` unchanged, which is why the imports below reach up a level with `../`.
 
 ### Implement the witnesses
 
@@ -288,7 +288,7 @@ Unlike the unshielded tutorial, the private state is not empty — it carries th
 
 ## Deploy and test
 
-The deploy script follows the same shape as before — build the wallet, wait for funds and DUST, then deploy — and differs only in what it deploys and calls. The wallet, funding, and DUST steps are the same as the unshielded tutorial, but they are included in full here so this tutorial runs on its own.
+The deploy script follows the same shape as before — build the wallet, wait for funds and DUST, then deploy — and differs only in what it deploys and calls. The wallet, funding, and DUST steps match the unshielded tutorial, but this tutorial includes them in full so it runs on its own.
 
 Create `src/shielded/deploy.ts`:
 
@@ -296,7 +296,7 @@ Create `src/shielded/deploy.ts`:
 touch src/shielded/deploy.ts
 ```
 
-The imports change to bring in the shielded contract, the private-state factory, and `toHex`, and the two shared modules are reached with `../`:
+The imports change to bring in the shielded contract, the private-state factory, and `toHex`, and you reach the two shared modules with `../`:
 
 ```typescript
 import { WebSocket } from 'ws';
@@ -500,7 +500,7 @@ You should see the contract address, `initialized` flipping to true after the mi
 
 The flow above mints and spends a coin in one transaction, which keeps you on the fresh-coin path. Two common operations need the committed path or a special recipient. Their primitives are part of the same standard library; the signatures below are exact, but wiring them end-to-end on a live node involves managing Merkle positions across transactions, so treat them as the next thing to build rather than copy-paste-ready.
 
-1. **Transferring a coin the contract already holds.** Once a minted coin is committed on-chain, it becomes a `QualifiedShieldedCoinInfo` (it gains a Merkle tree index, `mtIndex`), and you spend it with `sendShielded`:
+1. **Transferring a coin the contract already holds.** Once the ledger commits a minted coin on-chain, it becomes a `QualifiedShieldedCoinInfo` (it gains a Merkle tree index, `mtIndex`), and you spend it with `sendShielded`:
 
 ```compact
 circuit sendShielded(
