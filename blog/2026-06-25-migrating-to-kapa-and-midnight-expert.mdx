@@ -1,0 +1,129 @@
+---
+slug: migrating-to-kapa-and-midnight-expert
+title: "Migrating to the Kapa MCP server and Midnight Expert"
+description: "The Midnight MCP server is being retired. Here is how to move to the Kapa MCP server for documentation search and Midnight Expert for hands-on Midnight development."
+authors: aaron
+tags: [mcp, ai, developer-tools, kapa, midnight-expert, tooling]
+date: 2026-06-25
+image: /img/blog/updates.jpg
+---
+
+We're retiring the existing Midnight MCP server. Two tools replace it, and both are available today.
+
+The first is the [Kapa](https://www.kapa.ai/) MCP server. It's the same Midnight knowledgebase that already answers questions behind the "Ask AI" button on these docs, now exposed over MCP so your editor can query it directly. It takes over the search and question-answering side of the old server.
+
+The second is [Midnight Expert](https://midnightntwrk.expert/). It's a suite of [Claude Code](https://claude.com/claude-code) plugins that covers everything else: writing and validating contracts in Compact, running a local devnet, looking up error codes, fact-checking against the real toolchain, and more.
+
+If you installed the old Midnight MCP server, the short version is this: remove that config, add these two, and you come out ahead on capability. The rest of this post is how each tool works, and how to make the switch.
+
+## Kapa: ask Midnight anything, from your editor
+
+You have probably already used Kapa without installing anything. The "Ask AI" button on this documentation site is Kapa, and it answers from more than the docs alone. Its index is a curated set of Midnight sources: the official documentation, hand-picked core repositories like the ledger, midnight.js, and the node, and standalone material such as the whitepaper. Open it on this page and ask it something; that same knowledgebase is what the MCP server exposes.
+
+The difference MCP makes is where you can use it. Instead of switching to a browser tab to check the docs, your AI coding assistant queries Kapa from inside your editor and answers in context while you keep working. Ask how DUST generation works, how to structure a witness, or what a specific ledger type does, and the answer comes back grounded in current documentation rather than guessed from stale training data.
+
+Here is how to connect it.
+
+### Claude Code
+
+Run one command:
+
+```bash
+claude mcp add --transport http midnight https://midnight.mcp.kapa.ai
+```
+
+### Cursor and VS Code
+
+Open the "Ask AI" button on this site, click "Use MCP", and choose "Add to Cursor" or "Add to VS Code". Both are one-click installs.
+
+### Any other MCP client
+
+The server URL is `https://midnight.mcp.kapa.ai`. For Claude Desktop, ChatGPT, or any client that reads an `mcpServers` config, add it manually:
+
+```json
+{
+  "mcpServers": {
+    "midnight": {
+      "type": "http",
+      "url": "https://midnight.mcp.kapa.ai"
+    }
+  }
+}
+```
+
+Some clients label this a remote or HTTP server and ask for a transport field; the URL is the same in every case. You can also click "Copy MCP URL" from the "Use MCP" menu and paste it wherever your client expects it.
+
+## Midnight Expert: the hands-on toolkit
+
+Where Kapa answers questions, Midnight Expert does the work. It's a [marketplace of Claude Code plugins](https://github.com/devrelaicom/midnight-expert), and it's where the generation, validation, and tooling features of the old server now live, considerably expanded.
+
+At the moment it bundles more than fifteen plugins: over a hundred skills, a dozen plus agents, and a couple hundred reference documents covering Compact contracts, the TypeScript SDK, wallet operations, devnet and proof-server infrastructure, code quality, and error catalogs. Because the plugins run inside Claude Code, the capabilities show up as skills and slash commands you can call directly in a session.
+
+A few you'll reach for early:
+
+- `/midnight-verify:verify` validates a Compact claim, snippet, or contract against the real compiler and runtime, so the code you keep is code that actually runs.
+- `/midnight-tooling:devnet start` spins up a local devnet without you assembling Docker Compose files by hand.
+- `/midnight-status-codes:lookup` decodes a Midnight error or status code and tells you which component produced it.
+- `/midnight-fact-check:check` checks content against the actual toolchain instead of trusting what an assistant remembers.
+- `/midnight-expert:doctor` runs a health check across your whole setup: compiler, proof server, plugins, and dependencies.
+
+The coverage goes well beyond writing contracts. The `compact-core` plugin carries contract patterns, privacy rules, and review checklists; `midnight-dapp-dev` scaffolds DApp frontends and wires them to your contract through the Midnight SDKs; `midnight-wallet` covers wallet building and the DApp Connector API; and `compact-cli-dev` generates a command-line interface for a contract. Whether you're working on a circuit, a browser DApp, or the wallet integration in between, a plugin already knows the current patterns.
+
+Keeping current is the point. Compact and the Midnight SDKs change often, and neither was in any model's training data, so an unguided assistant fills the gaps by guessing and gets them wrong. Midnight Expert is built to stop that. Its skills steer the assistant toward verified patterns, and commands like `/midnight-verify:verify` and `/midnight-fact-check:check` make it check generated code against the real compiler, runtime, and toolchain before you ever see it. Those guardrails are the difference between code that looks plausible and code that runs.
+
+Install it with the setup script:
+
+```bash
+curl -fsSL https://midnightntwrk.expert/install.sh | bash
+```
+
+Or add it from inside Claude Code: run `/plugin`, add `https://midnightntwrk.expert` as a marketplace, and install the plugins you want.
+
+## Which tool for which job
+
+The two are complementary, and most developers will run both.
+
+Reach for Kapa when you have a question and want a documentation-grounded answer without leaving your editor: what a term means, how a mechanism works, where something is covered in the docs. It works in any MCP client, including Claude Code.
+
+Reach for Midnight Expert when you want to act inside Claude Code: generate a contract, scaffold a DApp, verify it compiles, start a devnet, decode an error, run a review. Kapa tells you how DUST works; Midnight Expert helps you write the contract that uses it and checks that it compiles.
+
+## Make the switch
+
+Three steps, all in one place.
+
+1. Remove the retired Midnight MCP server. In Claude Code:
+
+   ```bash
+   claude mcp remove midnight
+   ```
+
+   If you added it through a config file instead, delete its entry from the `mcpServers` block in your Claude Desktop, Cursor, or VS Code settings. The server was usually registered under the name `midnight`.
+
+2. Add the Kapa MCP server:
+
+   ```bash
+   claude mcp add --transport http midnight https://midnight.mcp.kapa.ai
+   ```
+
+   Or use the one-click install from the "Ask AI" then "Use MCP" menu, or the JSON config shown above.
+
+3. Install Midnight Expert:
+
+   ```bash
+   curl -fsSL https://midnightntwrk.expert/install.sh | bash
+   ```
+
+That's the whole migration. Old server out, two new servers in.
+
+## What you get, and where to start
+
+Kapa keeps your AI assistant answering from current Midnight documentation instead of guessing from training data that never included Compact. Midnight Expert gives Claude Code the skills and commands to write, validate, run, and debug real Midnight code. Together they cover both halves of AI-assisted development on Midnight: knowing, and doing.
+
+The fastest way to see how they can help you build on Midnight is to try a few prompts:
+
+- "How does DUST generation work, and what happens to it when I spend the backing NIGHT?"
+- "Write a Compact counter contract and verify that it compiles."
+- "I'm getting a proof server error. What does it mean, and how do I fix it?"
+- "Start a local devnet and tell me when it's healthy."
+
+The existing Midnight MCP server goes offline soon. The replacements are live today, so there's no reason to wait. Make the switch and keep building.
