@@ -32,12 +32,14 @@ jobs:
           export CHROME_PATH=$(which google-chrome)
           echo "Chrome is installed at $CHROME_PATH"
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # 6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # 7.0.0
 
       - name: Read paths from file and generate full URLs
         id: read-urls
+        env:
+          PREVIEW_URL: ${{ inputs.preview_url }}
         run: |
-          base_url="https://${{ inputs.preview_url }}"
+          base_url="https://${PREVIEW_URL}"
           full_urls=""
           paths=$(jq -r '.paths[]' packages/tests/pipelines-urls.json)
           for path in $paths; do
@@ -50,8 +52,10 @@ jobs:
           echo "EOF" >> $GITHUB_ENV
 
       - name: Prepare envs
+        env:
+          VERCEL_BYPASS_TOKEN: ${{ secrets.VERCEL_BYPASS_TOKEN }}
         run: |
-          sed -i "s/{{VERCEL_BYPASS_TOKEN}}/${{secrets.VERCEL_BYPASS_TOKEN}}/g" packages/tests/lighthouserc.js
+          sed -i "s/{{VERCEL_BYPASS_TOKEN}}/${VERCEL_BYPASS_TOKEN}/g" packages/tests/lighthouserc.js
 
       - name: Lighthouse CI Action
         uses: treosh/lighthouse-ci-action@3e7e23fb74242897f95c0ba9cabad3d0227b9b18 #v12.6.2
@@ -105,8 +109,10 @@ jobs:
             core.setOutput("bestPractices", bestPractices);
             core.setOutput("seo", seo);
 
-      - run: |
-          echo "### Lighthouse: ${{ steps.format_lighthouse_score.outputs.comment }}" >> $GITHUB_STEP_SUMMARY
+      - env:
+          LIGHTHOUSE_COMMENT: ${{ steps.format_lighthouse_score.outputs.comment }}
+        run: |
+          echo "### Lighthouse: $LIGHTHOUSE_COMMENT" >> $GITHUB_STEP_SUMMARY
       - name: Send Lighthouse Report to Slack
         if: success()
         env:
@@ -116,6 +122,8 @@ jobs:
           seo: ${{ steps.format_lighthouse_score.outputs.seo }}
           pr_url: ${{ github.event.pull_request.html_url }}
           repo_name: ${{ github.repository }}
+          pr_number: ${{ github.event.pull_request.number }}
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           color() {
             if [ "$1" -ge 90 ]; then
@@ -136,6 +144,6 @@ jobs:
 
           curl -X POST -H 'Content-type: application/json' \
           --data '{
-            "text": "Lighthouse audit completed for <'"$pr_url"'|PR #${{ github.event.pull_request.number }}> on '"$repo_name"'. \nOverall performance: '"$performance_color"' '"$performance"', \naccessibility: '"$accessibility_color"' '"$accessibility"', \nbest practices: '"$bestPractices_color"' '"$bestPractices"', \nSEO: '"$seo_color"' '"$seo"'."
+            "text": "Lighthouse audit completed for <'"$pr_url"'|PR #'"$pr_number"'> on '"$repo_name"'. \nOverall performance: '"$performance_color"' '"$performance"', \naccessibility: '"$accessibility_color"' '"$accessibility"', \nbest practices: '"$bestPractices_color"' '"$bestPractices"', \nSEO: '"$seo_color"' '"$seo"'."
           }' \
-          ${{ secrets.SLACK_WEBHOOK_URL }}
+          "$slack_webhook_url"

@@ -17,13 +17,13 @@ Midnight development is supported on **macOS, Linux, and Windows via WSL**.
 
 Make sure you have the following installed:
 
-- [Node.js](https://nodejs.org/) (v18 or later)
+- [Node.js](https://nodejs.org/) (v22 or later)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) — needed to run the proof server
 
 Verify your installations:
 
 ```bash
-node --version    # should print v18.x.x or higher
+node --version    # should print v22.x.x or higher
 npm --version     # should print 9.x.x or higher
 docker --version  # should print Docker version 2x.x.x or higher
 ```
@@ -58,15 +58,9 @@ Open it and paste in the contents below.
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@midnight-ntwrk/ledger-v8": "^8.0.0",
-    "@midnight-ntwrk/midnight-js-network-id": "^4.0.0",
-    "@midnight-ntwrk/midnight-js-utils": "^4.0.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "^3.0.0",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "^3.0.0",
-    "@midnight-ntwrk/wallet-sdk-facade": "^3.0.0",
-    "@midnight-ntwrk/wallet-sdk-hd": "^3.0.0",
-    "@midnight-ntwrk/wallet-sdk-shielded": "^2.0.0",
-    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "^2.0.0",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnightntwrk/wallet-sdk": "1.2.0",
     "rxjs": "^7.8.1",
     "ws": "^8.19.0"
   },
@@ -146,45 +140,37 @@ import { Buffer } from 'buffer';
 import * as readline from 'readline';
 import * as Rx from 'rxjs';
 
-// HD wallet — derives multiple key pairs from a single seed phrase
-import { HDWallet, Roles, generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
-
-// Utility to convert binary data to hex strings
-import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-
-// Ledger types — defines tokens, keys, and on-chain parameters
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
-
-// WalletFacade — combines the three sub-wallets into a single interface
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-
-// ShieldedWallet — handles private (zero-knowledge) transactions
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-
-// DustWallet — generates and spends DUST for transaction fees
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
-
-// UnshieldedWallet — handles transparent (public) transactions like receiving tNight
+// The Midnight wallet SDK ships as a single barrel package that re-exports every
+// wallet sub-package: HD key derivation, the wallet facade, the shielded, unshielded,
+// and dust wallets, transaction history storage, and address formatting.
 import {
-  createKeystore,
-  InMemoryTransactionHistoryStorage,
-  PublicKey,
+  HDWallet,
+  Roles,
+  generateRandomSeed,
+  WalletFacade,
+  ShieldedWallet,
+  DustWallet,
   UnshieldedWallet,
-} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
-import type { UnshieldedKeystore } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
-
-// Network ID — tells the SDK which network to connect to (preprod, preview, etc.)
-import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-
-// Address formatting — encodes wallet keys into human-readable bech32m addresses
-import {
+  createKeystore,
+  PublicKey,
+  NoOpTransactionHistoryStorage,
   DustAddress,
   MidnightBech32m,
   ShieldedAddress,
   ShieldedCoinPublicKey,
   ShieldedEncryptionPublicKey,
-} from '@midnight-ntwrk/wallet-sdk-address-format';
+} from '@midnightntwrk/wallet-sdk';
+import type { UnshieldedKeystore } from '@midnightntwrk/wallet-sdk';
+
+// Utility to convert binary data to hex strings
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+
+// Ledger types — defines tokens, keys, and on-chain parameters (re-exported via midnight-js-protocol)
+import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+
+// Network ID — tells the SDK which network to connect to (preprod, preview, etc.)
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 ```
 
 ### Configuration
@@ -202,7 +188,7 @@ const CONFIG = {
   indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
   node: 'https://rpc.preprod.midnight.network',
   proofServer: 'http://localhost:6300',
-  faucetUrl: 'https://faucet.preprod.midnight.network',
+  faucetUrl: 'https://midnight-tmnight-preprod.nethermind.dev/',
 };
 ```
 
@@ -399,7 +385,7 @@ const buildWallet = async (keys: ReturnType<typeof deriveKeys>) => {
       indexerHttpUrl: CONFIG.indexerHttpUrl,
       indexerWsUrl: CONFIG.indexerWsUrl,
     },
-    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+    txHistoryStorage: new NoOpTransactionHistoryStorage(),
   };
 
   const dustConfig = {
@@ -569,7 +555,7 @@ const main = async () => {
   const encPubKey = ShieldedEncryptionPublicKey.fromHexString(initialState.shielded.encryptionPublicKey.toHexString());
   const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
   const unshieldedAddress = unshieldedKeystore.getBech32Address();
-  const dustAddress = MidnightBech32m.encode(networkId, initialState.dust.address).toString();
+  const dustAddress = DustAddress.encodePublicKey(networkId, initialState.dust.publicKey);
 
   console.log('');
   console.log('  Wallet Addresses:');
@@ -702,28 +688,12 @@ import { Buffer } from 'buffer';
 import * as readline from 'readline';
 import * as Rx from 'rxjs';
 
-import { HDWallet, Roles, generateRandomSeed } from '@midnight-ntwrk/wallet-sdk-hd';
+import { HDWallet, Roles, generateRandomSeed, WalletFacade, ShieldedWallet, DustWallet, UnshieldedWallet, createKeystore, PublicKey, NoOpTransactionHistoryStorage, DustAddress, MidnightBech32m, ShieldedAddress, ShieldedCoinPublicKey, ShieldedEncryptionPublicKey } from '@midnightntwrk/wallet-sdk';
+import type { UnshieldedKeystore } from '@midnightntwrk/wallet-sdk';
 import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
-import {
-  createKeystore,
-  InMemoryTransactionHistoryStorage,
-  PublicKey,
-  UnshieldedWallet,
-} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
-import type { UnshieldedKeystore } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
-import {
-  DustAddress,
-  MidnightBech32m,
-  ShieldedAddress,
-  ShieldedCoinPublicKey,
-  ShieldedEncryptionPublicKey,
-} from '@midnight-ntwrk/wallet-sdk-address-format';
 
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
@@ -734,7 +704,7 @@ const CONFIG = {
   indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
   node: 'https://rpc.preprod.midnight.network',
   proofServer: 'http://localhost:6300',
-  faucetUrl: 'https://faucet.preprod.midnight.network',
+  faucetUrl: 'https://midnight-tmnight-preprod.nethermind.dev/',
 };
 
 
@@ -881,7 +851,7 @@ const buildWallet = async (keys: ReturnType<typeof deriveKeys>) => {
       indexerHttpUrl: CONFIG.indexerHttpUrl,
       indexerWsUrl: CONFIG.indexerWsUrl,
     },
-    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+    txHistoryStorage: new NoOpTransactionHistoryStorage(),
   };
   const dustConfig = {
     ...shieldedConfig,
@@ -1001,7 +971,7 @@ const main = async () => {
   const encPubKey = ShieldedEncryptionPublicKey.fromHexString(initialState.shielded.encryptionPublicKey.toHexString());
   const shieldedAddress = MidnightBech32m.encode(networkId, new ShieldedAddress(coinPubKey, encPubKey)).toString();
   const unshieldedAddress = unshieldedKeystore.getBech32Address();
-  const dustAddress = MidnightBech32m.encode(networkId, initialState.dust.address).toString();
+  const dustAddress = DustAddress.encodePublicKey(networkId, initialState.dust.publicKey);
 
   console.log('');
   console.log('  Wallet Addresses:');
@@ -1083,7 +1053,7 @@ main().catch((err) => {
 
 ## Step 5: Start the proof server
 
-With the script in place, start the proof server so it is ready to handle the zero-knowledge proofs the script requests. Open a second terminal window, navigate to your project folder, and start the proof server:
+With the script in place, start the proof server so it is ready to handle the zero-knowledge proofs the script requests. From your project folder, start it in detached mode so it runs in the background and returns your terminal:
 
 :::info
 Docker Desktop must be open and running before you start the proof server.
@@ -1091,12 +1061,10 @@ Docker Desktop must be open and running before you start the proof server.
 
 ```bash
 cd midnight-dust-tutorial
-docker compose -f proof-server.yml up
+docker compose -f proof-server.yml up -d
 ```
 
-The first time you run this, Docker downloads the proof server image (~2 GB). Once you see `listening on: 0.0.0.0:6300` in the output, the proof server is ready.
-
-Leave this terminal running and switch back to your first terminal.
+The `-d` flag runs the proof server in the background so you can keep using the same terminal. The first time you run this, Docker downloads the proof server image (~2 GB). Run `docker compose -f proof-server.yml down` to stop it when you are done.
 
 ## Step 6: Run the script
 
@@ -1129,7 +1097,7 @@ If you create a new wallet, the script displays your seed. Save it somewhere saf
     Unshielded:  mn_addr_preprod1q...  ← send tNight here
     Dust:        mn_dust_preprod1w...
 
-  Faucet: https://faucet.preprod.midnight.network
+  Faucet: https://midnight-tmnight-preprod.nethermind.dev/
 
   🕐 Syncing wallet with network
 ```
@@ -1139,7 +1107,7 @@ You can copy the unshielded address and start funding from the faucet while the 
 Now fund the wallet:
 
 1. Copy the unshielded address (marked with `← send tNight here`). Make sure you copy only the address with no extra spaces before or after it, or the faucet will reject it.
-2. Open the faucet link in your browser: [https://faucet.preprod.midnight.network](https://faucet.preprod.midnight.network)
+2. Open the faucet link in your browser: [https://midnight-tmnight-preprod.nethermind.dev/](https://midnight-tmnight-preprod.nethermind.dev/)
 3. Paste your address into the faucet and request tNight tokens.
 4. Wait, the script automatically detects the incoming funds.
 
@@ -1183,7 +1151,7 @@ midnight-dust-tutorial/
 
 **"Cannot find module" errors when running `npm start`**: Make sure you ran `npm install` first. If you still see errors, delete `node_modules` and `package-lock.json`, then run `npm install` again.
 
-**Connection refused on port 6300**: The proof server isn't running. Make sure `docker compose -f proof-server.yml up` is running in another terminal and shows `listening on: 0.0.0.0:6300`.
+**Connection refused on port 6300**: The proof server isn't running. Make sure `docker compose -f proof-server.yml up -d` has been run and that `docker compose -f proof-server.yml logs` shows `listening on: 0.0.0.0:6300`.
 
 **Proof server fails to start or hangs**: Make sure Docker Desktop is open and running first.
 
@@ -1197,4 +1165,4 @@ midnight-dust-tutorial/
 
 ## Next steps
 
-With DUST generation active, your wallet is ready to pay transaction fees. From here you can explore [deploying a smart contract on Midnight](https://docs.midnight.network/guides/deploy-mn-app) or integrating DUST generation into your own application's wallet setup flow. Check out the [Awesome DApps repo](https://github.com/midnightntwrk/awesome-dapps) and the [Midnight documentation](https://docs.midnight.network/) to keep building.
+With DUST generation active, your wallet is ready to pay transaction fees. From here you can explore [deploying a smart contract on Midnight](https://docs.midnight.network/guides/deploy-mn-app) or integrating DUST generation into your own application's wallet setup flow. Check out the [Awesome DApps repo](https://github.com/midnightntwrk/midnight-awesome-dapps) and the [Midnight documentation](https://docs.midnight.network/) to keep building.

@@ -1,0 +1,291 @@
+# Sync release notes from product repositories into midnight-docs.
+#
+# Replaces the older release-notes.yml workflow with cleaner bash,
+# proper GH_TOKEN handling, and simplified inputs.
+#
+# Usage (GitHub UI or CLI):
+#   gh workflow run sync-release-notes.yml \
+#     -f component=midnight-js \
+#     -f source_url=https://github.com/midnightntwrk/midnight-js/releases/tag/v4.1.1 \
+#     -f version=4.1.1
+#
+# The workflow:
+#   1. Fetches the release notes from source_url (or clones the repo if source_path is used).
+#   2. Copies them into docs/relnotes/<component>/<component>-<version>.mdx.
+#   3. Updates the DynamicList<Component>.js file: demotes current LATEST to SUPPORTED,
+#      inserts a new stub entry with LATEST status.
+#   4. Commits to a new branch and opens a PR.
+#
+# After the PR is created, you still need to fill in:
+#   - summary (replace the placeholder)
+#   - details (add 5-8 bullet strings)
+#   - artifacts (add package/image links)
+
+name: Sync release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Which product component'
+        required: true
+        type: choice
+        options:
+          - midnight-js
+          - ledger
+          - node
+          - midnight-indexer
+          - wallet
+          - compact
+          - dapp-connector-api
+          - compact-js
+      source_url:
+        description: 'URL to release notes (GitHub release URL, raw URL, blob URL, or tree URL)'
+        required: false
+        default: ''
+        type: string
+      source_path:
+        description: 'Path to .md file inside the product repo (fallback when source_url is empty)'
+        required: false
+        default: ''
+        type: string
+      version:
+        description: 'Version string (e.g. 4.1.1 or v4.1.1)'
+        required: true
+        type: string
+      compact_language_version:
+        description: 'Compact language version (only for compact component, e.g. 0.22.0)'
+        required: false
+        default: ''
+        type: string
+      pr_title:
+        description: 'PR title (leave empty for auto-generated)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  copy_release_notes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout midnight-docs
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+
+      - name: Git config
+        run: |
+          git config --global user.email "midnight-ci@users.noreply.github.com"
+          git config --global user.name "Midnight CI GitHub Action"
+          git config --global url.https://${{ secrets.GH_TOKEN }}@github.com/.insteadOf https://github.com/
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Fetch and copy release notes
+        id: fetch
+        run: |
+          set -euo pipefail
+
+          # --- Component-to-repo mapping ---
+          declare -A REPO_MAP=(
+            [midnight-js]=midnightntwrk/midnight-js
+            [ledger]=midnightntwrk/midnight-ledger
+            [node]=midnightntwrk/midnight-node
+            [midnight-indexer]=midnightntwrk/midnight-indexer
+            [wallet]=midnightntwrk/midnight-wallet
+            [compact]=LFDT-Minokawa/compact
+            [dapp-connector-api]=midnightntwrk/midnight-dapp-connector-api
+            [compact-js]=midnightntwrk/midnight-sdk
+          )
+
+          # --- Derive version slug and destination path ---
+          VERSION="${VERSION_RAW#v}"
+          SLUG="${COMPONENT}-${VERSION//./-}"
+          DEST_DIR="docs/relnotes/${COMPONENT}"
+          DEST_FILE="${DEST_DIR}/${SLUG}.mdx"
+
+          mkdir -p "$DEST_DIR"
+
+          echo "Component: $COMPONENT"
+          echo "Version: $VERSION"
+          echo "Slug: $SLUG"
+          echo "Destination: $DEST_FILE"
+
+          # --- Fetch content ---
+          if [[ -n "$SOURCE_URL" ]]; then
+            echo "Fetching from URL: $SOURCE_URL"
+
+            case "$SOURCE_URL" in
+              https://github.com/*/releases/tag/*)
+                OWNER_REPO=$(echo "$SOURCE_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/releases/tag/.*$|\1|')
+                TAG=$(echo "$SOURCE_URL" | sed -E 's|^https://github.com/[^/]+/[^/]+/releases/tag/(.*)$|\1|')
+                echo "Fetching release body via API: repos/${OWNER_REPO}/releases/tags/${TAG}"
+                gh api "repos/${OWNER_REPO}/releases/tags/${TAG}" --jq '.body' > "$DEST_FILE"
+                ;;
+
+              https://raw.githubusercontent.com/*)
+                echo "Fetching raw URL directly"
+                curl -fsSL "$SOURCE_URL" -o "$DEST_FILE"
+                ;;
+
+              https://github.com/*/blob/*)
+                RAW_URL=$(echo "$SOURCE_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/blob/([^/]+)/(.*)$|https://raw.githubusercontent.com/\1/\2/\3|')
+                echo "Converted blob URL to raw: $RAW_URL"
+                curl -fsSL "$RAW_URL" -o "$DEST_FILE"
+                ;;
+
+              https://github.com/*/tree/*)
+                TREE_RAW=$(echo "$SOURCE_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/tree/([^/]+)/(.*)$|https://raw.githubusercontent.com/\1/\2/\3|')
+                RAW_URL="${TREE_RAW}/RELEASE_NOTES.md"
+                echo "Converted tree URL to raw: $RAW_URL"
+                curl -fsSL "$RAW_URL" -o "$DEST_FILE"
+                ;;
+
+              *)
+                echo "Error: unrecognized URL format: $SOURCE_URL"
+                echo "Supported formats: GitHub release URL, raw.githubusercontent.com, blob URL, tree URL"
+                exit 1
+                ;;
+            esac
+
+          elif [[ -n "$SOURCE_PATH" ]]; then
+            REPO="${REPO_MAP[$COMPONENT]}"
+            if [[ -z "$REPO" ]]; then
+              echo "Error: unknown component '$COMPONENT'"
+              exit 1
+            fi
+            echo "Cloning https://github.com/${REPO}.git (depth 1)"
+            git clone --depth 1 "https://github.com/${REPO}.git" temp-repo
+            if [[ ! -f "temp-repo/${SOURCE_PATH}" ]]; then
+              echo "Error: source file not found at temp-repo/${SOURCE_PATH}"
+              ls -la "temp-repo/$(dirname "$SOURCE_PATH")" 2>/dev/null || true
+              exit 1
+            fi
+            cp "temp-repo/${SOURCE_PATH}" "$DEST_FILE"
+            rm -rf temp-repo
+
+          else
+            echo "Error: provide either source_url or source_path"
+            exit 1
+          fi
+
+          # --- Verify the file was created and has content ---
+          if [[ ! -s "$DEST_FILE" ]]; then
+            echo "Error: destination file is empty or missing: $DEST_FILE"
+            exit 1
+          fi
+
+          echo "Copied release notes to $DEST_FILE ($(wc -l < "$DEST_FILE") lines)"
+
+          # --- Export outputs ---
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
+          echo "dest_file=$DEST_FILE" >> "$GITHUB_OUTPUT"
+
+        env:
+          COMPONENT: ${{ github.event.inputs.component }}
+          VERSION_RAW: ${{ github.event.inputs.version }}
+          SOURCE_URL: ${{ github.event.inputs.source_url }}
+          SOURCE_PATH: ${{ github.event.inputs.source_path }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+
+      - name: Update DynamicList and open PR
+        run: |
+          set -euo pipefail
+
+          TODAY=$(date +'%d %B %Y')
+
+          # --- Component-to-DynamicList mapping ---
+          declare -A LIST_MAP=(
+            [midnight-js]=DynamicListMidnightJS.js
+            [ledger]=DynamicListLedger.js
+            [node]=DynamicListNode.js
+            [midnight-indexer]=DynamicListMidnightIndexer.js
+            [wallet]=DynamicListWallet.js
+            [compact]=DynamicListCompact.js
+            [dapp-connector-api]=DynamicListDappConnectorAPI.js
+            [compact-js]=DynamicListCompactJS.js
+          )
+
+          DYNAMIC_LIST="src/components/${LIST_MAP[$COMPONENT]}"
+
+          if [[ ! -f "$DYNAMIC_LIST" ]]; then
+            echo "Error: DynamicList file not found: $DYNAMIC_LIST"
+            exit 1
+          fi
+
+          echo "Updating $DYNAMIC_LIST"
+
+          # --- Demote current LATEST to SUPPORTED ---
+          sed -i "s/status: 'LATEST'/status: 'SUPPORTED'/" "$DYNAMIC_LIST"
+
+          # --- Build new entry (single line to avoid YAML block scalar issues) ---
+          if [[ "$COMPONENT" == "compact" && -n "$COMPACT_LANG_VER" ]]; then
+            COMPACT_VER="${COMPACT_LANG_VER#v}"
+            NEW_ENTRY="  {\n    version: '${VERSION}',\n    compactVersion: '${COMPACT_VER}',\n    status: 'LATEST',\n    date: '${TODAY}',\n    summary: 'Summary of Release ${VERSION}',\n    details: [],\n    artifacts: [],\n    link: '/relnotes/${COMPONENT}/${SLUG}',\n  },"
+          else
+            NEW_ENTRY="  {\n    version: '${VERSION}',\n    status: 'LATEST',\n    date: '${TODAY}',\n    summary: 'Summary of Release ${VERSION}',\n    details: [],\n    artifacts: [],\n    link: '/relnotes/${COMPONENT}/${SLUG}',\n  },"
+          fi
+
+          # --- Insert after 'const releases = [' ---
+          sed -i "/^const releases = \[$/a\\${NEW_ENTRY}" "$DYNAMIC_LIST"
+
+          echo "Inserted new entry for ${COMPONENT} v${VERSION}"
+
+          # --- Create branch, commit, push, open PR ---
+          BRANCH="relnotes/$(date +'%Y%m%d')-${COMPONENT}-${VERSION}"
+
+          if git ls-remote --exit-code --heads origin "$BRANCH" > /dev/null 2>&1; then
+            echo "Error: branch '$BRANCH' already exists on remote."
+            echo "A PR for ${COMPONENT} v${VERSION} may already be open."
+            echo "Delete the remote branch first: git push origin --delete $BRANCH"
+            exit 1
+          fi
+
+          git checkout -b "$BRANCH"
+          git add "$DEST_FILE" "$DYNAMIC_LIST"
+          git commit -m "Add ${COMPONENT} v${VERSION} release notes"
+          git push -u origin "$BRANCH"
+
+          # --- Determine PR title ---
+          if [[ -n "$PR_TITLE_INPUT" ]]; then
+            TITLE="$PR_TITLE_INPUT"
+          else
+            TITLE="Add ${COMPONENT} v${VERSION} release notes"
+          fi
+
+          EXISTING_PR=$(gh pr list --head "$BRANCH" --json url --jq '.[0].url' 2>/dev/null || true)
+          if [[ -n "$EXISTING_PR" ]]; then
+            echo "PR already exists: $EXISTING_PR"
+          else
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "$TITLE" \
+              --body "Automated release notes copy for **${COMPONENT} v${VERSION}**.
+
+          Source: \`${SOURCE_URL:-${SOURCE_PATH}}\`
+
+          ### What to fill in manually
+
+          - [ ] \`summary\`: replace the placeholder in \`${DYNAMIC_LIST}\`
+          - [ ] \`details\`: add 5-8 bullet strings describing user-facing changes
+          - [ ] \`artifacts\`: add NPM/Docker links
+          - [ ] Reformat \`${DEST_FILE}\` to match the existing version file template")
+            echo "PR created: $PR_URL"
+          fi
+
+        env:
+          COMPONENT: ${{ github.event.inputs.component }}
+          VERSION: ${{ steps.fetch.outputs.version }}
+          SLUG: ${{ steps.fetch.outputs.slug }}
+          DEST_FILE: ${{ steps.fetch.outputs.dest_file }}
+          COMPACT_LANG_VER: ${{ github.event.inputs.compact_language_version }}
+          SOURCE_URL: ${{ github.event.inputs.source_url }}
+          SOURCE_PATH: ${{ github.event.inputs.source_path }}
+          PR_TITLE_INPUT: ${{ github.event.inputs.pr_title }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
