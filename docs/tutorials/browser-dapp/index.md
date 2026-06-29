@@ -1,7 +1,7 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-title: Browser dApp with an injected wallet
+title: Browser DApp with an injected wallet
 description: Deploy a contract, call circuits, and read on-chain state from a browser DApp using an injected wallet via the DApp Connector API.
 sidebar_position: 60
 toc_max_heading_level: 2
@@ -26,7 +26,7 @@ This guide targets the current SDK line: `midnight-js` 4.x, `compact-runtime` 0.
 ## Prerequisites
 
 - **Node** v22.17.1 or higher, and a Vite app.
-- A **compiled Compact contract**: a `managed/<name>/` directory containing `contract/index.js` (generated bindings) plus the ZK assets `keys/` and `zkir/`. Pin `compactc`, the language version, and the runtime together — this guide targets `compactc` 0.31.x (language 0.23, runtime 0.16). The `compactc` version that emitted your bindings must match the `compact-runtime` you install below, or proving fails with a `Version mismatch` error.
+- A **compiled Compact contract**: a `managed/<name>/` directory containing `contract/index.js` (generated bindings) plus the ZK assets `keys/` and `zkir/`. Pin `compactc`, the language version, and the runtime together. This guide targets `compactc` 0.31.x (language 0.23, runtime 0.16). The `compactc` version that emitted your bindings must match the `compact-runtime` you install below, or proving fails with a `Version mismatch` error.
 - A **wallet extension** (Lace or 1AM) installed in your browser, unlocked, set to **preview** (or preprod), with the connected account funded with tNIGHT and registered for DUST (DUST pays fees).
 - A **proof server**. Use your own (`docker run -p 6300:6300 midnightntwrk/proof-server:<tag>`) or the one the wallet reports via `getConfiguration()`.
 
@@ -214,9 +214,9 @@ console.log('size:', led.items?.size?.());
 ## Troubleshooting
 
 - **Faucet returns "resubmit later" on a brand-new address.** The faucet rate-limit is keyed to the recipient address (about 24 hours), and a failed request still counts. Use a fresh address to retry. To confirm a drip landed without a wallet, query the indexer's `unshieldedTransactions(address:)` subscription, or `transactions(offset: { identifier })` if you have the transaction id. The top-level GraphQL API has no address-balance query.
-- **`window.midnight` is undefined even though the extension is installed.** The extension's content-script/background messaging can stall (the console may show `orphaned data for stream` messages). Fully restart the browser to revive the extension's background worker, then reload. Also confirm the dApp tab and the extension are in the same browser profile.
+- **`window.midnight` is undefined even though the extension is installed.** The extension's content-script/background messaging can stall (the console may show `orphaned data for stream` messages). Fully restart the browser to revive the extension's background worker, then reload. Also confirm the DApp tab and the extension are in the same browser profile.
 - **A helper library fails to resolve under bare Node** because it uses extensionless ESM imports. Bundle through Vite or esbuild rather than running with raw `node`. Both tools resolve extensionless imports.
-- **Version drift.** The `compact-runtime` your contract was compiled against must match the SDK line you import (here 0.16 with ledger v8 and `midnight-js` 4.x). Note that `@midnight-ntwrk/compact-js` pins an exact `compact-runtime` (2.5.1 pins 0.16.0), so bumping the runtime alone is not enough — move `compact-js` and the `compactc` that emitted your bindings together. Mismatches between `compactc`, the language version, and the runtime are the most common source of errors.
+- **Version drift.** The `compact-runtime` your contract was compiled against must match the SDK line you import (here 0.16 with ledger v8 and `midnight-js` 4.x). Note that `@midnight-ntwrk/compact-js` pins an exact `compact-runtime` (2.5.1 pins 0.16.0), so bumping the runtime alone is not enough. Move `compact-js` and the `compactc` that emitted your bindings together. Mismatches between `compactc`, the language version, and the runtime are the most common source of errors.
 
 ## Summary
 
