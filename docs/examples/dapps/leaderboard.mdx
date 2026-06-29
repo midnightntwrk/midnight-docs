@@ -1,0 +1,272 @@
+{/* SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed
+under the Apache License, Version 2.0 (the "License"); You may not use this file except in
+compliance with the License. You may obtain a copy of the License at
+http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to
+in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for
+the specific language governing permissions and limitations under the License. */}
+
+---
+sidebar_label: "Leaderboard DApp"
+sidebar_position: 30
+title: Leaderboard DApp
+description: Learn how the leaderboard DApp demonstrates privacy-preserving score submission and ownership verification with Zero Knowledge proofs on Midnight Network.
+toc_max_heading_level: 2
+---
+
+# Leaderboard DApp
+
+The leaderboard contract demonstrates privacy-preserving smart contracts on Midnight using the Compact language. This example shows how to create a DApp that lets players submit scores with configurable privacy modes while protecting player identity through Zero Knowledge (ZK) proofs.
+
+The leaderboard example is a privacy-focused DApp that introduces key Midnight concepts:
+
+- Writing smart contracts with structured on-chain data using `Map` and custom structs in Compact
+- Using ZK proofs to verify entry ownership without revealing the owner's secret key
+- Implementing multiple privacy modes through conditional witness invocation
+- Building a browser-based frontend that connects to the Lace wallet
+
+By the end of this guide, you will understand how the leaderboard contract enforces privacy rules and how to build and interact with the full DApp in your browser.
+
+## The leaderboard scenario
+
+Imagine an arcade leaderboard where players want to record their high scores. The rules are straightforward:
+
+- Anyone can submit a score at any time.
+- Each entry stores a score, a display name, and an ownership commitment.
+- Players choose how their display name appears: a custom name, their public address, or an anonymous generated name like "Crimson Tiger."
+- Only the original submitter can prove ownership of their entry using a ZK proof.
+
+The challenge is enforcing ownership rules while giving players full privacy control. Traditional systems require storing the player's identity on a server. Midnight offers a better approach: players prove ownership locally through ZK proofs without transmitting private data across the network.
+
+## DApp architecture
+
+The leaderboard example uses a monorepo structure with three workspace packages and a Docker configuration for the proof server.
+
+```text
+midnight-leaderboard/
+├── contract/                    # Compact smart contract and TypeScript bindings
+│   ├── leaderboard.compact      # The smart contract
+│   └── src/
+│       ├── index.ts             # Contract exports and witness wiring
+│       └── witnesses.ts         # Witness provider
+├── api/                         # Shared business logic (platform-agnostic)
+│   └── src/
+│       ├── index.ts             # LeaderboardAPI class
+│       ├── common-types.ts      # Shared types and provider interfaces
+│       └── utils/index.ts       # Display name decoder
+├── leaderboard-ui/              # React and Vite browser DApp
+│   └── src/
+│       ├── App.tsx              # Game UI, leaderboard, and wallet connection
+│       ├── main.tsx             # Entry point with Buffer polyfill
+│       ├── contexts/            # Lace wallet provider bridge
+│       └── hooks/               # Indexer read hook
+└── proof-server/                # Docker config for Railway deployment
+    └── Dockerfile
+```
+
+## The leaderboard contract
+
+The leaderboard contract is written in Compact. It demonstrates how to build a privacy-preserving application where players can submit scores with configurable display names and prove ownership of their entries without revealing their identity.
+
+Here is the complete contract:
+
+```compact
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+struct ScoreEntry {
+  score: Uint<64>,
+  displayName: Bytes<32>,
+  ownerHash: Bytes<32>
+}
+
+export ledger scores: Map<Uint<64>, ScoreEntry>;
+export ledger nextId: Counter;
+
+witness localSecretKey(): Bytes<32>;
+witness getCustomName(): Bytes<32>;
+
+export circuit ownerCommitment(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "leaderboard:owner:"), sk, sk]);
+}
+
+export circuit submitScore(
+  score: Uint<64>,
+  useCustomName: Boolean
+): [] {
+  const sk = localSecretKey();
+  const ownerHash = ownerCommitment(sk);
+  nextId.increment(1);
+  const entryId = disclose(nextId.read() as Uint<64>);
+  if (disclose(useCustomName)) {
+    const customName = getCustomName();
+    scores.insert(entryId, ScoreEntry {
+      score: disclose(score),
+      displayName: disclose(customName),
+      ownerHash: disclose(ownerHash)
+    });
+  } else {
+    scores.insert(entryId, ScoreEntry {
+      score: disclose(score),
+      displayName: disclose(persistentHash<Bytes<32>>(sk)),
+      ownerHash: disclose(ownerHash)
+    });
+  }
+}
+
+export circuit verifyOwnership(targetEntryId: Uint<64>): [] {
+  assert(scores.member(disclose(targetEntryId)), "entry not found");
+  const entry = scores.lookup(disclose(targetEntryId));
+  const callerHash = ownerCommitment(localSecretKey());
+  assert(callerHash == entry.ownerHash, "not the owner");
+}
+```
+
+The contract consists of three main components.
+
+### Ledger state
+
+Two public fields track the leaderboard state on-chain:
+
+- `scores`: A `Map<Uint<64>, ScoreEntry>` that stores all submitted entries, keyed by an auto-incrementing ID. Each `ScoreEntry` holds a score, a display name, and an ownership commitment.
+- `nextId`: A `Counter` that auto-increments to assign a unique ID to each new entry.
+
+### Circuits
+
+Three exported circuits define the contract's operations:
+
+- `ownerCommitment(sk)`: A helper circuit that derives an on-chain identity from the user's secret key using `persistentHash`. It produces a deterministic commitment that can be stored and verified later without revealing the secret.
+- `submitScore(score, useCustomName)`: Creates a new leaderboard entry. It retrieves the user's secret key via the `localSecretKey` witness, computes the owner commitment, and inserts a new `ScoreEntry` into `scores`. The `useCustomName` flag controls whether the display name comes from the `getCustomName` witness or is derived directly from the secret key hash.
+- `verifyOwnership(targetEntryId)`: Lets a user prove they own a specific entry. It looks up the entry, recomputes the owner commitment from the caller's secret key, and asserts that it matches the stored `ownerHash`. Nothing is written to the ledger.
+
+### Witnesses
+
+The contract defines two witness functions:
+
+- `localSecretKey()`: Returns the user's secret key from private state. The key never appears on-chain or in any generated proof.
+- `getCustomName()`: Returns a custom display name provided by the TypeScript host at runtime. The TypeScript layer decides what value to supply based on the user's selected privacy mode.
+
+## Prerequisites
+
+Before working with the leaderboard example, ensure that you have:
+
+- Node.js version 22 or higher
+- Docker Desktop installed and running
+- Compact toolchain version 0.31.0 installed
+- Lace wallet browser extension installed
+
+For more information, refer to [install the toolchain](../../getting-started/installation).
+
+## Compile the contract
+
+Open a new terminal window and navigate to your project directory. Navigate to the `contract` directory and compile the contract:
+
+```bash
+cd contract
+npm run compact
+```
+
+
+This command compiles the contract and generates TypeScript bindings, circuit keys, and ZKIR files in `contract/managed/leaderboard/`.
+
+You should see the following output:
+
+```text
+Compiling 2 circuits:
+  circuit "submitScore" (k=13, rows=4720)
+  circuit "verifyOwnership" (k=13, rows=2352)
+```
+
+Build the contract and API packages:
+
+```bash
+cd ..
+npm run build
+```
+
+## Wallet setup
+
+The browser DApp connects to the Lace wallet for on-chain transactions.
+
+1. Install the [Lace](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) browser extension and create a new wallet.
+2. Set the network to **Preprod**.
+3. Set the proof server to `http://localhost:6300`.
+4. Fund your wallet with tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/).
+5. Go to Tokens, click **Generate tDUST**, and confirm the transaction.
+
+:::note
+tDUST is required to pay transaction fees on Preprod. It is generated from your tNIGHT balance.
+:::
+
+## Run the browser DApp
+
+Navigate to the `leaderboard-ui` directory and start the development server:
+
+```bash
+cd leaderboard-ui
+npm run dev
+```
+
+Open your browser at `http://localhost:3000`. The leaderboard UI loads and connects to the Preprod indexer.
+
+## Interact with the leaderboard
+
+### Connect your wallet
+
+Click **Connect Wallet** in the top-right corner of the UI. Lace prompts you to authorize the connection. After you approve, your wallet address and tDUST balance appear in the header.
+
+### Deploy a new contract
+
+Click **Deploy Contract**. The UI calls `LeaderboardAPI.deployContract()`, which submits a deployment transaction through Lace. Wait for the transaction to confirm on Preprod. This typically takes 20 to 30 seconds. After confirmation, the contract address appears in the UI.
+
+:::note
+Contract deployment requires tDUST for transaction fees.
+:::
+
+### Submit a score
+
+The game area displays a simple score counter. Play the game or enter a score manually, then choose a display name mode before submitting:
+
+- **Custom name**: Enter a name up to 32 characters. The `getCustomName` witness supplies this value to the circuit.
+- **Public address**: Your wallet address is passed as the display name via the `getCustomName` witness.
+- **Anonymous**: No custom name witness is invoked. The circuit stores `persistentHash(secretKey)` as the display name. The UI renders this as a generated name like "Crimson Tiger."
+
+Click **Submit Score**. The UI:
+
+1. Retrieves your secret key from private state via the `localSecretKey` witness.
+2. Computes your owner commitment using `ownerCommitment(secretKey)`.
+3. Generates a ZK proof locally via the proof server.
+4. Submits the transaction through Lace.
+5. Waits for confirmation and refreshes the leaderboard.
+
+:::info
+Your secret key never leaves your machine. The proof server generates the ZK proof locally before anything is sent to the network.
+:::
+
+### View the leaderboard
+
+The leaderboard table updates automatically after each confirmed transaction. It reads state directly from the Preprod indexer without requiring a wallet connection. Anonymous entries appear with generated names. Custom and public-address entries appear as submitted.
+
+### Verify entry ownership
+
+Click **Verify Ownership** next to any of your entries. The UI calls `verifyOwnership(entryId)`, which generates a ZK proof that your secret key matches the `ownerHash` stored in the entry. The circuit asserts the match on-chain without writing anything to the ledger.
+
+A success message confirms ownership. If your wallet does not hold the correct secret key for that entry, the assertion fails and the transaction is rejected locally before reaching the network.
+
+:::caution
+Ownership verification only works from the same browser and wallet instance that submitted the entry, because the secret key lives in the local private state store.
+:::
+
+### Read state without a wallet
+
+You can view the leaderboard without connecting a wallet. The UI fetches the `scores` map directly from the indexer using the `LeaderboardIndexerProvider`. This is read-only access. Score submission and ownership verification require a wallet connection.
+
+## Next steps
+
+Now that you understand the leaderboard example:
+
+- **Build the contract yourself**: Follow the complete [Leaderboard tutorial](../../tutorials/leaderboard/overview) to build every layer of the DApp from scratch.
+- **Explore the bulletin board example**: The [Bulletin board DApp](./bboard) is a simpler starting point that shows a single-state contract with a CLI interface.
+- **Deploy to production**: See [Part 4: Production deployment](../../tutorials/leaderboard/deployment) to deploy the frontend to Vercel.
