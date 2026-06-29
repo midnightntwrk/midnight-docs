@@ -136,7 +136,7 @@ In the code above:
 - `pad(32, "tutorial:shielded:token")` builds the domain separator, exactly as in the unshielded tutorial, but with a label of its own so the shielded token gets a distinct color.
 - `evolveNonce(nonceIndex, localNonceSeed())` derives a unique nonce. The seed is private (from the witness); `disclose(...)` wraps the *derived* nonce because the mint publishes it, while the seed stays secret. You pass a different `nonceIndex` each time you mint so the nonces never repeat.
 - `mintShieldedToken(...)` mints `amount` units and returns a `ShieldedCoinInfo`, a fresh coin. The recipient `right<ZswapCoinPublicKey, ContractAddress>(kernel.self())` is the contract's own address, marked as the contract side of the recipient type, so the new coin belongs to the contract.
-- `sendImmediateShielded(coin, ..., coin.value)` spends that fresh coin in the same transaction, sending the whole value to `ownPublicKey()`, the caller. You wrap the recipient with `left<ZswapCoinPublicKey, ContractAddress>(...)` because it is a user key, not a contract. Because you send the full value, there is no change coin to manage.
+- `sendImmediateShielded(coin, ..., coin.value)` spends that fresh coin in the same transaction, sending the whole value to `ownPublicKey()`, the caller. You wrap the recipient with `left<ZswapCoinPublicKey, ContractAddress>(...)` because it is a user key, not a contract. Because you send the full value, there is no change coin to manage. Like `sendShielded`, `sendImmediateShielded` returns a `ShieldedSendResult`; this circuit ignores it, but a partial send (less than `coin.value`) would hand back a change coin you must handle, as shown in [Go further](#go-further-with-committed-transfers-and-burns).
 - The last three lines record the color, flip `initialized`, and bump the counter.
 
 The mint amount is a `Uint<64>` (the protocol caps a single mint at that width); coin values are `Uint<128>`, which is why `coin.value` is the wider type. Unlike the unshielded tutorial's permissionless mint, this one requires authorization: the opening `assert` restricts minting to the wallet that deployed the contract.
@@ -510,7 +510,7 @@ circuit sendShielded(
 ): ShieldedSendResult;
 ```
 
-`sendShielded` returns a `ShieldedSendResult { change: Maybe<ShieldedCoinInfo>; sent: ShieldedCoinInfo; }`. If you send less than the coin's value, `change` holds a new coin for the remainder — this is the consume-and-recreate pattern, and your application must persist that change coin, wait for it to commit, and spend it later as its own `QualifiedShieldedCoinInfo`.
+`sendShielded` returns a `ShieldedSendResult { change: Maybe<ShieldedCoinInfo>; sent: ShieldedCoinInfo; }`. If you send less than the coin's value, `change` holds a new coin for the remainder. This is the consume-and-recreate pattern, and your application must persist that change coin, wait for it to commit, and spend it later as its own `QualifiedShieldedCoinInfo`.
 
 The hard part on a live network is obtaining the `mt_index` for the committed coin and supplying it to the circuit, typically from the indexer; that is the piece to work out and test carefully. Remember too that delivering shielded value to a user other than the caller will not notify them today.
 
