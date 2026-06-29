@@ -9,7 +9,38 @@ This guide covers setting up the Midnight development environment on Windows usi
 
 By the end of this tutorial, you'll have a development-ready environment for building DApps on the Midnight Network, running the proof server, and interacting with the network.
 
-### Install Ubuntu
+## Prerequisites
+
+Before starting, verify your system meets the following requirements:
+
+| Requirement | Details |
+|-------------|---------|
+| **Windows Version** | Windows 10 version 1903+ (build 18362.1049) or Windows 11. WSL 2 requires Hyper-V support. |
+| **Virtualization** | Hardware virtualization (Intel VT-x or AMD-V) must be enabled in your BIOS/UEFI. |
+| **Admin Rights** | You need administrator privileges to install WSL and Docker Desktop. |
+| **Disk Space** | At least 10 GB of free space for Ubuntu, Docker images, and the Compact toolchain. |
+| **Internet** | Stable connection for downloading distributions, Docker images, and GitHub release artifacts. |
+
+### Verify virtualization is enabled
+
+Open PowerShell as Administrator and run:
+
+```powershell
+systeminfo | findstr /B /C:"Hyper-V Requirements"
+```
+
+**Expected output:**
+
+```
+Hyper-V Requirements:      VM Monitor Mode Extensions: Yes
+                             Virtualization Enabled In Firmware: Yes
+```
+
+If virtualization is **disabled**, reboot into your BIOS/UEFI settings (usually by pressing `F2`, `Del`, or `F10` during startup) and enable **Intel VT-x** or **AMD-V** in the CPU/Security settings.
+
+---
+
+## Install Ubuntu
 
 Developing DApps for the Midnight network often requires compiling and running various components (like the proof server or complex scripts) that are traditionally Linux-based. The Windows Subsystem for Linux (WSL) is a critical component that allows you to run a native Linux environment directly within Windows without the overhead of a traditional virtual machine.
 
@@ -49,7 +80,7 @@ After the installation process completes, a new Ubuntu terminal window will open
 When entering your password, the characters will not be displayed on the screen for security reasons (this is standard Linux terminal behavior). Type your desired password carefully and press Enter.
 :::
 
-Once successfully configured, your new username will be displayed as part of your terminal prompt (for example, `yourusername@DESKTOP-XXXXXX:~$`). 
+Once successfully configured, your new username will be displayed as part of your terminal prompt (for example, `yourusername@DESKTOP-XXXXXX:~$`).
 
 ![Ubuntu terminal showing the successful configuration and user prompt](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/mj4xgis8a9jpgjth6gc5.png)
 
@@ -57,13 +88,28 @@ This confirms that WSL is correctly installed and the Ubuntu distribution is rea
 
 ### Verification and best practices
 
-To ensure WSL is running the correct version, you can execute this command in the Windows PowerShell:
+To ensure WSL is running the correct version, execute this command in Windows PowerShell:
 
 ```bash
 wsl -l -v
 ```
 
-You should see a list showing Ubuntu and confirming its STATE is Running (or Stopped) and its VERSION is 2 (WSL 2 is required for optimal performance and Docker integration).
+**Expected output:**
+
+```
+  NAME      STATE           VERSION
+* Ubuntu    Running         2
+```
+
+You should see a list showing Ubuntu and confirming its STATE is `Running` and its VERSION is `2`. WSL 2 is required for optimal performance and Docker integration.
+
+If Ubuntu is on VERSION 1, convert it with:
+
+```powershell
+wsl --set-version Ubuntu 2
+```
+
+---
 
 ## Install and configure Docker desktop
 
@@ -87,9 +133,30 @@ Click **Resources**, then navigate to the **WSL integration** tab.
 
 Ensure that the **Enable integration with my default WSL distro** option is toggled **ON**, and specifically verify that your **Ubuntu** distribution is enabled. This connection allows Docker to manage containers directly from your Linux terminal.
 
+**Verify Docker works inside WSL:**
+
+Open your Ubuntu terminal and run:
+
+```bash
+docker --version
+docker run hello-world
+```
+
+**Expected output:**
+
+```
+Docker version 27.x.x, build xxxxxxx
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+```
+
+If you get `docker: command not found` inside WSL, ensure Docker Desktop is running and WSL integration is enabled. Then restart Docker Desktop.
+
+---
+
 ## Set up and run the midnight proof server
 
-The **Midnight Proof Server** is the core component that your DApps will communicate with to execute zero-knowledge proofs and transactions. It is run via **Docker** for consistency. 
+The **Midnight Proof Server** is the core component that your DApps will communicate with to execute zero-knowledge proofs and transactions. It is run via **Docker** for consistency.
 
 ### Download the Docker image
 
@@ -97,9 +164,15 @@ Open your **Docker Desktop** application and navigate to the **Explore** section
 
 ![Docker Desktop Images tab showing the downloaded proof-server image](https://dev-to-uploads.s3.amazonaws.com/uploads/articles/pmmocxc6tumxqr7k4801.png)
 
+Alternatively, pull the image directly from your Ubuntu terminal:
+
+```bash
+docker pull midnightntwrk/proof-server:latest
+```
+
 ### Run the proof server
 
-To start the proof server, open your **Ubuntu** terminal and run the following command:
+To start the proof server, open your **Ubuntu** terminal and run:
 
 ```bash
 docker run -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server -v
@@ -114,6 +187,62 @@ actix_server::server: starting service: "actix-web-service-0.0.0.0:6300", worker
 :::tip
 Keep this terminal window open. The proof server _must_ stay active to compile and deploy contracts.
 :::
+
+### Running the proof server in the background (detached mode)
+
+If you prefer not to keep a terminal window open, run the proof server in detached mode:
+
+```bash
+docker run -d --name midnight-proof-server --restart unless-stopped -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server -v
+```
+
+This command:
+- `-d` — runs the container in the background (detached)
+- `--name midnight-proof-server` — assigns a friendly name for easier management
+- `--restart unless-stopped` — automatically restarts the container if it crashes or if Docker restarts
+
+**Verify the container is running:**
+
+```bash
+docker ps
+```
+
+**Expected output:**
+
+```
+CONTAINER ID   IMAGE                                COMMAND                  CREATED         STATUS         PORTS                    NAMES
+xxxxxxxxxxxx   midnightntwrk/proof-server:8.0.3   "/bin/sh -c 'midnigh..."   2 minutes ago   Up 2 minutes   0.0.0.0:6300->6300/tcp   midnight-proof-server
+```
+
+**Stop the background server:**
+
+```bash
+docker stop midnight-proof-server
+```
+
+**Restart it later:**
+
+```bash
+docker start midnight-proof-server
+```
+
+### Verify the proof server is accessible
+
+From your Ubuntu terminal (or from your DApp project), test connectivity:
+
+```bash
+curl http://localhost:6300
+```
+
+**Expected output:**
+
+```json
+{"message":"Midnight Proof Server"}
+```
+
+If the curl command hangs or returns "Connection refused," verify the container is running with `docker ps` and check that port 6300 is not already in use by another process.
+
+---
 
 ## Install the Compact compiler
 
@@ -138,22 +267,119 @@ source ~/.bashrc
 compact --version
 ```
 
+**Expected output:**
+
+```
+compact x.x.x
+```
+
 5. Update to the latest version to ensure you have the most recent features:
 
 ```bash
 compact update
 ```
 
+:::caution
+If `compact --version` returns `command not found`, the PATH was not updated correctly. Add it manually:
+
+```bash
+export PATH="$HOME/.compact/bin:$PATH"
+echo 'export PATH="$HOME/.compact/bin:$PATH"' >> ~/.bashrc
+```
+
+Then reload your shell with `source ~/.bashrc` and retry.
+:::
+
+---
+
 ## Install the Compact VS Code extension
 
 The Compact VS Code extension provides syntax highlighting and real-time error checking, which is essential for writing smart contracts.
 
-1. Download the Compact VS Code extension VSIX package from the [releases page](https://raw.githubusercontent.com/midnight-ntwrk/releases/gh-pages/artifacts/vscode-extension/compact-0.2.13/compact-0.2.13.vsix).
-2. Open VS Code.
-3. Go to the **Extensions** view (press `Ctrl+Shift+X`), click the **...** (More Actions) menu at the top-right of the extensions pane, and select **Install from VSIX...**.
-4. Select the `.vsix` file you just downloaded to complete the installation.
+### Download the latest VSIX
 
+The VSIX download link changes with each release. To always get the latest version:
+
+1. Visit the Compact VS Code extension releases page: [midnight-ntwrk/releases/artifacts/vscode-extension](https://github.com/midnight-ntwrk/releases/tree/gh-pages/artifacts/vscode-extension)
+2. Navigate to the **latest version folder** (for example, `compact-0.2.XX`)
+3. Download the `.vsix` file listed there
+
+Alternatively, if you have the `gh` CLI installed, download the latest VSIX automatically:
+
+```bash
+# Install gh CLI inside WSL if you haven't already
+sudo apt-get install gh
+
+# Download the latest VSIX
+latest_version=$(curl -s https://api.github.com/repos/midnight-ntwrk/releases/contents/artifacts/vscode-extension | grep -o '"name": "compact-[^"]*"' | tail -1 | sed 's/.*"compact-(.*)".*//')
+curl -L -o compact-vscode-extension.vsix "https://github.com/midnight-ntwrk/releases/raw/gh-pages/artifacts/vscode-extension/compact-${latest_version}/compact-${latest_version}.vsix"
+```
+
+### Install in VS Code
+
+1. Open **VS Code**.
+2. Go to the **Extensions** view (press `Ctrl+Shift+X`), click the **...** (More Actions) menu at the top-right of the extensions pane, and select **Install from VSIX...**.
+3. Select the `.vsix` file you downloaded to complete the installation.
+
+### Verify the extension is active
+
+Open any file with a `.compact` extension (or create a test file like `hello.compact`). You should see syntax highlighting. If the file icon changes and keywords are colored, the extension is working.
+
+---
 
 ## Next steps
 
 Now that your environment is ready, you can begin building. To get started and write your first smart contract, refer to the [hello world](../getting-started/hello-world) tutorial.
+
+---
+
+## Troubleshooting
+
+### WSL issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `The requested operation requires elevation` | PowerShell not run as Administrator | Right-click PowerShell and select **Run as administrator** |
+| `WSL2 requires an update to its kernel component` | WSL kernel is outdated | Run `wsl --update` in PowerShell, then restart your computer |
+| `Virtualization is not enabled` | Intel VT-x / AMD-V disabled in BIOS | Reboot into BIOS/UEFI and enable virtualization in CPU settings |
+| Ubuntu terminal won't open | WSL installation incomplete | Run `wsl --install -d ubuntu` again in Admin PowerShell |
+
+### Docker issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `docker: command not found` inside WSL | WSL integration not enabled or Docker not running | Open Docker Desktop → Settings → Resources → WSL Integration → Enable Ubuntu. Restart Docker Desktop. |
+| `Cannot connect to the Docker daemon` | Docker Desktop is not running | Launch Docker Desktop from the Start Menu and wait for the whale icon to stop animating. |
+| `port is already allocated` | Port 6300 is in use by another process | Find and kill the process: `sudo lsof -i :6300` then `kill <PID>`, or use a different port with `-p 6301:6300`. |
+
+### Proof server issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Proof server starts but DApp can't connect | Firewall blocking port 6300 | Add an inbound rule for port 6300 in Windows Defender Firewall, or run the proof server on port 8080 with `-p 8080:6300`. |
+| Container exits immediately | Wrong command or missing flags | Verify you're using the exact command shown in the [Run the proof server](#run-the-proof-server) section. Check logs with `docker logs midnight-proof-server`. |
+
+### Compact compiler issues
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| `compact: command not found` | PATH not updated after install | Manually add `~/.compact/bin` to your PATH and reload `.bashrc` |
+| `curl: (6) Could not resolve host` | DNS failure in WSL | Temporarily fix with `echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf`, or restart WSL with `wsl --shutdown` |
+| VSIX won't install | Wrong VS Code architecture | Ensure you downloaded the standard VSIX, not an ARM64 version, unless you are on an ARM-based Windows device |
+
+---
+
+## Quick reference checklist
+
+Use this checklist after completing each section to confirm your setup:
+
+- [ ] Windows version is 1903+ and virtualization is enabled in BIOS
+- [ ] WSL 2 is installed and Ubuntu is running (`wsl -l -v` shows VERSION 2)
+- [ ] Docker Desktop is installed, running, and WSL integration is enabled
+- [ ] `docker --version` and `docker run hello-world` succeed inside Ubuntu
+- [ ] Proof server Docker image is pulled and running (`docker ps` shows it)
+- [ ] `curl http://localhost:6300` returns the proof server JSON response
+- [ ] Compact compiler is installed and `compact --version` prints a version
+- [ ] Compact VS Code extension is installed and syntax highlighting works on `.compact` files
+
+Once every box is checked, you're ready to build on Midnight!
