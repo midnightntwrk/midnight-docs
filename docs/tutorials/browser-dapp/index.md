@@ -19,12 +19,12 @@ This tutorial shows how to **deploy a Compact contract, call a circuit, and read
 
 Many examples run a *headless* wallet that syncs the chain inside your own Node process. A fresh wallet must scan the full shielded and DUST history, which is memory-intensive and can fail before it completes on a typical machine. By letting the browser wallet sync and balance instead, your dApp only builds the transaction and asks the wallet to finalize it — so your app never runs that expensive sync. This is the same model the bulletin-board tutorial uses, generalized here to deploy, call, and read.
 
-This guide targets the current SDK line: `midnight-js` 4.x, `compact-runtime` 0.15, ledger v8. It works on **preview** and **preprod**.
+This guide targets the current SDK line: `midnight-js` 4.x, `compact-runtime` 0.16, ledger v8. It works on **preview** and **preprod**.
 
 ## Prerequisites
 
 - **Node** v22.17.1 or higher, and a Vite app.
-- A **compiled Compact contract**: a `managed/<name>/` directory containing `contract/index.js` (generated bindings) plus the ZK assets `keys/` and `zkir/`. Pin `compactc`, the language version, and the runtime together.
+- A **compiled Compact contract**: a `managed/<name>/` directory containing `contract/index.js` (generated bindings) plus the ZK assets `keys/` and `zkir/`. Pin `compactc`, the language version, and the runtime together — this guide targets `compactc` 0.31.x (language 0.23, runtime 0.16). The `compactc` version that emitted your bindings must match the `compact-runtime` you install below, or proving fails with a `Version mismatch` error.
 - A **wallet extension** (Lace or 1AM) installed in your browser, unlocked, set to **preview** (or preprod), with the connected account funded with tNIGHT and registered for DUST (DUST pays fees).
 - A **proof server** — either your own (`docker run -p 6300:6300 midnightntwrk/proof-server:<tag>`) or the one the wallet reports via `getConfiguration()`.
 
@@ -33,10 +33,10 @@ This guide targets the current SDK line: `midnight-js` 4.x, `compact-runtime` 0.
 Install the 4.x SDK packages (match the line your contract was compiled against):
 
 ```jsonc
-"@midnight-ntwrk/compact-js": "^2.5.0",
-"@midnight-ntwrk/compact-runtime": "^0.15.0",
+"@midnight-ntwrk/compact-js": "^2.5.1",
+"@midnight-ntwrk/compact-runtime": "^0.16.0",
 "@midnight-ntwrk/dapp-connector-api": "^4.0.0",
-"@midnight-ntwrk/ledger-v8": "^8.0.0",
+"@midnight-ntwrk/ledger-v8": "^8.0.3",
 "@midnight-ntwrk/midnight-js-contracts": "^4.0.0",
 "@midnight-ntwrk/midnight-js-fetch-zk-config-provider": "^4.0.0",
 "@midnight-ntwrk/midnight-js-http-client-proof-provider": "^4.0.0",
@@ -112,6 +112,8 @@ const shielded = await api.getShieldedAddresses();             // shieldedCoinPu
 
 The key step: `balanceTx` serializes the unbound transaction and passes it to the wallet's `balanceUnsealedTransaction`. The wallet balances, proves, and uses its own synced state, then returns the finalized transaction. Your app never syncs the chain.
 
+`midnight-js-contracts` requires a `PrivateStateProvider`. In the browser a minimal in-memory implementation is sufficient; the SDK does not ship one, so define it in a local `in-memory-private-state-provider.ts`. The [Leaderboard browser-dapp tutorial](../leaderboard/browser-dapp.mdx) includes a complete implementation you can copy verbatim, exported as `inMemoryPrivateStateProvider`.
+
 ```ts
 import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
@@ -119,6 +121,7 @@ import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-p
 import { Binding, FinalizedTransaction, Proof, SignatureEnabled, Transaction } from '@midnight-ntwrk/ledger-v8';
 import { fromHex, toHex } from '@midnight-ntwrk/compact-runtime';
 import type { UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
+import { inMemoryPrivateStateProvider } from './in-memory-private-state-provider';
 
 const zk = new FetchZkConfigProvider<string>(window.location.origin, fetch.bind(window));
 
@@ -196,8 +199,8 @@ Reading on-chain state is public. Query the indexer and decode the result with t
 
 ```ts
 const pdp = indexerPublicDataProvider(
-  'https://indexer.preview.midnight.network/api/v3/graphql',
-  'wss://indexer.preview.midnight.network/api/v3/graphql/ws',
+  'https://indexer.preview.midnight.network/api/v4/graphql',
+  'wss://indexer.preview.midnight.network/api/v4/graphql/ws',
 );
 
 const state = await pdp.queryContractState(contractAddress);
@@ -211,7 +214,7 @@ console.log('size:', led.items?.size?.());
 - **Faucet returns "resubmit later" on a brand-new address.** The faucet rate-limit is keyed to the recipient address (about 24 hours), and a failed request still counts. Use a fresh address to retry. To confirm a drip landed without a wallet, query the indexer's `unshieldedTransactions(address:)` subscription, or `transactions(offset: { identifier })` if you have the transaction id — the top-level GraphQL API has no address-balance query.
 - **`window.midnight` is undefined even though the extension is installed.** The extension's content-script/background messaging can stall (the console may show `orphaned data for stream` messages). Fully restart the browser to revive the extension's background worker, then reload. Also confirm the dApp tab and the extension are in the same browser profile.
 - **A helper library fails to resolve under bare Node** because it uses extensionless ESM imports. Bundle through Vite or esbuild rather than running with raw `node` — both resolve extensionless imports.
-- **Version drift.** The `compact-runtime` your contract was compiled against must match the SDK line you import (here 0.15 with ledger v8 and `midnight-js` 4.x). Mismatches between `compactc`, the language version, and the runtime are the most common source of errors.
+- **Version drift.** The `compact-runtime` your contract was compiled against must match the SDK line you import (here 0.16 with ledger v8 and `midnight-js` 4.x). Note that `@midnight-ntwrk/compact-js` pins an exact `compact-runtime` (2.5.1 pins 0.16.0), so bumping the runtime alone is not enough — move `compact-js` and the `compactc` that emitted your bindings together. Mismatches between `compactc`, the language version, and the runtime are the most common source of errors.
 
 ## Summary
 
