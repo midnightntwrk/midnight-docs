@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -11,6 +11,10 @@ Encapsulates the data required to produce a zero-knowledge proof
 ## Extends
 
 - [`PartialProofData`](PartialProofData.md)
+
+## Extended by
+
+- [`CallProofData`](CallProofData.md)
 
 ## Properties
 

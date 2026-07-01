@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,26 @@
 # Type Alias: SignatureVerifyingKey
 
 ```ts
-type SignatureVerifyingKey = string;
+type SignatureVerifyingKey = {
+  tag: SignatureKind;
+  value: string;
+};
 ```
 
-A hex-encoded signature BIP-340 verifying key, with a 3-byte version prefix
+A hex-encoded signature verifying key annotated with its kind
+
+## Properties
+
+### tag
+
+```ts
+tag: SignatureKind;
+```
+
+***
+
+### value
+
+```ts
+value: string;
+```
