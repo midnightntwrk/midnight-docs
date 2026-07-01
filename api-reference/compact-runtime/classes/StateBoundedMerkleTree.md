@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -73,7 +73,11 @@ If the indices are out-of-bounds for the tree, or `end < start`
 ### findPathForLeaf()
 
 ```ts
-findPathForLeaf(leaf): AlignedValue | undefined;
+findPathForLeaf(
+   leaf, 
+   indexStart?, 
+   indexEnd?, 
+   alreadyHashed?): AlignedValue | undefined;
 ```
 
 **`Internal`**
@@ -86,6 +90,18 @@ Returns undefined if the leaf is not in the tree.
 ##### leaf
 
 [`AlignedValue`](../type-aliases/AlignedValue.md)
+
+##### indexStart?
+
+`bigint`
+
+##### indexEnd?
+
+`bigint`
+
+##### alreadyHashed?
+
+`boolean`
 
 #### Returns
 

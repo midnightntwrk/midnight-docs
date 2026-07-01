@@ -1,6 +1,6 @@
 # Compact runtime API
 
-**@midnight-ntwrk/compact-runtime v0.16.0**
+**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**
 
 ***
 
@@ -25,6 +25,7 @@ API. Key parts of the API are:
     - [degradeToTransient](functions/degradeToTransient.md)
   - Elliptic curve
     - [ecAdd](functions/ecAdd.md)
+    - [ecNeg](functions/ecNeg.md)
     - [ecMul](functions/ecMul.md)
     - [ecMulGenerator](functions/ecMulGenerator.md)
     - [hashToCurve](functions/hashToCurve.md)

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -36,7 +36,7 @@ set counter to exactly one greater than the current value.
 
 ##### committee
 
-`string`[]
+[`SignatureVerifyingKey`](../type-aliases/SignatureVerifyingKey.md)[]
 
 ##### threshold
 
@@ -55,7 +55,7 @@ set counter to exactly one greater than the current value.
 ### committee
 
 ```ts
-readonly committee: string[];
+readonly committee: SignatureVerifyingKey[];
 ```
 
 The committee public keys
@@ -115,7 +115,7 @@ toString(compact?): string;
 ### deserialize()
 
 ```ts
-static deserialize(raw): ContractState;
+static deserialize(raw): ContractMaintenanceAuthority;
 ```
 
 #### Parameters
@@ -126,4 +126,4 @@ static deserialize(raw): ContractState;
 
 #### Returns
 
-[`ContractState`](ContractState.md)
+`ContractMaintenanceAuthority`

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: signData()
 
 ```ts
-function signData(key, data): string;
+function signData(key, data): Signature;
 ```
 
 Signs arbitrary data with the given signing key.
@@ -19,7 +19,7 @@ that is not strictly controlled!
 
 ### key
 
-`string`
+[`SigningKey`](../type-aliases/SigningKey.md)
 
 ### data
 
@@ -27,4 +27,4 @@ that is not strictly controlled!
 
 ## Returns
 
-`string`
+[`Signature`](../type-aliases/Signature.md)

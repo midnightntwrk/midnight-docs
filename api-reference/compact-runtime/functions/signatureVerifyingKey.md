@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: signatureVerifyingKey()
 
 ```ts
-function signatureVerifyingKey(sk): string;
+function signatureVerifyingKey(sk): SignatureVerifyingKey;
 ```
 
 Returns the verifying key for a given signing key
@@ -16,8 +16,8 @@ Returns the verifying key for a given signing key
 
 ### sk
 
-`string`
+[`SigningKey`](../type-aliases/SigningKey.md)
 
 ## Returns
 
-`string`
+[`SignatureVerifyingKey`](../type-aliases/SignatureVerifyingKey.md)

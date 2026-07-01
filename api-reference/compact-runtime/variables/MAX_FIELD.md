@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -12,4 +12,4 @@ const MAX_FIELD: bigint;
 
 The maximum value representable in Compact's `Field` type
 
-One less than the prime modulus of the proof system's scalar field
+One less than the prime modulus of the proof system's scalar field.

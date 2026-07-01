@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -7,11 +7,18 @@
 # Function: sampleSigningKey()
 
 ```ts
-function sampleSigningKey(): string;
+function sampleSigningKey(kind?): SigningKey;
 ```
 
-Randomly samples a [SigningKey](../type-aliases/SigningKey.md).
+Randomly samples a [SigningKey](../type-aliases/SigningKey.md). If `kind` is not supplied, assumes
+`schnorr`.
+
+## Parameters
+
+### kind?
+
+`SignatureKind`
 
 ## Returns
 
-`string`
+[`SigningKey`](../type-aliases/SigningKey.md)

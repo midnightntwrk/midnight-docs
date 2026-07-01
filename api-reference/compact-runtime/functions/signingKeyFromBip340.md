@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: signingKeyFromBip340()
 
 ```ts
-function signingKeyFromBip340(data): string;
+function signingKeyFromBip340(data): SigningKey;
 ```
 
 Creates a [SigningKey](../type-aliases/SigningKey.md) from provided Bip340 private key.
@@ -20,4 +20,4 @@ Creates a [SigningKey](../type-aliases/SigningKey.md) from provided Bip340 priva
 
 ## Returns
 
-`string`
+[`SigningKey`](../type-aliases/SigningKey.md)

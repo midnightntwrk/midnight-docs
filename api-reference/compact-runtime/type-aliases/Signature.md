@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,26 @@
 # Type Alias: Signature
 
 ```ts
-type Signature = string;
+type Signature = {
+  tag: SignatureKind;
+  value: string;
+};
 ```
 
-A hex-encoded signature BIP-340 signature, with a 3-byte version prefix
+A hex-encoded signature annotated with its kind
+
+## Properties
+
+### tag
+
+```ts
+tag: SignatureKind;
+```
+
+***
+
+### value
+
+```ts
+value: string;
+```

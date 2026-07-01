@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -13,4 +13,4 @@ type TokenType =
   | DustTokenType;
 ```
 
-A token type (or color), as a hex-encoded 35-byte string, shielded, unshielded, or Dust
+A token type (or color), as a hex-encoded 32-byte string, shielded, unshielded, or Dust

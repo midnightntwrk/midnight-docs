@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -10,5 +10,5 @@
 type CoinPublicKey = string;
 ```
 
-A user public key capable of receiving Zswap coins, as a hex-encoded 35-byte
+A user public key capable of receiving Zswap coins, as a hex-encoded 32-byte
 string

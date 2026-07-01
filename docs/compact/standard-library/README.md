@@ -30,12 +30,14 @@ Key parts of the API are:
   - [`persistentHash`](exports.md#persistenthash)
   - [`persistentCommit`](exports.md#persistentcommit)
   - [`degradeToTransient`](exports.md#degradetotransient)
+  - [`upgradeFromTransient`](exports.md#upgradefromtransient)
+  - [`keccak256`](exports.md#keccak256)
 - Elliptic curve functions:
   - [`ecAdd`](exports.md#ecadd)
+  - [`ecNeg`](exports.md#ecneg)
   - [`ecMul`](exports.md#ecmul)
   - [`ecMulGenerator`](exports.md#ecmulgenerator)
   - [`hashToCurve`](exports.md#hashtocurve)
-  - [`upgradeFromTransient`](exports.md#upgradefromtransient)
 - Merkle tree functions:
   - [`merkleTreePathRoot`](exports.md#merkletreepathroot)
   - [`merkleTreePathRootNoLeafHash`](exports.md#merkletreepathrootnoleafhash)
@@ -67,3 +69,6 @@ Key parts of the API are:
   - [`blockTimeGte`](exports.md#blocktimegte)
   - [`blockTimeGt`](exports.md#blocktimegt)
   - [`blockTimeLte`](exports.md#blocktimelte)
+- Cryptographic signature types and circuits:
+  - [`JubjubSchnorrSignature`](exports.md#jubjubschnorrsignature)
+  - [`jubjubSchnorrVerify`](exports.md#jubjubschnorrverify)
