@@ -1,0 +1,534 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Create and transfer a shielded token
+description: "Build, deploy, and transfer a privacy-preserving (shielded) token in Compact on Midnight, where value lives in immutable coins and balances stay hidden."
+sidebar_label: Shielded token
+sidebar_position: 3
+tags: [tokens, shielded, compact, tutorial, mint, transfer, privacy]
+---
+
+# Create and transfer a shielded token
+
+In the [unshielded token tutorial](/tokens/unshielded-token) you built an **unshielded** token: balances live on-chain, the contract reads its own balance with a single call, and a transfer is a straight `sendUnshielded`. This tutorial builds the **shielded** version of the same token, and the privacy model changes the design in ways worth seeing directly.
+
+A shielded token has no public balance to read, its value lives in immutable *coins*, and the rule that governs everything is the difference between a *fresh* coin and a *committed* one. You build a small contract that mints a shielded coin and delivers it to the caller, privately, in a single transaction.
+
+This tutorial assumes you have completed the [unshielded token tutorial](/tokens/unshielded-token), or at least have its project set up. You reuse the same toolchain, the same local network, and most of the same support files. If you have not set those up, do its [project setup](/tokens/unshielded-token#set-up-your-project) first.
+
+## What changes for a shielded token
+
+Three ideas carry the whole tutorial. None of them apply to the unshielded token, and all of them come straight from how shielded value works on Midnight.
+
+**There is no public balance.** The chain records commitments and nullifiers, not amounts. A contract cannot call anything like `unshieldedBalance(color)` for shielded value, because that number does not exist on-chain. To know what it holds, a contract has to track its own coins; to prove a transfer worked, you read the *wallet's* shielded balance, not the contract's.
+
+**Value lives in immutable coins.** A `ShieldedCoinInfo` describes a shielded coin: a nonce, a color, and a value. You cannot change a coin's value in place. To move part of it, you spend the coin and the standard library hands you back a new *change* coin for the remainder. A nonce keeps every coin unique, and you derive nonces deterministically with `evolveNonce` from a private seed.
+
+Fresh coins and committed coins are spent differently:
+
+| Coin state | Type | How you spend it |
+| :---- | :---- | :---- |
+| Fresh (just created, same transaction) | `ShieldedCoinInfo` | `sendImmediateShielded` |
+| Committed (already in the ledger) | `QualifiedShieldedCoinInfo` (adds `mt_index`) | `sendShielded` |
+
+A freshly minted coin has no Merkle tree position yet, so it cannot be spent with `sendShielded`. Once the ledger commits it on-chain, it gains an `mt_index` and becomes a `QualifiedShieldedCoinInfo`, which is what `sendShielded` requires. This tutorial mints and spends a coin in the *same* transaction, which keeps you on the fresh-coin path and avoids tracking Merkle positions across transactions. [Go further](#go-further-with-committed-transfers-and-burns) covers the committed path.
+
+One more constraint shapes what a contract-mediated shielded transfer can do today. The `sendShielded` primitive does not currently create coin ciphertexts, so sending shielded value to a user other than the current caller will not notify that user of the coin. In practice that means a contract can reliably deliver shielded value to the **caller** (the person signing the transaction). That is the transfer this tutorial demonstrates.
+
+## Set up
+
+You reuse the unshielded tutorial's environment. In particular:
+
+- The toolchain (compactc 0.31.0), the local network (midnight-local-dev), and the proof server. See the [project setup](/tokens/unshielded-token#set-up-your-project).
+- `src/config.ts` and `src/wallet.ts`, **identical to the unshielded tutorial**. Copy them over unchanged.
+
+The packages are the same as the unshielded tutorial, so if you completed it you already have everything installed. The shielded contract introduces one thing the unshielded one did not need: a **witness**, a private value supplied off-chain. You use it to hold the nonce seed.
+
+## Build the shielded token contract
+
+As before, you build the contract one block at a time, in a single file:
+
+```bash
+touch contracts/shielded-token.compact
+```
+
+### Set the language version, import the library, and declare the witnesses
+
+```compact
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+witness localNonceSeed(): Bytes<32>;
+witness minterSecretKey(): Bytes<32>;
+```
+
+The new line is the witnesses. A witness is a function that runs off-chain and feeds a value into the circuit. That value is often private data the circuit uses without publishing it, but it does not have to be. A witness is a hook for off-chain computation, and what it returns can be public or private. Privacy is not tied to witnesses either: a value passed as an ordinary circuit parameter also stays private unless the circuit explicitly discloses it.
+
+There are now two witnesses. `localNonceSeed()` supplies the nonce seed; `minterSecretKey()` supplies a second private 32-byte value, the secret that identifies who may mint. The contract never stores or publishes this secret; it stores only a public key *derived* from it (next), and at mint time checks the caller can reproduce that derivation.
+
+### Declare the on-chain state
+
+```compact
+export ledger token_color: Bytes<32>;
+export ledger initialized: Boolean;
+export ledger mints: Counter;
+export ledger minter: Bytes<32>;
+```
+
+`token_color` and `initialized` play the same role as in the unshielded tutorial. Note what is *not* here: there is no balance, and no map of who-holds-what. Recording shielded balances on-chain would publish the very amounts shielding is meant to hide, so the contract keeps none. `mints` is a counter, used only to show on-chain state changing.
+
+`minter` holds the public key of the wallet authorized to mint, derived from the secret above and set once at deployment. It's a hash, so storing it on-chain reveals nothing about the secret.
+
+### Initialize at deployment
+
+```compact
+constructor() {
+  // The deployer's derived key becomes the authorized minter.
+  minter = disclose(deriveMinterKey(minterSecretKey()));
+  initialized = false;
+}
+
+// Derive a public key from the secret with a domain-separated hash. A caller can
+// reproduce this value only if they hold the secret, so it is safe to gate on.
+export circuit deriveMinterKey(sk: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "tutorial:shielded:minter:v1"), sk]);
+}
+```
+
+`deriveMinterKey` hashes a secret with a domain separator into a public key. The constructor runs once at deploy and records the *deployer's* derived key as the authorized minter, so only the wallet holding the deploy secret can mint later. (`ownPublicKey()` is deliberately not used for this. It returns a prover-claimed value with no binding to the signer, so any check on it is bypassable.) As in the unshielded tutorial, the constructor does not set `token_color` (that is set when you mint), and `initialized` starts false.
+
+### Mint a shielded coin and send it to the caller
+
+This is the core of the tutorial. It mints a fresh shielded coin to the contract and, in the same transaction, sends it to the caller:
+
+```compact
+export circuit mint_and_send(amount: Uint<64>, nonceIndex: Uint<128>): [] {
+  // Only the authorized minter (holder of the deploy secret) may mint.
+  assert(minter == deriveMinterKey(minterSecretKey()), "not authorized to mint");
+  assert(disclose(amount) > 0, "amount must be non-zero");
+
+  const domain = pad(32, "tutorial:shielded:token");
+  const nonce = disclose(evolveNonce(disclose(nonceIndex), localNonceSeed()));
+
+  const coin = mintShieldedToken(
+    domain,
+    disclose(amount),
+    nonce,
+    right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  );
+
+  sendImmediateShielded(
+    coin,
+    left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey()),
+    coin.value
+  );
+
+  token_color = coin.color;
+  initialized = true;
+  mints.increment(1);
+}
+```
+
+In the code above:
+
+- The opening `assert` is the authorization gate. It recomputes the minter key from the caller's secret witness and requires it to equal the stored `minter`, so only the deployer can mint. The next `assert` rejects a zero amount.
+- `pad(32, "tutorial:shielded:token")` builds the domain separator, exactly as in the unshielded tutorial, but with a label of its own so the shielded token gets a distinct color.
+- `evolveNonce(nonceIndex, localNonceSeed())` derives a unique nonce. The seed is private (from the witness); `disclose(...)` wraps the *derived* nonce because the mint publishes it, while the seed stays secret. You pass a different `nonceIndex` each time you mint so the nonces never repeat.
+- `mintShieldedToken(...)` mints `amount` units and returns a `ShieldedCoinInfo`, a fresh coin. The recipient `right<ZswapCoinPublicKey, ContractAddress>(kernel.self())` is the contract's own address, marked as the contract side of the recipient type, so the new coin belongs to the contract.
+- `sendImmediateShielded(coin, ..., coin.value)` spends that fresh coin in the same transaction, sending the whole value to `ownPublicKey()`, the caller. You wrap the recipient with `left<ZswapCoinPublicKey, ContractAddress>(...)` because it is a user key, not a contract. Because you send the full value, there is no change coin to manage. Like `sendShielded`, `sendImmediateShielded` returns a `ShieldedSendResult`; this circuit ignores it, but a partial send (less than `coin.value`) would hand back a change coin you must handle, as shown in [Go further](#go-further-with-committed-transfers-and-burns).
+- The last three lines record the color, flip `initialized`, and bump the counter.
+
+The mint amount is a `Uint<64>` (the protocol caps a single mint at that width); coin values are `Uint<128>`, which is why `coin.value` is the wider type. Unlike the unshielded tutorial's permissionless mint, this one requires authorization: the opening `assert` restricts minting to the wallet that deployed the contract.
+
+That completes the contract. Compile it the same way as before, into its own output directory:
+
+```bash
+compact compile contracts/shielded-token.compact src/shielded/managed/shielded-token
+```
+
+## Wire the contract for deployment
+
+All of the shielded TypeScript goes in `src/shielded/`. Two of the support files differ from the unshielded tutorial. You reuse `config.ts` and `wallet.ts` from `src/` unchanged, which is why the imports below reach up a level with `../`.
+
+### Implement the witnesses
+
+Create `src/shielded/witnesses.ts`:
+
+```bash
+mkdir src/shielded
+touch src/shielded/witnesses.ts
+```
+
+It defines the private state (the nonce seed and the minter secret) and the two witness implementations that hand the seed to the circuit:
+
+```typescript
+import { createHash } from 'node:crypto';
+
+export type ShieldedTokenPrivateState = {
+  readonly nonceSeed: Uint8Array;
+  readonly minterSecret: Uint8Array;
+};
+
+export const createShieldedTokenPrivateState = (
+  nonceSeed: Uint8Array = createHash('sha256')
+    .update('tutorial:shielded:token:seed')
+    .digest(),
+  minterSecret: Uint8Array = createHash('sha256')
+    .update('tutorial:shielded:minter:secret')
+    .digest(),
+): ShieldedTokenPrivateState => ({ nonceSeed, minterSecret });
+
+// Each witness returns [updatedPrivateState, valueForTheCircuit]. The state
+// never changes here; the values handed back are the nonce seed and the
+// minter secret.
+export const witnesses = {
+  localNonceSeed: ({
+    privateState,
+  }: {
+    privateState: ShieldedTokenPrivateState;
+  }): [ShieldedTokenPrivateState, Uint8Array] => [privateState, privateState.nonceSeed],
+  minterSecretKey: ({
+    privateState,
+  }: {
+    privateState: ShieldedTokenPrivateState;
+  }): [ShieldedTokenPrivateState, Uint8Array] => [privateState, privateState.minterSecret],
+};
+```
+
+In a production DApp you would persist this private state and never reset it casually, since reusing nonce material is unsafe. For the tutorial a fixed seed is fine.
+
+### Wrap the compiled contract with the witnesses
+
+Create `src/shielded/contract.ts`:
+
+```bash
+touch src/shielded/contract.ts
+```
+
+It is the unshielded tutorial's wrapper with two changes: it points at the shielded output, and it supplies the witness instead of declaring the contract witness-free. Because the compiled output sits beside it under `src/shielded/managed/`, its internal paths look just like before:
+
+```typescript
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import path from 'node:path';
+import { witnesses } from './witnesses.js';
+
+export { Contract, ledger, type Ledger } from './managed/shielded-token/contract/index.js';
+import { Contract } from './managed/shielded-token/contract/index.js';
+
+const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+export const zkConfigPath = path.resolve(currentDir, 'managed', 'shielded-token');
+
+export const CompiledShieldedToken = CompiledContract.make(
+  'ShieldedToken',
+  Contract,
+).pipe(
+  // The unshielded tutorial used withVacantWitnesses because it had no witnesses.
+  // This contract has one, so it supplies the witness implementation instead.
+  // This is the same pattern Midnight's witness-backed examples use.
+  CompiledContract.withWitnesses(witnesses),
+  CompiledContract.withCompiledFileAssets(zkConfigPath),
+);
+```
+
+The only change from the unshielded wrapper is `withWitnesses(witnesses)` in place of `withVacantWitnesses`, plus the shielded output path. This is the pattern Midnight's own witness-backed examples use.
+
+### Update the providers
+
+Create `src/shielded/providers.ts`:
+
+```bash
+touch src/shielded/providers.ts
+```
+
+It is identical to the unshielded tutorial except for the circuit name in the type, the private-state store name, and the `../` on the two shared imports:
+
+```typescript
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { type MidnightWalletProvider } from '../wallet.js';
+import { type NetworkConfig } from '../config.js';
+
+export type TokenCircuits = 'mint_and_send';
+
+export type TokenProviders = MidnightProviders<any>;
+
+export function buildProviders(
+  wallet: MidnightWalletProvider,
+  zkConfigPath: string,
+  config: NetworkConfig,
+): TokenProviders {
+  const zkConfigProvider = new NodeZkConfigProvider<TokenCircuits>(zkConfigPath);
+
+  return {
+    privateStateProvider: levelPrivateStateProvider({
+      privateStateStoreName: `shielded-token-${Date.now()}`,
+      privateStoragePasswordProvider: () => 'Shielded-Token-Test-Password',
+      accountId: wallet.getCoinPublicKey(),
+    }),
+    publicDataProvider: indexerPublicDataProvider(
+      config.indexer,
+      config.indexerWS,
+    ),
+    zkConfigProvider,
+    proofProvider: httpClientProofProvider(
+      config.proofServer,
+      zkConfigProvider,
+    ),
+    walletProvider: wallet,
+    midnightProvider: wallet,
+  };
+}
+```
+
+Unlike the unshielded tutorial, the private state is not empty. It carries the nonce seed. You pass the real value at deploy time in the next step.
+
+## Deploy and test
+
+The deploy script follows the same shape as before (build the wallet, wait for funds and DUST, then deploy) and differs only in what it deploys and calls. The wallet, funding, and DUST steps match the unshielded tutorial, but this tutorial includes them in full so it runs on its own.
+
+Create `src/shielded/deploy.ts`:
+
+```bash
+touch src/shielded/deploy.ts
+```
+
+The imports change to bring in the shielded contract, the private-state factory, and `toHex`, and you reach the two shared modules with `../`:
+
+```typescript
+import { WebSocket } from 'ws';
+import { firstValueFrom } from 'rxjs';
+import { filter, timeout as rxTimeout } from 'rxjs/operators';
+import pino from 'pino';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { deployContract, submitCallTx } from '@midnight-ntwrk/midnight-js-contracts';
+import { type EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
+import { UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk';
+import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+import { getConfig } from '../config.js';
+import { MidnightWalletProvider, syncWallet } from '../wallet.js';
+import { buildProviders } from './providers.js';
+import {
+  CompiledShieldedToken,
+  ledger,
+  zkConfigPath,
+} from './contract.js';
+import { createShieldedTokenPrivateState } from './witnesses.js';
+
+(globalThis as any).WebSocket = WebSocket;
+
+const logger = pino({ level: 'info', transport: { target: 'pino-pretty' } });
+```
+
+Next, build the wallet from the seed, print its address so you can fund it, wait for NIGHT to arrive, sync the unshielded channel, register that NIGHT for DUST, and poll until DUST is available.
+
+This is the same funding flow as the unshielded tutorial, included here in full:
+
+```typescript
+const config = getConfig();
+setNetworkId(config.networkId);
+
+const env: EnvironmentConfiguration = {
+  walletNetworkId: config.networkId,
+  networkId: config.networkId,
+  indexer: config.indexer,
+  indexerWS: config.indexerWS,
+  node: config.node,
+  nodeWS: config.nodeWS,
+  faucet: config.faucet,
+  proofServer: config.proofServer,
+};
+
+const seed = process.env['MIDNIGHT_SEED'];
+if (!seed) {
+  throw new Error('Set MIDNIGHT_SEED to your wallet seed (hex, no 0x prefix).');
+}
+
+const wallet = await MidnightWalletProvider.build(logger, env, {
+  kind: 'seed',
+  value: seed,
+});
+await wallet.start();
+
+// Read the address from the wallet's first state update and print it, so you can fund it.
+const initialState = await firstValueFrom(wallet.wallet.state());
+const address = UnshieldedAddress.codec
+  .encode(config.networkId, initialState.unshielded.address)
+  .asString();
+logger.info(`Fund this address with tNIGHT, then this continues: ${address}`);
+
+const nightRaw = unshieldedToken().raw;
+
+// 1) Wait until NIGHT arrives.
+logger.info('Waiting for NIGHT to arrive...');
+await firstValueFrom(
+  wallet.wallet.state().pipe(
+    filter((s: any) => (s.unshielded.balances[nightRaw] ?? 0n) > 0n),
+    rxTimeout({ each: 30 * 60_000 }),
+  ),
+);
+logger.info('NIGHT received.');
+
+// 2) Wait for the unshielded channel to finish syncing before registering, so
+//    the wallet has an accurate view of its NIGHT UTXOs.
+logger.info('Waiting for the unshielded channel to sync...');
+const syncedState = await firstValueFrom(
+  wallet.wallet.state().pipe(
+    filter((s: any) => s.unshielded.progress?.isStrictlyComplete() === true),
+    rxTimeout({ each: 30 * 60_000 }),
+  ),
+);
+logger.info('Unshielded channel synced.');
+
+// 3) Register NIGHT UTXOs for DUST generation. Fresh NIGHT is not registered
+//    automatically, and without DUST the wallet cannot pay any transaction fee.
+const unregistered = syncedState.unshielded.availableCoins.filter(
+  (coin: any) =>
+    coin.utxo.type === nightRaw &&
+    coin.meta.registeredForDustGeneration === false,
+);
+
+if (unregistered.length > 0) {
+  logger.info(`Registering ${unregistered.length} NIGHT UTXO(s) for DUST generation...`);
+  const recipe = await wallet.wallet.registerNightUtxosForDustGeneration(
+    unregistered,
+    wallet.unshieldedKeystore.getPublicKey(),
+    (payload: Uint8Array) => wallet.unshieldedKeystore.signData(payload),
+  );
+  const finalized = await wallet.wallet.finalizeRecipe(recipe);
+  const txId = await wallet.wallet.submitTransaction(finalized);
+  logger.info(`DUST registration submitted: ${txId}`);
+} else {
+  logger.info('NIGHT is already registered for DUST generation.');
+}
+
+// 4) Wait until DUST is spendable. Poll the balance rather than holding a
+//    subscription open, which keeps memory flat on a long wait.
+logger.info('Waiting for DUST to be generated from your NIGHT...');
+const dustDeadline = Date.now() + 30 * 60_000;
+let dustBalance = 0n;
+while (Date.now() < dustDeadline) {
+  const s = await firstValueFrom(wallet.wallet.state());
+  try {
+    dustBalance = s.dust.balance(new Date());
+  } catch {
+    dustBalance = 0n;
+  }
+  logger.info(`  dust balance: ${dustBalance}`);
+  if (dustBalance > 0n) break;
+  await new Promise((r) => setTimeout(r, 15_000));
+}
+if (dustBalance <= 0n) {
+  throw new Error('Timed out waiting for DUST to be generated.');
+}
+logger.info(`DUST available: ${dustBalance}`);
+```
+
+On the local network the genesis wallet is already funded and registered, so the NIGHT wait returns immediately, registration reports it is already done, and DUST appears within a few seconds.
+
+Now the shielded-specific part. Build the providers, deploy the contract with the nonce-seed private state, and read the initial state:
+
+```typescript
+const providers = buildProviders(wallet, zkConfigPath, config);
+
+const deployed = await deployContract(providers, {
+  compiledContract: CompiledShieldedToken,
+  privateStateId: 'shielded-token',
+  initialPrivateState: createShieldedTokenPrivateState(),
+});
+const contractAddress = deployed.deployTxData.public.contractAddress;
+logger.info(`Deployed at ${contractAddress}`);
+
+async function readLedger() {
+  const state = await providers.publicDataProvider.queryContractState(contractAddress);
+  return ledger(state!.data);
+}
+
+logger.info(`initialized at deploy: ${(await readLedger()).initialized}`); // false
+```
+
+The one difference from the unshielded tutorial is `initialPrivateState` instead of `{}`: you pass `createShieldedTokenPrivateState()`, which seeds the witnesses.
+
+Mint and deliver the shielded token to your own wallet in a single call, then read the contract state back:
+
+```typescript
+await submitCallTx(providers, {
+  compiledContract: CompiledShieldedToken,
+  contractAddress,
+  privateStateId: 'shielded-token',
+  circuitId: 'mint_and_send',
+  args: [1000n, 0n], // amount, nonceIndex
+});
+
+const afterMint = await readLedger();
+logger.info(`initialized after mint: ${afterMint.initialized}`); // true
+logger.info(`token color: ${toHex(afterMint.token_color)}`);
+```
+
+`mint_and_send` mints 1,000 shielded units and sends them to the caller in the same transaction. `nonceIndex` is `0n` for this first call; a second call would use `1n`, and so on, to keep nonces unique.
+
+Finally, confirm the transfer by reading your **wallet's** shielded balance. There is no contract balance to read for a shielded token:
+
+```typescript
+const after = await syncWallet(logger, wallet.wallet, 60 * 60_000);
+const color = toHex(afterMint.token_color);
+const shieldedBalance = after.shielded.balances[color] ?? 0n;
+logger.info(`wallet shielded balance of the token: ${shieldedBalance}`); // expect 1000
+
+await wallet.stop();
+```
+
+After syncing, the wallet should report 1,000 of the token's color in its shielded balance. This confirms the contract minted shielded value and delivered it to you privately.
+
+### Run it
+
+With the local network running in its own terminal, run the script against it with the genesis wallet seed, exactly as in the unshielded tutorial:
+
+```bash
+MIDNIGHT_NETWORK=local \
+MIDNIGHT_SEED=0000000000000000000000000000000000000000000000000000000000000001 \
+npx tsx src/shielded/deploy.ts
+```
+
+You should see the contract address, `initialized` flipping to true after the mint, and a wallet shielded balance of 1,000. To run against Preprod instead, use the same Preprod instructions as the [unshielded tutorial](/tokens/unshielded-token#run-against-preprod-instead).
+
+## Go further with committed transfers and burns
+
+The flow above mints and spends a coin in one transaction, which keeps you on the fresh-coin path. Two common operations need the committed path or a special recipient. Their primitives are part of the same standard library; the signatures below are exact, but wiring them end-to-end on a live node involves managing Merkle positions across transactions, so treat them as the next thing to build rather than copy-paste-ready.
+
+1. **Transferring a coin the contract already holds.** Once the ledger commits a minted coin on-chain, it becomes a `QualifiedShieldedCoinInfo` (it gains a Merkle tree index, `mt_index`), and you spend it with `sendShielded`:
+
+```compact
+circuit sendShielded(
+  input: QualifiedShieldedCoinInfo,
+  recipient: Either<ZswapCoinPublicKey, ContractAddress>,
+  value: Uint<128>
+): ShieldedSendResult;
+```
+
+`sendShielded` returns a `ShieldedSendResult { change: Maybe<ShieldedCoinInfo>; sent: ShieldedCoinInfo; }`. If you send less than the coin's value, `change` holds a new coin for the remainder. This is the consume-and-recreate pattern, and your application must persist that change coin, wait for it to commit, and spend it later as its own `QualifiedShieldedCoinInfo`.
+
+The hard part on a live network is obtaining the `mt_index` for the committed coin and supplying it to the circuit, typically from the indexer; that is the piece to work out and test carefully. Remember too that delivering shielded value to a user other than the caller will not notify them today.
+
+2. **Burning shielded value.** Burning is a send to a special recipient that destroys the value, returned by `shieldedBurnAddress()`:
+
+```compact
+circuit shieldedBurnAddress(): Either<ZswapCoinPublicKey, ContractAddress>;
+```
+
+To burn a committed coin, call `sendShielded(input, shieldedBurnAddress(), value)`. To burn a coin minted in the same transaction, use `sendImmediateShielded(coin, shieldedBurnAddress(), value)`. Either way, partial burns return change just like a transfer.
+
+## What you built
+
+You created a shielded token and moved it, end to end:
+
+- `mintShieldedToken` creates a fresh shielded coin owned by the contract.
+- `evolveNonce`, backed by a private witness seed, derives unique coin nonces.
+- `sendImmediateShielded` spends that fresh coin in the same transaction and delivers it to the caller.
+- Because shielded balances are not public, you confirmed the result by reading the wallet's shielded balance rather than the contract's.
+
+The thread connecting the two tutorials is that privacy is not a setting. It changes what the contract stores and how value moves. The [unshielded token](/tokens/unshielded-token) leaned on the chain to track balances; the shielded token holds value in coins and never publishes amounts at all.
