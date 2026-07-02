@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -38,16 +38,6 @@ gasCost: RunningCost;
 ```
 
 The gas consumption of the circuit execution
-
-***
-
-### proofData
-
-```ts
-proofData: ProofData;
-```
-
-The data required to prove this circuit run
 
 ***
 

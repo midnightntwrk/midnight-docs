@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -13,7 +13,11 @@ type GatherResult =
   tag: "read";
 }
   | {
-  content: EncodedStateValue;
+  content: {
+     data: EncodedStateValue;
+     eventType: LogEventType;
+     version: number;
+  };
   tag: "log";
 };
 ```

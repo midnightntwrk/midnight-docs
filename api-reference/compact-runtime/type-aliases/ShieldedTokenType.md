@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -13,7 +13,7 @@ type ShieldedTokenType = {
 };
 ```
 
-Shielded token type (or color), as a hex-encoded 35-byte string
+Shielded token type (or color), as a hex-encoded 32-byte string
 
 ## Properties
 

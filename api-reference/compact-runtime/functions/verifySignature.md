@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -19,7 +19,7 @@ Verifies if a signature is correct
 
 ### vk
 
-`string`
+[`SignatureVerifyingKey`](../type-aliases/SignatureVerifyingKey.md)
 
 ### data
 
@@ -27,7 +27,7 @@ Verifies if a signature is correct
 
 ### signature
 
-`string`
+[`Signature`](../type-aliases/Signature.md)
 
 ## Returns
 

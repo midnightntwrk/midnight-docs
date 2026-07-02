@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -9,6 +9,10 @@
 ```ts
 function jubjubPointY(pt): bigint;
 ```
+
+The Compact builtin `jubjubPointY` function
+
+This function extracts the Y-coordinate of a Compact `JubjubPoint`.
 
 ## Parameters
 

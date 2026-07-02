@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -9,6 +9,8 @@
 ```ts
 function contractDependencies(contractReferenceLocations, state): string[];
 ```
+
+// TODO: Remove compiler support for contract dependencies once CCCs land.
 
 Given a [StateValue](../classes/StateValue.md) representing the current ledger state of a contract, uses the [ContractReferenceLocations](../type-aliases/ContractReferenceLocations.md)
 object produced by the Compact compiler to extract the current contract addresses present in the given ledger state. The produced

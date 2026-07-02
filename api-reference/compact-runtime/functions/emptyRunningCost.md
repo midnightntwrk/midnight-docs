@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -11,8 +11,6 @@ function emptyRunningCost(): RunningCost;
 ```
 
 **`Internal`**
-
-Function for creating an initial running cost of zero.
 
 ## Returns
 

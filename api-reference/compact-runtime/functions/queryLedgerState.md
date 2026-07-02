@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.18.0-rc.0**](../README.md)
 
 ***
 
@@ -10,9 +10,7 @@
 function queryLedgerState(
    circuitContext, 
    partialProofData, 
-   program): 
-  | AlignedValue
-  | GatherResult[];
+   program): AlignedValue | undefined;
 ```
 
 Runs a program (query) against the current ledger state in the given circuit context. Records the transcript in the
@@ -40,5 +38,4 @@ The query to run.
 
 ## Returns
 
-  \| [`AlignedValue`](../type-aliases/AlignedValue.md)
-  \| [`GatherResult`](../type-aliases/GatherResult.md)[]
+[`AlignedValue`](../type-aliases/AlignedValue.md) \| `undefined`
