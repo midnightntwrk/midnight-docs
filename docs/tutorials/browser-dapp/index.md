@@ -151,6 +151,10 @@ const providers = {
 
 ## 5. Deploy a contract
 
+:::note
+`MyContract` and `myCircuit` in these steps are placeholders. Swap in your compiled contract's generated module (`./managed/<your-contract>/contract/index.js`) and your own circuit names. The `as any` casts below exist only because this page uses a generic stand-in contract; once you import your real generated bindings, the types flow and the casts are not needed. For a fully typed, end-to-end example (`CompiledContract.make<YourContractType>(...)` and typed `callTx`), see the [zk-loan tutorial](../zk-loan/cli.mdx).
+:::
+
 ```ts
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
@@ -221,3 +225,8 @@ console.log('size:', led.items?.size?.());
 ## Summary
 
 You connected an injected wallet, built providers that delegate balancing and signing to it, then deployed a contract, called a circuit, and read state, all from the browser, without running a headless wallet sync. The same pattern works for any Compact contract: swap in your compiled bindings and ZK assets, and call your own circuits by name.
+
+## Next steps
+
+- [zk-loan tutorial](../zk-loan/cli.mdx): the same deploy, call, and read flow with a concrete contract and full end-to-end types (no `as any`).
+- [Leaderboard tutorial](../leaderboard/browser-dapp.mdx): includes a complete in-memory `PrivateStateProvider` you can copy verbatim if you want this page self-contained.
