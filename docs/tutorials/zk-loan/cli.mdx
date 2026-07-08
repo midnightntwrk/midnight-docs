@@ -353,14 +353,14 @@ import {
   type ContractAddress,
   transientHash,
   CompactTypeBytes,
-} from '@midnight-ntwrk/compact-runtime';
+} from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import {
   ZKLoanCreditScorer,
   type ZKLoanCreditScorerPrivateState,
   witnesses,
 } from 'zkloan-credit-scorer-contract';
-import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { CompiledContract } from '@midnight-ntwrk/compact-js';
+import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
 import {
   deployContract,
   findDeployedContract,
@@ -378,17 +378,21 @@ import {
 import { assertIsContractAddress } from '@midnight-ntwrk/midnight-js-utils';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
-import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
-import { WalletFacade } from '@midnight-ntwrk/wallet-sdk-facade';
-import { ShieldedWallet } from '@midnight-ntwrk/wallet-sdk-shielded';
-import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet';
+// Wallet SDK imports are consolidated under the @midnight-ntwrk/wallet-sdk
+// barrel (introduced in wallet-sdk 1.1.0, alongside Midnight JS 4.1.x).
 import {
+  HDWallet,
+  Roles,
+  WalletFacade,
+  ShieldedWallet,
+  DustWallet,
+  UnshieldedWallet,
   createKeystore,
   InMemoryTransactionHistoryStorage,
+  WalletEntrySchema,
   PublicKey as UnshieldedPublicKey,
   type UnshieldedKeystore,
-  UnshieldedWallet,
-} from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+} from '@midnight-ntwrk/wallet-sdk';
 import * as bip39 from '@scure/bip39';
 import { wordlist as english } from '@scure/bip39/wordlists/english.js';
 
@@ -413,6 +417,15 @@ globalThis.WebSocket = WebSocket;
 ```
 
 The `WebSocket` assignment is required because the Midnight SDK's GraphQL subscriptions (used by the indexer) expect a global WebSocket constructor. Node.js does not provide one by default.
+
+:::note Two Midnight JS 4.1.x import changes
+
+- **Protocol packages go through the ACL package.** Hand-written imports for `ledger`, `compact-runtime`, `compact-js`, `onchain-runtime`, and `platform-js` are rewritten as subpath imports of the version-agnostic `@midnight-ntwrk/midnight-js-protocol` package (for example, `@midnight-ntwrk/midnight-js-protocol/compact-runtime`). Direct `@midnight-ntwrk/ledger-v8` and `@midnight-ntwrk/compact-js` imports no longer belong in application code.
+- **Wallet SDK collapses to a single barrel.** `wallet-sdk-facade`, `wallet-sdk-hd`, `wallet-sdk-shielded`, `wallet-sdk-dust-wallet`, and `wallet-sdk-unshielded-wallet` are re-exported from `@midnight-ntwrk/wallet-sdk` (1.1.0). Import one place, not five.
+
+Both changes require `tsconfig.json` with `moduleResolution` set to `bundler`, `node16`, or `nodenext` — the legacy `node` resolver cannot read the protocol package's `exports` subpath map. See the tsconfig block later in this section.
+
+:::
 
 #### Wallet context and ledger state
 
@@ -505,6 +518,12 @@ The code above defines three key exports:
 *   `deploy` creates a new instance of the smart contract on Preprod. This triggers a deployment transaction that includes a ZK proof — the proof server generates this, which takes about a minute.
 
 *   `joinContract` connects to an existing deployed smart contract by address. This is how a second user (or the same user in a new session) interacts with a smart contract deployed by someone else.
+
+:::note `args` is conditionally typed in 4.1.x
+
+`deployContract`'s `args` option is now conditionally typed on the contract's constructor signature. This contract's constructor takes no arguments, so `args` must be **omitted entirely** — passing `args: []` no longer type-checks. If your contract had a constructor with parameters, `args` would become required and typed to match those parameters.
+
+:::
 
 #### Attestation and loan request logic
 
@@ -1034,6 +1053,11 @@ export const initWalletWithSeed = async (
     },
     provingServerUrl: new URL(config.proofServer),
     relayURL,
+    // As of wallet-sdk 1.x, every wallet variant's default configuration
+    // (shielded / unshielded / dust) requires its own transaction-history
+    // storage. `InMemoryTransactionHistoryStorage` now takes a schema —
+    // the barrel re-exports `WalletEntrySchema` for exactly this use.
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema),
   };
 
   const unshieldedConfig = {
@@ -1042,7 +1066,7 @@ export const initWalletWithSeed = async (
       indexerHttpUrl: config.indexer,
       indexerWsUrl: config.indexerWS,
     },
-    txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema),
   };
 
   const dustConfig = {
@@ -1057,6 +1081,7 @@ export const initWalletWithSeed = async (
     },
     provingServerUrl: new URL(config.proofServer),
     relayURL,
+    txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema),
   };
 
   // Combine the per-wallet configs into a single configuration the facade
@@ -1652,7 +1677,7 @@ Create `zkloan-credit-scorer-cli/tsconfig.json`:
     "lib": ["ESNext"],
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
@@ -1669,6 +1694,8 @@ Create `zkloan-credit-scorer-cli/tsconfig.json`:
   }
 }
 ```
+
+`moduleResolution` must be `bundler` (or `node16`/`nodenext`) so TypeScript can read the `exports` subpath map published by `@midnight-ntwrk/midnight-js-protocol`. The legacy `node` resolver silently fails to find `/compact-runtime`, `/ledger`, and `/compact-js`.
 
 Create `zkloan-credit-scorer-cli/tsconfig.build.json`:
 
