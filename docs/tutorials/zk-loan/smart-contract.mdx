@@ -36,7 +36,7 @@ node --version
 ```
 
 :::caution Node 20 will crash mid-sync
-This DApp uses `@midnight-ntwrk/wallet-sdk-shielded`, which calls `Map.prototype.values().map(...)` on the shielded wallet state. That requires the [Iterator helpers](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator) added in Node 22. On Node 20 the wallet appears to start, then crashes on the first sync update with `state.pendingOutputs.values.map is not a function`. If you use [nvm](https://github.com/nvm-sh/nvm), add a `.nvmrc` file containing `22` (or your preferred 22+ release) to the repo root so `nvm use` picks it up automatically.
+This DApp uses the `@midnight-ntwrk/wallet-sdk` barrel (re-exports the shielded wallet), which calls `Map.prototype.values().map(...)` on the shielded wallet state. That requires the [Iterator helpers](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator) added in Node 22. On Node 20 the wallet appears to start, then crashes on the first sync update with `state.pendingOutputs.values.map is not a function`. If you use [nvm](https://github.com/nvm-sh/nvm), add a `.nvmrc` file containing `22` (or your preferred 22+ release) to the repo root so `nvm use` picks it up automatically.
 :::
 
 Install the Midnight Compact compiler. Follow the instructions in the [installation guide](/getting-started/installation) to install the Compact toolchain on your system.
@@ -49,9 +49,9 @@ compact compile --version
 
 Run `compact update` to install the latest Compact toolchain. The workspace `package.json` declares `@midnight-ntwrk/compact-runtime: ^0.16.0`, which matches what the latest `compact compile` emits.
 
-:::note compact-js's nested compact-runtime
+:::note Midnight JS 4.1.x protocol ACL
 
-`compact-js@2.5.0` declares an exact-pin on `compact-runtime@0.15.0`, but that pin only applies to compact-js's internal resolution — npm nests the `0.15` build inside `node_modules/@midnight-ntwrk/compact-js/node_modules/` and serves `0.16` to your application code at the top level. There is no workspace-level version conflict, and you do not need to do anything about the nested copy.
+As of Midnight JS **4.1.x**, hand-written code no longer imports the protocol packages (`ledger`, `compact-runtime`, `compact-js`, `onchain-runtime`, `platform-js`) directly. They are consumed through the version-agnostic **`@midnight-ntwrk/midnight-js-protocol`** ACL package via subpath imports — for example, `@midnight-ntwrk/midnight-js-protocol/compact-runtime`. `@midnight-ntwrk/compact-runtime` is still declared as a direct dependency because the compiler-generated contract code imports it directly, but every hand-written import points at the protocol subpath instead. This decouples your code from a specific ledger major version.
 
 :::
 
@@ -91,23 +91,18 @@ cat > package.json << 'EOF'
     "vitest": "^4.0.15"
   },
   "dependencies": {
-    "@midnight-ntwrk/compact-js": "^2.5.0",
     "@midnight-ntwrk/compact-runtime": "^0.16.0",
-    "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js-contracts": "4.0.4",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-network-id": "4.0.4",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.0.4",
-    "@midnight-ntwrk/midnight-js-types": "4.0.4",
-    "@midnight-ntwrk/midnight-js-utils": "4.0.4",
-    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.0",
-    "@midnight-ntwrk/wallet-sdk-dust-wallet": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-facade": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-hd": "3.0.0",
-    "@midnight-ntwrk/wallet-sdk-shielded": "2.1.0",
-    "@midnight-ntwrk/wallet-sdk-unshielded-wallet": "2.1.0",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/wallet-sdk": "1.1.0",
+    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.2",
     "@scure/bip39": "^2.0.1",
     "dotenv": "^17.2.3",
     "pino": "^10.1.0",
@@ -117,16 +112,25 @@ cat > package.json << 'EOF'
   },
   "overrides": {
     "smoldot": "npm:@aspect-build/empty@0.0.0",
-    "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js-network-id": "4.0.4"
+    "@midnight-ntwrk/ledger-v8": "8.1.0",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1"
   },
   "resolutions": {
-    "@midnight-ntwrk/ledger-v8": "8.0.3",
-    "@midnight-ntwrk/midnight-js-network-id": "4.0.4"
+    "@midnight-ntwrk/ledger-v8": "8.1.0",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1"
   }
 }
 EOF
 ```
+
+:::note What changed vs. 4.0.x
+
+- Direct `@midnight-ntwrk/compact-js` and `@midnight-ntwrk/ledger-v8` deps are gone — both are consumed through `@midnight-ntwrk/midnight-js-protocol` (added).
+- The five individual wallet-sdk subpackages (`-facade`, `-hd`, `-shielded`, `-dust-wallet`, `-unshielded-wallet`) collapse to the single `@midnight-ntwrk/wallet-sdk` barrel.
+- All `@midnight-ntwrk/midnight-js-*` packages step to `4.1.1`; the wrapped ledger pinned via `overrides`/`resolutions` moves to `8.1.0`.
+- `@midnight-ntwrk/compact-runtime` stays as a direct dep because the compiler-generated contract code imports it directly.
+
+:::
 
 Next, create the `.gitignore` with the following command:
 
@@ -648,7 +652,7 @@ Create `contract/src/witnesses.ts`:
 
 ```typescript
 import { Ledger } from "./managed/zkloan-credit-scorer/contract/index.js";
-import { WitnessContext } from "@midnight-ntwrk/compact-runtime";
+import { WitnessContext } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
 
 export type SchnorrSignature = {
   announcement: { x: bigint; y: bigint };
@@ -784,7 +788,7 @@ cat > contract/tsconfig.json << 'EOF'
     "lib": ["ESNext"],
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowJs": true,
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": true,
@@ -798,6 +802,12 @@ cat > contract/tsconfig.json << 'EOF'
 }
 EOF
 ```
+
+:::note `moduleResolution: bundler` is required
+
+Midnight JS 4.1.x uses the protocol package's `exports` subpath map (`@midnight-ntwrk/midnight-js-protocol/compact-runtime`, `/ledger`, `/compact-js`, etc.). The legacy `moduleResolution: node` resolver cannot read that map. Use `bundler`, `node16`, or `nodenext` in every workspace that imports from a protocol subpath.
+
+:::
 
 Create `contract/tsconfig.build.json`:
 
