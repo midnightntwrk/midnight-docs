@@ -39,10 +39,10 @@ One more constraint shapes what a contract-mediated shielded transfer can do tod
 
 You reuse the unshielded tutorial's environment. In particular:
 
-- The toolchain (compactc 0.31.0), the local network (midnight-local-dev), and the proof server. See the [project setup](/tokens/unshielded-token#set-up-your-project).
+- The toolchain (compactc 0.31.1), the local network (midnight-local-dev), and the proof server. See the [project setup](/tokens/unshielded-token#set-up-your-project).
 - `src/config.ts` and `src/wallet.ts`, **identical to the unshielded tutorial**. Copy them over unchanged.
 
-The packages are the same as the unshielded tutorial, so if you completed it you already have everything installed. The shielded contract introduces one thing the unshielded one did not need: a **witness**, a private value supplied off-chain. You use it to hold the nonce seed.
+The packages are the same as the unshielded tutorial, so if you completed it you already have everything installed. The shielded contract introduces something the unshielded one did not need: **witnesses**, off-chain functions that supply values to a circuit. You use them to hand the contract its nonce seed and its minter secret from private state.
 
 ## Build the shielded token contract
 
@@ -96,7 +96,7 @@ export circuit deriveMinterKey(sk: Bytes<32>): Bytes<32> {
 }
 ```
 
-`deriveMinterKey` hashes a secret with a domain separator into a public key. The constructor runs once at deploy and records the *deployer's* derived key as the authorized minter, so only the wallet holding the deploy secret can mint later. (`ownPublicKey()` is deliberately not used for this. It returns a prover-claimed value with no binding to the signer, so any check on it is bypassable.) As in the unshielded tutorial, the constructor does not set `token_color` (that is set when you mint), and `initialized` starts false.
+`deriveMinterKey` hashes a secret with a domain separator into a public key. The constructor runs once at deploy and records the *deployer's* derived key as the authorized minter, so only the wallet holding the deploy secret can mint later. (`ownPublicKey()` is deliberately not used for this. It returns a prover-claimed value with no binding to the signer, so any check on it can be bypassed.) As in the unshielded tutorial, the constructor does not set `token_color` (that is set when you mint), and `initialized` starts false.
 
 ### Mint a shielded coin and send it to the caller
 
@@ -139,7 +139,7 @@ In the code above:
 - `sendImmediateShielded(coin, ..., coin.value)` spends that fresh coin in the same transaction, sending the whole value to `ownPublicKey()`, the caller. You wrap the recipient with `left<ZswapCoinPublicKey, ContractAddress>(...)` because it is a user key, not a contract. Because you send the full value, there is no change coin to manage. Like `sendShielded`, `sendImmediateShielded` returns a `ShieldedSendResult`; this circuit ignores it, but a partial send (less than `coin.value`) would hand back a change coin you must handle, as shown in [Go further](#go-further-with-committed-transfers-and-burns).
 - The last three lines record the color, flip `initialized`, and bump the counter.
 
-The mint amount is a `Uint<64>` (the protocol caps a single mint at that width); coin values are `Uint<128>`, which is why `coin.value` is the wider type. Unlike the unshielded tutorial's permissionless mint, this one requires authorization: the opening `assert` restricts minting to the wallet that deployed the contract.
+The mint amount is a `Uint<64>` (the protocol caps a single mint at that width); coin values are `Uint<128>`, which is why `coin.value` is the wider type. As in the unshielded tutorial, minting requires authorization from the deployer; the difference is the mechanism. The unshielded contract takes the secret as an ordinary circuit parameter, while this one fetches it with a witness, so the caller never passes it as an argument at all.
 
 That completes the contract. Compile it the same way as before, into its own output directory:
 
@@ -163,7 +163,7 @@ touch src/shielded/witnesses.ts
 It defines the private state (the nonce seed and the minter secret) and the two witness implementations that hand the seed to the circuit:
 
 ```typescript
-import { createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 export type ShieldedTokenPrivateState = {
   readonly nonceSeed: Uint8Array;
@@ -171,12 +171,8 @@ export type ShieldedTokenPrivateState = {
 };
 
 export const createShieldedTokenPrivateState = (
-  nonceSeed: Uint8Array = createHash('sha256')
-    .update('tutorial:shielded:token:seed')
-    .digest(),
-  minterSecret: Uint8Array = createHash('sha256')
-    .update('tutorial:shielded:minter:secret')
-    .digest(),
+  nonceSeed: Uint8Array = randomBytes(32),
+  minterSecret: Uint8Array = randomBytes(32),
 ): ShieldedTokenPrivateState => ({ nonceSeed, minterSecret });
 
 // Each witness returns [updatedPrivateState, valueForTheCircuit]. The state
@@ -196,7 +192,9 @@ export const witnesses = {
 };
 ```
 
-In a production DApp you would persist this private state and never reset it casually, since reusing nonce material is unsafe. For the tutorial a fixed seed is fine.
+Both secrets are generated with `randomBytes(32)`, the same approach Midnight's official examples use. Never replace them with fixed, published values: the contract publishes the *hash* of the minter secret on-chain and gates minting on reproducing it, so anyone who could recompute a hardcoded secret could mint freely on your deployment, and a predictable nonce seed makes coin nonces predictable.
+
+Random per-run secrets work here because each run of the deploy script deploys a fresh contract, and the deploy and the mint share the same in-process private state. The flip side is to mint again later on the *same* contract, you must persist the private state, because the minter key is fixed once in the constructor.
 
 ### Wrap the compiled contract with the witnesses
 
@@ -223,9 +221,10 @@ export const CompiledShieldedToken = CompiledContract.make(
   'ShieldedToken',
   Contract,
 ).pipe(
-  // The unshielded tutorial used withVacantWitnesses because it had no witnesses.
-  // This contract has one, so it supplies the witness implementation instead.
-  // This is the same pattern Midnight's witness-backed examples use.
+  // The unshielded tutorial used withVacantWitnesses because it declares no
+  // witness functions. This contract has two, so it supplies their
+  // implementations instead, the same pattern Midnight's witness-backed
+  // examples use.
   CompiledContract.withWitnesses(witnesses),
   CompiledContract.withCompiledFileAssets(zkConfigPath),
 );
@@ -284,7 +283,7 @@ export function buildProviders(
 }
 ```
 
-Unlike the unshielded tutorial, the private state is not empty. It carries the nonce seed. You pass the real value at deploy time in the next step.
+Unlike the unshielded tutorial, the private state is not empty. It carries the nonce seed and the minter secret. You pass the real values at deploy time in the next step.
 
 ## Deploy and test
 
@@ -451,7 +450,7 @@ async function readLedger() {
 logger.info(`initialized at deploy: ${(await readLedger()).initialized}`); // false
 ```
 
-The one difference from the unshielded tutorial is `initialPrivateState` instead of `{}`: you pass `createShieldedTokenPrivateState()`, which seeds the witnesses.
+The one difference from the unshielded tutorial is the value of `initialPrivateState`: instead of an empty object you pass `createShieldedTokenPrivateState()`. This is the contract's initial *private state*, not the witnesses. `deployContract` runs the constructor against it and stores it in the private-state provider under `privateStateId`; on every later circuit call the framework loads the current private state and hands it to your witness implementations through `WitnessContext.privateState`, and each witness returns the updated private state alongside the value it feeds the circuit. The witnesses themselves are the off-chain functions you wrote earlier; the private state is the data they read.
 
 Mint and deliver the shielded token to your own wallet in a single call, then read the contract state back:
 
