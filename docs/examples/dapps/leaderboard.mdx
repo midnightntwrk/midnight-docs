@@ -1,25 +1,18 @@
-{/* SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed
-under the Apache License, Version 2.0 (the "License"); You may not use this file except in
-compliance with the License. You may obtain a copy of the License at
-http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to
-in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for
-the specific language governing permissions and limitations under the License. */}
-
 ---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: "Leaderboard DApp"
-sidebar_position: 30
+sidebar_position: 25
 title: Leaderboard DApp
-description: Learn how the leaderboard DApp demonstrates privacy-preserving score submission and ownership verification with Zero Knowledge proofs on Midnight Network.
+description: Learn how the leaderboard DApp demonstrates privacy-preserving score submission and ownership verification with zero-knowledge proofs on Midnight Network.
 toc_max_heading_level: 2
 ---
 
 # Leaderboard DApp
 
-The leaderboard contract demonstrates privacy-preserving smart contracts on Midnight using the Compact language. This example shows how to create a DApp that lets players submit scores with configurable privacy modes while protecting player identity through Zero Knowledge (ZK) proofs.
+The leaderboard smart contract demonstrates privacy-preserving score tracking on Midnight using the Compact language. This example shows how to create a DApp that lets players submit scores with configurable privacy modes while protecting player identity through zero-knowledge (ZK) proofs.
 
-The leaderboard example is a privacy-focused DApp that introduces key Midnight concepts:
+The leaderboard example introduces key Midnight concepts:
 
 - Writing smart contracts with structured on-chain data using `Map` and custom structs in Compact
 - Using ZK proofs to verify entry ownership without revealing the owner's secret key
@@ -61,7 +54,7 @@ midnight-leaderboard/
 │       ├── main.tsx             # Entry point with Buffer polyfill
 │       ├── contexts/            # Lace wallet provider bridge
 │       └── hooks/               # Indexer read hook
-└── proof-server/                # Docker config for Railway deployment
+└── proof-server/                # Docker config for the proof server
     └── Dockerfile
 ```
 
@@ -72,7 +65,7 @@ The leaderboard contract is written in Compact. It demonstrates how to build a p
 Here is the complete contract:
 
 ```compact
-pragma language_version >= 0.23;
+pragma language_version 0.23;
 
 import CompactStandardLibrary;
 
@@ -89,7 +82,7 @@ witness localSecretKey(): Bytes<32>;
 witness getCustomName(): Bytes<32>;
 
 export circuit ownerCommitment(sk: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "leaderboard:owner:"), sk, sk]);
+  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "leaderboard:owner:"), sk]);
 }
 
 export circuit submitScore(
@@ -137,16 +130,16 @@ Two public fields track the leaderboard state on-chain:
 
 Three exported circuits define the contract's operations:
 
-- `ownerCommitment(sk)`: A helper circuit that derives an on-chain identity from the user's secret key using `persistentHash`. It produces a deterministic commitment that can be stored and verified later without revealing the secret.
-- `submitScore(score, useCustomName)`: Creates a new leaderboard entry. It retrieves the user's secret key via the `localSecretKey` witness, computes the owner commitment, and inserts a new `ScoreEntry` into `scores`. The `useCustomName` flag controls whether the display name comes from the `getCustomName` witness or is derived directly from the secret key hash.
-- `verifyOwnership(targetEntryId)`: Lets a user prove they own a specific entry. It looks up the entry, recomputes the owner commitment from the caller's secret key, and asserts that it matches the stored `ownerHash`. Nothing is written to the ledger.
+- `ownerCommitment(sk)`: A helper circuit that derives an on-chain identity from your secret key using `persistentHash`. It produces a deterministic commitment that you can store and verify later without revealing the secret.
+- `submitScore(score, useCustomName)`: Creates a new leaderboard entry. It retrieves your secret key via the `localSecretKey` witness, computes the owner commitment, and inserts a new `ScoreEntry` into `scores`. The `useCustomName` flag controls whether the display name comes from the `getCustomName` witness or derives directly from the secret key hash.
+- `verifyOwnership(targetEntryId)`: Lets you prove you own a specific entry. It looks up the entry, recomputes the owner commitment from your secret key, and asserts that it matches the stored `ownerHash`. Nothing is written to the ledger.
 
 ### Witnesses
 
 The contract defines two witness functions:
 
-- `localSecretKey()`: Returns the user's secret key from private state. The key never appears on-chain or in any generated proof.
-- `getCustomName()`: Returns a custom display name provided by the TypeScript host at runtime. The TypeScript layer decides what value to supply based on the user's selected privacy mode.
+- `localSecretKey()`: Returns your secret key from private state. The key never appears on-chain or in any generated proof.
+- `getCustomName()`: Returns a custom display name that the TypeScript host provides at runtime. The TypeScript layer decides what value to supply based on your selected privacy mode.
 
 ## Prerequisites
 
@@ -154,20 +147,54 @@ Before working with the leaderboard example, ensure that you have:
 
 - Node.js version 22 or higher
 - Docker Desktop installed and running
-- Compact toolchain version 0.31.0 installed
+- Compact toolchain installed
 - Lace wallet browser extension installed
 
 For more information, refer to [install the toolchain](../../getting-started/installation).
 
+## Set up the example
+
+### Clone the repository
+
+Get the leaderboard example from GitHub:
+
+```bash
+git clone https://github.com/midnightntwrk/midnight-leaderboard.git
+cd midnight-leaderboard
+```
+
+### Install dependencies
+
+Install all required Node.js packages:
+
+```bash
+npm install
+```
+
+This command installs packages for the contract, API, and UI components.
+
+## Start the proof server
+
+The proof server generates ZK proofs for transactions locally to protect private data. It must be running before you can deploy or interact with contracts.
+
+Start the proof server:
+
+```bash
+docker run -p 6300:6300 midnightntwrk/proof-server:8.0.3 -- midnight-proof-server -v
+```
+
+:::tip[Keep the proof server running]
+The proof server must stay active while using the DApp.
+:::
+
 ## Compile the contract
 
-Open a new terminal window and navigate to your project directory. Navigate to the `contract` directory and compile the contract:
+Open a new terminal window at the project root and navigate to the `contract` directory:
 
 ```bash
 cd contract
 npm run compact
 ```
-
 
 This command compiles the contract and generates TypeScript bindings, circuit keys, and ZKIR files in `contract/managed/leaderboard/`.
 
@@ -186,7 +213,7 @@ cd ..
 npm run build
 ```
 
-## Wallet setup
+## Set up the wallet
 
 The browser DApp connects to the Lace wallet for on-chain transactions.
 
@@ -196,16 +223,17 @@ The browser DApp connects to the Lace wallet for on-chain transactions.
 4. Fund your wallet with tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/).
 5. Go to Tokens, click **Generate tDUST**, and confirm the transaction.
 
-:::note
-tDUST is required to pay transaction fees on Preprod. It is generated from your tNIGHT balance.
+:::note[About tDUST]
+You need tDUST to pay transaction fees on Preprod. The wallet generates tDUST from your tNIGHT balance.
 :::
 
 ## Run the browser DApp
 
-Navigate to the `leaderboard-ui` directory and start the development server:
+Navigate to the `leaderboard-ui` directory, install dependencies, and start the development server:
 
 ```bash
 cd leaderboard-ui
+npm install
 npm run dev
 ```
 
@@ -219,19 +247,21 @@ Click **Connect Wallet** in the top-right corner of the UI. Lace prompts you to 
 
 ### Deploy a new contract
 
-Click **Deploy Contract**. The UI calls `LeaderboardAPI.deployContract()`, which submits a deployment transaction through Lace. Wait for the transaction to confirm on Preprod. This typically takes 20 to 30 seconds. After confirmation, the contract address appears in the UI.
+Click **Deploy Contract**. The UI calls `LeaderboardAPI.deploy()`, which submits a deployment transaction through Lace. Wait for the transaction to confirm on Preprod.
 
-:::note
-Contract deployment requires tDUST for transaction fees.
+:::note[Transaction time]
+Contract deployment typically takes 20 to 30 seconds on Preprod as the network processes your transaction and ZK proofs.
 :::
+
+After confirmation, the contract address appears in the UI.
 
 ### Submit a score
 
-The game area displays a simple score counter. Play the game or enter a score manually, then choose a display name mode before submitting:
+The game area displays a score counter. Play the game or enter a score manually, then choose a display name mode before submitting:
 
 - **Custom name**: Enter a name up to 32 characters. The `getCustomName` witness supplies this value to the circuit.
-- **Public address**: Your wallet address is passed as the display name via the `getCustomName` witness.
-- **Anonymous**: No custom name witness is invoked. The circuit stores `persistentHash(secretKey)` as the display name. The UI renders this as a generated name like "Crimson Tiger."
+- **Public address**: The `getCustomName` witness passes your wallet address as the display name.
+- **Anonymous**: The contract does not invoke the `getCustomName` witness. Instead, the circuit stores `persistentHash(secretKey)` as the display name. The `localSecretKey` witness is still called to compute the owner commitment. The UI renders anonymous entries as generated names like "Crimson Tiger."
 
 Click **Submit Score**. The UI:
 
@@ -241,7 +271,7 @@ Click **Submit Score**. The UI:
 4. Submits the transaction through Lace.
 5. Waits for confirmation and refreshes the leaderboard.
 
-:::info
+:::info[Privacy protection]
 Your secret key never leaves your machine. The proof server generates the ZK proof locally before anything is sent to the network.
 :::
 
@@ -253,9 +283,9 @@ The leaderboard table updates automatically after each confirmed transaction. It
 
 Click **Verify Ownership** next to any of your entries. The UI calls `verifyOwnership(entryId)`, which generates a ZK proof that your secret key matches the `ownerHash` stored in the entry. The circuit asserts the match on-chain without writing anything to the ledger.
 
-A success message confirms ownership. If your wallet does not hold the correct secret key for that entry, the assertion fails and the transaction is rejected locally before reaching the network.
+A success message confirms ownership. If your wallet does not hold the correct secret key for that entry, the assertion fails and the proof server rejects the transaction locally before it reaches the network.
 
-:::caution
+:::caution[Same browser required]
 Ownership verification only works from the same browser and wallet instance that submitted the entry, because the secret key lives in the local private state store.
 :::
 
@@ -267,6 +297,6 @@ You can view the leaderboard without connecting a wallet. The UI fetches the `sc
 
 Now that you understand the leaderboard example:
 
+- **Explore the GitHub repository**: [Leaderboard repository](https://github.com/midnightntwrk/midnight-leaderboard)
 - **Build the contract yourself**: Follow the complete [Leaderboard tutorial](../../tutorials/leaderboard/overview) to build every layer of the DApp from scratch.
 - **Explore the bulletin board example**: The [Bulletin board DApp](./bboard) is a simpler starting point that shows a single-state contract with a CLI interface.
-- **Deploy to production**: See [Part 4: Production deployment](../../tutorials/leaderboard/deployment) to deploy the frontend to Vercel.
