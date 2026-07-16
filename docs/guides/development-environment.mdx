@@ -1,0 +1,638 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Set up your Midnight development environment
+description: Install Docker, the Compact compiler, the VS Code extension, and a local proof server on macOS, Linux, or Windows (WSL), and optionally set up Bun as your JavaScript runtime.
+sidebar_label: "Set up your environment"
+sidebar_position: 1
+tags: [installation, compact, proof-server, setup, bun, wsl]
+keywords: [midnight, development environment, compact compiler, proof server, docker, wsl, bun]
+toc_max_heading_level: 3
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Set up your Midnight development environment
+
+Every Midnight project relies on the same small toolkit: Docker to run infrastructure such as the proof server, the Compact compiler to build smart contracts, and an editor that understands the Compact language. This guide installs all of them once, so the rest of the guides in this section can focus on building and deploying.
+
+macOS and Linux are supported natively. On Windows, you develop inside the Windows Subsystem for Linux (WSL), and this guide covers that path too.
+
+## Prerequisites
+
+- Basic knowledge of JavaScript/TypeScript
+- Familiarity with command-line interfaces
+
+## Set up your platform {#set-up-your-platform}
+
+<Tabs groupId="platform">
+  <TabItem value="macos-linux" label="macOS / Linux">
+
+Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for your operating system. New users might need to set up an account.
+
+Docker hosts completed code in images. Midnight components such as the proof server are distributed as Docker images, so Docker must be running before you start them.
+
+  </TabItem>
+  <TabItem value="windows" label="Windows (WSL)">
+
+### Install Ubuntu on WSL {#install-ubuntu}
+
+Developing DApps for the Midnight network often requires compiling and running components (like the proof server or complex scripts) that are traditionally Linux-based. The Windows Subsystem for Linux (WSL) allows you to run a native Linux environment directly within Windows without the overhead of a traditional virtual machine.
+
+1. Open the Start Menu, search for Windows PowerShell (or Command Prompt), right-click the result, and select **Run as administrator**. This elevation is necessary to install system-level features like WSL.
+
+2. In the command terminal, enter the following installation command:
+
+```bash
+wsl --install -d ubuntu
+```
+
+This command enables the required Windows features (Virtual Machine Platform and Windows Subsystem for Linux), downloads and installs the recommended Ubuntu distribution, and restarts the necessary services.
+
+:::info
+The initial download and installation of the required components and the Ubuntu image can take anywhere from 5 to 15 minutes, depending on your internet connection and system speed. Do not close the window until the process is complete.
+:::
+
+3. After the installation completes, a new Ubuntu terminal window opens automatically and prompts you to create a UNIX username and a password.
+
+:::note
+When entering your password, the characters are not displayed on the screen for security reasons (this is standard Linux terminal behavior). Type your desired password carefully and press Enter.
+:::
+
+Once configured, your new username appears as part of the terminal prompt (for example, `yourusername@DESKTOP-XXXXXX:~$`). This confirms that WSL is correctly installed and the Ubuntu distribution is ready for use.
+
+4. To ensure WSL is running the correct version, execute this command in Windows PowerShell:
+
+```bash
+wsl -l -v
+```
+
+You should see a list showing Ubuntu with STATE Running (or Stopped) and VERSION 2. WSL 2 is required for optimal performance and Docker integration.
+
+### Install and configure Docker Desktop {#install-and-configure-docker-desktop}
+
+1. Navigate to the official Docker website at [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop) and download **Docker Desktop for Windows**. Ensure you download the installer that matches your CPU architecture (for example, **Windows - AMD64** for modern systems).
+
+2. Run the downloaded installer (for example, `Docker Desktop Installer.exe`). During the installation, make sure the box for **Use WSL 2 instead of Hyper-V** is checked. This is vital for Docker to integrate seamlessly with the Linux environment you just set up.
+
+3. Follow the prompts to complete the installation. A system restart may be required. After the reboot, launch **Docker Desktop** from your Start Menu. It takes a few moments to start up, showing the whale icon in your system tray.
+
+4. Once Docker Desktop is running, open the **Settings** menu (the gear icon), click **Resources**, then navigate to the **WSL integration** tab. Ensure that **Enable integration with my default WSL distro** is toggled **ON**, and verify that your **Ubuntu** distribution is enabled. This connection allows Docker to manage containers directly from your Linux terminal.
+
+:::note
+Run all remaining commands in this guide inside your Ubuntu (WSL) terminal, not in PowerShell.
+:::
+
+  </TabItem>
+</Tabs>
+
+## Install the Compact compiler {#install-the-compact-compiler}
+
+[Compact](/compact) is Midnight's smart contract language. The Compact developer tools manage the compiler toolchain for you and keep it up to date.
+
+1. Run the installer script (on Windows, inside your Ubuntu terminal):
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+```
+
+The installer places the developer tools in `$HOME/.compact/bin` and automatically updates your shell's `PATH`.
+
+2. To apply the `PATH` changes to your current session, reload your shell configuration:
+
+```bash
+source ~/.bashrc
+```
+
+3. Verify the installation by checking the version:
+
+```bash
+compact --version
+```
+
+4. Download the latest compiler toolchain:
+
+```bash
+compact update
+```
+
+5. Confirm that the toolchain is installed and current:
+
+```bash
+compact check
+```
+
+If the installation succeeded, you should see output similar to the following:
+
+```bash
+compact: aarch64-darwin -- Up to date -- 0.31.1
+```
+
+See the [Compact developer tools reference](/compact/compilation-and-tooling/dev-tool-usage) for the full set of subcommands, and the [compatibility matrix](../relnotes/support-matrix) for the compiler version that matches the rest of the toolchain.
+
+## Install the Compact VS Code extension {#install-the-compact-vs-code-extension}
+
+The Compact VS Code extension provides syntax highlighting and real-time error checking, which is essential for writing smart contracts.
+
+1. Download the Compact VS Code extension VSIX package from the [releases page](https://raw.githubusercontent.com/midnight-ntwrk/releases/gh-pages/artifacts/vscode-extension/compact-0.2.13/compact-0.2.13.vsix).
+2. Open VS Code.
+3. Go to the **Extensions** view (press `Ctrl+Shift+X`), click the **...** (More Actions) menu at the top-right of the extensions pane, and select **Install from VSIX...**.
+4. Select the `.vsix` file you just downloaded to complete the installation.
+
+## Run the proof server {#run-the-proof-server}
+
+Midnight uses zero-knowledge (ZK) cryptography to enable shielded transactions and data protection. An essential element of this architecture is ZK functionality provided by a Midnight *proof server*, which generates proofs locally that are verified on-chain.
+
+The information that a DApp sends to the proof server includes private data, such as details of token ownership or a DApp's private state. To protect your data, you should access only a local proof server, or perhaps one on a remote machine that you control, over an encrypted channel.
+
+Your wallet communicates with the proof server to invoke ZK functionality and generate ZK proofs for your transactions, so the proof server must be running whenever you process transactions on the Midnight network.
+
+<Tabs groupId="proof-server-start">
+  <TabItem value="cli" label="Command line">
+
+Start the proof server with Docker:
+
+```bash
+docker run -p 6300:6300 midnightntwrk/proof-server:latest midnight-proof-server -v
+```
+
+You should see output similar to:
+
+```
+actix_server::server: starting service: "actix-web-service-0.0.0.0:6300", workers: 14, listening on: 0.0.0.0:6300
+```
+
+:::tip
+Keep this terminal window open. The proof server must stay active to compile and deploy contracts. To stop it, press `Ctrl+C` or stop the container.
+:::
+
+If you need a specific proof server version instead of `latest`, check the [compatibility matrix](../relnotes/support-matrix) for the version that matches your node and SDK.
+
+  </TabItem>
+  <TabItem value="docker-desktop" label="Docker Desktop">
+
+1. Inside Docker Desktop, use the search bar to locate `midnightntwrk/proof-server:latest`.
+2. Pull the image.
+3. Start the proof server by clicking the **Run** button in the same search result, or by navigating to your Containers and clicking the **Run** button there.
+
+To inspect the proof server, navigate to Containers and **View Details**. There is no action required here, but you should see some output indicating that the server has started.
+
+To stop the proof server, simply stop the container.
+
+  </TabItem>
+</Tabs>
+
+The proof server listens on port 6300 and *this should not be changed*.
+
+### Your privacy {#your-privacy}
+
+The proof server exists to protect your privacy. It does not open any network connections; it simply listens on its assigned port for requests from your wallet.
+
+## Optional: use Bun as your runtime {#install-bun}
+
+The guides and tutorials in this documentation use Node.js with npm or Yarn. [Bun](https://bun.sh) is a modern JavaScript runtime and toolkit that can offer significantly faster performance, and it works with Midnight development too. This section covers installing Bun, setting up a Midnight project with it, and the compatibility considerations to keep in mind. If you are happy with Node.js, skip ahead to the [next steps](#next-steps).
+
+### Install Bun on macOS {#install-bun-on-mac}
+
+1. Run the command below:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+This script downloads the appropriate Bun binary for your system and installs it to `~/.bun/bin`.
+
+2. Verify the installation. Close and reopen your terminal, then run:
+
+```bash
+bun --version
+```
+
+If `bun --version` returns "command not found", manually add Bun to your `PATH`:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+```
+
+### Install Bun on Linux or WSL {#install-bun-on-linux-or-wsl}
+
+1. Install required dependencies. Bun's installer requires `unzip` to extract the binary:
+
+```bash
+sudo apt update
+sudo apt install unzip -y
+```
+
+2. Run the official Bun installation script:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+3. Reload your shell configuration so the `bun` command is available:
+
+```bash
+source ~/.bashrc
+```
+
+4. Verify the installation:
+
+```bash
+bun --version
+```
+
+You should see the installed Bun version printed to the terminal.
+
+5. If `bun` is not found, add Bun's install directory to your `PATH`:
+
+```bash
+export PATH="$HOME/.bun/bin:$PATH"
+```
+
+### Set up a Midnight project with Bun {#install-midnight-packages-with-bun}
+
+With both Bun and the Compact compiler installed, you can create a Midnight application project.
+
+1. Initialize a new project:
+
+```bash
+mkdir my-midnight-app
+cd my-midnight-app
+bun init -y
+```
+
+This creates a basic `package.json`.
+
+2. Create the required directories. The project requires separate folders for smart contracts and application source code:
+
+```bash
+mkdir src contracts
+```
+
+3. Install the Midnight runtime package. Install a specific version to avoid compatibility issues:
+
+```bash
+bun add @midnight-ntwrk/compact-runtime@0.16.0
+```
+
+This gives you everything you need to:
+
+- Run your smart contracts
+- Manage your app's data
+- Work with zero-knowledge proofs
+- Get type definitions for TypeScript
+
+:::info
+Always refer to the [compatibility matrix](../relnotes/support-matrix) for the correct version of the runtime package to install.
+:::
+
+4. Update the `tsconfig.json` file:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+This configuration ensures:
+
+- Bun can resolve imports correctly.
+- TypeScript compiles cleanly.
+- Midnight's runtime packages work without extra setup.
+
+### Configure the project scripts {#configure-the-project}
+
+Update your `package.json` with the Bun-specific scripts below:
+
+```json title="package.json"
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run dist/index.js",
+    "test": "bun test",
+    "install:midnight": "bun install",
+    "compile:contract": "compact compile contracts/message.compact contracts/managed",
+    "build:contract": "bun run compile:contract && bun build src/index.ts --outdir dist"
+  },
+```
+
+Script explanations:
+
+- `dev`: Runs the app in development mode with hot reload on `src/index.ts`.
+- `start`: Runs the compiled production app from `dist/index.js`.
+- `test`: Runs all tests using Bun's test runner.
+- `install:midnight`: Installs project dependencies with Bun.
+- `compile:contract`: Compiles the Compact smart contract `message.compact` into the `contracts/managed` output directory.
+- `build:contract`: First compiles the smart contract, then bundles the app entry file into the `dist` folder for production.
+
+### Create a smart contract with Compact {#create-smart-contract-with-compact}
+
+In this section, you create a simple Compact smart contract that allows you to store and read a message on the Midnight blockchain. Then, you compile it so it can be used in your TypeScript/Bun application.
+
+1. Create a file named `message.compact` in the contracts directory:
+
+```bash
+touch contracts/message.compact
+```
+
+2. Add the code below to the file:
+
+```compact title="message.compact"
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// Public ledger state - visible on blockchain
+export ledger message: Opaque<"string">;
+
+// Circuit to store a message on the blockchain
+// The message will be publicly visible
+export circuit storeMessage(customMessage: Opaque<"string">): [] {
+    message = disclose(customMessage);
+}
+
+```
+
+Explanation:
+
+- `pragma language_version 0.23;`
+  Specifies the exact Compact language version required for this smart contract. Using version 0.23 ensures compatibility with the runtime version 0.16.0 you installed earlier.
+- `import CompactStandardLibrary;`
+  Loads standard functions and types provided by Midnight for contracts.
+- `export ledger message: Opaque<"string">;`
+  Declares a public state variable called `message` on the blockchain. Its value will be visible to everyone.
+- `export circuit storeMessage(customMessage: Opaque<"string">): [] { ... }`
+  Defines a function (circuit) to store a message on the blockchain. `disclose()` makes the message publicly readable.
+
+3. Compile with `compact`:
+
+```bash
+compact compile contracts/message.compact contracts/managed
+```
+
+What this does:
+
+- Converts the human-readable `.compact` contract into a compiled module that your application can interact with.
+- Saves the compiled contract in `contracts/managed`, making it ready for integration with your Bun/TypeScript app.
+
+### Integrate the compiled contract with Bun {#integrate-compiled-smart-contracts-with-bun}
+
+Now that your Compact contract is compiled, the next step is to interact with it from a Bun-powered TypeScript application. Here you create a client that simulates storing and reading a message from your Midnight contract.
+
+1. Create `src/message-client.ts`:
+
+```bash
+touch src/message-client.ts
+```
+
+Add the following code:
+
+```typescript title="message-client.ts"
+import { Contract, ledger } from "../contracts/managed/contract/index.js";
+
+export class MessageClient {
+  private contract: Contract<any>;
+
+  constructor() {
+    this.contract = new Contract({});
+  }
+
+  async storeMessage(customMessage: string) {
+    console.log(`📦 (Simulated) Storing message: "${customMessage}"`);
+    // Real implementation needs proper Midnight context
+    return { success: true, message: customMessage };
+  }
+
+  async getMessage() {
+    console.log("📥 (Simulated) Fetching message from ledger...");
+    return "Hello Midnight!";
+  }
+}
+```
+
+What this does:
+
+- Creates a `MessageClient` class.
+- Loads your compiled Compact contract.
+- Provides two methods:
+  - `storeMessage()`: simulates writing data.
+  - `getMessage()`: simulates reading data.
+- Keeps things simple while preserving the project structure required by real Midnight apps.
+
+2. Create `src/index.ts` to serve as your application entry point:
+
+```bash
+touch src/index.ts
+```
+
+Add the following code:
+
+```typescript title="index.ts"
+import { MessageClient } from "./message-client";
+
+async function main() {
+  console.log("🚀 Starting Midnight Message App...");
+
+  const client = new MessageClient();
+
+  console.log("📝 Storing message...");
+  await client.storeMessage("Hello Midnight!");
+
+  console.log("📖 Reading message...");
+  const message = await client.getMessage();
+  console.log("✅ Message:", message);
+}
+
+main().catch(console.error);
+```
+
+This file boots your Midnight app, creates an instance of `MessageClient`, calls the store and retrieve functions, and prints the results in your terminal.
+
+3. Run the app with Bun:
+
+```bash
+bun run --hot src/index.ts
+```
+
+### Known limitations and workarounds {#known-limitations-and-workarounds}
+
+While Bun offers significant performance improvements, there are some limitations you should be aware of when building Midnight applications.
+
+**Native module compatibility.** Some npm packages with native Node.js addons may not work correctly with Bun. Workaround:
+
+```bash
+# If a package fails, try running it with Node.js compatibility mode
+bun --bun run your-script.ts
+
+# Or fall back to Node.js for specific scripts
+node your-script.js
+```
+
+**Package manager lock files.** Mixing Bun and npm in the same project can cause conflicts with lock files. Workaround:
+
+```bash
+# Pick one and stick with it. If using Bun, remove npm files
+rm package-lock.json
+
+# If using npm, remove Bun files
+rm bun.lock
+```
+
+:::tip
+Choose one package manager for your project and have your team use only that one.
+:::
+
+**Environment variables.** Bun automatically handles `.env` files, which might cause unexpected behavior if you're using other environment variable tools. Workaround:
+
+```bash
+# Bun loads .env automatically, no library needed. If you need to disable this:
+bun --env-file= run your-script.ts
+
+# Or specify a different env file:
+bun --env-file=.env.production run your-script.ts
+```
+
+### Migrate an existing project from npm to Bun {#migration-guide-npm--bun}
+
+If your Midnight project was originally set up using Node.js and npm, you can migrate to Bun with a few steps.
+
+1. Make sure Bun is installed on your system:
+
+```bash
+bun --version
+```
+
+If not found, [install Bun](#install-bun).
+
+2. Remove npm artifacts:
+
+```bash
+cd your-midnight-project
+rm -rf node_modules package-lock.json
+```
+
+:::warning
+Back up your `package-lock.json` first if you need to revert.
+:::
+
+3. Install dependencies with Bun:
+
+```bash
+bun install
+```
+
+4. Verify the migration by testing that your application works correctly with Bun:
+
+```bash
+bun run dev
+```
+
+## Troubleshoot {#troubleshoot-common-issues}
+
+1. Module not found errors
+
+Problem:
+
+```bash
+bun run --hot src/index.ts
+```
+
+Cannot find module `'@midnight-ntwrk/compact-runtime'`
+
+Solution:
+
+```bash
+bun add @midnight-ntwrk/compact-runtime@0.16.0
+```
+
+2. Version mismatch errors
+
+Problem:
+
+```bash
+CompactError: Version mismatch: compiled code expects 0.16.0, runtime is 0.9.0
+```
+
+:::note
+The Compact compiler and runtime versions must match exactly. Always check [version compatibility](../relnotes/support-matrix) before compiling.
+:::
+
+Solution:
+
+Install the matching runtime version:
+
+```bash
+bun add @midnight-ntwrk/compact-runtime@0.16.0
+```
+
+Then recompile your smart contracts:
+
+```bash
+compact compile contracts/message.compact contracts/managed
+```
+
+3. Compact compiler language version errors
+
+Problem:
+
+```bash
+Exception: message.compact line 1 char 1:
+  language version 0.22.0 mismatch
+```
+
+Solution:
+
+Update your smart contract to use the exact language version:
+
+```compact
+pragma language_version 0.23;
+```
+
+:::note
+Using an exact version number (such as 0.23) instead of a range prevents compatibility issues with different compiler versions.
+:::
+
+4. Compact compiler installation issues
+
+Problem:
+
+The Compact compiler fails to install or doesn't work after installation.
+
+Solutions:
+
+- Verify the installer script ran successfully:
+
+```bash
+compact --version
+```
+
+- If the command isn't found, manually add it to your `PATH`:
+
+```bash
+export PATH="$HOME/.compact/bin:$PATH"
+```
+
+- Try reinstalling:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/midnightntwrk/compact/releases/latest/download/compact-installer.sh | sh
+```
+
+## Next steps {#next-steps}
+
+Your environment is ready. Before you can deploy anything, your wallet needs test tokens to pay for transactions:
+
+- [Fund your wallet](./acquire-tokens) with tNIGHT and tDUST.
+- Prefer to start with the language instead? Write your first contract with the [hello world](../getting-started/hello-world) tutorial.
