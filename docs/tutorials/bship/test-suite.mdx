@@ -59,7 +59,7 @@ Populate the file:
     "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
     "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
     "@midnight-ntwrk/testkit-js": "4.1.1",
-    "@midnight-ntwrk/wallet-sdk": "1.0.0",
+    "@midnight-ntwrk/wallet-sdk": "1.2.0",
     "axios": "^1.13.6",
     "pino": "^9.0.0",
     "pino-pretty": "^13.0.0",
@@ -118,7 +118,7 @@ Populate it:
 ```yml
 services:
   proof-server:
-    image: 'midnightntwrk/proof-server:8.0.3'
+    image: 'midnightntwrk/proof-server:8.1.0'
     command: ['midnight-proof-server', '-v']
     ports:
       - '127.0.0.1:6300:6300'
@@ -132,7 +132,7 @@ services:
       start_period: 10s
 
   indexer:
-    image: 'midnightntwrk/indexer-standalone:4.0.1'
+    image: 'midnightntwrk/indexer-standalone:4.3.3'
     ports:
       - '127.0.0.1:8088:8088'
     environment:
@@ -143,6 +143,8 @@ services:
       APP__INFRA__PUB_SUB__PASSWORD: 'indexer'
       APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: 'indexer'
       APP__INFRA__SECRET: '303132333435363738393031323334353637383930313233343536373839303132'
+      APP__INFRA__SPO_NODE__URL: 'ws://node:9944'
+      APP__INFRA__SPO_NODE__BLOCKFROST_ID: 'e2e-test-dummy-id'
     healthcheck:
       test: ['CMD-SHELL', 'cat /var/run/indexer-standalone/running']
       interval: 10s
@@ -154,7 +156,7 @@ services:
         condition: service_healthy
 
   node:
-    image: 'midnightntwrk/midnight-node:0.22.5'
+    image: 'midnightntwrk/midnight-node:1.0.0'
     ports:
       - '127.0.0.1:9944:9944'
     healthcheck:
@@ -227,21 +229,6 @@ touch wallet.ts
 
 Populate the file:
 ```typescript
-// This file is part of example-battleship.
-// Copyright (C) Midnight Foundation
-// SPDX-License-Identifier: Apache-2.0
-// Licensed under the Apache License, Version 2.0 (the "License");
-// You may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// https://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 import {
   type CoinPublicKey,
   DustSecretKey,
@@ -250,13 +237,17 @@ import {
   LedgerParameters,
   ZswapSecretKeys,
 } from '@midnight-ntwrk/midnight-js-protocol/ledger';
-import {
-  type MidnightProvider,
-  type UnboundTransaction,
-  type WalletProvider,
+import type {
+  MidnightProvider,
+  UnboundTransaction,
+  WalletProvider,
 } from '@midnight-ntwrk/midnight-js-types';
 import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
-import { type WalletFacade, type FacadeState } from '@midnight-ntwrk/wallet-sdk-facade';
+import type {
+  WalletFacade,
+  FacadeState,
+  UnshieldedKeystore,
+} from '@midnight-ntwrk/wallet-sdk';
 import {
   type DustWalletOptions,
   type EnvironmentConfiguration,
@@ -265,17 +256,23 @@ import {
 import * as Rx from 'rxjs';
 import type { Logger } from 'pino';
 
+export type WalletSecret =
+  | { kind: 'seed'; value: string }
+  | { kind: 'mnemonic'; value: string };
+
 export class MidnightWalletProvider implements MidnightProvider, WalletProvider {
   readonly wallet: WalletFacade;
+  readonly unshieldedKeystore: UnshieldedKeystore;
 
   private constructor(
     private readonly logger: Logger,
-    private readonly env: EnvironmentConfiguration,
     wallet: WalletFacade,
     private readonly zswapSecretKeys: ZswapSecretKeys,
     private readonly dustSecretKey: DustSecretKey,
+    unshieldedKeystore: UnshieldedKeystore,
   ) {
     this.wallet = wallet;
+    this.unshieldedKeystore = unshieldedKeystore;
   }
 
   getCoinPublicKey(): CoinPublicKey {
@@ -317,7 +314,7 @@ export class MidnightWalletProvider implements MidnightProvider, WalletProvider 
   static async build(
     logger: Logger,
     env: EnvironmentConfiguration,
-    seed: string,
+    secret: WalletSecret,
   ): Promise<MidnightWalletProvider> {
     const dustOptions: DustWalletOptions = {
       ledgerParams: LedgerParameters.initialParameters(),
@@ -325,27 +322,34 @@ export class MidnightWalletProvider implements MidnightProvider, WalletProvider 
       feeBlocksMargin: 5,
     };
 
-    const builder = FluentWalletBuilder.forEnvironment(env)
+    const base = FluentWalletBuilder.forEnvironment(env)
       .withDustOptions(dustOptions);
+    const builder =
+      secret.kind === 'mnemonic'
+        ? base.withMnemonic(secret.value)
+        : base.withSeed(secret.value);
 
-    const buildResult = await builder.withSeed(seed).buildWithoutStarting();
-    const { wallet, seeds } = buildResult as {
+    const buildResult = await builder.buildWithoutStarting();
+    const { wallet, seeds, keystore } = buildResult as {
       wallet: WalletFacade;
       seeds: {
         masterSeed: string;
         shielded: Uint8Array;
         dust: Uint8Array;
       };
+      keystore: UnshieldedKeystore;
     };
 
-    logger.info(`Wallet built from seed: ${seeds.masterSeed.slice(0, 8)}...`);
+    logger.info(
+      `Wallet built from ${secret.kind}; master seed: ${seeds.masterSeed.slice(0, 8)}...`,
+    );
 
     return new MidnightWalletProvider(
       logger,
-      env,
       wallet,
       ZswapSecretKeys.fromSeed(seeds.shielded),
       DustSecretKey.fromSeed(seeds.dust),
+      keystore,
     );
   }
 }
@@ -481,9 +485,9 @@ import pino from 'pino';
 import { submitCallTx, deployContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import type { ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
-import type { EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
+import { type EnvironmentConfiguration, waitForFunds } from '@midnight-ntwrk/testkit-js';
 import { getConfig } from '../config.js';
-import { MidnightWalletProvider, syncWallet } from '../wallet.js';
+import { MidnightWalletProvider, syncWallet, type WalletSecret } from '../wallet.js';
 import { buildProviders, type BattleshipProviders } from '../providers.js';
 import {
     CompiledBattleshipContract,
