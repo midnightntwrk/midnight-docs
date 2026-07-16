@@ -187,6 +187,46 @@ curl -X POST \
   https://rpc.preview.midnight.network/
 ```
 
+## Subscribe to new blocks {#subscribe-to-new-blocks}
+
+For subscriptions, connect over WebSocket. Midnight nodes are Substrate-based, so the [`@polkadot/api`](https://polkadot.js.org/docs/api/) library works out of the box (`npm install @polkadot/api`):
+
+```typescript
+import { ApiPromise, WsProvider } from '@polkadot/api';
+
+// Define the WebSocket endpoint for the Midnight node
+const wsProvider = new WsProvider('wss://rpc.preview.midnight.network');
+
+// Create the API instance
+const api = await ApiPromise.create({ provider: wsProvider });
+
+// Subscribe to new block headers
+api.rpc.chain.subscribeNewHeads(async (lastHeader) => {
+  const blockHash = await api.rpc.chain.getBlockHash(lastHeader.number);
+  const signedBlock = await api.rpc.chain.getBlock(blockHash);
+  const allEvents = await api.query.system.events.at(blockHash);
+
+  console.log(`\nBlock #${lastHeader.number}`);
+
+  signedBlock.block.extrinsics.forEach((extrinsic, index) => {
+    console.log(`\nExtrinsic ${index}: ${extrinsic.method.section}.${extrinsic.method.method}`);
+    console.log(`Arguments: ${extrinsic.args.map((arg) => arg.toString()).join(', ')}`);
+  });
+
+  allEvents.forEach(({ event, phase }, index) => {
+    console.log(`\nEvent ${index}: ${event.section}.${event.method}`);
+    console.log(`Phase: ${phase.toString()}`);
+    console.log(`Data: ${event.data.toString()}`);
+  });
+});
+```
+
+The callback fires once per block, retrieves the full block and its associated events, and logs each extrinsic (transaction) and event.
+
+:::tip Querying contract state?
+Raw RPC subscriptions are a node-level tool. If your DApp needs contract state or transaction data, use the Midnight indexer's GraphQL API instead, via [`indexerPublicDataProvider`](/guides/local-to-testnet#publicdataprovider).
+:::
+
 ## Insomnia API collection
 
 The Insomnia collection provides pre-configured requests for interacting with Midnight RPC endpoints.
