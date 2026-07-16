@@ -195,6 +195,10 @@ const config = {
             to: '/tutorials',
           },
           {
+            from: '/category/guides',
+            to: '/guides',
+          },
+          {
             from: '/category/contracts',
             to: '/examples/contracts',
           },
