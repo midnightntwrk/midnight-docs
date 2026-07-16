@@ -13,8 +13,7 @@ const COMPACT_ROUTE_PATTERNS: RegExp[] = [
   new RegExp(`^\\/${VERSION_PREFIX}api-reference\\/compact-runtime(?:\\/|$)`),
 
   // Guides that should use the Compact logo.
-  new RegExp(`^\\/${VERSION_PREFIX}guides\\/compact-javascript-runtime(?:\\/|$)`),
-  new RegExp(`^\\/${VERSION_PREFIX}guides\\/use-compact-javascript-implementation(?:\\/|$)`),
+  new RegExp(`^\\/${VERSION_PREFIX}guides\\/work-with-compiled-contract(?:\\/|$)`),
   // Compact category pages at root and versioned paths.
   new RegExp(
     `^\\/${VERSION_PREFIX}category\\/(?:reference|compilation-and-tooling|data-types|standard-library)(?:\\/|$)`
