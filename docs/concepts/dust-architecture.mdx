@@ -18,7 +18,7 @@ Unlike standard cryptocurrencies where you have a static balance (for example, "
 
 ## DUST and network usage
 
-Dust operates similarly to, but separately from, [Zswap](https://github.com/midnightntwrk/midnight-ledger/blob/main/spec/zswap.md). Dust operates as the resource credit system for Midnight. It function
+DUST operates similarly to, but separately from, [Zswap](https://github.com/midnightntwrk/midnight-ledger/blob/main/spec/zswap.md), and serves as the resource credit system for Midnight. It has the following properties:
 
 - **Shielded and non-transferable**: DUST is a shielded capacity resource *only* for gas. You cannot transfer DUST between users.
 - **Dynamic capacity**: The available gas in a DUST UTXO is dynamically computed and derived from an associated NIGHT UTXO.
@@ -83,6 +83,23 @@ flowchart TD
 ```
 
 The rate of generation depends on the amount of NIGHT held ($N$), the ratio of the DUST cap to NIGHT held ($\rho$), and "time to cap" ($\Delta$).
+
+#### Generation rate and capacity
+
+Two ledger parameters govern how fast DUST accrues and how much can accumulate (their initial values appear in [Initial DUST parameters](#initial-dust-parameters) below):
+
+- `generation_decay_rate`: the Specks of DUST generated per Star of backing NIGHT per second.
+- `night_dust_ratio`: the maximum Specks of DUST per Star of backing NIGHT.
+
+For a NIGHT UTXO of value $N$ Stars, at $t$ seconds after its creation, the associated DUST value in Specks is the smaller of $N \times g \times t$ and $N \times \rho$, where $g$ is `generation_decay_rate` and $\rho$ is `night_dust_ratio`.
+
+Because both the rate and the cap scale linearly with $N$, the time to reach capacity is the same for any amount of NIGHT: $\Delta = \rho \div g = 5 \times 10^9 \div 8267 \approx 604800$ seconds, which is where the "about one week" generation time comes from.
+
+For example, suppose you hold a single NIGHT UTXO of 100 NIGHT ($10^8$ Stars) with a registered DUST address:
+
+- Your DUST balance grows by about 830 billion Specks per second — roughly 0.00083 DUST per second, or 71 DUST per day.
+- It reaches its cap after about a week, at 500 DUST in total — 5 DUST per NIGHT.
+- Splitting the same 100 NIGHT across several UTXOs changes nothing in total: each UTXO generates and caps in proportion to its value.
 
 #### Spending rules
 
@@ -171,10 +188,16 @@ struct DustActions<S, P> {
 
 ### Registrations and fees
 
-`DustRegistration` links a NIGHT key to a DUST key.
+`DustRegistration` links a NIGHT key to a DUST key. Registrations happen sequentially.
 
-  * Registrations happen sequentially.
-  * If a registration transaction uses NIGHT inputs that *were not yet generating DUST* (meaning that they had no previous registration), the system can "backdate" the registration to use the DUST those inputs *would have generated* to pay for the gas.
+A first-time registration faces a bootstrap problem: the transaction itself costs DUST, but a wallet cannot hold DUST until it is registered. The ledger resolves this with *retroactive generation*. NIGHT UTXOs that are not yet generating DUST (their key has no previous registration) have already "virtually" accrued DUST under the same rate and cap formula as registered UTXOs, counted from each UTXO's creation time. A registration can declare a fee allowance (`allow_fee_payment`) to draw on that retroactive DUST and pay for its own gas — no pre-existing DUST or second wallet required.
+
+Two constraints apply to the self-funded path:
+
+- Only the not-yet-generating NIGHT UTXOs *spent in the registration transaction's guaranteed section* count toward the retroactive allowance, and the declared allowance must not exceed what those inputs have accrued. A transaction that requests more fails validation with `InsufficientDustForRegistrationFee`.
+- Because retroactive DUST accrues from each UTXO's creation time, a freshly received NIGHT UTXO has accrued almost nothing. If the retroactive DUST cannot yet cover the registration fee, wait for more to accrue or fund the fee from an already-registered wallet.
+
+Respending NIGHT UTXOs after registration re-creates them as generating UTXOs under the new registration, which is why registration transactions typically self-spend the wallet's NIGHT: ongoing DUST generation starts from that respend.
 
 ## Generate DUST
 
@@ -313,6 +336,6 @@ flowchart TD
 
 ## Next steps
 
-Now that you have an overview of DUST, checkout the [DUST spec](https://github.com/midnightntwrk/midnight-ledger/blob/main/spec/dust.md) on GitHub.
+Now that you have an overview of DUST, review the [DUST spec](https://github.com/midnightntwrk/midnight-ledger/blob/main/spec/dust.md) on GitHub.
 
 Get involved in [the code](https://raw.githubusercontent.com/midnightntwrk/midnight-node/refs/heads/main/primitives/mainchain-follower/src/data_source/cnight_observation.rs) on GitHub.
