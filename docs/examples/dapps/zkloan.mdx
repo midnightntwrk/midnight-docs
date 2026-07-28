@@ -36,7 +36,7 @@ zkloan-credit-scorer/
 │       ├── schnorr.compact                # In-circuit signature verification
 │       └── witnesses.ts                   # Private state (TypeScript)
 ├── zkloan-credit-scorer-cli/              # Interactive CLI (deploy + transact)
-│   ├── src/{api,cli,address-utils,...}.ts
+│   ├── src/{api,cli,...}.ts
 │   └── standalone.yml                     # Local node + indexer + proof server
 ├── zkloan-credit-scorer-attestation-api/  # REST server signing credit data
 │   └── src/{signing,server,index}.ts
@@ -49,23 +49,27 @@ zkloan-credit-scorer/
 - **Node.js** v22 or newer — the SDK uses Iterator helpers, so Node 20 crashes at first sync
 - **npm** v10 or newer
 - **Docker and Docker Compose** — for the local standalone network
-- **Compact toolchain** — install with the `compact` devtool, then run `compact update` and verify with `compact compile --version` (last validated against `0.31.0`)
+- **Compact toolchain** — install with the `compact` devtool, then run `compact update` and verify with `compact compile --version` (last validated against `0.31.1`)
 - **Midnight Lace wallet** — for the Preprod (remote) flow only; see the [installation guide](/getting-started/installation)
 
 **Versions targeted** — the repo pins ledger v8 and the 4.x Midnight JS SDK:
 
 | Component | Version |
 | --- | --- |
-| `@midnight-ntwrk/ledger-v8` | `8.0.3` |
+| `@midnight-ntwrk/midnight-js-protocol` (provides the `/ledger`, `/compact-runtime`, `/compact-js` subpaths) | `4.1.1` |
+| ↳ wrapped ledger (`@midnight-ntwrk/midnight-js-protocol/ledger`) | `8.1.0` |
 | `@midnight-ntwrk/compact-runtime` | `0.16.0` |
-| `@midnight-ntwrk/compact-js` | `2.5.0` |
-| `@midnight-ntwrk/midnight-js-*` | `4.0.4` |
-| `@midnight-ntwrk/wallet-sdk-facade` / `dust-wallet` / `hd` | `3.0.0` |
-| `@midnight-ntwrk/wallet-sdk-shielded` / `unshielded-wallet` | `2.1.0` |
+| `@midnight-ntwrk/midnight-js-*` | `4.1.1` |
+| `@midnight-ntwrk/dapp-connector-api` | `4.0.1` |
+| `@midnight-ntwrk/wallet-sdk` (single barrel — replaces `-facade`/`-hd`/`-shielded`/`-dust-wallet`/`-unshielded-wallet`) | `1.2.0` |
+| `@midnight-ntwrk/wallet-sdk-address-format` | `3.1.2` |
+| Compact toolchain (`compact compile`) | `0.31.1` |
 | Compact language pragma | `>= 0.22 && <= 0.23` |
-| Proof-server image | `midnightntwrk/proof-server:8.0.3` |
-| Indexer image | `midnightntwrk/indexer-standalone:4.0.1` |
-| Node image | `midnightntwrk/midnight-node:0.22.3` |
+| Proof-server image | `midnightntwrk/proof-server:8.1.0` |
+| Indexer image | `midnightntwrk/indexer-standalone:4.3.3` |
+| Node image | `midnightntwrk/midnight-node:1.0.0` |
+
+Keep `@midnight-ntwrk/wallet-sdk` pinned exactly — npm's `latest` dist-tag still resolves to `1.1.0`, so a caret range or a fresh `npm install @midnight-ntwrk/wallet-sdk` gives you the older release.
 
 ## Set it up
 
@@ -121,7 +125,7 @@ cd zkloan-credit-scorer-cli
 docker compose -f standalone.yml up -d
 ```
 
-Services come up on `ws://127.0.0.1:9944` (node), `http://127.0.0.1:8088` (indexer), `http://127.0.0.1:6300` (proof server). Wait ~15–20s for the node to become healthy: `docker compose -f standalone.yml ps`.
+Services come up on `ws://127.0.0.1:9944` (node), `http://127.0.0.1:8088` (indexer), `http://127.0.0.1:6300` (proof server). Wait ~15–20s for the node to become healthy: `docker compose -f standalone.yml ps`. On a brand-new chain the indexer can exit once if it connects before the node produces its first block — `standalone.yml` sets `restart: on-failure` so it recovers on its own; give it a restart or two before assuming something is wrong.
 
 ### 5. Start the attestation API
 
@@ -130,7 +134,7 @@ The attestation API signs credit data with a Schnorr signature on Jubjub; the co
 ```bash
 # Terminal B — leave it open
 cd zkloan-credit-scorer-attestation-api
-PROVIDER_SECRET_KEY="$(node -e 'console.log(require(\"crypto\").randomBytes(32).toString(\"hex\"))')" \
+PROVIDER_SECRET_KEY="$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')" \
 PORT=4000 \
 npm run dev
 ```
@@ -151,7 +155,7 @@ npm run standalone
 
 The CLI uses a pre-funded hex seed against the local `undeployed` network, so no faucet or wallet extension is required.
 
-**Option B — Preprod (remote)** — Requires a 24-word BIP-39 mnemonic for a Preprod wallet funded with tDUST from the Preprod faucet, plus a local proof server on port `6300` (already running if you did step 4; otherwise `docker run --rm -p 6300:6300 midnightntwrk/proof-server:8.0.3 midnight-proof-server -v`):
+**Option B — Preprod (remote)** — Requires a 24-word BIP-39 mnemonic for a Preprod wallet funded from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/), plus a local proof server on port `6300` (already running if you did step 4; otherwise `docker run --rm -p 6300:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v`):
 
 ```bash
 # Add WALLET_MNEMONIC="…" to zkloan-credit-scorer-cli/.env first
@@ -180,7 +184,7 @@ npm run build            # production bundle
 To connect:
 
 1. Install the Midnight Lace wallet extension and switch it to the Preprod network.
-2. Fund the wallet with tDUST from the Preprod faucet.
+2. Fund the wallet from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/).
 3. Make sure steps 5 and 6 (Preprod option) have already run — the attestation API is up, a Preprod contract is deployed, and the provider is registered on it.
 4. Open the UI, click **Connect Lace wallet**, then paste the contract address into **01 · Contract** and click **Connect**.
 
