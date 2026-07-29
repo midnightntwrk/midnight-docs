@@ -7,95 +7,81 @@ sidebar_position: 1
 
 # Midnight Expert
 
-Midnight Expert is a suite of Claude Code plugins for developers building on Midnight. It helps you write and review Compact smart contracts, scaffold and wire up DApp frontends, manage your local toolchain and devnet, and verify claims about your code against the real source, all from inside your editor.
+Midnight Expert is a suite of Claude Code plugins for building on Midnight. It works as a human-in-the-loop coding assistant: you steer and approve while it writes and reviews Compact, scaffolds DApps, and checks its own output against the real compiler and source, so you get working code instead of hallucinations. It is built as Claude Code plugins today.
 
-The design goal is to stay out of your way. Once it is installed, you rarely invoke anything by hand. As you describe what you are building, the relevant plugins and skills activate on their own. It is a coding assistant that keeps you in the loop, and its main benefit over a plain assistant is that it verifies its own work, which sharply reduces hallucinated code.
-
-Midnight Expert is built as Claude Code plugins today. Support for more assistants is on the way.
+This quick start takes you from install to your first compiled contract in a few minutes.
 
 ## Prerequisites
 
 - Claude Code (the CLI or an IDE extension).
 - macOS or Linux. On Windows, run everything inside [WSL2](https://learn.microsoft.com/windows/wsl/).
 - `jq` and the GitHub CLI. The installer checks for these and helps you install any that are missing.
+- The Compact toolchain. If you do not have it yet, Step 2 sets it up so Step 3 can compile.
 
-## Install
+## Step 1: Install
 
-Pick whichever method fits your workflow. If you are not sure, use the guided installer.
-
-### Guided installer
-
-Run this in your terminal and follow the prompts. It registers the marketplace, enables the plugins, and checks that everything it needs is in place.
+Run the guided installer. It registers the marketplace, enables the plugins, and checks that everything it needs is in place.
 
 ```bash
 curl -fsSL https://midnightntwrk.expert/install.sh | bash
 ```
 
-### From inside Claude Code
-
-1. Run `/plugin` to open the plugin manager.
-2. Choose **Add marketplace** and paste `https://midnightntwrk.expert`.
-3. Use **Browse plugins** to enable the plugins you want.
-
-### From the command line
-
-```bash
-claude plugin marketplace add https://midnightntwrk.expert
-```
-
-:::info[Restart after a mid-session install]
-Slash commands from a plugin installed mid-session only appear after you restart Claude Code. Skills and agents activate right away.
+:::info[Other install methods]
+You can also add the marketplace from inside Claude Code by running `/plugin` and pasting `https://midnightntwrk.expert`, or from the command line with `claude plugin marketplace add https://midnightntwrk.expert`. Slash commands from a plugin installed mid-session only appear after you restart Claude Code; skills and agents activate right away.
 :::
 
-## Verify your setup
+## Step 2: Check your setup
 
-Run `/midnight-expert:doctor` to confirm your environment is ready. It reports on plugin installation, external tools, and connectivity, and can fix common problems.
+Run `/midnight-expert:doctor` to confirm your environment is ready. It reports on plugin installation, external tools, and connectivity. If it flags a missing Compact CLI or proof server, ask your assistant to install it, then run doctor again.
 
-## Try it
+## Step 3: Your first verified result
 
-Most of the time you describe what you want and the right plugin activates on its own. Some starting points across common tasks:
+Open Claude Code in an empty folder and type:
 
-| You want to | Ask your assistant |
-| :--- | :--- |
-| Write a contract without hallucinated syntax | "Write a Compact contract for a sealed-bid voting system and walk me through the disclosure rules." |
-| Scaffold a DApp frontend | "Scaffold a Vite and React DApp wired to my counter contract and connect it to the Lace wallet." |
-| Check your local stack | "Is my local proof server healthy, and is the indexer caught up to the node?" |
-| Understand a rejected transaction | "My transaction was rejected with code 166. What does that mean?" |
-| Fix a privacy error | "I'm getting a potential witness-value disclosure error. What does it mean, and how do I fix it?" |
-| Review before you push | "Review `contracts/Report.compact` for potential privacy leaks before I push." |
+> Write a minimal Compact counter contract in `contracts/Counter.compact` and compile it.
 
-Because the assistant checks its own output against the real Compact compiler, SDK, and source before showing it to you, you get working code instead of code that only looks right. You can also verify a claim yourself, for example `/midnight-verify:verify "Compact tuples are 0-indexed"`.
+Here is what happens:
 
-If you prefer to invoke a workflow directly, the slash commands are there too:
+1. The plugins steer the assistant to work from checked Compact knowledge and the real compiler rather than its training data, which is unreliable for Compact.
+2. It writes `Counter.compact`: a `Counter` ledger field, an `increment` circuit, and a `read` circuit that returns the value.
+3. It compiles the file with the real Compact CLI. If it tries to finish without compiling a contract it just wrote or changed, a check catches that and prompts it to compile first.
+4. If the compile fails, it reads the actual compiler error, fixes the source, and compiles again.
+
+**What you see:** a `Counter.compact` file in your repo and a successful compile, with the generated TypeScript types and ZK artifacts in the output directory. You went from a one-line prompt to a contract that compiles.
+
+To watch the verification directly, ask the assistant to check a fact:
 
 ```text
-/midnight-tooling:devnet start
-/midnight-status-codes:lookup 166
-/midnight-verify:verify "Compact tuples are 0-indexed"
-/midnight-expert:doctor
+/midnight-verify:verify "A Compact Counter ledger field supports increment and read"
 ```
 
-## How verification works
+It compiles and runs a tiny test contract, then returns Confirmed, Refuted, or Inconclusive with the evidence.
 
-Verification is what separates Midnight Expert from a plain assistant. When it writes Compact or works with the SDK, it compiles the code with the real Compact CLI, runs it, and checks the result against the compiler, the generated types, and the upstream source. Claims about behavior, error codes, or protocol details are checked against that source too. When something does not hold, it corrects the code and checks again, so what reaches you reflects the code that actually compiles and runs.
+:::tip[If something breaks]
+If a compile fails or the assistant seems to be guessing, run `/midnight-expert:doctor` for the ecosystem, and `/midnight-tooling:doctor` for the Compact CLI itself.
+:::
 
-## What is inside
+## Next steps
 
-Midnight Expert bundles plugins grouped by what you are doing:
+Pick the path that matches what you are building. Describe the goal in plain language and the right plugin activates on its own.
 
-- **Smart contract development.** Write, review, and debug Compact, work from compilable examples, and scaffold a contract CLI.
-- **DApp development.** Scaffold a React frontend and wire it to your contract and the Lace wallet.
-- **Testing and code quality.** Linting, type-checking, and testing for contracts, DApps, and wallet code.
-- **Toolchain and infrastructure.** Install the Compact CLI, run a local devnet, work with the proof server, and look up any error code.
-- **Knowledge and concepts.** Architecture, privacy patterns, tokenomics, and zero-knowledge proofs, explained on demand.
+- **Smart contracts.** "Write a Compact contract for a sealed-bid voting system and walk me through the disclosure rules." More in the [compact-core README](https://github.com/devrelaicom/midnight-expert/tree/main/plugins/compact-core).
+- **DApp frontends.** "Scaffold a Vite and React DApp wired to my counter contract and connect it to the Lace wallet." More in the [midnight-dapp-dev README](https://github.com/devrelaicom/midnight-expert/tree/main/plugins/midnight-dapp-dev).
 
-Every plugin ships a detailed README covering its skills, agents, and commands. Rather than repeat that here, browse them at the source.
+Also worth trying:
+
+- Run a local devnet and check its health: "Is my local proof server healthy, and is the indexer caught up to the node?"
+- Look up any error code: "My transaction was rejected with code 166. What does that mean?"
+- Review your own contract before you push: "Review `contracts/Report.compact` for potential privacy leaks before I push."
+
+For the full set of plugins, skills, and agents, browse the [marketplace](https://midnightntwrk.expert/) or the [GitHub repository](https://github.com/devrelaicom/midnight-expert). Each plugin ships a detailed README.
 
 ## Go deeper
 
-- [Midnight Expert marketplace](https://midnightntwrk.expert/): install instructions, an overview, and every plugin.
+- [Midnight Expert marketplace](https://midnightntwrk.expert/): install instructions and an overview.
 - [GitHub repository](https://github.com/devrelaicom/midnight-expert): source, per-plugin READMEs, and issues.
-- Run `/midnight-expert:doctor` anytime to recheck your setup.
+- File a bug or request with `/midnight-expert:feedback`.
+- Show proof server and Compact CLI status in your status bar with `/midnight-tooling:install-statusline-script`.
 
 :::tip[Get updates sooner]
 Updates reach the marketplace 3 to 5 days after they merge, which gives the community time to test them. To live on the bleeding edge, use the GitHub repository `devrelaicom/midnight-expert` as your marketplace address instead.
