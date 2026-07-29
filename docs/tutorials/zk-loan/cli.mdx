@@ -13,7 +13,7 @@ tags: [tutorials, advanced, zero-knowledge, loan, dapp]
 
 The smart contract is compiled. The attestation API can sign credit data. The proof server can generate zero-knowledge (ZK) proofs. Now you need a way to talk to all three.
 
-In [Part 1](./smart-contract), you built the Compact smart contract and witness layer. In [Part 2](./attestation-api), you built the attestation API and set up the proof server. This final part builds the CLI that ties everything together, then runs the full flow end-to-end on Midnight's Preprod network.
+In [Part 1](./smart-contract), you built the Compact smart contract and witness layer. In [Part 2](./attestation-api), you built the attestation API and set up the proof server. This final part builds the CLI that ties everything together, then runs the full flow end-to-end on a local Midnight network. The same CLI can target Midnight's Preprod network by switching a single environment variable.
 
 You will build two things:
 
@@ -27,14 +27,15 @@ You will build two things:
 - The compiled smart contract package should be in `contract/dist/`
 - The attestation API should be ready to start
 - The Docker proof server should be running on port `6300`
+- Node.js v22 or newer — on Node 20 the wallet appears to start but crashes during sync with `TypeError: state.pendingOutputs.values.map is not a function` (see the caution in [Part 1](./smart-contract))
 
 ## Build the CLI
 
-The CLI is a TypeScript application that orchestrates wallet operations, smart contract interactions, and attestation requests. It is structured as six files, each with a distinct responsibility.
+The CLI is a TypeScript application that orchestrates wallet operations, smart contract interactions, and attestation requests. It consists of seven files, each with a distinct responsibility.
 
 ### Configuration
 
-The CLI needs to know where to find the Midnight Preprod indexer, the blockchain node, and the local proof server. It also needs a path to the compiled circuit artifacts from [Part 1](./smart-contract).
+The CLI needs to know where to find the indexer, the blockchain node, and the proof server for whichever network it targets — Midnight's remote Preprod infrastructure or a local dev network. It also needs a path to the compiled circuit artifacts from [Part 1](./smart-contract).
 
 This configuration file centralizes all of those endpoints and paths in one place.
 
@@ -100,7 +101,7 @@ export class LocalDevConfig implements Config {
 }
 ```
 
-This is configured for Preprod and Local Dev. The indexer and node point to Midnight's remote infrastructure. The proof server points to the local Docker container you started in [Part 2](./attestation-api).
+This file covers both networks: `PreprodConfig` points the indexer and node at Midnight's remote infrastructure, while `LocalDevConfig` points them at a local stack. In both cases the proof server runs locally on port `6300` — the Docker container you started in [Part 2](./attestation-api) for Preprod, or the one bundled with [Midnight Local Dev](/guides/midnight-local-network).
 
 Key details:
 
@@ -339,7 +340,7 @@ Set `DEBUG_LEVEL=debug` in your environment for verbose output during developmen
 
 ### Core API implementation
 
-This is the core module that connects the CLI to the Midnight SDK. It handles four responsibilities: creating and funding wallets from BIP-39 mnemonics, deploying or joining smart contracts on Preprod, fetching Schnorr attestations from the API you built in [Part 2](./attestation-api), and wrapping each smart contract circuit call (loan requests, PIN changes, admin operations) in a function the interactive CLI can invoke. Because of its size, it is presented in logical sections with explanations between each block.
+This is the core module that connects the CLI to the Midnight SDK. It handles four responsibilities: creating and funding wallets from BIP-39 mnemonics, deploying or joining smart contracts on the configured network, fetching Schnorr attestations from the API you built in [Part 2](./attestation-api), and wrapping each smart contract circuit call (loan requests, PIN changes, admin operations) in a function the interactive CLI can invoke. Because of its size, this page presents it in logical sections with explanations between each block.
 
 Create `zkloan-credit-scorer-cli/src/api.ts` and add the following sections in order.
 
@@ -421,7 +422,7 @@ The `WebSocket` assignment is required because the Midnight SDK's GraphQL subscr
 :::note Two Midnight JS 4.1.x import changes
 
 - **Protocol packages go through the ACL package.** Hand-written imports for `ledger`, `compact-runtime`, `compact-js`, `onchain-runtime`, and `platform-js` are rewritten as subpath imports of the version-agnostic `@midnight-ntwrk/midnight-js-protocol` package (for example, `@midnight-ntwrk/midnight-js-protocol/compact-runtime`). Direct `@midnight-ntwrk/ledger-v8` and `@midnight-ntwrk/compact-js` imports no longer belong in application code.
-- **Wallet SDK collapses to a single barrel.** `wallet-sdk-facade`, `wallet-sdk-hd`, `wallet-sdk-shielded`, `wallet-sdk-dust-wallet`, and `wallet-sdk-unshielded-wallet` are re-exported from `@midnight-ntwrk/wallet-sdk` (1.1.0). Import one place, not five.
+- **Wallet SDK collapses to a single barrel.** `wallet-sdk-facade`, `wallet-sdk-hd`, `wallet-sdk-shielded`, `wallet-sdk-dust-wallet`, and `wallet-sdk-unshielded-wallet` are re-exported from `@midnight-ntwrk/wallet-sdk` (introduced in `1.1.0`; the repo pins `1.2.0` exactly, because npm's `latest` tag still resolves to `1.1.0`). Import one place, not five.
 
 Both changes require `tsconfig.json` with `moduleResolution` set to `bundler`, `node16`, or `nodenext` — the legacy `node` resolver cannot read the protocol package's `exports` subpath map. See the tsconfig block later in this section.
 
@@ -515,7 +516,7 @@ The code above defines three key exports:
 
 *   `zkLoanCompiledContract` combines three things: the generated TypeScript smart contract interface, the witness implementations from [Part 1](./smart-contract), and the compiled circuit assets (proving keys and ZKIR files).
 
-*   `deploy` creates a new instance of the smart contract on Preprod. This triggers a deployment transaction that includes a ZK proof — the proof server generates this, which takes about a minute.
+*   `deploy` creates a new instance of the smart contract on the configured network. This triggers a deployment transaction that includes a ZK proof — the proof server generates this, which takes about a minute.
 
 *   `joinContract` connects to an existing deployed smart contract by address. This is how a second user (or the same user in a new session) interacts with a smart contract deployed by someone else.
 
@@ -1158,7 +1159,7 @@ The wallet initialization derives three key roles from a single BIP-39 mnemonic:
 
 *   **Zswap**: Used for shielded (private) transactions and ZK proof generation
 
-*   **NightExternal**: Used for unshielded (transparent) operations like receiving tNIGHT from the faucet
+*   **NightExternal**: Used for unshielded (transparent) operations like receiving tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/)
 
 *   **DUST**: Used for generating DUST tokens that pay transaction fees
 
@@ -1629,7 +1630,7 @@ Each menu option maps to a flow function that prompts for input and calls the co
 
 ### Entry point
 
-The entry point initializes the Preprod configuration, creates the logger, and hands both to the CLI runner.
+The entry point picks the network configuration from the `NETWORK` environment variable (defaulting to Preprod), creates the logger, and hands both to the CLI runner.
 
 Create `zkloan-credit-scorer-cli/src/index.ts`:
 
