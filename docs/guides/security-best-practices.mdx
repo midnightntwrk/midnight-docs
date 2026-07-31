@@ -14,7 +14,7 @@ import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
 # Security and best practices
 
-This guide hardens a Compact contract against the threats a Midnight DApp faces. You authenticate callers, restrict who can run a circuit, enforce deadlines, and prevent replay. Each mitigation ends with a test you run to prove it holds: the authorized caller succeeds and the attacker's forged attempt fails.
+This guide hardens a Compact contract against the threats a Midnight DApp faces. You authenticate callers, restrict who can run a circuit, validate inputs, enforce deadlines, prevent replay, and let owners rotate keys. Each procedure ends with a test you run to prove it holds: the authorized caller succeeds and the attacker's forged attempt fails.
 
 Three adversaries shape every decision here. A **chain observer** reads everything on the public ledger. A **malicious prover** controls their own frontend and can supply any witness value, so only your circuit's `assert` statements constrain them. An **indexer operator** can read your shielded history if you hand over a viewing key. For the language-level security model behind these patterns, read [Smart contract security](../compact/smart-contract-security).
 
@@ -281,6 +281,105 @@ A membership proof hides you only among the other members. A tree with three lea
 
 :::
 
+## Validate inputs and arithmetic
+
+The task: never compute on unchecked inputs. Compact fails safe on arithmetic, but you still validate to enforce your domain rules and to fail with a clear message.
+
+<StepsProvider>
+<Step>
+
+### Know how arithmetic fails
+
+Compact does not silently wrap like some languages. A subtraction that would go negative aborts at runtime, and an addition widens its result type so it cannot silently overflow the field it is written to.
+
+```compact
+pragma language_version 0.23.0;
+import CompactStandardLibrary;
+
+export ledger balance: Uint<64>;
+
+constructor() { balance = 5; }
+
+export circuit unsafeSub(amount: Uint<64>): [] {
+  balance = balance - disclose(amount);
+}
+```
+
+Calling `unsafeSub(10)` on a balance of `5` aborts with `result of subtraction would be negative`, rather than wrapping to a huge number.
+
+:::note Addition widens its type
+
+`Uint<64> + Uint<64>` produces a wider type than `Uint<64>`, so `balance = balance + disclose(amount)` will not compile against a `Uint<64>` field. Handle the wider result deliberately: assert bounds and narrow it, as in `total = (total + amt) as Uint<64>` after `assert(amt <= CAP, ...)`. The compiler forces you to acknowledge the overflow rather than letting it happen silently.
+
+:::
+
+</Step>
+<Step>
+
+### Validate before you compute
+
+The runtime guard aborts with a generic message. Assert your own preconditions so failures are explicit and diagnosable, and to enforce domain rules the language cannot know (limits, non-zero recipients, valid state).
+
+```compact
+export circuit safeSub(amount: Uint<64>): [] {
+  const amt = disclose(amount);
+  assert(amt <= balance, "insufficient balance");
+  balance = balance - amt;
+}
+```
+
+For the full set of validation patterns, see [input validation and access control](../compact/smart-contract-security#input-validation-and-access-control).
+
+</Step>
+<Step>
+
+### Verify it works
+
+Confirm the underflow aborts, the guarded circuit gives a clear error, and a valid amount applies.
+
+```typescript title="arithmetic.test.ts"
+import { describe, it, expect } from 'vitest';
+import * as RT from '@midnight-ntwrk/compact-runtime';
+import { Contract, ledger } from '../managed/arithmetic/contract/index.js';
+
+const COIN = '0'.repeat(64);
+const ADDR = RT.sampleContractAddress();
+const fresh = () => {
+  const contract = new Contract({});
+  const ctor = contract.initialState(RT.createConstructorContext({}, COIN));
+  return { contract, ctx: RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, {}) };
+};
+
+describe('arithmetic safety', () => {
+  it('traps on subtraction underflow instead of wrapping', () => {
+    const { contract, ctx } = fresh();
+    expect(() => contract.impureCircuits.unsafeSub(ctx, 10n))
+      .toThrow('result of subtraction would be negative');
+  });
+  it('rejects an over-balance amount with a clear message', () => {
+    const { contract, ctx } = fresh();
+    expect(() => contract.impureCircuits.safeSub(ctx, 10n)).toThrow('insufficient balance');
+  });
+  it('applies a valid subtraction', () => {
+    const { contract, ctx } = fresh();
+    const r = contract.impureCircuits.safeSub(ctx, 3n);
+    expect(ledger(r.context.currentQueryContext.state).balance).toBe(2n);
+  });
+});
+```
+
+```text
+ ✓ arithmetic.test.ts > arithmetic safety > traps on subtraction underflow instead of wrapping
+ ✓ arithmetic.test.ts > arithmetic safety > rejects an over-balance amount with a clear message
+ ✓ arithmetic.test.ts > arithmetic safety > applies a valid subtraction
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+</Step>
+</StepsProvider>
+
 ## Enforce a deadline
 
 The task: allow an action only before a cutoff time. Compact exposes block time through four standard-library predicates, each taking a `Uint<64>` count of seconds since the epoch: `blockTimeLt`, `blockTimeLte`, `blockTimeGt`, and `blockTimeGte`.
@@ -466,6 +565,101 @@ The bulletin board tutorial shows the related **sequence counter** pattern, fold
 
 For **front-running**, the same commit-then-reveal idea protects ordering: publish a `persistentCommit(move, rand)` in one transaction and reveal the move in a second, so an observer sees only the commitment while front-running would be profitable. Protect the reveal with a nullifier or sequence counter, since it is itself an action that can be replayed.
 
+## Let owners rotate a key
+
+The task: give a key holder a way to move to a new key. The witness secret lives only in local private state, so if it is lost or compromised, the on-chain commitment is permanent. Build the rotation path before you need it.
+
+<StepsProvider>
+<Step>
+
+### Add a rotation circuit
+
+The current owner proves control with their secret, then writes a new owner commitment. The new owner generates their own secret locally and shares only the derived public value, so no secret ever crosses the wire.
+
+```compact
+export circuit rotateOwner(newOwner: Bytes<32>): [] {
+  assert(derivePublicKey(secretKey()) == owner, "not owner");
+  owner = disclose(newOwner);
+}
+```
+
+Export `derivePublicKey` so the incoming owner can compute their public value from their secret off-chain.
+
+</Step>
+<Step>
+
+### Verify it works
+
+After rotation, the new key acts and the old key no longer does.
+
+```typescript title="rotation.test.ts"
+import { describe, it, expect, beforeEach } from 'vitest';
+import * as RT from '@midnight-ntwrk/compact-runtime';
+import { Contract, pureCircuits } from '../managed/rotation/contract/index.js';
+
+const COIN = '0'.repeat(64);
+const ADDR = RT.sampleContractAddress();
+const key = (n) => { const a = new Uint8Array(32); a[31] = n; return a; };
+const OLD = key(1), NEW = key(2);
+
+describe('key rotation', () => {
+  let contract, ctx;
+  beforeEach(() => {
+    contract = new Contract({ secretKey: (w) => [w.privateState, w.privateState.sk] });
+    const ctor = contract.initialState(RT.createConstructorContext({ sk: OLD }, COIN));
+    ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { sk: OLD });
+    ctx = contract.impureCircuits.claimOwnership(ctx).context;
+    ctx = contract.impureCircuits.rotateOwner(ctx, pureCircuits.derivePublicKey(NEW)).context;
+  });
+
+  it('lets the new key act after rotation', () => {
+    expect(() => contract.impureCircuits.withdraw({ ...ctx, currentPrivateState: { sk: NEW } })).not.toThrow();
+  });
+  it('rejects the old key after rotation', () => {
+    expect(() => contract.impureCircuits.withdraw({ ...ctx, currentPrivateState: { sk: OLD } })).toThrow('not owner');
+  });
+});
+```
+
+```text
+ ✓ rotation.test.ts > key rotation > lets the new key act after rotation
+ ✓ rotation.test.ts > key rotation > rejects the old key after rotation
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+```
+
+</Step>
+</StepsProvider>
+
+:::warning There is no recovery by default
+
+A witness secret cannot be recovered from the chain. If the only holder of a role loses their secret and you provided no rotation path or backup, that role is locked permanently. Decide your recovery model before you deploy: multiple authorized keys, a recovery circuit gated on a separate secret, or a threshold of guardians.
+
+:::
+
+## Design for durable, bounded state
+
+Two long-term properties can slip past you while a contract still works in testing.
+
+**Store only durable hashes.** Compact offers persistent and transient variants of its hash and commitment functions. The transient variants (`transientHash`, `transientCommit`) are circuit-optimized, and their algorithm may change between compiler versions, so a value stored on-chain today may not match a recomputation after an upgrade. Use `persistentHash` and `persistentCommit` for anything written to the ledger, as every example above does. Reserve the transient variants for in-circuit intermediate values that never touch ledger state.
+
+**Bound your growth.** Ledger collections grow forever and every entry is public. A nullifier `Set` gains an entry on each action and never shrinks; a `Map` keyed by user grows with your user base. For a long-lived contract, scope that growth rather than accumulating without limit: derive nullifiers per epoch so old sets can be retired, or key state so it can expire. Design the bound in from the start, because you cannot retroactively shrink public state.
+
+## Prove without leaking private data
+
+Generating a zero-knowledge proof requires your private witness values. The proof server performs arithmetic directly over those values, so whichever proof server does the proving receives them in the clear. This trust boundary often goes unnoticed because the proof itself reveals nothing; the machine that builds it sees everything.
+
+- **Run the proof server locally.** The default setup runs a proof server on your own machine, in Docker on port 6300. Private inputs never leave the loopback interface, so no external party sees them. This is the safe default and the right choice for sensitive applications.
+- **A remote or shared proof server sees your private inputs.** If you point proving at a server you do not operate, its operator receives your full witness data in order to compute the proof. Transport encryption matters, but it is not the point here: HTTPS stops a network eavesdropper from reading the payload in transit, yet the operator still decrypts and processes your private values. Choosing a remote proof server is a trust decision about that operator, not a transport setting.
+- **Understand wallet-delegated proving.** With the DApp connector's proving provider, your DApp hands the built proof preimage to the wallet, which proves on the user's behalf using whatever proof server it is configured with. Your DApp still computes the witness values itself; delegation only moves the proving step. Know where the wallet ultimately proves before you rely on it.
+
+:::warning Send private inputs only to a proof server you trust
+
+Running the proof server locally keeps witness data on your machine. A remote or shared proof server sees that data in the clear to build the proof, and switching it to HTTPS does not change what the operator can see.
+
+:::
+
 ## Protect your viewing key
 
 Your contract logic is not the only attack surface. A viewing key is a wallet-level key, Bech32m-encoded and derived from your wallet seed separately from your spending key. It decrypts your shielded transaction data so software can display your balance and history, but it cannot spend.
@@ -483,11 +677,16 @@ Connecting to a hosted or third-party indexer gives that operator read access to
 Work through this list before mainnet:
 
 - [ ] **Assert every assumption about witness data.** A witness value you do not constrain is a value the prover chooses.
+- [ ] **Validate inputs before you compute.** Check bounds, ranges, non-zero values, and state preconditions, and handle the widened result of any addition.
 - [ ] **Test with a malicious private state.** Supply deliberately wrong witness values and confirm your asserts reject them, as each procedure above does. The [Battleship tutorial](../tutorials/bship/test-suite) shows a full adversarial suite.
 - [ ] **Audit every `disclose()`.** Confirm what becomes public, when, and that it is the minimum the circuit needs.
 - [ ] **Check your domain separators.** Every commitment and nullifier derivation uses a distinct domain string, and no commitment shares a domain with its nullifier.
+- [ ] **Store only durable hashes.** Anything written to the ledger uses `persistentHash` or `persistentCommit`, never the transient variants.
+- [ ] **Bound your state growth.** Confirm any `Set` or `Map` that grows per action has a retirement or expiry strategy.
 - [ ] **Confirm error messages leak nothing.** An assert message must not embed private state.
 - [ ] **Verify no salt is reused** across commitments.
+- [ ] **Provide a key-recovery path.** Confirm no role is permanently lockable by a single lost secret.
+- [ ] **Decide where you prove.** Confirm private witness inputs are only sent to a proof server you trust.
 - [ ] **Decide viewing-key handling.** Confirm no user viewing key is logged, transmitted, or persisted outside the wallet and its indexer.
 - [ ] **Decide your upgrade-key custody.** If the contract is upgradeable, distribute control across independent parties. See [Making a decision on contract updatability](./making-decision-on-contract-updatability).
 - [ ] **Size your anonymity set** so any membership-based privacy is meaningful.
