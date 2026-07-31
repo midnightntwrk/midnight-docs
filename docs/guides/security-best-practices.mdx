@@ -3,24 +3,43 @@ SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of Midnight Docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: Security and best practices
 title: Security and best practices
-description: "Harden a Midnight DApp step by step: authenticate callers, restrict circuit access, enforce deadlines, and prevent replay, each proven by a test you run."
+description: "Secure a Midnight DApp: concepts, procedures, and references for authentication, access control, arithmetic, deadlines, replay, keys, proving, and privacy."
 sidebar_position: 30
 toc_max_heading_level: 2
 keywords: [midnight, security, best practices, viewing keys, access control, key management, nullifiers, front-running]
 tags: [midnight, security, privacy, compact, smart-contracts, dapp]
 ---
 
-import Step, { StepsProvider } from "@site/src/components/Step/Step";
-
 # Security and best practices
 
-This guide hardens a Compact contract against the threats a Midnight DApp faces. You authenticate callers, restrict who can run a circuit, validate inputs, enforce deadlines, prevent replay, and let owners rotate keys. Each procedure ends with a test you run to prove it holds: the authorized caller succeeds and the attacker's forged attempt fails.
+Use this guide to harden a Compact contract and the DApp around it. It is organized into modules you can read in any order: concept modules explain a threat or mechanism, procedure modules walk through a single task and end with a test you run to prove it holds, and reference modules give you lookup tables.
 
-Three adversaries shape every decision here. A **chain observer** reads everything on the public ledger. A **malicious prover** controls their own frontend and can supply any witness value, so only your circuit's `assert` statements constrain them. An **indexer operator** can read your shielded history if you hand over a viewing key. For the language-level security model behind these patterns, read [Smart contract security](../compact/smart-contract-security).
+Three adversaries shape the decisions throughout. A **chain observer** reads the public ledger. A **malicious prover** controls their own frontend and supplies every witness value. An **operator of off-chain infrastructure**, such as an indexer or proof server, sees the data you route to them. For the language-level security model behind these patterns, read [Smart contract security](../compact/smart-contract-security).
 
-## What an observer can see
+## Prerequisites
 
-Zero-knowledge proofs hide your witness data, but a transaction still reveals a great deal. Know the surface before you defend it.
+These apply to every procedure in this guide:
+
+- A compiled Compact contract to secure. If you are starting fresh, follow [build your first contract](../getting-started/hello-world).
+- The [Compact CLI](../getting-started/installation) installed, with `compact compile` working.
+- Node.js with [Vitest](https://vitest.dev/) and `@midnight-ntwrk/compact-runtime` for the verification tests.
+- Familiarity with witnesses and `disclose()`. If either is new, read [Smart contract security](../compact/smart-contract-security) first.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## The Midnight security threat model
+
+Every security control in a Compact contract defends against one of three adversaries. Knowing which one a given circuit faces tells you which control it needs.
+
+A **chain observer** reads the public ledger. Zero-knowledge proofs hide your witness data, but a transaction still reveals which circuit and contract you called, the arguments to ledger operations, any values you disclose, and the timing. The [On-chain visibility](#on-chain-visibility) reference lists exactly what is and is not exposed.
+
+A **malicious prover** controls their own frontend and supplies every witness value, including the result of `ownPublicKey()`. The protocol does not check those values against the wallet that signed the transaction, so the only thing constraining a lying prover is the set of `assert` statements in your circuit. Anything you do not constrain, the prover chooses.
+
+An **operator of off-chain infrastructure** sees what you send them. An indexer that holds your viewing key can read your shielded history, and a proof server processes your private witness inputs to build a proof. Both are trust decisions, covered in [Viewing keys](#viewing-keys) and [Proving and private data](#proving-and-private-data).
+
+{/* _mod-docs-content-type: REFERENCE */}
+## On-chain visibility
+
+What a chain observer can and cannot see for any transaction. Consult it when deciding what a circuit may safely expose.
 
 | What the observer sees | Visible on-chain? |
 |---|---|
@@ -33,107 +52,69 @@ Zero-knowledge proofs hide your witness data, but a transaction still reveals a 
 | Internal circuit computation | No |
 | The leaf inserted into a `MerkleTree` or `HistoricMerkleTree` | No, this is the one ledger operation that hides its argument |
 
-## Prerequisites
+{/* _mod-docs-content-type: PROCEDURE */}
+## Authenticating a caller with a derived identity
 
-Before you begin, ensure you have:
+Gate a circuit so only one caller can run it, by deriving the caller's identity from a secret they must know rather than trusting `ownPublicKey()`, which is a witness the prover controls.
 
-- A compiled Compact contract to modify. If you are starting fresh, follow [build your first contract](../getting-started/hello-world).
-- The [Compact CLI](../getting-started/installation) installed, with `compact compile` working.
-- Node.js with a test runner. This guide uses [Vitest](https://vitest.dev/) with `@midnight-ntwrk/compact-runtime` to run the verification tests against your compiled contract.
-- Familiarity with witnesses and `disclose()`. If either is new, read [Smart contract security](../compact/smart-contract-security) first.
+### Procedure
 
-Each procedure below builds one small contract and a test file. Compile a contract with `compact compile --skip-zk <source> <output-dir>` while iterating, and drop the `--skip-zk` flag for the full proving build.
+1. Declare a secret witness so the caller's secret stays in private state:
 
-## Authenticate a caller
+   ```compact
+   pragma language_version 0.23.0;
+   import CompactStandardLibrary;
 
-The task: gate a circuit so only one specific caller can run it. The wrong way is to compare `ownPublicKey()`, which is a witness the prover controls. The right way derives an identity from a secret the caller must know.
+   export ledger owner: Bytes<32>;
 
-<StepsProvider>
-<Step>
+   witness secretKey(): Bytes<32>;
+   ```
 
-### Declare a secret witness
+2. Derive a public identity by hashing the secret with a domain separator. The hash is one-way, so publishing it reveals nothing about the secret:
 
-The caller proves who they are by knowing a secret. Declare it as a witness so it stays in private state and never reaches the ledger.
+   ```compact
+   circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
+     return persistentHash<Vector<2, Bytes<32>>>([pad(32, "myapp:owner"), sk]);
+   }
+   ```
 
-```compact
-pragma language_version 0.23.0;
-import CompactStandardLibrary;
+3. Store the commitment once, at setup:
 
-export ledger owner: Bytes<32>;
+   ```compact
+   export circuit claimOwnership(): [] {
+     owner = disclose(derivePublicKey(secretKey()));
+   }
+   ```
 
-witness secretKey(): Bytes<32>;
-```
+4. Gate the circuit by re-deriving the identity and asserting it matches. Only a caller who knows the secret can produce a matching hash:
 
-</Step>
-<Step>
+   ```compact
+   export circuit withdraw(): [] {
+     assert(derivePublicKey(secretKey()) == owner, "not owner");
+     // ... privileged action ...
+   }
+   ```
 
-### Derive a public identity
+5. Implement the witness in TypeScript, generating the secret with a cryptographically secure source and storing it in private state:
 
-Hash the secret with a domain separator to produce a public identity. The hash is one-way, so publishing it reveals nothing about the secret.
+   ```typescript
+   const sk = new Uint8Array(32);
+   crypto.getRandomValues(sk); // never Math.random()
 
-```compact
-circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "myapp:owner"), sk]);
-}
-```
+   export const witnesses = {
+     secretKey: ({ privateState }) => [privateState, privateState.sk],
+   };
+   ```
 
 :::warning Never authenticate with ownPublicKey()
 
-`ownPublicKey()` is a witness. The prover chooses its return value, and the protocol does not check it against the wallet that signed the transaction. An `assert(ownPublicKey().bytes == owner)` compares two prover-controlled values, so an attacker reads the public `owner` and returns it from a modified frontend. `ownPublicKey()` is only safe when you route a value *to* the caller, as the [shielded token tutorial](../tokens/shielded-token) does, where lying only hurts the prover.
+`ownPublicKey()` is a witness. The prover chooses its return value, and the protocol does not check it against the signing wallet, so `assert(ownPublicKey().bytes == owner)` compares two prover-controlled values and is bypassable. It is only safe when you route a value *to* the caller, as the [shielded token tutorial](../tokens/shielded-token) does.
 
 :::
 
-</Step>
-<Step>
+### Verification
 
-### Store the commitment
-
-At setup, derive the caller's identity and store it as the owner. `persistentHash` is witness-derived, so the ledger write needs `disclose()`.
-
-```compact
-export circuit claimOwnership(): [] {
-  owner = disclose(derivePublicKey(secretKey()));
-}
-```
-
-</Step>
-<Step>
-
-### Gate the circuit
-
-Re-derive the identity at call time and assert it matches the stored owner. Only a caller who knows the secret can produce a matching hash.
-
-```compact
-export circuit withdraw(): [] {
-  assert(derivePublicKey(secretKey()) == owner, "not owner");
-  // ... privileged action ...
-}
-```
-
-</Step>
-<Step>
-
-### Implement the witness
-
-In your TypeScript frontend, generate the secret with a cryptographically secure source and return it from the witness. Store it in private state through `levelPrivateStateProvider`, which persists to AES-256-GCM-encrypted storage and never sends it to the network.
-
-```typescript
-// Generate the secret once, with a secure source. Never use Math.random().
-const sk = new Uint8Array(32);
-crypto.getRandomValues(sk);
-
-// The private state holds the secret; the witness returns it.
-export const witnesses = {
-  secretKey: ({ privateState }) => [privateState, privateState.sk],
-};
-```
-
-</Step>
-<Step>
-
-### Verify it works
-
-Prove the gate holds: the owner succeeds, and an attacker who copies the stored key into a forged private state is rejected.
+The owner succeeds, and an attacker who copies the stored key into a forged private state is rejected.
 
 ```typescript title="access-control.test.ts"
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -165,8 +146,6 @@ describe('access control', () => {
 });
 ```
 
-Running it confirms both the success and the failure path:
-
 ```text
  ✓ access-control.test.ts > access control > lets the owner withdraw
  ✓ access-control.test.ts > access control > rejects an attacker who forges the stored owner key
@@ -175,62 +154,53 @@ Running it confirms both the success and the failure path:
       Tests  2 passed (2)
 ```
 
-</Step>
-</StepsProvider>
+{/* _mod-docs-content-type: PROCEDURE */}
+## Restricting a circuit to a group
 
-## Restrict a circuit to a group
+Let any member of a group run a circuit without revealing which member, by verifying a Merkle membership proof and binding it to the caller so it cannot be replayed.
 
-The task: let any member of a group run a circuit, without revealing which member. Store member identities in a `HistoricMerkleTree` and verify a membership proof, then bind the proof to the caller so it cannot be replayed.
+### Prerequisites
 
-<StepsProvider>
-<Step>
+- The derived-identity pattern from [Authenticating a caller with a derived identity](#authenticating-a-caller-with-a-derived-identity).
 
-### Store members in a Merkle tree
+### Procedure
 
-A `HistoricMerkleTree` hides which leaf a proof refers to, and it accepts proofs against earlier roots so a proof stays valid after new members join. Export the derivation so an admin can compute a member's identity to enroll it.
+1. Store member identities in a `HistoricMerkleTree`, which hides which leaf a proof refers to and accepts proofs against earlier roots. Export the derivation so an admin can compute a member's identity to enroll it:
 
-```compact
-pragma language_version 0.23.0;
-import CompactStandardLibrary;
+   ```compact
+   pragma language_version 0.23.0;
+   import CompactStandardLibrary;
 
-export ledger members: HistoricMerkleTree<10, Bytes<32>>;
-export ledger actions: Counter;
+   export ledger members: HistoricMerkleTree<10, Bytes<32>>;
+   export ledger actions: Counter;
 
-witness secretKey(): Bytes<32>;
+   witness secretKey(): Bytes<32>;
 
-export circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([pad(32, "myapp:member"), sk]);
-}
+   export circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
+     return persistentHash<Vector<2, Bytes<32>>>([pad(32, "myapp:member"), sk]);
+   }
 
-export circuit addMember(pk: Bytes<32>): [] {
-  members.insert(disclose(pk));
-}
-```
+   export circuit addMember(pk: Bytes<32>): [] {
+     members.insert(disclose(pk));
+   }
+   ```
 
-</Step>
-<Step>
+2. Verify a membership proof and bind it to the caller. The binding assert is the security-critical line: without it, anyone who observed a valid path in a public transaction could replay it:
 
-### Prove membership and bind it to the caller
+   ```compact
+   export circuit act(path: MerkleTreePath<10, Bytes<32>>): [] {
+     assert(members.checkRoot(disclose(merkleTreePathRoot<10, Bytes<32>>(path))),
+       "not a member");
+     assert(path.leaf == derivePublicKey(secretKey()), "path not bound to caller");
+     actions.increment(1);
+   }
+   ```
 
-The caller submits a Merkle path. Recompute the root and check it against the tree, then assert the proven leaf equals the caller's own derived identity.
+A membership proof hides you only among the other members, so a tree with three leaves gives almost no privacy. Grow the set before you rely on it, and store commitments rather than guessable raw keys. When you only need to prove a property, disclose the boolean result, not the value: `disclose(age >= 18)`. Comparisons like `>=` work on `Uint<N>`, not `Field`. See [Explicit disclosure](../compact/reference/explicit-disclosure).
 
-```compact
-export circuit act(path: MerkleTreePath<10, Bytes<32>>): [] {
-  assert(members.checkRoot(disclose(merkleTreePathRoot<10, Bytes<32>>(path))),
-    "not a member");
-  // Bind the proof to the caller. Without this line, anyone who observed a
-  // valid path in a public transaction could replay it and act as a member.
-  assert(path.leaf == derivePublicKey(secretKey()), "path not bound to caller");
-  actions.increment(1);
-}
-```
+### Verification
 
-</Step>
-<Step>
-
-### Verify it works
-
-A member acts with their own path. A non-member who replays that same path is rejected by the binding assert.
+A member acts with their own path; a non-member who replays that path is rejected by the binding assert.
 
 ```typescript title="group-access.test.ts"
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -272,70 +242,54 @@ describe('group membership', () => {
       Tests  2 passed (2)
 ```
 
-</Step>
-</StepsProvider>
+{/* _mod-docs-content-type: REFERENCE */}
+## Compact arithmetic behavior
 
-:::tip Size your anonymity set
+How Compact handles integer overflow and underflow. Unlike some languages, it does not silently wrap.
 
-A membership proof hides you only among the other members. A tree with three leaves narrows you to one of three, which is almost no privacy. Grow the set before you rely on it, and store commitments rather than guessable raw keys. When you only need to prove a property, disclose the boolean result, not the value: `disclose(age >= 18)`. Comparisons like `>=` work on `Uint<N>`, not `Field`. See [Explicit disclosure](../compact/reference/explicit-disclosure).
+| Operation | Behavior | Your responsibility |
+|---|---|---|
+| Subtraction `a - b` where `b > a` | Aborts at runtime with `result of subtraction would be negative` | Assert bounds first so the failure carries a clear message |
+| Addition `a + b` | The result type widens beyond the operand width, so it cannot be assigned back to a same-width field | Assert bounds, then narrow with a cast (`(a + b) as Uint<64>`), or store in a wider field |
+| Any circuit input | Private and unvalidated by default | Assert ranges, non-zero values, and state preconditions before use |
 
-:::
+{/* _mod-docs-content-type: PROCEDURE */}
+## Validating inputs before computing
 
-## Validate inputs and arithmetic
+Never compute on unchecked inputs. Compact fails safe on arithmetic, but you still validate to enforce your domain rules and to fail with a clear message.
 
-The task: never compute on unchecked inputs. Compact fails safe on arithmetic, but you still validate to enforce your domain rules and to fail with a clear message.
+### Procedure
 
-<StepsProvider>
-<Step>
+1. Recognize the built-in guard. A subtraction that would go negative aborts at runtime rather than wrapping:
 
-### Know how arithmetic fails
+   ```compact
+   pragma language_version 0.23.0;
+   import CompactStandardLibrary;
 
-Compact does not silently wrap like some languages. A subtraction that would go negative aborts at runtime, and an addition widens its result type so it cannot silently overflow the field it is written to.
+   export ledger balance: Uint<64>;
 
-```compact
-pragma language_version 0.23.0;
-import CompactStandardLibrary;
+   constructor() { balance = 5; }
 
-export ledger balance: Uint<64>;
+   export circuit unsafeSub(amount: Uint<64>): [] {
+     balance = balance - disclose(amount);
+   }
+   ```
 
-constructor() { balance = 5; }
+2. Assert your own preconditions so failures are explicit and enforce rules the language cannot know, such as domain limits:
 
-export circuit unsafeSub(amount: Uint<64>): [] {
-  balance = balance - disclose(amount);
-}
-```
+   ```compact
+   export circuit safeSub(amount: Uint<64>): [] {
+     const amt = disclose(amount);
+     assert(amt <= balance, "insufficient balance");
+     balance = balance - amt;
+   }
+   ```
 
-Calling `unsafeSub(10)` on a balance of `5` aborts with `result of subtraction would be negative`, rather than wrapping to a huge number.
+For the full set of validation patterns, see [input validation and access control](../compact/smart-contract-security#input-validation-and-access-control). For how addition and subtraction fail, see [Compact arithmetic behavior](#compact-arithmetic-behavior).
 
-:::note Addition widens its type
+### Verification
 
-`Uint<64> + Uint<64>` produces a wider type than `Uint<64>`, so `balance = balance + disclose(amount)` will not compile against a `Uint<64>` field. Handle the wider result deliberately: assert bounds and narrow it, as in `total = (total + amt) as Uint<64>` after `assert(amt <= CAP, ...)`. The compiler forces you to acknowledge the overflow rather than letting it happen silently.
-
-:::
-
-</Step>
-<Step>
-
-### Validate before you compute
-
-The runtime guard aborts with a generic message. Assert your own preconditions so failures are explicit and diagnosable, and to enforce domain rules the language cannot know (limits, non-zero recipients, valid state).
-
-```compact
-export circuit safeSub(amount: Uint<64>): [] {
-  const amt = disclose(amount);
-  assert(amt <= balance, "insufficient balance");
-  balance = balance - amt;
-}
-```
-
-For the full set of validation patterns, see [input validation and access control](../compact/smart-contract-security#input-validation-and-access-control).
-
-</Step>
-<Step>
-
-### Verify it works
-
-Confirm the underflow aborts, the guarded circuit gives a clear error, and a valid amount applies.
+The underflow aborts, the guarded circuit gives a clear error, and a valid amount applies.
 
 ```typescript title="arithmetic.test.ts"
 import { describe, it, expect } from 'vitest';
@@ -377,51 +331,54 @@ describe('arithmetic safety', () => {
       Tests  3 passed (3)
 ```
 
-</Step>
-</StepsProvider>
+{/* _mod-docs-content-type: REFERENCE */}
+## Block-time predicates
 
-## Enforce a deadline
+The standard-library predicates for reasoning about block time. Each takes a `Uint<64>` count of seconds since the Unix epoch and returns a `Boolean`. There is no raw block-time accessor.
 
-The task: allow an action only before a cutoff time. Compact exposes block time through four standard-library predicates, each taking a `Uint<64>` count of seconds since the epoch: `blockTimeLt`, `blockTimeLte`, `blockTimeGt`, and `blockTimeGte`.
+| Predicate | Returns true when |
+|---|---|
+| `blockTimeLt(time)` | the current block time is before `time` |
+| `blockTimeLte(time)` | the current block time is at or before `time` |
+| `blockTimeGt(time)` | the current block time is after `time` |
+| `blockTimeGte(time)` | the current block time is at or after `time` |
 
-<StepsProvider>
-<Step>
+Block time advances one step per block, and the producer sets the timestamp within protocol-enforced bounds. Treat a time gate as accurate to the scale of blocks, not seconds, and never use block time as a randomness source.
 
-### Seal the deadline
+{/* _mod-docs-content-type: PROCEDURE */}
+## Enforcing a deadline
 
-Store the cutoff and mark it `sealed` so no later circuit can move it. A sealed field is set once, during construction.
+Allow an action only before a cutoff time.
 
-```compact
-pragma language_version 0.23.0;
-import CompactStandardLibrary;
+### Procedure
 
-export sealed ledger deadline: Uint<64>;
-export ledger claimed: Boolean;
+1. Store the cutoff and mark it `sealed` so no later circuit can move it. A sealed field is set once, during construction:
 
-constructor(deadlineTime: Uint<64>) {
-  deadline = disclose(deadlineTime);
-  claimed = false;
-}
-```
+   ```compact
+   pragma language_version 0.23.0;
+   import CompactStandardLibrary;
 
-</Step>
-<Step>
+   export sealed ledger deadline: Uint<64>;
+   export ledger claimed: Boolean;
 
-### Gate the action
+   constructor(deadlineTime: Uint<64>) {
+     deadline = disclose(deadlineTime);
+     claimed = false;
+   }
+   ```
 
-Assert that the current block time is before the deadline. The node evaluates the predicate against the block that includes the transaction.
+2. Gate the action on the block time. The node evaluates the predicate against the block that includes the transaction:
 
-```compact
-export circuit claim(): [] {
-  assert(blockTimeLt(deadline), "expired");
-  claimed = true;
-}
-```
+   ```compact
+   export circuit claim(): [] {
+     assert(blockTimeLt(deadline), "expired");
+     claimed = true;
+   }
+   ```
 
-</Step>
-<Step>
+For the available predicates, see [Block-time predicates](#block-time-predicates).
 
-### Verify it works
+### Verification
 
 Set the block time in the circuit context (the seventh argument of `createCircuitContext`) to exercise both sides of the deadline.
 
@@ -459,68 +416,45 @@ describe('deadline', () => {
       Tests  2 passed (2)
 ```
 
-</Step>
-</StepsProvider>
+{/* _mod-docs-content-type: PROCEDURE */}
+## Preventing replay attacks
 
-:::caution Treat block time as coarse
+Allow a one-time action to happen exactly once. A nullifier records that it has happened without revealing the secret behind it.
 
-Block time advances one step per block, and the producer sets the timestamp within protocol-enforced bounds. A time gate is accurate to the scale of blocks, not seconds, so never encode logic that depends on sub-block precision. Block time is also **not** a randomness source: the only interface is these four comparisons, and any value you derive from them is deterministic and known to the caller before they submit.
+### Procedure
 
-:::
+1. Derive a nullifier from the secret with a domain-separated `persistentHash`, folding in a round number so the same secret can act once per round, and store used nullifiers in a `Set`:
 
-## Prevent replay
+   ```compact
+   pragma language_version 0.23.0;
+   import CompactStandardLibrary;
 
-The task: allow a one-time action to happen exactly once. A nullifier records that it has happened, without revealing the secret behind it. Folding a round number into the derivation lets the same secret act once per round.
+   export ledger spent: Set<Bytes<32>>;
 
-<StepsProvider>
-<Step>
+   witness secretKey(): Bytes<32>;
 
-### Record actions with nullifiers
+   circuit nullifier(round: Uint<64>, sk: Bytes<32>): Bytes<32> {
+     const roundBytes = round as Field as Bytes<32>;
+     return persistentHash<Vector<3, Bytes<32>>>([pad(32, "myapp:nul"), roundBytes, sk]);
+   }
+   ```
 
-Derive a nullifier from the secret with a domain-separated `persistentHash`, and store used nullifiers in a `Set`.
+2. Assert the nullifier is not already present, then insert it. A second attempt with the same round and secret produces the same nullifier and fails:
 
-```compact
-pragma language_version 0.23.0;
-import CompactStandardLibrary;
+   ```compact
+   export circuit act(round: Uint<64>): [] {
+     const nul = nullifier(round, secretKey());
+     assert(!spent.member(disclose(nul)), "already acted this round");
+     spent.insert(disclose(nul));
+     // ... one-time action ...
+   }
+   ```
 
-export ledger spent: Set<Bytes<32>>;
+The domain separator for a nullifier must differ from any commitment's, or the two hashes are equal for the same secret and an observer can link them. For ordering defenses against **front-running**, publish a `persistentCommit(move, rand)` first and reveal in a second transaction, protecting the reveal with a nullifier. See [the commitment/nullifier pattern](../concepts/how-midnight-works/keeping-data-private#the-commitmentnullifier-pattern) and [the bulletin board tutorial](../tutorials/bboard/smart-contract) for the sequence-counter variant.
 
-witness secretKey(): Bytes<32>;
+### Verification
 
-circuit nullifier(round: Uint<64>, sk: Bytes<32>): Bytes<32> {
-  const roundBytes = round as Field as Bytes<32>;
-  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "myapp:nul"), roundBytes, sk]);
-}
-```
-
-:::note Use a distinct domain per purpose
-
-The domain separator for a nullifier must differ from the one used for any matching commitment. If they share a domain, the two hashes are equal for the same secret, which lets an observer link them. See [the commitment/nullifier pattern](../concepts/how-midnight-works/keeping-data-private#the-commitmentnullifier-pattern).
-
-:::
-
-</Step>
-<Step>
-
-### Check and record
-
-Assert the nullifier is not already present, then insert it. A second attempt with the same round and secret produces the same nullifier and fails.
-
-```compact
-export circuit act(round: Uint<64>): [] {
-  const nul = nullifier(round, secretKey());
-  assert(!spent.member(disclose(nul)), "already acted this round");
-  spent.insert(disclose(nul));
-  // ... one-time action ...
-}
-```
-
-</Step>
-<Step>
-
-### Verify it works
-
-The first action in a round is recorded. A replay in the same round is rejected; a new round succeeds.
+A replay in the same round is rejected; a new round succeeds.
 
 ```typescript title="replay.test.ts"
 import { describe, it, expect } from 'vitest';
@@ -558,37 +492,33 @@ describe('replay protection', () => {
       Tests  2 passed (2)
 ```
 
-</Step>
-</StepsProvider>
+{/* _mod-docs-content-type: PROCEDURE */}
+## Rotating an owner key
 
-The bulletin board tutorial shows the related **sequence counter** pattern, folding a `Counter` into the identity derivation so each cycle produces a fresh commitment. See [the bulletin board contract](../tutorials/bboard/smart-contract).
+Give a key holder a way to move to a new key. The witness secret lives only in local private state, so if it is lost or compromised, the on-chain commitment is permanent. Build the rotation path before you need it.
 
-For **front-running**, the same commit-then-reveal idea protects ordering: publish a `persistentCommit(move, rand)` in one transaction and reveal the move in a second, so an observer sees only the commitment while front-running would be profitable. Protect the reveal with a nullifier or sequence counter, since it is itself an action that can be replayed.
+### Prerequisites
 
-## Let owners rotate a key
+- The derived-identity pattern from [Authenticating a caller with a derived identity](#authenticating-a-caller-with-a-derived-identity).
 
-The task: give a key holder a way to move to a new key. The witness secret lives only in local private state, so if it is lost or compromised, the on-chain commitment is permanent. Build the rotation path before you need it.
+### Procedure
 
-<StepsProvider>
-<Step>
+1. Add a rotation circuit in which the current owner proves control, then writes a new owner commitment. The incoming owner generates their own secret locally and shares only the derived public value, so no secret crosses the wire:
 
-### Add a rotation circuit
+   ```compact
+   export circuit rotateOwner(newOwner: Bytes<32>): [] {
+     assert(derivePublicKey(secretKey()) == owner, "not owner");
+     owner = disclose(newOwner);
+   }
+   ```
 
-The current owner proves control with their secret, then writes a new owner commitment. The new owner generates their own secret locally and shares only the derived public value, so no secret ever crosses the wire.
+:::warning There is no recovery by default
 
-```compact
-export circuit rotateOwner(newOwner: Bytes<32>): [] {
-  assert(derivePublicKey(secretKey()) == owner, "not owner");
-  owner = disclose(newOwner);
-}
-```
+A witness secret cannot be recovered from the chain. If the only holder of a role loses their secret and you provided no rotation path or backup, that role is locked permanently. Decide your recovery model before you deploy: multiple authorized keys, a recovery circuit gated on a separate secret, or a threshold of guardians.
 
-Export `derivePublicKey` so the incoming owner can compute their public value from their secret off-chain.
+:::
 
-</Step>
-<Step>
-
-### Verify it works
+### Verification
 
 After rotation, the new key acts and the old key no longer does.
 
@@ -629,67 +559,63 @@ describe('key rotation', () => {
       Tests  2 passed (2)
 ```
 
-</Step>
-</StepsProvider>
-
-:::warning There is no recovery by default
-
-A witness secret cannot be recovered from the chain. If the only holder of a role loses their secret and you provided no rotation path or backup, that role is locked permanently. Decide your recovery model before you deploy: multiple authorized keys, a recovery circuit gated on a separate secret, or a threshold of guardians.
-
-:::
-
-## Design for durable, bounded state
+{/* _mod-docs-content-type: CONCEPT */}
+## Durable and bounded on-chain state
 
 Two long-term properties can slip past you while a contract still works in testing.
 
-**Store only durable hashes.** Compact offers persistent and transient variants of its hash and commitment functions. The transient variants (`transientHash`, `transientCommit`) are circuit-optimized, and their algorithm may change between compiler versions, so a value stored on-chain today may not match a recomputation after an upgrade. Use `persistentHash` and `persistentCommit` for anything written to the ledger, as every example above does. Reserve the transient variants for in-circuit intermediate values that never touch ledger state.
+**Store only durable hashes.** Compact offers persistent and transient variants of its hash and commitment functions. The transient variants are circuit-optimized, and their algorithm may change between compiler versions, so a value stored on-chain today may not match a recomputation after an upgrade. Use `persistentHash` and `persistentCommit` for anything written to the ledger, and reserve the transient variants for in-circuit intermediate values. See [Cryptographic primitive selection](#cryptographic-primitive-selection).
 
 **Bound your growth.** Ledger collections grow forever and every entry is public. A nullifier `Set` gains an entry on each action and never shrinks; a `Map` keyed by user grows with your user base. For a long-lived contract, scope that growth rather than accumulating without limit: derive nullifiers per epoch so old sets can be retired, or key state so it can expire. Design the bound in from the start, because you cannot retroactively shrink public state.
 
-## Prove without leaking private data
+{/* _mod-docs-content-type: REFERENCE */}
+## Cryptographic primitive selection
+
+Which hashing and commitment primitive to use. Store only the persistent variants on the ledger.
+
+| Function | Output | Stable across upgrades | Hides input without a guess |
+|---|---|---|---|
+| `persistentHash<T>` | `Bytes<32>` | Yes (SHA-256) | No, a guessed input can be checked |
+| `persistentCommit<T>` | `Bytes<32>` | Yes | Yes, randomness clears witness taint |
+| `transientHash<T>` | `Field` | No | No |
+| `transientCommit<T>` | `Field` | No | Yes, but do not store on-chain |
+
+Use `persistentCommit` when a value must be hidden and later revealed, and `persistentHash` for identities and nullifiers where binding is enough. Never reuse a commitment's randomness across values.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Proving and private data
 
 Generating a zero-knowledge proof requires your private witness values. The proof server performs arithmetic directly over those values, so whichever proof server does the proving receives them in the clear. This trust boundary often goes unnoticed because the proof itself reveals nothing; the machine that builds it sees everything.
 
-- **Run the proof server locally.** The default setup runs a proof server on your own machine, in Docker on port 6300. Private inputs never leave the loopback interface, so no external party sees them. This is the safe default and the right choice for sensitive applications.
-- **A remote or shared proof server sees your private inputs.** If you point proving at a server you do not operate, its operator receives your full witness data in order to compute the proof. Transport encryption matters, but it is not the point here: HTTPS stops a network eavesdropper from reading the payload in transit, yet the operator still decrypts and processes your private values. Choosing a remote proof server is a trust decision about that operator, not a transport setting.
-- **Understand wallet-delegated proving.** With the DApp connector's proving provider, your DApp hands the built proof preimage to the wallet, which proves on the user's behalf using whatever proof server it is configured with. Your DApp still computes the witness values itself; delegation only moves the proving step. Know where the wallet ultimately proves before you rely on it.
+Running the proof server locally, in Docker on port 6300, keeps private inputs on your own machine, where no external party sees them. This is the safe default. A remote or shared proof server, by contrast, receives your full witness data to compute the proof: transport encryption stops a network eavesdropper from reading the payload in transit, but the operator still decrypts and processes your private values, so choosing a remote server is a trust decision about the operator, not a transport setting.
 
-:::warning Send private inputs only to a proof server you trust
+With wallet-delegated proving, your DApp hands the built proof preimage to the wallet, which proves on the user's behalf using whatever proof server it is configured with. Your DApp still computes the witness values itself; delegation only moves the proving step. Know where the wallet ultimately proves before you rely on it for sensitive data.
 
-Running the proof server locally keeps witness data on your machine. A remote or shared proof server sees that data in the clear to build the proof, and switching it to HTTPS does not change what the operator can see.
+{/* _mod-docs-content-type: CONCEPT */}
+## Viewing keys
 
-:::
+A viewing key is a wallet-level key, Bech32m-encoded and derived from your wallet seed separately from your spending key. It decrypts your shielded transaction data so software can display your balance and history, but it cannot spend.
 
-## Protect your viewing key
+Because it decrypts your history, anyone who holds it can read your entire shielded transaction history. The Midnight indexer's `connect` mutation takes a viewing key and opens a session that scans the chain for your transactions, which is what makes connecting to a third-party indexer a trust decision. A well-behaved indexer stores connected viewing keys encrypted at rest, but you are still trusting the operator.
 
-Your contract logic is not the only attack surface. A viewing key is a wallet-level key, Bech32m-encoded and derived from your wallet seed separately from your spending key. It decrypts your shielded transaction data so software can display your balance and history, but it cannot spend.
+There is no viewing-key rotation: a viewing key is bound to the wallet seed and cannot be revoked independently, so once you share it, assume the holder can read your history indefinitely. Never log, transmit, or persist a user's viewing key outside the wallet and the indexer it connects to, and run your own indexer for sensitive applications.
 
-Because it decrypts your history, anyone who holds it can read your entire shielded transaction history. The Midnight indexer's `connect` mutation takes a viewing key and opens a session that scans the chain for your transactions, which is what makes connecting to a third-party indexer a trust decision.
+{/* _mod-docs-content-type: REFERENCE */}
+## Pre-deployment security checklist
 
-:::warning Keep your viewing key private
+Work through this list before mainnet. Each item links to the module that explains it.
 
-Connecting to a hosted or third-party indexer gives that operator read access to your entire shielded history. A well-behaved indexer stores connected viewing keys encrypted at rest, but you are still trusting the operator. There is no viewing-key rotation: a viewing key is bound to the wallet seed and cannot be revoked independently, so once you share it, assume the holder can read your history indefinitely. Never log, transmit, or persist a user's viewing key outside the wallet and the indexer it connects to, and run your own indexer for sensitive applications.
-
-:::
-
-## Before you ship
-
-Work through this list before mainnet:
-
-- [ ] **Assert every assumption about witness data.** A witness value you do not constrain is a value the prover chooses.
-- [ ] **Validate inputs before you compute.** Check bounds, ranges, non-zero values, and state preconditions, and handle the widened result of any addition.
-- [ ] **Test with a malicious private state.** Supply deliberately wrong witness values and confirm your asserts reject them, as each procedure above does. The [Battleship tutorial](../tutorials/bship/test-suite) shows a full adversarial suite.
+- [ ] **Assert every assumption about witness data.** A witness value you do not constrain is a value the prover chooses. See [The Midnight security threat model](#the-midnight-security-threat-model).
+- [ ] **Validate inputs before you compute.** Check bounds, ranges, non-zero values, and state preconditions. See [Validating inputs before computing](#validating-inputs-before-computing).
+- [ ] **Test with a malicious private state.** Supply deliberately wrong witness values and confirm your asserts reject them. The [Battleship tutorial](../tutorials/bship/test-suite) shows a full adversarial suite.
 - [ ] **Audit every `disclose()`.** Confirm what becomes public, when, and that it is the minimum the circuit needs.
 - [ ] **Check your domain separators.** Every commitment and nullifier derivation uses a distinct domain string, and no commitment shares a domain with its nullifier.
-- [ ] **Store only durable hashes.** Anything written to the ledger uses `persistentHash` or `persistentCommit`, never the transient variants.
-- [ ] **Bound your state growth.** Confirm any `Set` or `Map` that grows per action has a retirement or expiry strategy.
+- [ ] **Store only durable hashes** and **bound your state growth.** See [Durable and bounded on-chain state](#durable-and-bounded-on-chain-state).
 - [ ] **Confirm error messages leak nothing.** An assert message must not embed private state.
-- [ ] **Verify no salt is reused** across commitments.
-- [ ] **Provide a key-recovery path.** Confirm no role is permanently lockable by a single lost secret.
-- [ ] **Decide where you prove.** Confirm private witness inputs are only sent to a proof server you trust.
-- [ ] **Decide viewing-key handling.** Confirm no user viewing key is logged, transmitted, or persisted outside the wallet and its indexer.
+- [ ] **Provide a key-recovery path.** Confirm no role is permanently lockable by a single lost secret. See [Rotating an owner key](#rotating-an-owner-key).
+- [ ] **Decide where you prove.** Confirm private witness inputs are only sent to a proof server you trust. See [Proving and private data](#proving-and-private-data).
+- [ ] **Decide viewing-key handling.** Confirm no user viewing key is logged, transmitted, or persisted outside the wallet and its indexer. See [Viewing keys](#viewing-keys).
 - [ ] **Decide your upgrade-key custody.** If the contract is upgradeable, distribute control across independent parties. See [Making a decision on contract updatability](./making-decision-on-contract-updatability).
-- [ ] **Size your anonymity set** so any membership-based privacy is meaningful.
 - [ ] **Get an external review.** No amount of self-testing replaces a second set of eyes on a security-critical contract.
 
 ## Additional resources
@@ -697,6 +623,6 @@ Work through this list before mainnet:
 - [Smart contract security](../compact/smart-contract-security): the language-level security model, sealed fields, and cryptographic primitives.
 - [Private data](../concepts/how-midnight-works/keeping-data-private): commitments, nullifiers, and Merkle trees in depth.
 - [Explicit disclosure](../compact/reference/explicit-disclosure): how the compiler tracks private data and when `disclose()` is required.
-- [OpenZeppelin Compact contracts](/sdks/community/openzeppelin-compact-contracts): reference `Ownable`, `AccessControl`, and other modules built on the derived-identity pattern. Study them as patterns; note the library states it has not been audited.
+- [OpenZeppelin Compact contracts](/sdks/community/openzeppelin-compact-contracts): reference `Ownable`, `AccessControl`, and other modules built on the derived-identity pattern. Note the library states it has not been audited.
 - [Test and debug](../compact/test-and-debug): broader testing strategies for Compact contracts.
 - [How to configure providers](./configure-providers): wiring the indexer and private-state providers your DApp uses.
