@@ -12,7 +12,7 @@ tags: [midnight, security, privacy, compact, smart-contracts, dapp]
 
 # Security and best practices
 
-Use this guide to harden a Compact contract and the DApp around it. It is organized into modules you can read in any order: concept modules explain a threat or mechanism, procedure modules walk through a single task and end with a test you run to prove it holds, and reference modules give you lookup tables.
+Use this guide to harden a Compact contract and the DApp around it. It groups its content into modules you can read in any order: concept modules explain a threat or mechanism, procedure modules walk through a single task and end with a test you run to prove it holds, and reference modules give you lookup tables.
 
 Three adversaries shape the decisions throughout. A **chain observer** reads the public ledger. A **malicious prover** controls their own frontend and supplies every witness value. An **operator of off-chain infrastructure**, such as an indexer or proof server, sees the data you route to them. For the language-level security model behind these patterns, read [Smart contract security](../compact/smart-contract-security).
 
@@ -46,11 +46,13 @@ What a chain observer can and cannot see for any transaction. Consult it when de
 | Which exported circuit you called | Yes, the entry point is part of the transaction |
 | Which contract you called | Yes, the contract address is public |
 | Arguments to ledger operations (`Set` and `Map` keys and values, `Counter` amounts) | Yes |
-| Values you wrap in `disclose()` | Yes, by definition |
-| When the transaction was included | Yes, block timing is observable |
-| Witness function return values | No, unless you disclose them |
+| Values you disclose into a public position (a ledger write, an exported-circuit return, or a contract-to-contract call) | Yes |
+| When the transaction landed on-chain | Yes, block timing is observable |
+| Witness function return values | No, unless you disclose them into a public position |
 | Internal circuit computation | No |
 | The leaf inserted into a `MerkleTree` or `HistoricMerkleTree` | No, this is the one ledger operation that hides its argument |
+
+Wrapping a value in `disclose()` does not publish it. `disclose()` clears the compiler's private-data check so the value may cross a public boundary; the value becomes visible only when it crosses one, through a ledger write, a return from an exported circuit, or a contract-to-contract call.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Authenticating a caller with a derived identity
@@ -78,7 +80,7 @@ Gate a circuit so only one caller can run it, by deriving the caller's identity 
    }
    ```
 
-3. Store the commitment once, at setup:
+3. Store the commitment once, at setup. Writing the derived identity to the ledger moves a private value into a public position, which is what requires `disclose()`:
 
    ```compact
    export circuit claimOwnership(): [] {
@@ -112,9 +114,23 @@ Gate a circuit so only one caller can run it, by deriving the caller's identity 
 
 :::
 
+:::note Witness or circuit argument
+
+A witness is not the only way to keep the secret private. Circuit inputs are private by default too, so you can pass the secret as an argument and derive the same identity:
+
+```compact
+export circuit withdraw(sk: Bytes<32>): [] {
+  assert(derivePublicKey(sk) == owner, "not owner");
+}
+```
+
+A witness reads the secret from the contract's private state on the device; an argument lets the caller supply it per call. Both keep the secret off-chain. Choose the witness when the secret should persist with the contract's state, and the argument when the caller already holds it.
+
+:::
+
 ### Verification
 
-The owner succeeds, and an attacker who copies the stored key into a forged private state is rejected.
+The owner succeeds, and the contract rejects an attacker who copies the stored key into a forged private state.
 
 ```typescript title="access-control.test.ts"
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -157,7 +173,7 @@ describe('access control', () => {
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Restricting a circuit to a group
 
-Let any member of a group run a circuit without revealing which member, by verifying a Merkle membership proof and binding it to the caller so it cannot be replayed.
+Let any member of a group run a circuit without revealing which member, by verifying a Merkle membership proof and binding it to the caller so no one else can replay it.
 
 ### Prerequisites
 
@@ -200,7 +216,7 @@ A membership proof hides you only among the other members, so a tree with three 
 
 ### Verification
 
-A member acts with their own path; a non-member who replays that path is rejected by the binding assert.
+A member acts with their own path; the binding assert rejects a non-member who replays that path.
 
 ```typescript title="group-access.test.ts"
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -250,7 +266,7 @@ How Compact handles integer overflow and underflow. Unlike some languages, it do
 | Operation | Behavior | Your responsibility |
 |---|---|---|
 | Subtraction `a - b` where `b > a` | Aborts at runtime with `result of subtraction would be negative` | Assert bounds first so the failure carries a clear message |
-| Addition `a + b` | The result type widens beyond the operand width, so it cannot be assigned back to a same-width field | Assert bounds, then narrow with a cast (`(a + b) as Uint<64>`), or store in a wider field |
+| Addition `a + b` | The result type widens beyond the operand width, so you cannot assign it back to a same-width field | Assert bounds, then narrow with a cast (`(a + b) as Uint<64>`), or store in a wider field |
 | Any circuit input | Private and unvalidated by default | Assert ranges, non-zero values, and state preconditions before use |
 
 {/* _mod-docs-content-type: PROCEDURE */}
@@ -454,7 +470,7 @@ The domain separator for a nullifier must differ from any commitment's, or the t
 
 ### Verification
 
-A replay in the same round is rejected; a new round succeeds.
+The contract rejects a replay in the same round; a new round succeeds.
 
 ```typescript title="replay.test.ts"
 import { describe, it, expect } from 'vitest';
@@ -514,7 +530,7 @@ Give a key holder a way to move to a new key. The witness secret lives only in l
 
 :::warning There is no recovery by default
 
-A witness secret cannot be recovered from the chain. If the only holder of a role loses their secret and you provided no rotation path or backup, that role is locked permanently. Decide your recovery model before you deploy: multiple authorized keys, a recovery circuit gated on a separate secret, or a threshold of guardians.
+You cannot recover a witness secret from the chain. If the only holder of a role loses their secret and you built no rotation path or backup, you lose that role permanently. Decide your recovery model before you deploy: multiple authorized keys, a recovery circuit gated on a separate secret, or a threshold of guardians.
 
 :::
 
@@ -566,7 +582,7 @@ Two long-term properties can slip past you while a contract still works in testi
 
 **Store only durable hashes.** Compact offers persistent and transient variants of its hash and commitment functions. The transient variants are circuit-optimized, and their algorithm may change between compiler versions, so a value stored on-chain today may not match a recomputation after an upgrade. Use `persistentHash` and `persistentCommit` for anything written to the ledger, and reserve the transient variants for in-circuit intermediate values. See [Cryptographic primitive selection](#cryptographic-primitive-selection).
 
-**Bound your growth.** Ledger collections grow forever and every entry is public. A nullifier `Set` gains an entry on each action and never shrinks; a `Map` keyed by user grows with your user base. For a long-lived contract, scope that growth rather than accumulating without limit: derive nullifiers per epoch so old sets can be retired, or key state so it can expire. Design the bound in from the start, because you cannot retroactively shrink public state.
+**Bound your growth.** Ledger collections grow forever and every entry is public. A nullifier `Set` gains an entry on each action and never shrinks; a `Map` keyed by user grows with your user base. For a long-lived contract, scope that growth rather than accumulating without limit: derive nullifiers per epoch so you can retire old sets, or key state so it can expire. Design the bound in from the start, because you cannot retroactively shrink public state.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Cryptographic primitive selection
@@ -575,7 +591,7 @@ Which hashing and commitment primitive to use. Store only the persistent variant
 
 | Function | Output | Stable across upgrades | Hides input without a guess |
 |---|---|---|---|
-| `persistentHash<T>` | `Bytes<32>` | Yes (SHA-256) | No, a guessed input can be checked |
+| `persistentHash<T>` | `Bytes<32>` | Yes (SHA-256) | No, anyone can check a guessed input |
 | `persistentCommit<T>` | `Bytes<32>` | Yes | Yes, randomness clears witness taint |
 | `transientHash<T>` | `Field` | No | No |
 | `transientCommit<T>` | `Field` | No | Yes, but do not store on-chain |
@@ -587,9 +603,9 @@ Use `persistentCommit` when a value must be hidden and later revealed, and `pers
 
 Generating a zero-knowledge proof requires your private witness values. The proof server performs arithmetic directly over those values, so whichever proof server does the proving receives them in the clear. This trust boundary often goes unnoticed because the proof itself reveals nothing; the machine that builds it sees everything.
 
-Running the proof server locally, in Docker on port 6300, keeps private inputs on your own machine, where no external party sees them. This is the safe default. A remote or shared proof server, by contrast, receives your full witness data to compute the proof: transport encryption stops a network eavesdropper from reading the payload in transit, but the operator still decrypts and processes your private values, so choosing a remote server is a trust decision about the operator, not a transport setting.
+Running the proof server locally, in Docker on port 6300, keeps private inputs on your own machine, where no external party sees them. This is the safe default. A remote or shared proof server, by contrast, receives your full witness data to compute the proof. Transport encryption stops a network eavesdropper from reading the payload in transit, but the operator still decrypts and processes your private values. Choosing a remote server is a trust decision about the operator, not a transport setting.
 
-With wallet-delegated proving, your DApp hands the built proof preimage to the wallet, which proves on the user's behalf using whatever proof server it is configured with. Your DApp still computes the witness values itself; delegation only moves the proving step. Know where the wallet ultimately proves before you rely on it for sensitive data.
+With wallet-delegated proving, your DApp hands the built proof preimage to the wallet, which builds the proof using whatever proof server it runs. Your DApp still computes the witness values itself; delegation only moves the proving step. Confirm where the wallet ultimately proves before you rely on it for sensitive data.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## Viewing keys
@@ -598,7 +614,7 @@ A viewing key is a wallet-level key, Bech32m-encoded and derived from your walle
 
 Because it decrypts your history, anyone who holds it can read your entire shielded transaction history. The Midnight indexer's `connect` mutation takes a viewing key and opens a session that scans the chain for your transactions, which is what makes connecting to a third-party indexer a trust decision. A well-behaved indexer stores connected viewing keys encrypted at rest, but you are still trusting the operator.
 
-There is no viewing-key rotation: a viewing key is bound to the wallet seed and cannot be revoked independently, so once you share it, assume the holder can read your history indefinitely. Never log, transmit, or persist a user's viewing key outside the wallet and the indexer it connects to, and run your own indexer for sensitive applications.
+There is no viewing-key rotation: a viewing key is bound to the wallet seed, and you cannot revoke it independently, so once you share it, assume the holder can read your history indefinitely. Never log, transmit, or persist a user's viewing key outside the wallet and the indexer it connects to, and run your own indexer for sensitive applications.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Pre-deployment security checklist
@@ -614,7 +630,7 @@ Work through this list before mainnet. Each item links to the module that explai
 - [ ] **Confirm error messages leak nothing.** An assert message must not embed private state.
 - [ ] **Provide a key-recovery path.** Confirm no role is permanently lockable by a single lost secret. See [Rotating an owner key](#rotating-an-owner-key).
 - [ ] **Decide where you prove.** Confirm private witness inputs are only sent to a proof server you trust. See [Proving and private data](#proving-and-private-data).
-- [ ] **Decide viewing-key handling.** Confirm no user viewing key is logged, transmitted, or persisted outside the wallet and its indexer. See [Viewing keys](#viewing-keys).
+- [ ] **Decide viewing-key handling.** Confirm you never log, transmit, or persist a user viewing key outside the wallet and its indexer. See [Viewing keys](#viewing-keys).
 - [ ] **Decide your upgrade-key custody.** If the contract is upgradeable, distribute control across independent parties. See [Making a decision on contract updatability](./making-decision-on-contract-updatability).
 - [ ] **Get an external review.** No amount of self-testing replaces a second set of eyes on a security-critical contract.
 
@@ -622,7 +638,7 @@ Work through this list before mainnet. Each item links to the module that explai
 
 - [Smart contract security](../compact/smart-contract-security): the language-level security model, sealed fields, and cryptographic primitives.
 - [Private data](../concepts/how-midnight-works/keeping-data-private): commitments, nullifiers, and Merkle trees in depth.
-- [Explicit disclosure](../compact/reference/explicit-disclosure): how the compiler tracks private data and when `disclose()` is required.
-- [OpenZeppelin Compact contracts](/sdks/community/openzeppelin-compact-contracts): reference `Ownable`, `AccessControl`, and other modules built on the derived-identity pattern. Note the library states it has not been audited.
+- [Explicit disclosure](../compact/reference/explicit-disclosure): how the compiler tracks private data and when it requires `disclose()`.
+- [OpenZeppelin Compact contracts](/sdks/community/openzeppelin-compact-contracts): reference `Ownable`, `AccessControl`, and other modules built on the derived-identity pattern. Note that the library lacks a security audit.
 - [Test and debug](../compact/test-and-debug): broader testing strategies for Compact contracts.
 - [How to configure providers](./configure-providers): wiring the indexer and private-state providers your DApp uses.
