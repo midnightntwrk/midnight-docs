@@ -1,0 +1,196 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Merkle membership and the public transcript
+description: How checkRoot contributes to the public transcript, why one tree per category leaks membership, and how to restructure so every caller looks identical.
+sidebar_label: Merkle membership privacy
+sidebar_position: 36
+tags: [security, privacy]
+---
+
+# Merkle membership and the public transcript
+
+`HistoricMerkleTree` with `checkRoot` is the usual way to prove set membership
+without revealing which member you are. The membership *path* stays private, which
+is what most developers check for. The **result of the check does not**.
+
+This page covers what a `checkRoot` call actually contributes to the public
+transcript, the pattern that leaks because of it, and how to restructure so it
+does not. Everything below was confirmed against Compact 0.31.1 and
+`@midnight-ntwrk/compact-runtime` 0.16.0 by inspecting `proofData.publicTranscript`.
+
+:::warning The rule
+
+Every `checkRoot` call in a circuit must produce the **same result for every honest
+caller**. If a call can legitimately return `false` for some users and `true` for
+others, that difference is public, and it partitions your users.
+
+:::
+
+## checkRoot is a ledger operation
+
+It is easy to read `checkRoot` as a private comparison inside the proof. It is not.
+It reads ledger state, which makes it a public boundary, and the compiler says so
+if you leave off `disclose()`:
+
+```compact
+const inA = treeA.checkRoot(merkleTreePathRoot<4, Bytes<32>>(pathA(leaf)));
+```
+
+```
+Exception: potential witness-value disclosure must be declared but is not:
+  witness value potentially disclosed:
+    the return value of witness pathA
+  nature of the disclosure:
+    ledger operation might disclose a hash of the witness value
+  nature of the disclosure:
+    ledger operation might disclose a hash of the boolean value of the witness value
+  nature of the disclosure:
+    ledger operation might disclose a hash of a modulus of a hash of the witness value
+```
+
+Read the second one again. The compiler is reporting **three distinct disclosure
+channels**, and one of them is the *boolean* result of the check. A single
+`disclose()` consents to all three at once:
+
+```compact
+const inA = treeA.checkRoot(disclose(merkleTreePathRoot<4, Bytes<32>>(pathA(leaf))));
+```
+
+This is the ergonomic trap. The error reads like it is complaining about the root,
+so developers wrap the root and move on. The wrap also signs off on publishing
+whether the root matched.
+
+## What lands in the transcript
+
+Each `checkRoot` compiles to a `member` operation against the tree's historic roots,
+followed by `popeq`, which writes the comparison result into the public transcript:
+
+```
+dup
+idx(<ledger field index>)   // which tree
+idx(2)
+push(<32-byte computed root>)
+member                      // set membership against historic roots
+popeq(<result>)             // ← the answer, in the clear
+```
+
+`checkRoot` is a set membership test whose result is published. The same rule that
+makes `Set.member()` unsuitable for private membership applies here, in a shape that
+looks like it should be safe.
+
+## The anti-pattern: one tree per category
+
+A natural design for "attested by at least two of three authorities" gives each
+authority its own tree, then checks all three. Where an authority has not attested
+the caller, the witness supplies a well-formed but deliberately invalid path so the
+check returns `false` instead of failing the proof:
+
+```compact
+// ❌ Leaks which authorities attested the caller
+export ledger treeA: HistoricMerkleTree<4, Bytes<32>>;
+export ledger treeB: HistoricMerkleTree<4, Bytes<32>>;
+
+export circuit proveEither(): [] {
+  const leaf = leafFor(localSecretKey());
+  const inA = treeA.checkRoot(disclose(merkleTreePathRoot<4, Bytes<32>>(pathA(leaf))));
+  const inB = treeB.checkRoot(disclose(merkleTreePathRoot<4, Bytes<32>>(pathB(leaf))));
+  assert(inA || inB, "not a member of either");
+}
+```
+
+The final boolean is never disclosed, so this looks private. Running two callers
+through it and reading the transcripts shows otherwise. Alice is enrolled in tree A
+only, Bob in tree B only:
+
+| Caller | check against `treeA` | check against `treeB` |
+|---|---|---|
+| Alice | `popeq → [1]` (true) | `popeq → []` (false) |
+| Bob | `popeq → []` (false) | `popeq → [1]` (true) |
+
+Each check is tagged with the ledger field index it ran against, so an observer does
+not have to infer anything. The transcript states which trees matched. The pushed
+root values differ too, because an invalid path computes to a root that matches
+nothing, so the leak is recorded twice over.
+
+:::caution Optional membership cannot be made private
+
+The invalid-path technique is the only way to let a `checkRoot` fail without failing
+the proof, and it is therefore the only way to express optional or threshold
+membership across several trees. It is also exactly what produces a varying boolean.
+Optional membership and unlinkability are not simultaneously achievable this way.
+
+:::
+
+## The fix: one tree, category in the leaf
+
+Move the category out of *which tree you check* and into *what the leaf contains*:
+
+```compact
+// ✅ Transcript is identical for every honest caller
+export ledger tree: HistoricMerkleTree<4, Bytes<32>>;
+
+export pure circuit taggedLeaf(sk: Bytes<32>, issuer: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([pad(32, "myapp:leaf:v1"), sk, issuer]);
+}
+
+export circuit proveTwoDistinct(): [] {
+  const sk = localSecretKey();
+  const i1 = firstIssuer();
+  const i2 = secondIssuer();
+  assert(disclose(!(i1 == i2)), "issuers must differ");
+
+  const ok1 = tree.checkRoot(disclose(merkleTreePathRoot<4, Bytes<32>>(pathFirst(taggedLeaf(sk, i1)))));
+  const ok2 = tree.checkRoot(disclose(merkleTreePathRoot<4, Bytes<32>>(pathSecond(taggedLeaf(sk, i2)))));
+  assert(ok1 && ok2, "need two distinct attestations");
+}
+```
+
+Every attestation lives in one tree. The circuit proves two memberships and asserts
+inside the proof that the two issuer tags differ, so the "at least two distinct
+authorities" property is enforced without naming them.
+
+Comparing a caller attested by issuers (A, B) against one attested by (B, C):
+
+```
+identical transcript shape : true
+identical pushed roots     : true
+```
+
+Both callers push the same value, the tree's current root, and both publish
+`popeq → [1]` twice.
+
+Note what changed. The booleans are still public. They are now **constant**, because
+the circuit requires both checks to pass. You cannot hide what `checkRoot` publishes.
+You can only arrange for it to be the same for everyone.
+
+The cost is real and worth stating plainly: this design cannot express "any two of
+three, and I will not say which two." It expresses "two distinct, both required."
+If the weaker property is what your application needs, the stronger privacy is not
+available through repeated `checkRoot` calls.
+
+## What is on-chain
+
+| Data | In the transcript | What an observer learns |
+|---|---|---|
+| Membership path | No | Nothing |
+| Leaf value | No | Nothing |
+| Leaf index | No | Nothing |
+| Computed root | Yes | Matches the tree's root, or does not |
+| Result of each check | **Yes** | Whether that specific check passed |
+| Ledger field index checked | **Yes** | Which tree each check ran against |
+
+## Checklist
+
+* Count the `checkRoot` calls in each circuit. Each one publishes a bit.
+* For every call, ask whether an honest caller could see `false`. If yes, that bit
+  partitions your users.
+* Prefer one tree with a tagged leaf over several trees selected by category.
+* Do not read `disclose()` on a `checkRoot` argument as consent about the root alone.
+
+## See also
+
+* [Smart contract security](./smart-contract-security) for the disclosure model and
+  the `Set.member()` case this generalises.
+* [Explicit disclosure](./reference/explicit-disclosure) for how the compiler tracks
+  witness taint to a public boundary.
