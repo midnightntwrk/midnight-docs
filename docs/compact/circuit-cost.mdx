@@ -1,0 +1,219 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: What makes a circuit expensive
+description: Which Compact constructs actually cost circuit rows, measured with a rerunnable harness, and why trimming rows usually buys you nothing at all.
+sidebar_label: Circuit cost
+sidebar_position: 37
+tags: [performance, compact]
+---
+
+# What makes a circuit expensive
+
+Every time you compile, the Compact compiler tells you the size of each circuit:
+
+```
+circuit "post" (k=14, rows=10070)
+```
+
+Those numbers appear throughout this documentation, and nothing so far has
+explained them. This page covers what they mean, which Compact constructs
+actually cost you, and the one rule that decides whether an optimisation is
+worth making.
+
+Everything below was measured against compactc 0.31.0 and language version
+0.23.0. The harness is linked at the end so you can rerun it.
+
+## What k and rows mean
+
+`rows` counts the constraints your circuit compiles to. `k` describes the
+proving domain, which holds `2^k` rows.
+
+The important consequence is that **`k` is the number that decides proving
+cost, and `k` only moves at powers of two**. A circuit of 4,189 rows and a
+circuit of 8,075 rows are both `k=13`, because 8,192 rows fit within `k=13`.
+
+This makes most row-level optimisation pointless. Come back to that once you
+have seen the numbers.
+
+## How this was measured
+
+Each figure below comes from a pair of minimal contracts that differ by
+exactly one construct. The difference between their row counts is the cost of
+that construct.
+
+Two things about the tooling are worth knowing before you try this yourself.
+
+**The compiler only prints sizes to a terminal.** Pipe the output of
+`compact compile` anywhere and the per-circuit lines vanish, leaving only
+`Compiling N circuits:`. You cannot capture circuit sizes in CI without
+faking a TTY. The harness uses `script` for this.
+
+**There is no fast path.** Compiling with `--skip-zk` reports no sizes at all
+and writes no `keys/` directory, because `k` is decided during PLONK key
+generation. If you want the numbers, you pay for the full compile.
+
+## What dominates: hashing
+
+`persistentHash` costs far more than anything else you are likely to write.
+
+Three contracts, identical except for the number of hash calls:
+
+| hash calls | rows |
+| --- | --- |
+| 0 | 303 |
+| 1 | 4,189 |
+| 2 | 8,075 |
+| 3 | 11,961 |
+
+That is a straight line with no residual: `303 + 3886n`. **One
+`persistentHash<Vector<2, Bytes<32>>>` costs 3,886 rows.** For comparison, a
+`Map.insert` costs 303 and a `Counter.increment` costs 24.
+
+### transientHash is roughly twelve times cheaper
+
+The standard library offers `transientHash` for values you need only inside
+the circuit. Existing guidance suggests using it where lower cost matters,
+without saying how much lower.
+
+| | rows |
+| --- | --- |
+| `Uint<64>` ledger write alone | 90 |
+| `transientHash` plus that write | 411 |
+
+So `transientHash` costs at most 321 rows, against 3,886. If a hash never
+needs to survive the transaction, this is the largest single saving available
+to you.
+
+### Widen a hash rather than chaining hashes
+
+Adding an input to an existing hash is much cheaper than adding another hash
+call. Going from `Vector<2>` to `Vector<4>` cost 2,487 rows for two extra
+elements, so roughly 1,243 each, against 3,886 for a whole new call.
+
+Binding four values together:
+
+| approach | rows |
+| --- | --- |
+| one `persistentHash<Vector<4, Bytes<32>>>` | 6,373 |
+| three chained `persistentHash<Vector<2, Bytes<32>>>` | 11,658 |
+
+Chaining costs nearly double. If you are combining a domain tag with several
+values, put them all in one call.
+
+## What is nearly free
+
+Several things that look expensive are not.
+
+**Reading a witness costs nothing.** A circuit taking its input from a
+witness measured 4,168 rows against 4,189 for the same circuit taking a
+public parameter. The witness version is marginally cheaper. Privacy costs
+nothing at the input boundary. What costs you is what you do with the value
+afterwards.
+
+**Merkle depth is close to free.** Doubling a tree from depth 10 to depth 20
+added 310 rows, so about 31 rows per level. Choose your tree depth for
+capacity, not for cost.
+
+**Loops are linear and cheap.** A fold over 8 elements measured 609 rows and
+over 32 elements measured 2,169, which is 65 rows per iteration. One
+`persistentHash` costs about as much as sixty loop iterations. Compact
+unrolls loops fully, so cost scales with the bound, but the per-iteration
+price is low.
+
+**Declaring a Merkle tree you never touch costs nothing.** A contract
+declaring a `HistoricMerkleTree` and only incrementing a counter measured 24
+rows, identical to the same contract with no tree at all.
+
+## Merkle operations pin k to at least 13
+
+Using a tree is a different matter from declaring one. Every contract that
+performed a Merkle operation landed at `k=13`, even though its row count
+implied `k=12`:
+
+| operation | rows | k |
+| --- | --- | --- |
+| `insert` | 2,299 | 13 |
+| `checkRoot` with a depth-10 path | 2,590 | 13 |
+| the same plus a circuit parameter | 2,869 | 13 |
+| the same at depth 20 | 3,179 | 13 |
+
+If your contract touches a tree at all, you are paying for `k=13`, which is
+8,192 rows of capacity. A tree contract sitting at 2,299 rows is leaving
+almost 6,000 rows unused that you have already paid for.
+
+## The rule that matters: spend your headroom, do not trim it
+
+Because `k` moves only at powers of two, saving rows is worthless unless the
+saving carries you across a boundary.
+
+Here is that happening in a real contract. `RxLimit` is a 251-line contract
+whose `dispense` circuit performs four hashes, a Merkle membership proof and
+five map operations. Compiling it twice, changing nothing except narrowing
+one hash from `Vector<4>` to `Vector<2>`:
+
+| | rows | k |
+| --- | --- | --- |
+| baseline | 23,475 | 15 |
+| one hash narrowed | 21,184 | 15 |
+
+The change saved 2,291 rows and achieved nothing. Both versions are `k=15`,
+which covers 32,768 rows, so the proving cost is identical.
+
+To move `dispense` to `k=14` it would have to get under 16,384 rows, a cut of
+7,091. That is roughly two entire `persistentHash` calls, and no amount of
+trimming hash inputs was going to reach it.
+
+The useful process is therefore the opposite of ordinary optimisation:
+
+1. Compile and read your `k`.
+2. Work out your capacity, `2^k`.
+3. Subtract your rows. That gap is already yours.
+4. Spend it on clarity, on extra checks, on stronger domain separation.
+5. Only restructure if you are near a boundary and can realistically cross
+   it, which in practice means removing whole `persistentHash` calls.
+
+For `RxLimit`, every circuit has room to spare:
+
+| circuit | rows | k | capacity | unused |
+| --- | --- | --- | --- | --- |
+| `dispense` | 23,475 | 15 | 32,768 | 9,293 |
+| `issuePrescription` | 13,009 | 14 | 16,384 | 3,375 |
+| `registerPrescriber` | 4,457 | 13 | 8,192 | 3,735 |
+| `isPrescriber` | 338 | 9 | 512 | 174 |
+
+## Treat these numbers as relative, not as a calculator
+
+The figures above are measured in isolation, and they do not add up cleanly
+in a real contract. Summing every measured part of `dispense` predicts 25,711
+rows against a measured 23,475, overshooting by about ten percent. The
+compiler shares work that separate probes each pay for.
+
+The single-construct change tested above landed closer: the isolated numbers
+predicted a saving of 2,487 rows and the real contract gave 2,291, within
+about eight percent.
+
+Use these costs to choose between constructs. Do not use them to predict a
+contract's size. Compile and read the number instead.
+
+## What this page does not measure
+
+This measures circuit size only. It does not measure proving time or memory.
+The relationship between `k` and the cost of generating a proof is a property
+of the proving system rather than something established here, so if proving
+time on a constrained device matters to you, measure it on that device.
+
+## Reproducing this
+
+The harness compiles eighteen probe contracts plus the two real-contract
+variants, and writes a table of `k` and `rows`:
+
+```sh
+git clone https://github.com/tomiin/compact-circuit-costs
+cd compact-circuit-costs
+./measure.sh
+./holdout.sh
+```
+
+Each probe is a few lines long and differs from its neighbour by one
+construct, so you can add your own and see what it costs.
