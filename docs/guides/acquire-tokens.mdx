@@ -12,9 +12,9 @@ tags: [midnight, tokens, dust, night, wallet, funding]
 
 # Funding a wallet
 
-Every transaction on Midnight consumes DUST, and DUST comes from NIGHT that you have registered for DUST generation. On the test networks both halves are free: a faucet sends you tNIGHT, and registering it starts tDUST accruing within minutes. This guide walks the whole path: requesting tNIGHT from the faucet, registering it in the Lace wallet, and doing the same programmatically with the wallet SDK when you need funding to be scriptable. For why the two-token model works this way, see [Funding and transaction cost](./networks-and-environments#funding-and-transaction-cost).
+Every transaction on Midnight consumes DUST, and DUST comes from NIGHT that you have registered for DUST generation. On the test networks both halves are free: a faucet sends you tNIGHT, and registering it starts tDUST accruing. This guide walks the whole path. You request tNIGHT from the faucet, register it in the Lace wallet, and then do the same programmatically with the wallet SDK when you need funding to be scriptable. For why the two-token model works this way, see [Funding and transaction cost](./networks-and-environments#funding-and-transaction-cost).
 
-One term matters throughout: NIGHT is **registered** for DUST generation, the on-chain operation the protocol and SDK call registration. The Lace button for it is labeled **Generate tDUST**, and Lace displays the result as your tNIGHT designation.
+One term matters throughout. You **register** NIGHT for DUST generation, the on-chain operation the protocol and SDK also call registration. Lace labels the button **Generate tDUST** and displays the result as your tNIGHT designation.
 
 ## Prerequisites
 
@@ -34,10 +34,10 @@ Request free test tokens for the network you develop on. The faucets are rate li
 1. Copy your **unshielded** wallet address. In Lace, open your Midnight wallet and copy the address that starts with `mn_addr_`; the faucet rejects shielded and DUST addresses.
 
    :::note Bech32m address format
-   Wallet addresses are shown in Bech32m format by default. The address encodes its network, for example `mn_addr_preprod1...` on Preprod.
+   Lace shows wallet addresses in Bech32m format by default. The address encodes its network, for example `mn_addr_preprod1...` on Preprod.
    :::
 
-2. Open the faucet for your network: the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/) or the [Preview faucet](https://midnight-tmnight-preview.nethermind.dev/). Both are listed in the [Environment reference](./networks-and-environments#environment-reference).
+2. Open the faucet for your network: the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/) or the [Preview faucet](https://midnight-tmnight-preview.nethermind.dev/). The [Environment reference](./networks-and-environments#environment-reference) lists both.
 
    ![Midnight preprod faucet](./img/request-tokens.png)
 
@@ -49,7 +49,7 @@ Request free test tokens for the network you develop on. The faucets are rate li
 
 ### Verification
 
-The tNIGHT balance appears in your wallet within a couple of minutes: 1,000.0 tNIGHT per Preprod faucet request. In Lace, the unshielded balance updates on the wallet's main view; programmatically, the balance waiter in [Registering for DUST generation with the wallet SDK](#registering-for-dust-generation-with-the-wallet-sdk) resolves as soon as the funds land.
+The tNIGHT balance appears in your wallet within a couple of minutes: 1,000.0 tNIGHT per Preprod faucet request. In Lace, the unshielded balance updates on the wallet's main view. In code, the balance watcher in [Registering for DUST generation with the wallet SDK](#registering-for-dust-generation-with-the-wallet-sdk) resolves as soon as the funds land.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Registering NIGHT for DUST generation in Lace
@@ -74,12 +74,14 @@ Turn your tNIGHT into a source of tDUST. Holding NIGHT alone generates nothing; 
 
 The tDUST tank starts filling and continues to accrue over time, up to a cap set by how much NIGHT you registered.
 
-![Confirm transaction](./img/dust-tank-generation.png)
+![The Lace tDUST tank generating tokens after registration](./img/dust-tank-generation.png)
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Registering for DUST generation with the wallet SDK
 
-Do the same registration from code, so funding works in scripts and CI. The flow builds a wallet from a seed, syncs it, waits for faucet funds, registers the NIGHT UTXOs for DUST generation, and watches the DUST balance become positive. The snippets below form one script; the wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, which re-exports every wallet sub-package.
+Do the same registration from code, so funding works in scripts and CI. The flow builds a wallet from a seed, syncs it, waits for faucet funds, then registers the NIGHT UTXOs and watches the DUST balance grow. The snippets below form one script.
+
+The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, which re-exports every wallet sub-package. That scope has no hyphen, unlike the `@midnight-ntwrk/` packages alongside it.
 
 ### Procedure
 
@@ -114,7 +116,7 @@ Do the same registration from code, so funding works in scripts and CI. The flow
    curl http://localhost:6300/health
    ```
 
-3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, keeping WebSocket behavior consistent across Node versions, and the endpoints come from the [Environment reference](./networks-and-environments#environment-reference):
+3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, which keeps WebSocket behavior consistent across Node versions. The endpoints come from the [Environment reference](./networks-and-environments#environment-reference):
 
    ```typescript
    import { WebSocket } from 'ws';
@@ -151,7 +153,7 @@ Do the same registration from code, so funding works in scripts and CI. The flow
    };
    ```
 
-4. Derive the wallet's three key roles from a seed. One seed produces the shielded (Zswap), unshielded (NightExternal), and DUST key sets by hierarchical deterministic derivation. Save the seed; it is the only way to restore the wallet:
+4. Derive the wallet's three key roles from a seed. One seed produces the shielded (`Zswap`), unshielded (`NightExternal`), and `Dust` key sets by hierarchical deterministic derivation. Save the seed; it is the only way to restore the wallet:
 
    ```typescript
    const seed = toHex(Buffer.from(generateRandomSeed()));
@@ -231,8 +233,8 @@ Do the same registration from code, so funding works in scripts and CI. The flow
 
 7. Wait for the wallet to sync fully, then register the unregistered NIGHT UTXOs for DUST generation. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
 
-   :::note First sync takes a while
-   Registration needs a fully synced wallet, and a fresh wallet's first sync on Preprod is slow: in a run measured for this guide (August 2026), funds were visible within 30 seconds, the shielded scan finished in about 2 minutes, and the DUST wallet took the better part of an hour to walk the chain. Sync starts over when the process restarts, so keep the script running, and for a one-off funding task prefer the [Lace flow](#registering-night-for-dust-generation-in-lace).
+   :::caution First sync takes a while
+   Registration needs a fully synced wallet, and a fresh wallet's first sync on Preprod is slow. In a run measured for this guide in August 2026, funds appeared within 30 seconds and the shielded scan finished in about 2 minutes, but the DUST wallet took the better part of an hour to walk the chain. A restarted process syncs again from the beginning, so keep the script running. For a one-off funding task, prefer the [Lace flow](#registering-night-for-dust-generation-in-lace).
    :::
 
    ```typescript
@@ -255,7 +257,7 @@ Do the same registration from code, so funding works in scripts and CI. The flow
    await wallet.submitTransaction(finalized);
    ```
 
-8. Watch the DUST balance become positive. Generation starts within a few minutes of the registration landing:
+8. Watch the DUST balance become positive. Generation begins once the registration transaction lands on-chain:
 
    ```typescript
    await Rx.firstValueFrom(
@@ -406,7 +408,7 @@ describe('building a funding wallet', () => {
       Tests  3 passed (3)
 ```
 
-A timed run of this procedure against Preprod, from a fresh seed through the registration transaction, is shown below exactly as it executed for this guide (August 2026). The faucet funds were requested at the start of the run and were visible to the wallet within 30 seconds; the long wait is the first full sync:
+The log below comes from a timed run of this procedure against Preprod in August 2026, from a fresh seed through the registration transaction, exactly as it executed. The faucet request went out at the start of the run and the funds reached the wallet within 30 seconds. The long wait is the first full sync:
 
 ```text
 [0s] waiting for synced state...
@@ -415,7 +417,7 @@ A timed run of this procedure against Preprod, from a fresh seed through the reg
 [3528s] registration submitted
 ```
 
-Once the registration lands, DUST accrues toward the cap that the amount of registered NIGHT sets, which you can watch with the balance check in the final step or in Lace's tDUST tank.
+Once the registration lands, DUST accrues toward the cap that your registered NIGHT sets. Watch it with the balance check in the final step, or in Lace's tDUST tank.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Funding troubleshooting
@@ -424,12 +426,12 @@ The failure modes readers hit most often on the funding path, and their fixes.
 
 | Symptom | Fix |
 |---|---|
-| Faucet says `Provided address is invalid` | Use the **unshielded** address (`mn_addr_...`) with no surrounding whitespace; shielded and DUST addresses are rejected. |
+| Faucet says `Provided address is invalid` | Use the **unshielded** address (`mn_addr_...`) with no surrounding whitespace. The faucet rejects shielded and DUST addresses. |
 | Faucet says `rate_limit_error` or `Reached maximum number of requests` | Wait a few hours and retry. If it persists, open a ticket at the [Midnight Service Desk](https://midnightntwrk.github.io/servicedesk/) or ask in [Discord](https://discord.gg/midnightnetwork). |
-| `Cannot find module` when running the script | Run `npm install` first; if it persists, delete `node_modules` and `package-lock.json` and reinstall. |
+| `Cannot find module` when running the script | Run `npm install` first. If it persists, delete `node_modules` and `package-lock.json`, then reinstall. |
 | Connection refused on port 6300 | The proof server is not running; see [Run the proof server](./run-proof-server). |
 | Balance stays zero after the faucet confirms | Give it a couple of minutes; the wallet detects funds after its next sync. Confirm the address you pasted matches the printed one exactly. |
-| DUST stays zero after registration | Initial generation takes a minute or two; confirm the proof server answers on `http://localhost:6300/health`. |
+| DUST stays zero after registration | Give the registration time to land on-chain, then confirm the proof server answers on `http://localhost:6300/health`. |
 | `Invalid dust address` when directing DUST elsewhere | DUST addresses start with `mn_dust_` plus the network name; shielded (`mn_shield-addr_...`) and unshielded (`mn_addr_...`) addresses are different types. |
 
 ## Additional resources
