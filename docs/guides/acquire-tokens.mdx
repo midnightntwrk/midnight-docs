@@ -21,8 +21,9 @@ One term matters throughout. You **register** NIGHT for DUST generation, the on-
 These apply to every procedure in this guide:
 
 - A [Lace wallet](../getting-started/installation) set up on the target test network, for the faucet and Lace procedures.
-- Node.js version 22 or higher, for the wallet SDK procedure.
+- Node.js version 22 or higher, for the wallet SDK procedure. macOS, Linux, and Windows through WSL all work.
 - A local [proof server](./run-proof-server) on port 6300, for the wallet SDK procedure.
+- [Vitest](https://vitest.dev/) alongside the packages listed below, if you want to run the verification tests.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Getting tNIGHT from the faucet
@@ -62,13 +63,13 @@ Turn your tNIGHT into a source of tDUST. Holding NIGHT alone generates nothing; 
 
 ### Procedure
 
-1. In Lace, select **Generate tDUST**. Your tDUST address populates the input field.
+1. In Lace, open your Midnight wallet and select **Generate tDUST**.
 
-   ![Generate tDUST](./img/delegate-dust.png)
+   ![The Lace wallet tokens view with the Generate tDUST button](./img/delegate-dust.png)
 
-2. Select **Review transaction**, then **Confirm** to submit the registration.
+2. Your tDUST address populates the input field. Select **Review transaction**, then **Confirm** to submit the registration.
 
-   ![Review transaction](./img/review-transaction.png)
+   ![The Generate tDUST dialog with the address filled in and the Review transaction button](./img/review-transaction.png)
 
 ### Verification
 
@@ -153,11 +154,17 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
    };
    ```
 
-4. Derive the wallet's three key roles from a seed. One seed produces the shielded (`Zswap`), unshielded (`NightExternal`), and `Dust` key sets by hierarchical deterministic derivation. Save the seed; it is the only way to restore the wallet:
+4. Derive the wallet's three key roles from a seed. One seed produces the shielded (`Zswap`), unshielded (`NightExternal`), and `Dust` key sets by hierarchical deterministic derivation. Read the seed from the environment so re-runs reuse the same wallet, and generate one only on the first run:
+
+   :::warning Save the seed
+   The seed is the only way to restore the wallet. A script that generates a fresh seed on every run creates a new, empty wallet each time and strands the funds in the previous one.
+   :::
 
    ```typescript
-   const seed = toHex(Buffer.from(generateRandomSeed()));
-   console.log(`Seed (save this): ${seed}`);
+   const seed = process.env.WALLET_SEED ?? toHex(Buffer.from(generateRandomSeed()));
+   if (!process.env.WALLET_SEED) {
+     console.log(`New wallet seed, save this and set WALLET_SEED to reuse it: ${seed}`);
+   }
 
    const deriveKeys = (seed: string) => {
      const hd = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
@@ -216,9 +223,17 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
    await wallet.start(shieldedSecretKeys, dustSecretKey);
    ```
 
-6. Print the unshielded address, fund it from the [faucet](#getting-tnight-from-the-faucet), and watch for the funds. Balances stream in while the wallet is still syncing, and a partial sync can only undercount, so a positive balance means the tokens have arrived:
+6. Print the unshielded address, fund it from the [faucet](#getting-tnight-from-the-faucet), and watch for the funds. Balances stream in while the wallet is still syncing, and a partial sync can only undercount, so a positive balance means the tokens have arrived.
+
+   Balances arrive as `bigint` values in the smallest denomination. NIGHT divides into 10<sup>6</sup> STAR, so the faucet's 1,000 tNIGHT reads as `1000000000`. DUST divides into 10<sup>15</sup> SPECK. Convert before displaying:
 
    ```typescript
+   const formatNight = (raw: bigint) =>
+     `${raw / 1_000_000n}.${(raw % 1_000_000n).toString().padStart(6, '0')}`;
+
+   const formatDust = (raw: bigint) =>
+     `${raw / 1_000_000_000_000_000n}.${(raw % 1_000_000_000_000_000n).toString().padStart(15, '0')}`;
+
    console.log(`Send tNIGHT to: ${unshieldedKeystore.getBech32Address()}`);
 
    const nightBalance = await Rx.firstValueFrom(
@@ -228,7 +243,7 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
        Rx.filter((balance) => balance > 0n),
      ),
    );
-   console.log(`tNIGHT received: ${nightBalance}`);
+   console.log(`tNIGHT received: ${formatNight(nightBalance)}`);
    ```
 
 7. Wait for the wallet to sync, then register the unregistered NIGHT UTXOs for DUST generation. Registration needs a fully synced wallet, so `waitForSyncedState` gates this step; keep the process running, because a restarted script syncs again from the beginning. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
@@ -240,18 +255,25 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
      (coin) => coin.meta?.registeredForDustGeneration !== true,
    );
 
-   const ownDustAddress = DustAddress.encodePublicKey(getNetworkId(), state.dust.publicKey);
-   const dustReceiver = MidnightBech32m.parse(String(ownDustAddress)).decode(DustAddress, getNetworkId());
+   if (unregistered.length === 0) {
+     console.log('All NIGHT is already registered for DUST generation.');
+   } else {
+     // Send the DUST elsewhere by replacing this with another wallet's address.
+     const target = String(DustAddress.encodePublicKey(getNetworkId(), state.dust.publicKey));
+     const dustReceiver = MidnightBech32m.parse(target).decode(DustAddress, getNetworkId());
 
-   const recipe = await wallet.registerNightUtxosForDustGeneration(
-     unregistered,
-     unshieldedKeystore.getPublicKey(),
-     (payload) => unshieldedKeystore.signData(payload),
-     dustReceiver,
-   );
-   const finalized = await wallet.finalizeRecipe(recipe);
-   await wallet.submitTransaction(finalized);
+     const recipe = await wallet.registerNightUtxosForDustGeneration(
+       unregistered,
+       unshieldedKeystore.getPublicKey(),
+       (payload) => unshieldedKeystore.signData(payload),
+       dustReceiver,
+     );
+     const finalized = await wallet.finalizeRecipe(recipe);
+     await wallet.submitTransaction(finalized);
+   }
    ```
+
+   `MidnightBech32m.parse(...).decode(DustAddress, ...)` is also the validation step: it throws on anything that is not a DUST address for the current network, so a shielded or unshielded address pasted by mistake fails here rather than producing a registration that sends DUST nowhere useful.
 
 8. Watch the DUST balance become positive. Generation begins once the registration transaction lands on-chain:
 
@@ -264,9 +286,11 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
      ),
    );
    const dustBalance = (await Rx.firstValueFrom(wallet.state())).dust.balance(new Date());
-   console.log(`DUST balance: ${dustBalance}`);
+   console.log(`DUST balance: ${formatDust(dustBalance)}`);
    await wallet.stop();
    ```
+
+   DUST accrues continuously, so this balance grows between checks until it reaches the cap your registered NIGHT sets.
 
 ### Verification
 
@@ -307,14 +331,14 @@ const CONFIG = {
 
 const deriveKeys = (seed: string) => {
   const hd = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
-  if (hd.type !== 'seedOk') throw new Error('bad seed');
-  const res = hd.hdWallet
+  if (hd.type !== 'seedOk') throw new Error('Invalid seed');
+  const result = hd.hdWallet
     .selectAccount(0)
     .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
     .deriveKeysAt(0);
-  if (res.type !== 'keysDerived') throw new Error('derive failed');
+  if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
   hd.hdWallet.clear();
-  return res.keys;
+  return result.keys;
 };
 
 let wallet: any;
@@ -399,6 +423,41 @@ describe('building a funding wallet', () => {
  ✓ wallet-construction.test.ts > building a funding wallet > derives the three key roles deterministically from one seed
  ✓ wallet-construction.test.ts > building a funding wallet > encodes a preprod unshielded address with the mn_addr_preprod prefix
  ✓ wallet-construction.test.ts > building a funding wallet > builds the wallet facade and connects all three wallets to preprod
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+A saved seed restores the same wallet, the denominations convert as expected, and a mistyped receiver fails before it can be registered. The assertions below come from a second test file that shares the imports, the `deriveKeys` helper, and the two formatters shown earlier in this guide:
+
+```typescript title="funding-helpers.test.ts"
+describe('restored capabilities', () => {
+  it('restores the same wallet from a saved seed', () => {
+    const seed = toHex(Buffer.from(generateRandomSeed()));
+    const addrOf = (s: string) =>
+      String(createKeystore(deriveKeys(s)[Roles.NightExternal], getNetworkId()).getBech32Address());
+    expect(addrOf(seed)).toBe(addrOf(seed));
+    expect(addrOf(seed)).not.toBe(addrOf(toHex(Buffer.from(generateRandomSeed()))));
+  });
+
+  it('formats the faucet amount in NIGHT and DUST denominations', () => {
+    expect(formatNight(1000000000n)).toBe('1000.000000');
+    expect(formatDust(405083000000n)).toBe('0.000405083000000');
+  });
+
+  it('rejects a non-DUST address when decoding a DUST receiver', () => {
+    const keys = deriveKeys(toHex(Buffer.from(generateRandomSeed())));
+    const unshielded = String(createKeystore(keys[Roles.NightExternal], getNetworkId()).getBech32Address());
+    expect(unshielded).toMatch(/^mn_addr_preprod1/);
+    expect(() => MidnightBech32m.parse(unshielded).decode(DustAddress, getNetworkId())).toThrow();
+  });
+});
+```
+
+```text
+ ✓ funding-helpers.test.ts > restored capabilities > restores the same wallet from a saved seed
+ ✓ funding-helpers.test.ts > restored capabilities > formats the faucet amount in NIGHT and DUST denominations
+ ✓ funding-helpers.test.ts > restored capabilities > rejects a non-DUST address when decoding a DUST receiver
 
  Test Files  1 passed (1)
       Tests  3 passed (3)
