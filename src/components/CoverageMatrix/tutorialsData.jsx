@@ -4,27 +4,24 @@
 // Scope: every column is a written tutorial under docs/tutorials/, and every
 // feature row is something at least one tutorial covers. Cells are sourced from
 // the tutorial pages themselves and deep-link to the section where the feature
-// is covered: level "x" means the tutorial teaches or demonstrates the feature
-// (code plus explanation), "?" means it appears only briefly or incidentally.
+// is covered. Coverage is binary: a feature is either covered by a tutorial
+// (code plus explanation) or it is not marked at all.
 //
 // To keep this current:
 //  - Add or rename a column in `columns` (id must be unique, lowercase-dashed)
 //    and point `href` at its docs page.
 //  - Under each feature in `features`, add `"<column-id>": x("/route#anchor")`
-//    for a feature the tutorial teaches in depth, or `q("/route#anchor")` for a
-//    brief touch. The href must point at the page section covering the feature;
-//    the site build validates the anchors.
+//    for a feature the tutorial covers. The href must point at the page section
+//    covering the feature; validate anchors against the built site.
 //  - `section` groups rows into collapsible table sections and dropdown groups.
 //
 // `group` buckets a column as a full "DApps" tutorial or a contract-focused
 // "Contracts" tutorial.
 
 const x = (href) => ({ level: "x", href });
-const q = (href) => ({ level: "?", href });
 
 // Tutorial page routes
 const BB_SC = "/tutorials/bboard/smart-contract";
-const BB_CLI = "/tutorials/bboard/bboard-cli";
 const BB_API = "/tutorials/bboard/bboard-api-implementation";
 const BB_IMPL = "/tutorials/bboard/bboard-cli-implementation";
 const PP_SC = "/tutorials/private-party/smart-contract";
@@ -88,7 +85,6 @@ export const features = [
     name: "Field",
     section: LANG,
     coverage: {
-      bboard: q(`${BB_SC}#create-the-post-circuit`),
       "zk-loan": x(`${ZK_SC}#write-the-schnorr-signature-module`)
     }
   },
@@ -96,9 +92,7 @@ export const features = [
     name: "Uint",
     section: LANG,
     coverage: {
-      "private-party": q(`${PP_SC}#setup`),
       bship: x(`${BS_SC}#setup`),
-      leaderboard: q(`${LB_SC}#write-the-contract`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
   },
@@ -107,18 +101,8 @@ export const features = [
     section: LANG,
     coverage: {
       bboard: x(`${BB_SC}#define-the-ledger-state`),
-      "private-party": q(`${PP_SC}#setup`),
       bship: x(`${BS_SC}#setup`),
-      leaderboard: q(`${LB_SC}#write-the-contract`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
-    }
-  },
-  {
-    name: "Boolean",
-    section: LANG,
-    coverage: {
-      leaderboard: q(`${LB_SC}#submitscore`),
-      "zk-loan": q(`${ZK_SC}#admin-circuits`)
     }
   },
   {
@@ -139,7 +123,6 @@ export const features = [
     name: "Structs",
     section: LANG,
     coverage: {
-      "private-party": q(`${PP_SC}#compact-tutorial`),
       leaderboard: x(`${LB_SC}#write-the-contract`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
@@ -158,10 +141,6 @@ export const features = [
     name: "Vector",
     section: LANG,
     coverage: {
-      bboard: q(`${BB_SC}#create-the-publickey-helper-circuit`),
-      "private-party": q(`${PP_SC}#access-control`),
-      bship: q(`${BS_SC}#hashing-circuits`),
-      leaderboard: q(`${LB_SC}#ownercommitment`),
       "zk-loan": x(`${ZK_SC}#write-the-schnorr-signature-module`)
     }
   },
@@ -169,9 +148,7 @@ export const features = [
     name: "Maybe / Either",
     section: LANG,
     coverage: {
-      bboard: x(`${BB_SC}#define-the-ledger-state`),
-      "private-party": q(`${PP_SC}#compact-tutorial`),
-      bship: q(`${BS_SC}#shoot-circuits`)
+      bboard: x(`${BB_SC}#define-the-ledger-state`)
     }
   },
   {
@@ -189,9 +166,6 @@ export const features = [
     section: LANG,
     coverage: {
       bboard: x(`${BB_SC}#create-the-post-circuit`),
-      "private-party": q(`${PP_SC}#compact-tutorial`),
-      bship: q(`${BS_SC}#shoot-circuits`),
-      leaderboard: q(`${LB_SC}#submitscore`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
   },
@@ -199,8 +173,6 @@ export const features = [
     name: "Importing modules (import, include)",
     section: LANG,
     coverage: {
-      bboard: q(`${BB_SC}#import-the-standard-library`),
-      "private-party": q(`${PP_SC}#setup`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
   },
@@ -226,18 +198,9 @@ export const features = [
     }
   },
   {
-    name: "default<T> initialization",
-    section: LANG,
-    coverage: {
-      bboard: q(`${BB_SC}#create-the-constructor`),
-      "zk-loan": q(`${ZK_SC}#core-loan-circuits`)
-    }
-  },
-  {
     name: "Ternary / branchless selection",
     section: LANG,
     coverage: {
-      bship: q(`${BS_SC}#check-boards-locally`),
       "zk-loan": x(`${ZK_SC}#core-loan-circuits`)
     }
   },
@@ -248,16 +211,6 @@ export const features = [
       bboard: x(`${BB_SC}#define-the-ledger-state`),
       bship: x(`${BS_SC}#setup`),
       leaderboard: x(`${LB_SC}#write-the-contract`)
-    }
-  },
-  {
-    name: "Ledger Cell",
-    section: LANG,
-    coverage: {
-      bboard: q(`${BB_SC}#define-the-ledger-state`),
-      "private-party": q(`${PP_SC}#setup`),
-      bship: q(`${BS_SC}#setup`),
-      "zk-loan": q(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
   },
   {
@@ -288,8 +241,6 @@ export const features = [
     name: "Nested ADTs",
     section: LANG,
     coverage: {
-      bboard: q(`${BB_SC}#define-the-ledger-state`),
-      leaderboard: q(`${LB_SC}#write-the-contract`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
   },
@@ -305,8 +256,6 @@ export const features = [
     section: LANG,
     coverage: {
       bboard: x(`${BB_SC}#define-the-board-state-enum`),
-      "private-party": q(`${PP_SC}#data-private-by-default`),
-      bship: q(`${BS_SC}#compact-tutorial`),
       "zk-loan": x(`${ZK_SC}#the-header-types-ledger-state-and-constructor`)
     }
   },
@@ -346,7 +295,6 @@ export const features = [
     section: CIRCUITS,
     coverage: {
       bboard: x(`${BB_SC}#declare-the-witness-function`),
-      "private-party": q(`${PP_SC}#witnesses`),
       bship: x(`${BS_SC}#witnesses`),
       leaderboard: x(`${LB_API}#witness-provider`),
       "zk-loan": x(`${ZK_SC}#create-the-witness-function-private-data-provider`)
@@ -369,8 +317,7 @@ export const features = [
     name: "persistentCommit",
     section: PRIVACY,
     coverage: {
-      "private-party": x(`${PP_SC}#compact-tutorial`),
-      bship: q(`${BS_SC}#hashing-circuits`)
+      "private-party": x(`${PP_SC}#compact-tutorial`)
     }
   },
   {
@@ -403,7 +350,6 @@ export const features = [
     name: "Unlinkable actions (rotating keys)",
     section: PRIVACY,
     coverage: {
-      bboard: q(`${BB_SC}#create-the-post-circuit`),
       "zk-loan": x(`${ZK_SC}#pin-migration-and-schnorr-re-export`)
     }
   },
@@ -443,7 +389,6 @@ export const features = [
     section: PRIVACY,
     coverage: {
       bboard: x(`${BB_SC}#create-the-publickey-helper-circuit`),
-      "private-party": q(`${PP_SC}#witnesses`),
       bship: x(`${BS_SC}#hashing-circuits`),
       leaderboard: x(`${LB_SC}#ownercommitment`),
       "zk-loan": x(`${ZK_SC}#create-the-witness-function-private-data-provider`)
@@ -452,21 +397,11 @@ export const features = [
 
   // ---------- Tokens ----------
   {
-    name: "Shielded tokens",
-    section: TOKENS,
-    coverage: {
-      bboard: q(`${BB_IMPL}#implement-wallet-utilities`),
-      "private-party": q(`${PP_SC}#conclusion`),
-      "zk-loan": q(`${ZK_CLI}#wallet-initialization`)
-    }
-  },
-  {
     name: "Unshielded tokens",
     section: TOKENS,
     coverage: {
       bboard: x(`${BB_IMPL}#wait-for-unshielded-funds`),
-      "private-party": x(`${PP_SC}#data-private-by-default`),
-      "zk-loan": q(`${ZK_CLI}#1-fund-the-wallet`)
+      "private-party": x(`${PP_SC}#data-private-by-default`)
     }
   },
   {
@@ -475,16 +410,7 @@ export const features = [
     coverage: {
       bboard: x(`${BB_IMPL}#wait-for-unshielded-funds`),
       "private-party": x(`${PP_SC}#compact-tutorial`),
-      leaderboard: q(`${LB_OV}#wallet-setup`),
       "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
-    }
-  },
-  {
-    name: "Token colors",
-    section: TOKENS,
-    coverage: {
-      bboard: q(`${BB_IMPL}#implement-wallet-utilities`),
-      "private-party": q(`${PP_SC}#compact-tutorial`)
     }
   },
   {
@@ -500,7 +426,6 @@ export const features = [
     name: "Witness setters",
     section: WITNESS,
     coverage: {
-      bboard: q(`${BB_SC}#create-the-witnesses-file`),
       bship: x(`${BS_SC}#witnesses`)
     }
   },
@@ -579,7 +504,6 @@ export const features = [
     section: MJS,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-wallet-provider`),
-      "private-party": q(`${PP_SC}#testing`),
       bship: x(`${BS_TEST}#midnight-setup`),
       leaderboard: x(`${LB_UI}#wallet-bridge`),
       "zk-loan": x(`${ZK_CLI}#provider-configuration-and-utilities`)
@@ -590,7 +514,6 @@ export const features = [
     section: MJS,
     coverage: {
       bboard: x(`${BB_API}#implement-the-deploy-method`),
-      "private-party": q(`${PP_SC}#testing`),
       bship: x(`${BS_TEST}#deploying-the-contract`),
       leaderboard: x(`${LB_API}#leaderboardapi-class`),
       "zk-loan": x(`${ZK_CLI}#compiled-smart-contract-and-deployjoin`)
@@ -610,7 +533,6 @@ export const features = [
     section: MJS,
     coverage: {
       bboard: x(`${BB_API}#implement-the-post-method`),
-      "private-party": q(`${PP_SC}#testing`),
       bship: x(`${BS_TEST}#bob-accepts-the-game`),
       leaderboard: x(`${LB_API}#leaderboardapi-class`),
       "zk-loan": x(`${ZK_CLI}#circuit-call-wrappers-and-state-display`)
@@ -631,7 +553,6 @@ export const features = [
     section: MJS,
     coverage: {
       bboard: x(`${BB_API}#implement-private-state-helper`),
-      "private-party": q(`${PP_SC}#witnesses`),
       bship: x(`${BS_TEST}#midnight-setup`),
       leaderboard: x(`${LB_UI}#in-memory-private-state-provider`),
       "zk-loan": x(`${ZK_CLI}#provider-configuration-and-utilities`)
@@ -649,8 +570,7 @@ export const features = [
     name: "Malicious private state",
     section: MJS,
     coverage: {
-      bship: x(`${BS_TEST}#further-cheating-attempts`),
-      "zk-loan": q(`${ZK_SC}#create-the-witness-function-private-data-provider`)
+      bship: x(`${BS_TEST}#further-cheating-attempts`)
     }
   },
   {
@@ -658,17 +578,8 @@ export const features = [
     section: MJS,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-transaction-methods`),
-      "private-party": q(`${PP_SC}#testing`),
-      bship: q(`${BS_TEST}#wallet-preparation`),
       leaderboard: x(`${LB_UI}#wallet-bridge`),
       "zk-loan": x(`${ZK_CLI}#wallet-and-provider-infrastructure`)
-    }
-  },
-  {
-    name: "Error types",
-    section: MJS,
-    coverage: {
-      bboard: q(`${BB_IMPL}#implement-transaction-methods`)
     }
   },
 
@@ -683,19 +594,10 @@ export const features = [
     }
   },
   {
-    name: "Address encoding and decoding",
-    section: WALLET,
-    coverage: {
-      bboard: q(`${BB_IMPL}#implement-key-provider-methods`),
-      "zk-loan": q(`${ZK_CLI}#wallet-initialization`)
-    }
-  },
-  {
     name: "Balance queries",
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#get-initial-wallet-state`),
-      "private-party": q(`${PP_SC}#testing`),
       "zk-loan": x(`${ZK_CLI}#wallet-context-and-ledger-state`)
     }
   },
@@ -704,7 +606,6 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-dust-generation`),
-      leaderboard: q(`${LB_OV}#wallet-setup`),
       "zk-loan": x(`${ZK_CLI}#wallet-and-provider-infrastructure`)
     }
   },
@@ -713,7 +614,6 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#sync-wallet`),
-      "private-party": q(`${PP_SC}#testing`),
       bship: x(`${BS_TEST}#wallet-preparation`),
       "zk-loan": x(`${ZK_CLI}#wallet-and-provider-infrastructure`)
     }
@@ -723,18 +623,14 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-wallet-provider`),
-      bship: q(`${BS_TEST}#wallet-preparation`),
-      leaderboard: x(`${LB_UI}#wallet-bridge`),
-      "zk-loan": q(`${ZK_CLI}#wallet-and-provider-infrastructure`)
+      leaderboard: x(`${LB_UI}#wallet-bridge`)
     }
   },
   {
     name: "Recipe API",
     section: WALLET,
     coverage: {
-      bboard: x(`${BB_IMPL}#implement-transaction-methods`),
-      bship: q(`${BS_TEST}#wallet-preparation`),
-      "zk-loan": q(`${ZK_CLI}#wallet-and-provider-infrastructure`)
+      bboard: x(`${BB_IMPL}#implement-transaction-methods`)
     }
   },
   {
@@ -742,8 +638,6 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-dust-generation`),
-      bship: q(`${BS_TEST}#packagejson`),
-      leaderboard: q(`${LB_OV}#wallet-setup`),
       "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
     }
   },
@@ -752,8 +646,6 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-dust-generation`),
-      bship: q(`${BS_TEST}#wallet-preparation`),
-      leaderboard: q(`${LB_OV}#wallet-setup`),
       "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
     }
   },
@@ -774,8 +666,6 @@ export const features = [
     section: DEVNET,
     coverage: {
       bboard: x(`${BB_IMPL}#configure-the-proof-server`),
-      "private-party": q(`${PP_SC}#testing`),
-      bship: q(`${BS_TEST}#composeyml`),
       leaderboard: x(`${LB_OV}#prerequisites`),
       "zk-loan": x(`${ZK_API}#set-up-docker-for-the-proof-server`)
     }
@@ -784,8 +674,6 @@ export const features = [
     name: "Test wallets (Alice, Bob, Charlie)",
     section: DEVNET,
     coverage: {
-      bboard: q(`${BB_IMPL}#run-function`),
-      "private-party": q(`${PP_SC}#testing`),
       bship: x(`${BS_TEST}#wallet-preparation`)
     }
   },
@@ -794,7 +682,6 @@ export const features = [
     section: DEVNET,
     coverage: {
       bboard: x(`${BB_IMPL}#wait-for-unshielded-funds`),
-      bship: q(`${BS_TEST}#wallet-preparation`),
       "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
     }
   },
@@ -803,15 +690,13 @@ export const features = [
     section: DEVNET,
     coverage: {
       bboard: x(`${BB_API}#implement-the-constructor-and-state-observable`),
-      leaderboard: x(`${LB_UI}#read-on-chain-state`),
-      "zk-loan": q(`${ZK_CLI}#imports-and-global-setup`)
+      leaderboard: x(`${LB_UI}#read-on-chain-state`)
     }
   },
   {
     name: "Vitest test suite",
     section: DEVNET,
     coverage: {
-      "private-party": q(`${PP_SC}#testing`),
       bship: x(`${BS_TEST}#vitestconfigts`)
     }
   },
@@ -819,26 +704,13 @@ export const features = [
     name: "Negative-path and adversarial tests",
     section: DEVNET,
     coverage: {
-      "private-party": q(`${PP_SC}#testing`),
-      bship: x(`${BS_TEST}#further-cheating-attempts`),
-      "zk-loan": q(`${ZK_CLI}#mock-user-profiles`)
-    }
-  },
-  {
-    name: "Multi-network targeting",
-    section: DEVNET,
-    coverage: {
-      bboard: q(`${BB_IMPL}#network-configuration`),
-      bship: q(`${BS_TEST}#midnight-setup`),
-      leaderboard: q(`${LB_UI}#environment-variables`),
-      "zk-loan": q(`${ZK_CLI}#configuration`)
+      bship: x(`${BS_TEST}#further-cheating-attempts`)
     }
   },
   {
     name: "Faucet funding flow",
     section: DEVNET,
     coverage: {
-      bboard: q(`${BB_IMPL}#implement-wallet-utilities`),
       leaderboard: x(`${LB_OV}#wallet-setup`)
     }
   },
@@ -847,8 +719,7 @@ export const features = [
     section: DEVNET,
     coverage: {
       "private-party": x(`${PP_SC}#testing`),
-      bship: x(`${BS_TEST}#composeyml`),
-      "zk-loan": q(`${ZK_CLI}#start-midnight-local-dev`)
+      bship: x(`${BS_TEST}#composeyml`)
     }
   },
 
@@ -910,7 +781,7 @@ if (process.env.NODE_ENV !== "production") {
           `[CoverageMatrix] feature "${f.name}" references unknown column id "${key}"`
         );
       }
-      if (cell.level !== "x" && cell.level !== "?") {
+      if (cell.level !== "x") {
         console.warn(
           `[CoverageMatrix] feature "${f.name}" cell "${key}" has invalid level`
         );

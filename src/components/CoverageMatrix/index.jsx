@@ -140,6 +140,17 @@ export default function CoverageMatrix({
     return matches.filter((m) => m.group !== group).length;
   }, [matches, group]);
 
+  // Datasets with only full marks get a two-entry legend.
+  const hasPartial = useMemo(
+    () =>
+      features.some((f) =>
+        Object.values(f.coverage).some(
+          (entry) => (typeof entry === "string" ? entry : entry.level) === "?"
+        )
+      ),
+    [features]
+  );
+
   const featureOption = (f) => (
     <option key={f.name} value={f.name}>
       {f.name}
@@ -380,9 +391,11 @@ export default function CoverageMatrix({
         <span className={styles.legendItem}>
           <span className={styles.markFull} /> {fullLabel}
         </span>
-        <span className={styles.legendItem}>
-          <span className={styles.markPartial} /> {partialLabel}
-        </span>
+        {hasPartial ? (
+          <span className={styles.legendItem}>
+            <span className={styles.markPartial} /> {partialLabel}
+          </span>
+        ) : null}
         <span className={styles.legendItem}>
           <span className={styles.markNone} /> Not covered
         </span>
