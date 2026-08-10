@@ -1,73 +1,442 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-sidebar_label: "Get faucet tokens"
-description: Learn how to acquire test tokens for the Midnight Network.
-toc_max_heading_level: 2
+title: Funding a wallet
+description: "Get tNIGHT from the faucet and register it for DUST generation, in Lace or with the wallet SDK, so your wallet can pay transaction fees."
+sidebar_label: "Fund a wallet"
 sidebar_position: 15
+toc_max_heading_level: 2
+keywords: [midnight, faucet, tnight, tdust, dust, night, funding, wallet, registration]
+tags: [midnight, tokens, dust, night, wallet, funding]
 ---
 
-# Get faucet tokens
+# Funding a wallet
 
-In the production Midnight network, to run a DApp you need
-to hold some DUST in a persistent wallet and spend some of it on each
-transaction. However, a supply of free tDUST is
-available for developers who want to experiment with Midnight DApps.
+Every transaction on Midnight consumes DUST, and DUST comes from NIGHT that you have registered for DUST generation. On the test networks both halves are free: a faucet sends you tNIGHT, and registering it starts tDUST accruing within minutes. This guide walks the whole path: requesting tNIGHT from the faucet, registering it in the Lace wallet, and doing the same programmatically with the wallet SDK when you need funding to be scriptable. For why the two-token model works this way, see [Funding and transaction cost](./networks-and-environments#funding-and-transaction-cost).
 
-:::tip
-If you are using the local undeployed network, then use the [local network funding menu](./networks-and-environments#running-a-local-network) to fund your wallet and generate tDUST.
-:::
+One term matters throughout: NIGHT is **registered** for DUST generation, the on-chain operation the protocol and SDK call registration. The Lace button for it is labeled **Generate tDUST**, and Lace displays the result as your tNIGHT designation.
 
-## Get tNIGHT
+## Prerequisites
 
-tNIGHT is the test token for the Midnight network. It is used to generate tDUST for testing purposes. Here are the steps to get tNIGHT:
+These apply to every procedure in this guide:
 
-1. Log in to your Lace Midnight wallet and copy your Unshielded wallet address.
+- A [Lace wallet](../getting-started/installation) set up on the target test network, for the faucet and Lace procedures.
+- Node.js version 22 or higher, for the wallet SDK procedure.
+- A local [proof server](./run-proof-server) on port 6300, for the wallet SDK procedure.
 
-  :::note Bech32m address format
-  All wallet addresses are shown in Bech32m format by default. The faucet supports both formats, however the legacy (HEX) format will be dropped in future versions.
-  :::
+{/* _mod-docs-content-type: PROCEDURE */}
+## Getting tNIGHT from the faucet
 
-2. Visit [Midnight Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/) and enter your Unshielded wallet address.
+Request free test tokens for the network you develop on. The faucets are rate limited, and test tokens carry no real value. On the local `undeployed` network there is no faucet and none is needed; use the [local network funding menu](./networks-and-environments#running-a-local-network) instead.
 
-![Midnight preprod faucet](./img/request-tokens.png)
+### Procedure
 
-3. Select **Request tokens**. This might take a few seconds to process and returns a transaction hash in the following format:
+1. Copy your **unshielded** wallet address. In Lace, open your Midnight wallet and copy the address that starts with `mn_addr_`; the faucet rejects shielded and DUST addresses.
 
-```
-Transaction submitted. You will receive 1000 tNight, this should take about 2 mins. Its id is 00ec3ff48b7...
-```
+   :::note Bech32m address format
+   Wallet addresses are shown in Bech32m format by default. The address encodes its network, for example `mn_addr_preprod1...` on Preprod.
+   :::
 
-You should have received 1000.0 tNIGHT from the faucet. You can verify the balance in your wallet.
+2. Open the faucet for your network: the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/) or the [Preview faucet](https://midnight-tmnight-preview.nethermind.dev/). Both are listed in the [Environment reference](./networks-and-environments#environment-reference).
 
-## Delegate tDUST
+   ![Midnight preprod faucet](./img/request-tokens.png)
 
-After you have received tNIGHT, you need to delegate it to generate tDUST. Here's how to do it if you are using the Lace wallet:
+3. Paste the address, complete the captcha, and select **Request tokens**. The faucet confirms the submission:
 
-1. Log in to your Lace wallet, and then click **Generate tDUST**. You'll see your tDUST address populated in the input field.
+   ```text
+   Transaction submitted. You will shortly receive 1000 tNight in your wallet. This is the transaction ID: 00f15defb8d3...
+   ```
 
-![Generate tDUST](./img/delegate-dust.png)
+### Verification
 
-2. Click **Review transaction** to proceed, then select **Confirm** to submit the transaction.
+The tNIGHT balance appears in your wallet within a couple of minutes: 1,000.0 tNIGHT per Preprod faucet request. In Lace, the unshielded balance updates on the wallet's main view; programmatically, the balance waiter in [Registering for DUST generation with the wallet SDK](#registering-for-dust-generation-with-the-wallet-sdk) resolves as soon as the funds land.
 
-![Review transaction](./img/review-transaction.png)
+{/* _mod-docs-content-type: PROCEDURE */}
+## Registering NIGHT for DUST generation in Lace
 
-You should see your tDUST tank generating test tokens for your wallet.
+Turn your tNIGHT into a source of tDUST. Holding NIGHT alone generates nothing; the registration transaction is what starts generation.
+
+### Prerequisites
+
+- tNIGHT in your wallet, from [Getting tNIGHT from the faucet](#getting-tnight-from-the-faucet).
+
+### Procedure
+
+1. In Lace, select **Generate tDUST**. Your tDUST address populates the input field.
+
+   ![Generate tDUST](./img/delegate-dust.png)
+
+2. Select **Review transaction**, then **Confirm** to submit the registration.
+
+   ![Review transaction](./img/review-transaction.png)
+
+### Verification
+
+The tDUST tank starts filling and continues to accrue over time, up to a cap set by how much NIGHT you registered.
 
 ![Confirm transaction](./img/dust-tank-generation.png)
 
-## Troubleshooting
+{/* _mod-docs-content-type: PROCEDURE */}
+## Registering for DUST generation with the wallet SDK
 
-Below are some common issues you might encounter when using the faucet and how to resolve them.
+Do the same registration from code, so funding works in scripts and CI. The flow builds a wallet from a seed, syncs it, waits for faucet funds, registers the NIGHT UTXOs for DUST generation, and watches the DUST balance become positive. The snippets below form one script; the wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, which re-exports every wallet sub-package.
 
-### Provided address is invalid
+### Procedure
 
-- **Error**: `Provided address is invalid`
+1. Create a project and install the version-matched dependencies. Check the [support matrix](../relnotes/support-matrix) when versions change:
 
-- **Solution**: Ensure that you're using the correct address. The address should be the Unshielded wallet address on the Lace Midnight wallet.
+   ```json title="package.json"
+   {
+     "type": "module",
+     "scripts": {
+       "start": "tsx src/index.ts"
+     },
+     "dependencies": {
+       "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+       "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+       "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+       "@midnightntwrk/wallet-sdk": "1.2.0",
+       "rxjs": "^7.8.1",
+       "ws": "^8.19.0"
+     },
+     "devDependencies": {
+       "@types/ws": "^8.18.1",
+       "tsx": "^4.19.0"
+     }
+   }
+   ```
 
-### Rate limit exceeded
+   Then run `npm install`.
 
-- **Error**: `{“status”:“rate_limit_error”,“message”:“Reached maximum number of requests for this address”}`
+2. Start your local [proof server](./run-proof-server) and confirm it answers on port 6300:
 
-- **Solution**: Wait a few hours and try again. If the issue persists, then open a ticket at the [Midnight Service Desk](https://midnightntwrk.github.io/servicedesk/) or ask for help in the [Midnight Discord server](https://discord.gg/midnightnetwork).
+   ```bash
+   curl http://localhost:6300/health
+   ```
+
+3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, keeping WebSocket behavior consistent across Node versions, and the endpoints come from the [Environment reference](./networks-and-environments#environment-reference):
+
+   ```typescript
+   import { WebSocket } from 'ws';
+   (globalThis as any).WebSocket = WebSocket;
+
+   import { Buffer } from 'buffer';
+   import * as Rx from 'rxjs';
+   import {
+     HDWallet,
+     Roles,
+     generateRandomSeed,
+     WalletFacade,
+     ShieldedWallet,
+     DustWallet,
+     UnshieldedWallet,
+     createKeystore,
+     PublicKey,
+     NoOpTransactionHistoryStorage,
+     DustAddress,
+     MidnightBech32m,
+   } from '@midnightntwrk/wallet-sdk';
+   import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+   import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+   setNetworkId('preprod');
+
+   const CONFIG = {
+     indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+     indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+     node: 'https://rpc.preprod.midnight.network',
+     proofServer: 'http://localhost:6300',
+   };
+   ```
+
+4. Derive the wallet's three key roles from a seed. One seed produces the shielded (Zswap), unshielded (NightExternal), and DUST key sets by hierarchical deterministic derivation. Save the seed; it is the only way to restore the wallet:
+
+   ```typescript
+   const seed = toHex(Buffer.from(generateRandomSeed()));
+   console.log(`Seed (save this): ${seed}`);
+
+   const deriveKeys = (seed: string) => {
+     const hd = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+     if (hd.type !== 'seedOk') throw new Error('Invalid seed');
+     const result = hd.hdWallet
+       .selectAccount(0)
+       .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+       .deriveKeysAt(0);
+     if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
+     hd.hdWallet.clear();
+     return result.keys;
+   };
+
+   const keys = deriveKeys(seed);
+   ```
+
+5. Build the three sub-wallets and unify them behind the `WalletFacade`:
+
+   ```typescript
+   const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+   const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+   const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+
+   const shieldedConfig = {
+     networkId: getNetworkId(),
+     indexerClientConnection: {
+       indexerHttpUrl: CONFIG.indexerHttpUrl,
+       indexerWsUrl: CONFIG.indexerWsUrl,
+     },
+     provingServerUrl: new URL(CONFIG.proofServer),
+     relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+   };
+   const unshieldedConfig = {
+     networkId: getNetworkId(),
+     indexerClientConnection: {
+       indexerHttpUrl: CONFIG.indexerHttpUrl,
+       indexerWsUrl: CONFIG.indexerWsUrl,
+     },
+     txHistoryStorage: new NoOpTransactionHistoryStorage(),
+   };
+   const dustConfig = {
+     ...shieldedConfig,
+     costParameters: {
+       additionalFeeOverhead: 300_000_000_000_000n,
+       feeBlocksMargin: 5,
+     },
+   };
+
+   const wallet = await WalletFacade.init({
+     configuration: { ...shieldedConfig, ...unshieldedConfig, ...dustConfig },
+     shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+     unshielded: (cfg) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+     dust: (cfg) =>
+       DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+   });
+   await wallet.start(shieldedSecretKeys, dustSecretKey);
+   ```
+
+6. Print the unshielded address, fund it from the [faucet](#getting-tnight-from-the-faucet), and watch for the funds. Balances stream in while the wallet is still syncing, and a partial sync can only undercount, so a positive balance means the tokens have arrived:
+
+   ```typescript
+   console.log(`Send tNIGHT to: ${unshieldedKeystore.getBech32Address()}`);
+
+   const nightBalance = await Rx.firstValueFrom(
+     wallet.state().pipe(
+       Rx.throttleTime(10_000),
+       Rx.map((state) => state.unshielded.balances[unshieldedToken().raw] ?? 0n),
+       Rx.filter((balance) => balance > 0n),
+     ),
+   );
+   console.log(`tNIGHT received: ${nightBalance}`);
+   ```
+
+7. Wait for the wallet to sync fully, then register the unregistered NIGHT UTXOs for DUST generation. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
+
+   :::note First sync takes a while
+   Registration needs a fully synced wallet, and a fresh wallet's first sync on Preprod is slow: in a run measured for this guide (August 2026), funds were visible within 30 seconds, the shielded scan finished in about 2 minutes, and the DUST wallet took the better part of an hour to walk the chain. Sync starts over when the process restarts, so keep the script running, and for a one-off funding task prefer the [Lace flow](#registering-night-for-dust-generation-in-lace).
+   :::
+
+   ```typescript
+   const state = await wallet.waitForSyncedState();
+
+   const unregistered = state.unshielded.availableCoins.filter(
+     (coin) => coin.meta?.registeredForDustGeneration !== true,
+   );
+
+   const ownDustAddress = DustAddress.encodePublicKey(getNetworkId(), state.dust.publicKey);
+   const dustReceiver = MidnightBech32m.parse(String(ownDustAddress)).decode(DustAddress, getNetworkId());
+
+   const recipe = await wallet.registerNightUtxosForDustGeneration(
+     unregistered,
+     unshieldedKeystore.getPublicKey(),
+     (payload) => unshieldedKeystore.signData(payload),
+     dustReceiver,
+   );
+   const finalized = await wallet.finalizeRecipe(recipe);
+   await wallet.submitTransaction(finalized);
+   ```
+
+8. Watch the DUST balance become positive. Generation starts within a few minutes of the registration landing:
+
+   ```typescript
+   await Rx.firstValueFrom(
+     wallet.state().pipe(
+       Rx.throttleTime(5_000),
+       Rx.filter((s) => s.isSynced),
+       Rx.filter((s) => s.dust.balance(new Date()) > 0n),
+     ),
+   );
+   const dustBalance = (await Rx.firstValueFrom(wallet.state())).dust.balance(new Date());
+   console.log(`DUST balance: ${dustBalance}`);
+   await wallet.stop();
+   ```
+
+### Verification
+
+Key derivation is deterministic, the addresses carry the network's prefixes, and the facade connects all three wallets to Preprod. The connectivity test distinguishes connected from synced on purpose: a fresh wallet connects in seconds and syncs much later.
+
+```typescript title="wallet-construction.test.ts"
+import { describe, it, expect, afterAll } from 'vitest';
+import { WebSocket } from 'ws';
+(globalThis as any).WebSocket = WebSocket;
+import { Buffer } from 'buffer';
+import * as Rx from 'rxjs';
+import {
+  HDWallet,
+  Roles,
+  generateRandomSeed,
+  WalletFacade,
+  ShieldedWallet,
+  DustWallet,
+  UnshieldedWallet,
+  createKeystore,
+  PublicKey,
+  NoOpTransactionHistoryStorage,
+  DustAddress,
+  MidnightBech32m,
+} from '@midnightntwrk/wallet-sdk';
+import { toHex } from '@midnight-ntwrk/midnight-js-utils';
+import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('preprod');
+
+const CONFIG = {
+  indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+  indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  proofServer: 'http://localhost:6300',
+};
+
+const deriveKeys = (seed: string) => {
+  const hd = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
+  if (hd.type !== 'seedOk') throw new Error('bad seed');
+  const res = hd.hdWallet
+    .selectAccount(0)
+    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+    .deriveKeysAt(0);
+  if (res.type !== 'keysDerived') throw new Error('derive failed');
+  hd.hdWallet.clear();
+  return res.keys;
+};
+
+let wallet: any;
+
+afterAll(async () => {
+  if (wallet) await wallet.stop();
+});
+
+describe('building a funding wallet', () => {
+  it('derives the three key roles deterministically from one seed', () => {
+    const seed = toHex(Buffer.from(generateRandomSeed()));
+    const first = deriveKeys(seed);
+    const second = deriveKeys(seed);
+    expect(Buffer.from(first[Roles.NightExternal])).toEqual(Buffer.from(second[Roles.NightExternal]));
+    expect(Buffer.from(first[Roles.Zswap])).toEqual(Buffer.from(second[Roles.Zswap]));
+    expect(Buffer.from(first[Roles.Dust])).toEqual(Buffer.from(second[Roles.Dust]));
+  });
+
+  it('encodes a preprod unshielded address with the mn_addr_preprod prefix', () => {
+    const keys = deriveKeys(toHex(Buffer.from(generateRandomSeed())));
+    const keystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+    expect(String(keystore.getBech32Address())).toMatch(/^mn_addr_preprod1/);
+  });
+
+  it('builds the wallet facade and connects all three wallets to preprod', { timeout: 120_000 }, async () => {
+    const keys = deriveKeys(toHex(Buffer.from(generateRandomSeed())));
+    const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
+    const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
+    const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+
+    const shieldedConfig = {
+      networkId: getNetworkId(),
+      indexerClientConnection: {
+        indexerHttpUrl: CONFIG.indexerHttpUrl,
+        indexerWsUrl: CONFIG.indexerWsUrl,
+      },
+      provingServerUrl: new URL(CONFIG.proofServer),
+      relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+    };
+    const unshieldedConfig = {
+      networkId: getNetworkId(),
+      indexerClientConnection: {
+        indexerHttpUrl: CONFIG.indexerHttpUrl,
+        indexerWsUrl: CONFIG.indexerWsUrl,
+      },
+      txHistoryStorage: new NoOpTransactionHistoryStorage(),
+    };
+    const dustConfig = {
+      ...shieldedConfig,
+      costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
+    };
+
+    wallet = await WalletFacade.init({
+      configuration: { ...shieldedConfig, ...unshieldedConfig, ...dustConfig },
+      shielded: (cfg: any) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+      unshielded: (cfg: any) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+      dust: (cfg: any) => DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+    });
+    await wallet.start(shieldedSecretKeys, dustSecretKey);
+
+    const connected = await Rx.firstValueFrom(
+      wallet.state().pipe(
+        Rx.filter(
+          (s: any) =>
+            s.shielded.state.progress.isConnected &&
+            s.unshielded.state.progress.isConnected &&
+            s.dust.state.progress.isConnected,
+        ),
+      ),
+    );
+    expect(connected.isSynced).toBe(false);
+    expect(connected.dust.balance(new Date())).toBe(0n);
+
+    const dustAddress = DustAddress.encodePublicKey(getNetworkId(), connected.dust.publicKey);
+    expect(String(dustAddress)).toMatch(/^mn_dust_preprod1/);
+    expect(MidnightBech32m.parse(String(dustAddress)).decode(DustAddress, getNetworkId())).toBeDefined();
+  });
+});
+```
+
+```text
+ ✓ wallet-construction.test.ts > building a funding wallet > derives the three key roles deterministically from one seed
+ ✓ wallet-construction.test.ts > building a funding wallet > encodes a preprod unshielded address with the mn_addr_preprod prefix
+ ✓ wallet-construction.test.ts > building a funding wallet > builds the wallet facade and connects all three wallets to preprod
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+A timed run of this procedure against Preprod, from a fresh seed through the registration transaction, is shown below exactly as it executed for this guide (August 2026). The faucet funds were requested at the start of the run and were visible to the wallet within 30 seconds; the long wait is the first full sync:
+
+```text
+[0s] waiting for synced state...
+[3512s] synced. tNIGHT balance: 1000000000
+[3512s] unregistered NIGHT UTXOs: 1
+[3528s] registration submitted
+```
+
+Once the registration lands, DUST accrues toward the cap that the amount of registered NIGHT sets, which you can watch with the balance check in the final step or in Lace's tDUST tank.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Funding troubleshooting
+
+The failure modes readers hit most often on the funding path, and their fixes.
+
+| Symptom | Fix |
+|---|---|
+| Faucet says `Provided address is invalid` | Use the **unshielded** address (`mn_addr_...`) with no surrounding whitespace; shielded and DUST addresses are rejected. |
+| Faucet says `rate_limit_error` or `Reached maximum number of requests` | Wait a few hours and retry. If it persists, open a ticket at the [Midnight Service Desk](https://midnightntwrk.github.io/servicedesk/) or ask in [Discord](https://discord.gg/midnightnetwork). |
+| `Cannot find module` when running the script | Run `npm install` first; if it persists, delete `node_modules` and `package-lock.json` and reinstall. |
+| Connection refused on port 6300 | The proof server is not running; see [Run the proof server](./run-proof-server). |
+| Balance stays zero after the faucet confirms | Give it a couple of minutes; the wallet detects funds after its next sync. Confirm the address you pasted matches the printed one exactly. |
+| DUST stays zero after registration | Initial generation takes a minute or two; confirm the proof server answers on `http://localhost:6300/health`. |
+| `Invalid dust address` when directing DUST elsewhere | DUST addresses start with `mn_dust_` plus the network name; shielded (`mn_shield-addr_...`) and unshielded (`mn_addr_...`) addresses are different types. |
+
+## Additional resources
+
+- [Funding and transaction cost](./networks-and-environments#funding-and-transaction-cost): why NIGHT generates DUST and what transactions consume.
+- [Environment reference](./networks-and-environments#environment-reference): faucets and endpoints per network.
+- [Run the proof server](./run-proof-server): the local proof server the SDK path depends on.
+- [Wallet developer guide](/sdks/official/wallet-developer-guide): the full wallet SDK surface behind the facade.
+- [Support matrix](../relnotes/support-matrix): which wallet SDK versions pair with which network components.
+- [Tokens on Midnight](../tokens/overview): the NIGHT and DUST model in depth.
