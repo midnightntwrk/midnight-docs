@@ -1,328 +1,387 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-description: Learn about the Compact JavaScript implementation for the Midnight Network.
-# toc_max_heading_level: 2
-sidebar_label: "Compact JavaScript implementation"
+title: Using Compact contracts from JavaScript
+description: "Run a Compact contract's logic from JavaScript: implement witnesses, call circuits, write unit tests, and read the generated module's exports and errors."
+sidebar_label: "Use Compact contracts from JavaScript"
 sidebar_position: 45
+toc_max_heading_level: 2
+keywords: [midnight, compact, testing, unit tests, witnesses, circuits, javascript, vitest]
+tags: [midnight, compact, testing, javascript, smart-contracts]
 ---
 
-import Step, { StepsProvider } from "@site/src/components/Step/Step";
+# Using Compact contracts from JavaScript
 
-# The Compact JavaScript implementation
+Compiling a Compact contract produces zero-knowledge circuits and, alongside them, a JavaScript module that runs the same contract logic. Everything you do with a contract from JavaScript goes through that module: you wire in the witnesses that supply its private data, call its circuits with native values, and decode its ledger state through typed getters. Because a circuit call runs the logic the circuit enforces on-chain, the module also makes contract behavior testable, including the paths your `assert` statements are supposed to reject, without a node, an indexer, or a proof server.
 
-If you have written smart contracts before, then you are likely familiar with languages like Solidity or Rust that compile to on-chain bytecode.
+Running the module off-chain covers contract logic, not the rest of the submission path. It does not generate or verify a proof, assemble or price a transaction, or account for ledger state that changed since your local run, so a call that passes here can still fail when the transaction reaches the network.
 
-The Midnight blockchain takes a different approach by using a domain-specific language called Compact, designed from the ground up for zero-knowledge (ZK) smart contracts.
+This guide walks that path: implement the witnesses a contract needs, call its circuits from JavaScript, and build a unit test suite around it. The reference sections at the end list what the module exports and what its error messages mean, for when a stack trace or a type error sends you into it. The examples use the [bulletin board contract](https://github.com/midnightntwrk/example-bboard) throughout.
 
-This guide explores the JavaScript implementation generated for the [bulletin board smart contract](https://github.com/midnightntwrk/example-bboard) in depth.
+## Prerequisites
 
-## How the JavaScript implementation gets generated
+These apply to every procedure in this guide:
 
-When you compile a Compact contract, the compiler produces more than just ZK circuits. It also emits a matching JavaScript implementation named `index.js`. 
+- The [Compact CLI](../getting-started/installation) installed, with `compact compile` working.
+- A compiled contract. This guide compiles `bboard.compact` from [example-bboard](https://github.com/midnightntwrk/example-bboard); any contract works, with your own names in place of the bulletin board's.
+- Node.js with [Vitest](https://vitest.dev/) and `@midnight-ntwrk/compact-runtime` installed.
+- A runtime version that matches your compiler. The generated code enforces this pairing at import time; check the [support matrix](../relnotes/support-matrix) when either changes.
 
-This implementation is essential for simulating, testing, and interacting with your contract logic in a plain JavaScript environment, such as Node.js or browser tests. This section explains how and why that implementation is generated.
+{/* _mod-docs-content-type: CONCEPT */}
+## What the compiler generates
 
-### The compilation pipeline: Compact to circuits and JavaScript implementation
+Compiling a contract produces two artifacts that mirror each other: the ZK circuits the network verifies, and a JavaScript module that executes the identical contract logic off-chain. Understanding that the two are generated together, from the same source, is what makes the module trustworthy as a testing surface.
 
-The compilation process follows these steps:
-<StepsProvider>
-<Step>
- **Circuit generation**: The compiler parses your `.compact` files and emits ZK circuits for each exported circuit function.
-</Step>
-<Step>
-**Implementation file generation**: Concurrently, the compiler generates a JavaScript implementation file that mirrors the contract's structure. The compiler:
-- Identifies which circuits exist with their signatures, inputs, and outputs.
-- Embeds type descriptors for all Compact types used, such as integers, booleans, enums, bytes, and composite types.
-- Wraps each circuit so you can invoke it in JavaScript, passing native JavaScript values and receiving state transitions in return.
-</Step>
-<Step>
-**Linking to the Compact runtime library**: The generated `index.js` does not reimplement arithmetic, field operations, or other foundational ZK logic. Instead, it imports a shared runtime library from `@midnight-ntwrk/compact-runtime`. That library implements:
-- Finite field arithmetic
-- Serialization and deserialization
-- Error types and type checks
-- Circuit-related helper functions
+When you run `compact compile`, the compiler:
 
-Together, the generated file and the runtime library form a complete execution environment.
-</Step>
-<Step>
-**Type declarations**: A TypeScript declaration file `index.d.ts` is generated so that when you import this implementation in a TypeScript project, you get proper types, autocomplete, and compile-time safety.
-</Step>
-</StepsProvider>
-Because of these steps, `index.js` is not a hand-written artifact, but a systematically generated adapter between Compact's ZK circuits and the JavaScript world.
+1. Parses your `.compact` file and emits a ZK circuit for each exported circuit that needs a proof, that is, the impure circuits. An exported pure circuit such as the bulletin board's `publicKey` compiles to JavaScript only.
+2. Generates a JavaScript implementation that mirrors the contract's structure: it identifies each circuit's signature, embeds type descriptors for every Compact type the contract uses, and wraps each circuit so you can invoke it with native JavaScript values.
+3. Links the generated code against `@midnight-ntwrk/compact-runtime`, the shared library that implements field arithmetic, serialization, error types, and the ledger query machinery. The generated file and the runtime together form a complete execution environment.
+4. Emits a TypeScript declaration file so the module is fully typed in a TypeScript project.
 
-:::tip
-If you change your Compact contract by adding or removing functions or changing types, then recompile to regenerate `index.js` accordingly. Always treat it as generated code rather than hand-written, and avoid modifying it manually.
+The JavaScript output lands in the `contract/` subdirectory of your compilation target (for example `src/managed/bboard/contract/`), alongside the `keys/`, `zkir/`, and `compiler/` directories the compiler also emits:
+
+- `index.js`: the JavaScript implementation
+- `index.d.ts`: TypeScript type definitions
+- `index.js.map`: source map for debugging
+
+:::tip Generated code only
+
+`index.js` is regenerated on every compilation. If you add or remove circuits or change types, recompile; never edit the generated files by hand.
+
 :::
 
-## Understand the JavaScript implementation structure
+{/* _mod-docs-content-type: PROCEDURE */}
+## Implementing witnesses for a contract
 
-The generated implementation for your Compact contract appears in a file named `index.js` within the `managed` directory.
+Load the generated module and give the contract its witnesses: the functions that supply private data, such as a secret key, when a circuit asks for it. The contract cannot be instantiated without them, and the generated constructor rejects an incomplete witnesses object with a precise error, which is the behavior the verification below relies on.
 
-This file is a self-contained ES module that mirrors your contract's structure, from type definitions to callable functions. 
+### Procedure
 
-### Runtime initialization and version checks
+1. Compile the contract, giving `compact compile` the source and the target directory. The paths below assume the contract lives at `src/bboard.compact`; in [example-bboard](https://github.com/midnightntwrk/example-bboard) it sits at `contract/src/bboard.compact`, so adjust to match your layout:
 
-At the very top, the implementation imports the Compact runtime and verifies version compatibility:
+   ```bash
+   compact compile src/bboard.compact src/managed/bboard
+   ```
 
-```javascript
-import * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
-__compactRuntime.checkRuntimeVersion('0.15.0');
-```
+2. Import the module like any other ES module, from a file alongside the `managed` directory the compiler just wrote. In TypeScript, the declaration file types everything automatically:
 
-This ensures that the version of `@midnight-ntwrk/compact-runtime` installed in your project matches the version expected by the compiler. Version mismatches can cause runtime errors or incorrect circuit behavior.
+   ```typescript
+   import { Contract, State, ledger, pureCircuits } from './managed/bboard/contract/index.js';
+   ```
 
-:::info
-Always refer to the [compatibility matrix](../relnotes/support-matrix) to ensure that the version of the Compact runtime matches the version of the compiler.
-:::
+3. Define the private state your witnesses read, and implement one function per witness the Compact source declares. For the bulletin board, that is `localSecretKey`:
 
-### Type definitions and descriptors
+   ```typescript
+   import { Ledger } from './managed/bboard/contract/index.js';
+   import { WitnessContext } from '@midnight-ntwrk/compact-runtime';
 
-The file defines enumerations and type descriptors. These tell the implementation how to encode and decode the data types used in your contract, such as integers, strings, or custom structures.
+   export type BBoardPrivateState = {
+     readonly secretKey: Uint8Array;
+   };
 
-```javascript
-export var State;
-(function (State) {
-  State[State['VACANT'] = 0] = 'VACANT';
-  State[State['OCCUPIED'] = 1] = 'OCCUPIED';
-})(State || (State = {}));
+   export const createBBoardPrivateState = (secretKey: Uint8Array) => ({
+     secretKey,
+   });
 
-const _descriptor_0 = new __compactRuntime.CompactTypeBytes(32);
-const _descriptor_1 = __compactRuntime.CompactTypeBoolean;
-const _descriptor_2 = __compactRuntime.CompactTypeOpaqueString;
-const _descriptor_4 = new __compactRuntime.CompactTypeEnum(1, 1);
-const _descriptor_5 = new __compactRuntime.CompactTypeUnsignedInteger(18446744073709551615n, 8);
-```
+   export const witnesses = {
+     localSecretKey: ({
+       privateState,
+     }: WitnessContext<Ledger, BBoardPrivateState>): [BBoardPrivateState, Uint8Array] => [
+       privateState,
+       privateState.secretKey,
+     ],
+   };
+   ```
 
-Each descriptor object defines how JavaScript values are converted to and from their on-chain representations:
+   Each witness receives a `WitnessContext` carrying the ledger view, the private state, and the contract address, and returns a tuple of the updated private state and the witness value.
 
-- `CompactTypeBytes(32)`: Represents 32-byte arrays (the type of the `owner` field)
-- `CompactTypeBoolean`: Represents boolean values
-- `CompactTypeOpaqueString`: Represents string data (the type of the `message` field)
-- `CompactTypeEnum`: Represents the State enum
-- `CompactTypeUnsignedInteger`: Represents Counter and other numeric types (the type of the `sequence` field)
+4. Instantiate the contract with the witnesses object:
 
-### Composite types and data structures
+   ```typescript
+   const contract = new Contract(witnesses);
+   ```
 
-Complex Compact types such as `Maybe` or `Either` are represented as JavaScript classes that combine primitive descriptors.
+### Verification
 
-```javascript
-class _Maybe_0 {
-  alignment() {
-    return _descriptor_1.alignment().concat(_descriptor_2.alignment());
-  }
-  fromValue(value_0) {
-    return {
-      is_some: _descriptor_1.fromValue(value_0),
-      value: _descriptor_2.fromValue(value_0)
-    }
-  }
-  toValue(value_0) {
-    return _descriptor_1.toValue(value_0.is_some).concat(_descriptor_2.toValue(value_0.value));
-  }
-}
+A complete witnesses object produces a working instance, and the generated validation rejects an incomplete one.
 
-const _descriptor_3 = new _Maybe_0();
-```
+```typescript title="import-witnesses.test.ts"
+import { describe, it, expect } from 'vitest';
+import * as RT from '@midnight-ntwrk/compact-runtime';
+import { Contract } from './managed/bboard/contract/index.js';
 
-Each composite type class provides methods for converting between JavaScript objects and ledger-compatible encodings:
+const COIN = '0'.repeat(64);
 
-- `alignment()`: Returns the field alignment requirements for ZK circuit encoding.
-- `fromValue()`: Decodes ledger values into JavaScript objects.
-- `toValue()`: Encodes JavaScript objects into ledger values.
-
-The `Maybe` type corresponds to the `message` ledger field in the bulletin board contract, representing optional string values.
-
-### The Contract class and circuit wrappers
-
-The generated implementation defines a `Contract` class that mirrors your Compact contract's circuits. The constructor validates the witnesses object and sets up circuit methods.
-
-```javascript
-export class Contract {
-  witnesses;
-  constructor(...args_0) {
-    if (args_0.length !== 1) {
-      throw new __compactRuntime.CompactError(`Contract constructor: expected 1 argument, received ${args_0.length}`);
-    }
-    const witnesses_0 = args_0[0];
-    if (typeof(witnesses_0) !== 'object') {
-      throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor is not an object');
-    }
-    if (typeof(witnesses_0.localSecretKey) !== 'function') {
-      throw new __compactRuntime.CompactError('first (witnesses) argument to Contract constructor does not contain a function-valued field named localSecretKey');
-    }
-    this.witnesses = witnesses_0;
-    this.circuits = {
-      post: (...args_1) => {
-        if (args_1.length !== 2) {
-          throw new __compactRuntime.CompactError(`post: expected 2 arguments (as invoked from TypeScript), received ${args_1.length}`);
-        }
-        const contextOrig_0 = args_1[0];
-        const newMessage_0 = args_1[1];
-        const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
-        const partialProofData = {
-          input: {
-            value: _descriptor_2.toValue(newMessage_0),
-            alignment: _descriptor_2.alignment()
-          },
-          output: undefined,
-          publicTranscript: [],
-          privateTranscriptOutputs: []
-        };
-        const result_0 = this._post_0(context, partialProofData, newMessage_0);
-        partialProofData.output = { value: [], alignment: [] };
-        return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
-      },
-      takeDown: (...args_1) => {
-        if (args_1.length !== 1) {
-          throw new __compactRuntime.CompactError(`takeDown: expected 1 argument, received ${args_1.length}`);
-        }
-        const contextOrig_0 = args_1[0];
-        const context = { ...contextOrig_0, gasCost: __compactRuntime.emptyRunningCost() };
-        const partialProofData = {
-          input: { value: [], alignment: [] },
-          output: undefined,
-          publicTranscript: [],
-          privateTranscriptOutputs: []
-        };
-        const result_0 = this._takeDown_0(context, partialProofData);
-        partialProofData.output = { value: _descriptor_2.toValue(result_0), alignment: _descriptor_2.alignment() };
-        return { result: result_0, context: context, proofData: partialProofData, gasCost: context.gasCost };
-      },
-      publicKey(context, ...args_1) {
-        return { result: pureCircuits.publicKey(...args_1), context };
-      }
-    };
-    this.impureCircuits = {
-      post: this.circuits.post,
-      takeDown: this.circuits.takeDown
-    };
-  }
-}
-```
-
-When you call `contract.circuits.post(context, newMessage)` in JavaScript, the implementation automatically validates input types and encodes data for the ZK circuit. 
-It then executes the Compact logic and returns structured `proofData` for verification.
-
-The `circuits` object contains all callable functions, including both impure circuits (post and takeDown) and pure circuits (publicKey). The `impureCircuits` object contains only the circuits that interact with witnesses and modify state.
-
-### Pure circuits implementation
-
-The implementation also exports pure circuits that can be called directly without a circuit context:
-
-```javascript
-export const pureCircuits = {
-  publicKey(sk_0, sequence_0) {
-    const mem_0 = __compactRuntime.emptyMemory();
-    if (_descriptor_0.sizeOf(sk_0) != 32) {
-      __compactRuntime.valueSizeError('publicKey',
-                                      'argument 1',
-                                      'bboard.compact line 60 char 1',
-                                      'Bytes<32>',
-                                      _descriptor_0.sizeOf(sk_0),
-                                      32)
-    }
-    if (_descriptor_0.sizeOf(sequence_0) != 32) {
-      __compactRuntime.valueSizeError('publicKey',
-                                      'argument 2',
-                                      'bboard.compact line 60 char 1',
-                                      'Bytes<32>',
-                                      _descriptor_0.sizeOf(sequence_0),
-                                      32)
-    }
-    return __compactRuntime.persistentHash(
-      mem_0,
-      _descriptor_7,
-      [__compactRuntime.padStringToBytes(32, "bboard:pk:"), sequence_0, sk_0]
-    );
-  }
+const witnesses = {
+  localSecretKey: ({ privateState }) => [privateState, privateState.secretKey],
 };
+
+describe('importing the implementation', () => {
+  it('wires the witnesses into a working contract instance', () => {
+    const contract = new Contract(witnesses);
+    const secretKey = new Uint8Array(32);
+    const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN));
+    expect(ctor.currentContractState).toBeDefined();
+  });
+
+  it('rejects a witnesses object missing a declared witness', () => {
+    expect(() => new Contract({})).toThrow(
+      'does not contain a function-valued field named localSecretKey',
+    );
+  });
+});
 ```
 
-Pure circuits like `publicKey` perform deterministic computations without accessing ledger state or witnesses. They can be called independently for operations, such as generating owner commitments or computing hashes.
+```text
+ ✓ import-witnesses.test.ts > importing the implementation > wires the witnesses into a working contract instance
+ ✓ import-witnesses.test.ts > importing the implementation > rejects a witnesses object missing a declared witness
 
-### Ledger state deserialization
-
-The implementation provides a function to deserialize raw ledger state into typed JavaScript objects:
-
-```javascript
-export function ledger(stateOrChargedState) {
-  const state = stateOrChargedState instanceof __compactRuntime.StateValue 
-    ? stateOrChargedState 
-    : stateOrChargedState.state;
-  const chargedState = stateOrChargedState instanceof __compactRuntime.StateValue 
-    ? new __compactRuntime.ChargedState(stateOrChargedState) 
-    : stateOrChargedState;
-  const context = {
-    currentQueryContext: new __compactRuntime.QueryContext(
-      chargedState, 
-      __compactRuntime.dummyContractAddress()
-    ),
-    costModel: __compactRuntime.CostModel.initialCostModel()
-  };
-  const partialProofData = {
-    input: { value: [], alignment: [] },
-    output: undefined,
-    publicTranscript: [],
-    privateTranscriptOutputs: []
-  };
-  return {
-    get state() {
-      return _descriptor_4.fromValue(
-        __compactRuntime.queryLedgerState(context, partialProofData, [
-          { dup: { n: 0 } },
-          { 
-            idx: { 
-              cached: false,
-              pushPath: false,
-              path: [{ 
-                tag: 'value',
-                value: { 
-                  value: _descriptor_11.toValue(0n),
-                  alignment: _descriptor_11.alignment() 
-                }
-              }]
-            }
-          },
-          { popeq: { cached: false, result: undefined } }
-        ]).value
-      );
-    },
-    // Similar getter implementations for message, sequence, and owner fields
-    // Each uses queryLedgerState with the appropriate field index
-  };
-}
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
 ```
 
-This function converts raw contract state from the blockchain into a structured `Ledger` object with properly typed fields:
+{/* _mod-docs-content-type: PROCEDURE */}
+## Calling circuits from JavaScript
 
-- Accepts either a `StateValue` or `ChargedState` from the indexer.
-- Creates a query context for accessing ledger fields with cost tracking.
-- Returns an object with getter properties for each ledger field (state, message, sequence, owner).
-- Each getter uses `queryLedgerState` with field index paths to retrieve the specific value lazily.
-- DApps use this function to interpret contract state returned from the indexer.
+Run contract logic off-chain by building a circuit context and invoking circuits through the instance. Build the context with the runtime helpers rather than by hand. A real `CircuitContext` carries query-context state that the wrappers check for, so hand-built objects fail validation.
 
-### Exports and type bindings
+### Prerequisites
 
-The implementation exports everything you need to interact with the contract:
+- A contract instance with witnesses, from [Implementing witnesses for a contract](#implementing-witnesses-for-a-contract).
 
-```javascript
-export class Contract { ... }
-export var State;
-export const pureCircuits = { ... };
-export function ledger(state) { ... }
+### Procedure
+
+1. Create the genesis state with `initialState`, then build a circuit context from it. The constructor context takes the initial private state and a coin public key; the circuit context adds the contract address:
+
+   ```typescript
+   import * as RT from '@midnight-ntwrk/compact-runtime';
+
+   const COIN = '0'.repeat(64);
+   const ADDR = RT.sampleContractAddress();
+   const secretKey = new Uint8Array(32);
+
+   const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN));
+   const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { secretKey });
+   ```
+
+2. Call an impure circuit with the context. The wrapper validates the inputs, runs the contract logic, and returns the result together with the updated context, the proof data, and the gas cost:
+
+   ```typescript
+   const call = contract.impureCircuits.post(ctx, 'Hello from Compact!');
+
+   // call.result    -> the circuit's return value ([] for post)
+   // call.context   -> the updated circuit context
+   // call.proofData -> input, output, and transcripts for proof generation
+   // call.gasCost   -> cost tracking for the call
+   ```
+
+3. Read the resulting ledger state with the `ledger()` helper:
+
+   ```typescript
+   const board = ledger(call.context.currentQueryContext.state);
+   // board.state, board.message, board.sequence, board.owner
+   ```
+
+4. Call pure circuits directly, with no context at all:
+
+   ```typescript
+   const commitment = pureCircuits.publicKey(secretKey, new Uint8Array(32));
+   ```
+
+### Verification
+
+The impure circuit transitions the board to occupied and returns proof data; the pure circuit computes deterministically without a context.
+
+```typescript title="circuits.test.ts"
+import { describe, it, expect } from 'vitest';
+import * as RT from '@midnight-ntwrk/compact-runtime';
+import { Contract, State, ledger, pureCircuits } from './managed/bboard/contract/index.js';
+
+const COIN = '0'.repeat(64);
+const ADDR = RT.sampleContractAddress();
+const key = (n) => { const a = new Uint8Array(32); a[31] = n; return a; };
+
+const witnesses = {
+  localSecretKey: ({ privateState }) => [privateState, privateState.secretKey],
+};
+
+describe('calling contract circuits', () => {
+  it('runs an impure circuit and returns the result, context, and proof data', () => {
+    const contract = new Contract(witnesses);
+    const ctor = contract.initialState(RT.createConstructorContext({ secretKey: key(7) }, COIN));
+    const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { secretKey: key(7) });
+
+    const call = contract.impureCircuits.post(ctx, 'Hello from Compact!');
+
+    expect(call.result).toEqual([]);
+    expect(call.proofData.publicTranscript.length).toBeGreaterThan(0);
+    expect(call.gasCost).toBeDefined();
+    const board = ledger(call.context.currentQueryContext.state);
+    expect(board.state).toBe(State.OCCUPIED);
+    expect(board.message.value).toBe('Hello from Compact!');
+  });
+
+  it('calls a pure circuit directly, with no circuit context', () => {
+    const commitment = pureCircuits.publicKey(key(7), key(1));
+    expect(commitment).toBeInstanceOf(Uint8Array);
+    expect(commitment.length).toBe(32);
+    expect(commitment).toEqual(pureCircuits.publicKey(key(7), key(1)));
+  });
+});
 ```
 
-The corresponding `index.d.ts` file provides TypeScript type definitions:
+```text
+ ✓ circuits.test.ts > calling contract circuits > runs an impure circuit and returns the result, context, and proof data
+ ✓ circuits.test.ts > calling contract circuits > calls a pure circuit directly, with no circuit context
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Writing a unit test suite
+
+Test contract logic with an ordinary test framework, no node, indexer, or proof server required. A good suite exercises both directions: the paths that must succeed, and the paths your `assert` statements must reject, including a caller with the wrong private state.
+
+### Prerequisites
+
+- The context pattern from [Calling circuits from JavaScript](#calling-circuits-from-javascript).
+
+### Procedure
+
+1. Write a setup helper that builds a fresh contract and context per test:
+
+   ```typescript
+   const setup = (secretKey = key(7)) => {
+     const contract = new Contract(witnesses);
+     const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN));
+     const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { secretKey });
+     return { contract, ctx };
+   };
+   ```
+
+2. Assert the success paths through the typed ledger view, and the failure paths against the exact `assert` messages from the Compact source. To simulate an attacker, run a circuit with a context whose `currentPrivateState` holds a different secret:
+
+   ```typescript
+   const stranger = { ...occupied, currentPrivateState: { secretKey: key(9) } };
+   expect(() => contract.impureCircuits.takeDown(stranger)).toThrow(
+     'Attempted to take down post, but not the current owner',
+   );
+   ```
+
+### Verification
+
+The full suite covers the genesis state, the post and take-down lifecycle, both rejection paths, and pure-circuit determinism.
+
+```typescript title="bboard.test.ts"
+import { describe, it, expect } from 'vitest';
+import * as RT from '@midnight-ntwrk/compact-runtime';
+import { Contract, State, ledger, pureCircuits } from './managed/bboard/contract/index.js';
+
+const COIN = '0'.repeat(64);
+const ADDR = RT.sampleContractAddress();
+const key = (n) => { const a = new Uint8Array(32); a[31] = n; return a; };
+
+const witnesses = {
+  localSecretKey: ({ privateState }) => [privateState, privateState.secretKey],
+};
+
+const setup = (secretKey = key(7)) => {
+  const contract = new Contract(witnesses);
+  const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN));
+  const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { secretKey });
+  return { contract, ctx };
+};
+
+describe('bulletin board contract', () => {
+  it('starts vacant', () => {
+    const { ctx } = setup();
+    const board = ledger(ctx.currentQueryContext.state);
+    expect(board.state).toBe(State.VACANT);
+    expect(board.message.is_some).toBe(false);
+    expect(board.sequence).toBe(1n);
+  });
+
+  it('accepts a post on a vacant board', () => {
+    const { contract, ctx } = setup();
+    const result = contract.impureCircuits.post(ctx, 'Test message');
+    const board = ledger(result.context.currentQueryContext.state);
+    expect(board.state).toBe(State.OCCUPIED);
+    expect(board.message.is_some).toBe(true);
+    expect(board.message.value).toBe('Test message');
+  });
+
+  it('rejects a post on an occupied board', () => {
+    const { contract, ctx } = setup();
+    const occupied = contract.impureCircuits.post(ctx, 'First message').context;
+    expect(() => contract.impureCircuits.post(occupied, 'Second message')).toThrow(
+      'Attempted to post to an occupied board',
+    );
+  });
+
+  it('lets the owner take the post down and returns the message', () => {
+    const { contract, ctx } = setup();
+    const occupied = contract.impureCircuits.post(ctx, 'Mine to remove').context;
+    const takeDown = contract.impureCircuits.takeDown(occupied);
+    expect(takeDown.result).toBe('Mine to remove');
+    expect(ledger(takeDown.context.currentQueryContext.state).state).toBe(State.VACANT);
+  });
+
+  it('rejects a take-down from a non-owner', () => {
+    const { contract, ctx } = setup();
+    const occupied = contract.impureCircuits.post(ctx, 'Not yours').context;
+    const stranger = { ...occupied, currentPrivateState: { secretKey: key(9) } };
+    expect(() => contract.impureCircuits.takeDown(stranger)).toThrow(
+      'Attempted to take down post, but not the current owner',
+    );
+  });
+
+  it('computes a deterministic result from the owner-commitment circuit', () => {
+    const first = pureCircuits.publicKey(key(7), key(1));
+    const second = pureCircuits.publicKey(key(7), key(1));
+    const other = pureCircuits.publicKey(key(8), key(1));
+    expect(first).toBeInstanceOf(Uint8Array);
+    expect(first.length).toBe(32);
+    expect(first).toEqual(second);
+    expect(first).not.toEqual(other);
+  });
+});
+```
+
+```text
+ ✓ bboard.test.ts > bulletin board contract > starts vacant
+ ✓ bboard.test.ts > bulletin board contract > accepts a post on a vacant board
+ ✓ bboard.test.ts > bulletin board contract > rejects a post on an occupied board
+ ✓ bboard.test.ts > bulletin board contract > lets the owner take the post down and returns the message
+ ✓ bboard.test.ts > bulletin board contract > rejects a take-down from a non-owner
+ ✓ bboard.test.ts > bulletin board contract > computes a deterministic result from the owner-commitment circuit
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## The generated export surface
+
+What the module and its declaration file export, and what each export is for. Consult this when wiring the implementation into an application or test suite.
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `Contract` | class | Instantiated with your witnesses; exposes `circuits`, `impureCircuits`, `provableCircuits`, and `initialState()` |
+| `pureCircuits` | object | Pure circuits callable without a circuit context |
+| `ledger(state)` | function | Decodes a `StateValue` or `ChargedState` into typed per-field getters |
+| `State` | enum | The contract's exported Compact enum, mirrored in JavaScript |
+| `contractReferenceLocations` | constant | Internal metadata about contract references in ledger state |
+
+The declaration file types the same surface for TypeScript projects:
 
 ```typescript
-export enum State { VACANT = 0, OCCUPIED = 1 }
-
-export type Maybe<T> = { is_some: boolean; value: T };
-
 export type Witnesses<PS> = {
   localSecretKey(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
 }
+
+// ... State enum and Circuits / ProvableCircuits types omitted ...
 
 export type ImpureCircuits<PS> = {
   post(context: __compactRuntime.CircuitContext<PS>, newMessage_0: string): __compactRuntime.CircuitResults<PS, []>;
@@ -335,7 +394,7 @@ export type PureCircuits = {
 
 export type Ledger = {
   readonly state: State;
-  readonly message: Maybe<string>;
+  readonly message: { is_some: boolean, value: string };
   readonly sequence: bigint;
   readonly owner: Uint8Array;
 }
@@ -344,17 +403,47 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   witnesses: W;
   circuits: Circuits<PS>;
   impureCircuits: ImpureCircuits<PS>;
+  provableCircuits: ProvableCircuits<PS>;
   constructor(witnesses: W);
   initialState(context: __compactRuntime.ConstructorContext<PS>): __compactRuntime.ConstructorResult<PS>;
 }
+
+// ... ContractReferenceLocations omitted ...
 
 export declare function ledger(state: __compactRuntime.StateValue | __compactRuntime.ChargedState): Ledger;
 export declare const pureCircuits: PureCircuits;
 ```
 
-These type definitions enable type-safe contract interaction in TypeScript projects. Your IDE understands what functions and structures are available, providing autocomplete and compile-time error checking.
+The generic parameter `PS` is your private state type, which the witnesses read and update. With these declarations, a TypeScript project gets autocomplete and compile-time checking on every circuit call.
 
-## Next steps
+Everything else in the module, the `_descriptor_*` objects and the classes generated for composite types such as `Maybe`, is internal encoding machinery. It is regenerated on every compile and its numbering shifts as the contract changes, so the exports above are the only supported surface.
 
-Now you understand how the Compact JavaScript implementation is generated. You can learn how to use it in the [Use the Compact JavaScript implementation](./use-compact-javascript-implementation) guide.
+{/* _mod-docs-content-type: REFERENCE */}
+## Errors from the generated module
 
+The generated code validates at three points: at import time, in the `Contract` constructor, and on every circuit call. The import-time check is the version guard at the top of `index.js`:
+
+```javascript
+import * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
+__compactRuntime.checkRuntimeVersion('0.16.0');
+```
+
+Match an error against this table before reading the generated source:
+
+| Error | Cause | Fix |
+|---|---|---|
+| Throws at import, naming a runtime version | The installed `@midnight-ntwrk/compact-runtime` is not compatible with the version the compiler expects: for a `0.x` runtime, compatible means the same minor version and at least the expected patch | Pair the compiler and runtime using the [support matrix](../relnotes/support-matrix) |
+| `Contract constructor: expected 1 argument, received 0` | The constructor takes exactly one argument, the witnesses object | Pass the witnesses object, and nothing else |
+| `does not contain a function-valued field named localSecretKey` | The witnesses object is missing a witness the Compact source declares | Implement one function per declared witness, as in [Implementing witnesses for a contract](#implementing-witnesses-for-a-contract) |
+| `post: expected 2 arguments (as invoked from Typescript), received 0` | An impure circuit takes the circuit context plus each parameter in the Compact signature | Pass the context first, then the circuit's own arguments |
+| `type error: ... expected value of type CircuitContext`, citing a line in your `.compact` source | The context was built by hand, so the wrapper's check for `currentQueryContext` fails | Build contexts with `createConstructorContext` and `createCircuitContext`, as in [Calling circuits from JavaScript](#calling-circuits-from-javascript) |
+| `expected instance of ChargedState` | `ledger()` received a `ContractState`, which it does not accept | Pass the state from a circuit call, or a deployed contract state's `data` field |
+| An `assert` message from your own Compact source | Contract logic rejected the call | Nothing to fix in the harness: this is the rejection path a test asserts with `expect(...).toThrow(...)` |
+
+## Additional resources
+
+- [Bulletin board DApp](../examples/dapps/bboard): the complete application built around this contract.
+- [Test and debug](../compact/test-and-debug): debugging strategies and common failure scenarios. Its code examples predate the current `CircuitContext` API, so use the context pattern from this page.
+- [Security and best practices](./security-best-practices): adversarial testing patterns that build on this harness.
+- [Compact runtime API reference](/api-reference/compact-runtime): the `CircuitContext`, `WitnessContext`, and helper functions used here.
+- [Support matrix](../relnotes/support-matrix): which compiler version pairs with which runtime version.

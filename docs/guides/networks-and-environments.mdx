@@ -1,0 +1,466 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight Docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: Networks and environments
+title: Networks and environments
+description: "Understand Midnight's networks, choose the right one, connect a DApp with the correct network ID and endpoints, fund it, and prepare for mainnet."
+sidebar_position: 04
+toc_max_heading_level: 2
+keywords: [midnight, networks, environments, endpoints, network id, mainnet, preprod, preview, undeployed, faucet]
+tags: [midnight, networks, endpoints, dapp, mainnet]
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Networks and environments
+
+Use this guide to understand the networks Midnight operates, pick the right one for the task in front of you, point your DApp at it, fund a wallet on it, and move to mainnet when you are ready. It explains the network landscape, gives you the exact endpoints and IDs to configure tools against, and walks through each task ending with a test you run to prove it worked. If you are starting from nothing, scaffold a project with the [quickstart](../getting-started/quickstart) first and return here when you need to choose or switch networks.
+
+## Prerequisites
+
+These apply to every procedure in this guide:
+
+- Node.js version 22 or higher installed.
+- Docker installed and running, for the local network and the [proof server](./run-proof-server).
+- [Vitest](https://vitest.dev/) and `@midnight-ntwrk/midnight-js-network-id` installed in your test workspace, for the verification tests.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## The Midnight networks
+
+Midnight operates one production network and maintains three environments for development. Every environment runs the same stack, so a DApp moves between them by changing configuration, not code.
+
+Four networks make up the landscape:
+
+- **`undeployed`** is the local development network: a Midnight node, indexer, and proof server running in Docker on your machine. Its genesis wallet is pre-funded, so you can deploy within minutes of starting it. See [Running a local network](#running-a-local-network).
+- **`preview`** is a public test network for early development and experimentation, maintained by core engineering.
+- **`preprod`** is a public test network for final validation before mainnet. Of the test networks, it tracks mainnet most closely.
+- **`mainnet`** is the production network. Tokens on mainnet carry real value, and there is no faucet.
+
+Each public network identifies itself over RPC: the `system_chain` method returns `Midnight Preview`, `Midnight Preprod`, or `Midnight Mainnet`. Every network exposes the same three services your DApp talks to: a node (JSON-RPC over HTTPS and WebSocket), an indexer (GraphQL over HTTP and WebSocket), and a proof server. The node and indexer are network-specific; the proof server runs locally on port 6300 no matter which network you target, because it handles your private data. The [Environment reference](#environment-reference) lists every endpoint.
+
+:::note The testnet-02 name is retired
+
+Older articles and tools sometimes reference a network named `testnet-02`. That network has been retired and its endpoints no longer resolve. Use `preview` or `preprod` instead.
+
+:::
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Network selection at a glance
+
+Which network to target for a given task. Consult this before you configure anything; the setup and funding consequences of each choice are listed alongside.
+
+| Task | Network | Funding | Value at risk |
+|---|---|---|---|
+| Iterating on a contract, running tests, CI | `undeployed` | Genesis wallet is pre-funded, no faucet needed | None |
+| Testing against shared public infrastructure early in development | `preview` | Free tNIGHT from the [Preview faucet](https://midnight-tmnight-preview.nethermind.dev/), rate limited | None |
+| Final validation before a production launch | `preprod` | Free tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/), rate limited | None |
+| Running in production | `mainnet` | Real NIGHT, which generates DUST after registration | Real |
+
+Start on `undeployed` for speed, move to `preview` or `preprod` when you need shared infrastructure or a persistent chain, validate on `preprod` before launch, and treat `mainnet` as a deliberate final step. [Funding and transaction cost](#funding-and-transaction-cost) explains what each choice costs.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Environment reference
+
+The endpoints, network ID, and funding source for each environment. Configure wallets, indexers, and tooling against these values; other pages link here rather than restating them.
+
+<Tabs groupId="network">
+<TabItem value="undeployed" label="Local (undeployed)">
+
+The local development network, run via [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev). All services run in Docker on your machine; set it up in [Running a local network](#running-a-local-network).
+
+| Service | Value |
+|---|---|
+| Network ID | `undeployed` |
+| Node RPC | `http://localhost:9944` |
+| Indexer (GraphQL) | `http://localhost:8088/api/v4/graphql` |
+| Indexer (WebSocket) | `ws://localhost:8088/api/v4/graphql/ws` |
+| Proof server | `http://localhost:6300` |
+| Faucet | None. The genesis wallet is pre-funded and the funding menu transfers 50,000 tNIGHT per account. |
+| Address prefixes | `mn_addr_undeployed`, `mn_shield-addr_undeployed`, `mn_dust_undeployed` |
+| Block explorers | None |
+
+</TabItem>
+<TabItem value="preview" label="Preview">
+
+Public test network for early development and experimentation.
+
+| Service | Value |
+|---|---|
+| Network ID | `preview` |
+| Node RPC | `https://rpc.preview.midnight.network` |
+| Node WebSocket | `wss://rpc.preview.midnight.network` |
+| Indexer (GraphQL) | `https://indexer.preview.midnight.network/api/v4/graphql` |
+| Indexer (WebSocket) | `wss://indexer.preview.midnight.network/api/v4/graphql/ws` |
+| Proof server | `http://localhost:6300` (always local) |
+| Faucet | [https://midnight-tmnight-preview.nethermind.dev/](https://midnight-tmnight-preview.nethermind.dev/) |
+| Address prefixes | `mn_addr_preview`, `mn_shield-addr_preview`, `mn_dust_preview` |
+| Block explorers | [Midnight Explorer](https://preview.midnightexplorer.com/), [Subscan](https://midnight-preview.subscan.io/), [1am](https://explorer.1am.xyz/?network=preview) |
+
+</TabItem>
+<TabItem value="preprod" label="Preprod">
+
+Public test network for final validation before mainnet.
+
+| Service | Value |
+|---|---|
+| Network ID | `preprod` |
+| Node RPC | `https://rpc.preprod.midnight.network` |
+| Node WebSocket | `wss://rpc.preprod.midnight.network` |
+| Indexer (GraphQL) | `https://indexer.preprod.midnight.network/api/v4/graphql` |
+| Indexer (WebSocket) | `wss://indexer.preprod.midnight.network/api/v4/graphql/ws` |
+| Proof server | `http://localhost:6300` (always local) |
+| Faucet | [https://midnight-tmnight-preprod.nethermind.dev/](https://midnight-tmnight-preprod.nethermind.dev/) |
+| Address prefixes | `mn_addr_preprod`, `mn_shield-addr_preprod`, `mn_dust_preprod` |
+| Block explorers | [Midnight Explorer](https://preprod.midnightexplorer.com/), [Subscan](https://midnight-preprod.subscan.io/), [1am](https://explorer.1am.xyz/?network=preprod) |
+
+</TabItem>
+<TabItem value="mainnet" label="Mainnet">
+
+The production network.
+
+| Service | Value |
+|---|---|
+| Network ID | `mainnet` |
+| Node RPC | `https://rpc.mainnet.midnight.network` |
+| Node WebSocket | `wss://rpc.mainnet.midnight.network` |
+| Indexer (GraphQL) | `https://indexer.mainnet.midnight.network/api/v4/graphql` |
+| Indexer (WebSocket) | `wss://indexer.mainnet.midnight.network/api/v4/graphql/ws` |
+| Proof server | `http://localhost:6300` (always local) |
+| Faucet | None. See [Funding and transaction cost](#funding-and-transaction-cost). |
+| Address prefixes | `mn_addr`, `mn_shield-addr`, `mn_dust` |
+| cNgD DApp | [https://midnight-dust-mainnet.nethermind.io/](https://midnight-dust-mainnet.nethermind.io/) |
+| Block explorers | [Midnight Explorer](https://midnightexplorer.com/), [Subscan](https://midnight.subscan.io/), [1am](https://explorer.1am.xyz/) |
+
+</TabItem>
+</Tabs>
+
+Addresses are Bech32m encoded, and the prefix names the address type and the network: `mainnet` uses the bare prefix, for example `mn_addr`, while every other network appends its name, for example `mn_addr_preprod`. Wallet viewing keys follow the same rule with the `mn_shield-esk` prefix.
+
+Midnight provides the public node and indexer endpoints for development and testing. For a production DApp, consider running your own [node](../nodes) or using a dedicated infrastructure provider.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Running a local network
+
+Run the full Midnight stack, a node, an indexer, and a proof server, in Docker on your machine with [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev). The tool initializes a pre-funded genesis wallet and presents a funding menu, so you can deploy and transact within minutes, with no faucet and nothing at risk.
+
+### Procedure
+
+1. Clone the repository and install its dependencies:
+
+   ```bash
+   git clone https://github.com/midnightntwrk/midnight-local-dev.git
+   cd midnight-local-dev
+   npm install
+   ```
+
+2. Start the network:
+
+   ```bash
+   npm start
+   ```
+
+   The command pulls the Docker images (versions are pinned in `standalone.yml`), starts the node, indexer, and proof server with health checks, initializes the genesis master wallet that holds the pre-mined NIGHT, registers it for DUST so it can pay fees, and then presents the funding menu:
+
+   ```text
+   Choose an option:
+     [1] Fund accounts from config file (NIGHT + DUST registration)
+     [2] Fund accounts by public key (NIGHT transfer only)
+     [3] Display wallets
+     [4] Exit
+   ```
+
+3. Fund the wallets you develop with. Option `1` reads a JSON file of accounts (copy `accounts.example.json` to `accounts.json` and add your 24-word mnemonics), transfers tNIGHT to each, and registers each account for DUST generation. Option `2` transfers tNIGHT to Bech32m addresses you paste, and the recipients register for DUST themselves. Either way, each account receives 50,000 tNIGHT, up to 10 accounts per operation.
+
+4. If you only need the containers, skip the wallet tooling and use Docker Compose directly. In this mode you handle genesis funding and DUST registration yourself:
+
+   ```bash
+   docker compose -f standalone.yml up -d    # start
+   docker compose -f standalone.yml ps       # status
+   docker compose -f standalone.yml logs -f  # logs
+   docker compose -f standalone.yml down     # stop
+   ```
+
+### Verification
+
+The local endpoints answer: the node reports the dev chain and serves its health check, the indexer serves blocks, and the proof server accepts connections.
+
+```typescript title="local-network.test.ts"
+import { describe, it, expect } from 'vitest';
+
+describe('local network', () => {
+  it('node is healthy', async () => {
+    const res = await fetch('http://localhost:9944/health').then((r) => r.json());
+    expect(res.isSyncing).toBe(false);
+  });
+
+  it('indexer serves blocks', async () => {
+    const res = await fetch('http://localhost:8088/api/v4/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: '{ block { height } }' }),
+    }).then((r) => r.json());
+    expect(res.data.block.height).toBeGreaterThan(0);
+  });
+
+  it('proof server reports ok', async () => {
+    const res = await fetch('http://localhost:6300/health').then((r) => r.json());
+    expect(res.status).toBe('ok');
+  });
+});
+```
+
+```text
+ ✓ local-network.test.ts > local network > node is healthy
+ ✓ local-network.test.ts > local network > indexer serves blocks
+ ✓ local-network.test.ts > local network > proof server reports ok
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Local network troubleshooting
+
+The failure modes you are most likely to hit with the local stack, and their fixes.
+
+| Symptom | Fix |
+|---|---|
+| `Bind for 0.0.0.0:9944 failed: port is already allocated` | A previous run still holds the port. Run `docker compose -f standalone.yml down`, or find the holder with `lsof -i :9944`. |
+| Indexer exits on first start with `block number 1 not found` | A startup race on a fresh chain: the indexer asked for a block the node had not produced yet. Start it again with `docker start midnight-indexer`; it latches on once blocks exist. |
+| `Operation failed: Expected undeployed address, got Preprod address` | The wallet is on the wrong network. In Lace, switch to the Undeployed network under **Settings**, then use that unshielded address. |
+| Containers do not start | Confirm Docker is running, then run `docker compose -f standalone.yml pull` and `up`, and read `docker compose -f standalone.yml logs -f` for the failing service. |
+| Wallet sync is slow after startup | The indexer is catching up with the node. Confirm the node produces blocks with `curl http://localhost:9944/health` and watch the indexer logs. |
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Connecting a DApp to a network
+
+Point a DApp at a chosen network by setting the network ID and wiring the matching endpoints. The common trap is mixing values from different networks, for example a `preprod` network ID with a `preview` indexer URL; keep the ID and the endpoints together in one place so they cannot drift apart.
+
+### Procedure
+
+1. Choose the target network using [Network selection at a glance](#network-selection-at-a-glance).
+
+2. Set the network ID before initializing any providers. Midnight.js reads this value when it normalizes addresses and builds transactions (the `deployContract` and `callTx` paths), so it must be set before any contract operation:
+
+   ```typescript
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+   setNetworkId('preprod');
+
+   /** Supported network IDs: 'mainnet', 'preview', 'preprod', 'undeployed' */
+   ```
+
+   There is no default: `getNetworkId()` throws `Network ID has not been configured` until you call `setNetworkId`. The call stores the string as-is, so a misspelled network name does not fail here; it surfaces later, in the components that consume the ID.
+
+3. Keep the network ID and its endpoints together in one configuration object, using the values from the [Environment reference](#environment-reference). Note that the proof server URL stays local for every network:
+
+   ```typescript
+   const NETWORKS = {
+     undeployed: {
+       node: 'http://localhost:9944',
+       indexer: 'http://localhost:8088/api/v4/graphql',
+       indexerWS: 'ws://localhost:8088/api/v4/graphql/ws',
+       proofServer: 'http://localhost:6300',
+     },
+     preprod: {
+       node: 'https://rpc.preprod.midnight.network',
+       indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+       indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+       proofServer: 'http://localhost:6300',
+     },
+   } as const;
+
+   const network = NETWORKS['preprod'];
+   ```
+
+4. Pass the endpoints to your providers. The full providers object, including private state, ZK configuration, and wallet providers, is covered in [Configuring providers for a contract](./deploy-and-operate#configuring-providers-for-a-contract):
+
+   ```typescript
+   import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+
+   const publicDataProvider = indexerPublicDataProvider(network.indexer, network.indexerWS);
+   ```
+
+5. In a project scaffolded with `create-mn-app` (the `hello-world` template), select the network with the setup script instead. The selection is sticky until you switch:
+
+   ```bash
+   npm run setup -- --network preview   # runs on preview and makes it active
+   npm run network preprod              # switch the active network later
+   ```
+
+   The scaffold's network scripts accept `undeployed`, `preview`, and `preprod`. Mainnet is not a scaffold target; wire it through providers as shown above.
+
+### Verification
+
+Each network ID round-trips through the SDK, and the configured endpoints answer with the expected chain identity and a current block height.
+
+```typescript title="networks.test.ts"
+import { describe, it, expect } from 'vitest';
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+const rpc = (url: string, method: string) =>
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', method, params: [], id: 1 }),
+  }).then((r) => r.json());
+
+const indexerBlock = (url: string) =>
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: '{ block { height } }' }),
+  }).then((r) => r.json());
+
+const networks = [
+  {
+    id: 'preview',
+    chain: 'Midnight Preview',
+    node: 'https://rpc.preview.midnight.network',
+    indexer: 'https://indexer.preview.midnight.network/api/v4/graphql',
+  },
+  {
+    id: 'preprod',
+    chain: 'Midnight Preprod',
+    node: 'https://rpc.preprod.midnight.network',
+    indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+  },
+  {
+    id: 'mainnet',
+    chain: 'Midnight Mainnet',
+    node: 'https://rpc.mainnet.midnight.network',
+    indexer: 'https://indexer.mainnet.midnight.network/api/v4/graphql',
+  },
+];
+
+describe.each(networks)('$id', ({ id, chain, node, indexer }) => {
+  it('sets the network ID', () => {
+    setNetworkId(id);
+    expect(getNetworkId()).toBe(id);
+  });
+
+  it('reaches the node RPC', async () => {
+    const res = await rpc(node, 'system_chain');
+    expect(res.result).toBe(chain);
+  });
+
+  it('reaches the indexer', async () => {
+    const res = await indexerBlock(indexer);
+    expect(res.data.block.height).toBeGreaterThan(0);
+  });
+});
+```
+
+```text
+ ✓ networks.test.ts > 'preview' > sets the network ID
+ ✓ networks.test.ts > 'preview' > reaches the node RPC
+ ✓ networks.test.ts > 'preview' > reaches the indexer
+ ✓ networks.test.ts > 'preprod' > sets the network ID
+ ✓ networks.test.ts > 'preprod' > reaches the node RPC
+ ✓ networks.test.ts > 'preprod' > reaches the indexer
+ ✓ networks.test.ts > 'mainnet' > sets the network ID
+ ✓ networks.test.ts > 'mainnet' > reaches the node RPC
+ ✓ networks.test.ts > 'mainnet' > reaches the indexer
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+```
+
+The `undeployed` network is not in the matrix because it only exists while your local containers run. With the [local network](#running-a-local-network) up, the same checks pass against `http://localhost:9944` and `http://localhost:8088/api/v4/graphql`.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Funding and transaction cost
+
+Every transaction on Midnight consumes DUST, and where the DUST comes from is the main practical difference between the networks. Understanding the two-token model once saves you a confused hour on each network later.
+
+NIGHT is the native utility token; holding it is what entitles you to DUST. DUST is a shielded, non-transferable resource that fees are paid in. Registered NIGHT generates DUST over time up to a cap of about 5 DUST per NIGHT, refilling in roughly a week, so a funded wallet regenerates its capacity to transact rather than spending it away permanently. [Tokens on Midnight](../tokens/overview) introduces the model and [DUST architecture](../concepts/dust-architecture) covers generation, decay, and the protocol parameters.
+
+**On the local network**, the genesis wallet is pre-funded and already registered for DUST, and the funding menu transfers tNIGHT to your own test wallets. DUST generates in about 5 minutes. There is no faucet because none is needed; see [Running a local network](#running-a-local-network).
+
+**On `preview` and `preprod`**, request free tNIGHT from the network's faucet (the Preprod faucet sends 1,000 tNIGHT per request; both faucets are rate limited), then register it for tDUST generation in your wallet. The [Funding a wallet](./acquire-tokens) guide walks through the faucet, the Lace **Generate tDUST** flow, and the scriptable wallet SDK path. Test tokens carry no real value.
+
+**On `mainnet`**, there is no faucet. Today most NIGHT is held on Cardano as cNIGHT, and DUST generation is cross-chain: you register your Cardano reward address together with a Midnight DUST public key (the [cNgD DApp](https://midnight-dust-mainnet.nethermind.io/) handles this), and your cNIGHT holdings then generate DUST on Midnight. The registration must finalize on Cardano and reach a Midnight node, which takes about 12 hours, so fund your production wallet well before launch day.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Preparing a DApp for mainnet
+
+Move a DApp that works on `preprod` to the production network. The mechanics are the same configuration change as any other network switch; what makes mainnet different is that funding is cross-chain and slow, mistakes cost real value, and public test infrastructure guarantees do not apply.
+
+### Prerequisites
+
+- A DApp deployed and validated on `preprod`, connected as in [Connecting a DApp to a network](#connecting-a-dapp-to-a-network).
+
+### Procedure
+
+1. Validate the full deploy and interaction flow on `preprod` first. It is the network closest to mainnet, so anything that fails there will fail in production.
+
+2. Fund the production wallet. Register your cNIGHT for DUST generation through the [cNgD DApp](https://midnight-dust-mainnet.nethermind.io/) and allow about 12 hours for the registration to take effect, as described in [Funding and transaction cost](#funding-and-transaction-cost). Confirm the wallet shows a DUST balance before you attempt a transaction.
+
+3. Point the configuration at mainnet. Set the network ID and swap the endpoints; nothing else in the DApp changes:
+
+   ```typescript
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+   setNetworkId('mainnet');
+
+   const network = {
+     node: 'https://rpc.mainnet.midnight.network',
+     indexer: 'https://indexer.mainnet.midnight.network/api/v4/graphql',
+     indexerWS: 'wss://indexer.mainnet.midnight.network/api/v4/graphql/ws',
+     proofServer: 'http://localhost:6300',
+   };
+   ```
+
+   The `create-mn-app` scaffold does not offer a mainnet target, so wire the providers yourself as in [Configuring providers for a contract](./deploy-and-operate#configuring-providers-for-a-contract).
+
+4. Decide your infrastructure. The public endpoints are provided for development and testing; for production, run your own [node](../nodes) and indexer or use a dedicated infrastructure provider.
+
+5. Work through the [Mainnet readiness checklist](#mainnet-readiness-checklist) before announcing anything.
+
+### Verification
+
+The mainnet endpoints answer with the production chain identity and a current block height. Run the connection test from this guide filtered to mainnet:
+
+```bash
+npx vitest run networks.test.ts -t mainnet
+```
+
+```text
+ ↓ networks.test.ts > 'preview' > sets the network ID
+ ↓ networks.test.ts > 'preview' > reaches the node RPC
+ ↓ networks.test.ts > 'preview' > reaches the indexer
+ ↓ networks.test.ts > 'preprod' > sets the network ID
+ ↓ networks.test.ts > 'preprod' > reaches the node RPC
+ ↓ networks.test.ts > 'preprod' > reaches the indexer
+ ✓ networks.test.ts > 'mainnet' > sets the network ID
+ ✓ networks.test.ts > 'mainnet' > reaches the node RPC
+ ✓ networks.test.ts > 'mainnet' > reaches the indexer
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 6 skipped (9)
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Mainnet readiness checklist
+
+Work through this list before a production launch. Each item links to the page that explains it.
+
+- [ ] **The full flow is validated on `preprod`.** Deploy, interact, and observe state end to end on the network closest to mainnet.
+- [ ] **The security checklist is complete.** Work through the [pre-deployment security checklist](./security-best-practices#pre-deployment-security-checklist) for the contract and the DApp around it.
+- [ ] **The updatability decision is made.** Decide whether and how the contract can be upgraded before it holds real value. See [Contract updatability and the maintenance authority](./deploy-and-operate#contract-updatability-and-the-maintenance-authority).
+- [ ] **The production wallet generates DUST.** cNIGHT is registered, the roughly 12-hour registration delay has passed, and the wallet shows a DUST balance. See [Funding and transaction cost](#funding-and-transaction-cost).
+- [ ] **Every endpoint in the configuration is a mainnet endpoint.** No `preview` or `preprod` URL remains. See the [Environment reference](#environment-reference).
+- [ ] **The infrastructure decision is made.** You run your own node and indexer, or you have a dedicated provider; the public endpoints are for development and testing.
+- [ ] **Key custody is settled.** The keys that control the contract and the funds have an owner, a backup, and a rotation path. See [Security and best practices](./security-best-practices).
+- [ ] **You can observe the DApp in production.** You know which [block explorer](#environment-reference) and indexer queries you will use to confirm the deployment and watch activity.
+
+## Additional resources
+
+- [Environments and endpoints](../relnotes/network): the release-notes view of the per-network endpoints.
+- [Node endpoints](../nodes/node-endpoints): RPC quickstart, common queries, and the Insomnia collection.
+- [midnight-local-dev on GitHub](https://github.com/midnightntwrk/midnight-local-dev): the local network tool, its pinned image versions, and its README.
+- [Run the proof server](./run-proof-server): the local proof server every network setup depends on.
+- [Deploying and operating a contract](./deploy-and-operate): the complete providers object a DApp passes to the SDK, and what comes after deployment.
+- [Funding a wallet](./acquire-tokens): the faucet, the Lace registration flow, and the wallet SDK path.
+- [Security and best practices](./security-best-practices): hardening a contract and DApp before mainnet.
