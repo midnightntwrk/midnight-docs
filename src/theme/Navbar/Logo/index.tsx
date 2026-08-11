@@ -14,7 +14,6 @@ const COMPACT_ROUTE_PATTERNS: RegExp[] = [
 
   // Guides that should use the Compact logo.
   new RegExp(`^\\/${VERSION_PREFIX}guides\\/compact-javascript-runtime(?:\\/|$)`),
-  new RegExp(`^\\/${VERSION_PREFIX}guides\\/use-compact-javascript-implementation(?:\\/|$)`),
   // Compact category pages at root and versioned paths.
   new RegExp(
     `^\\/${VERSION_PREFIX}category\\/(?:reference|compilation-and-tooling|data-types|standard-library)(?:\\/|$)`
