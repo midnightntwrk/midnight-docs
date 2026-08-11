@@ -71,21 +71,24 @@ function addedRanges(baseSha, headSha) {
 
 // Run Vale from the repo root so .vale.ini applies exactly as in local runs.
 function runVale(files) {
-  const alerts = {};
+  const alerts = new Map();
   for (let i = 0; i < files.length; i += CHUNK) {
     const out = sh("vale", [
       "--output=JSON",
       "--no-exit",
       ...files.slice(i, i + CHUNK),
     ]);
-    if (out.trim()) Object.assign(alerts, JSON.parse(out));
+    if (!out.trim()) continue;
+    for (const [path, fileAlerts] of Object.entries(JSON.parse(out))) {
+      alerts.set(path, fileAlerts);
+    }
   }
   return alerts;
 }
 
 function filterToAdded(alerts, ranges) {
   const findings = [];
-  for (const [path, fileAlerts] of Object.entries(alerts)) {
+  for (const [path, fileAlerts] of alerts) {
     const fileRanges = ranges.get(path);
     if (!fileRanges) continue;
     for (const a of fileAlerts) {
