@@ -8,7 +8,7 @@ sidebar_position: 4
 
 In the Midnight Network, ensuring data privacy while maintaining verifiable state is achieved through **Zero-Knowledge (ZK) proofs**. A core concept in building Midnight dApps is the **witness**—data that is known to the user (the prover) but kept hidden from the network (the verifiers).
 
-This guide covers how to define and use witnesses in the **Compact DSL**, integrate them using the **midnight-js SDK**, and troubleshoot common issues.
+This guide covers how to define and use witnesses in the **Compact DSL**, integrate them using the **Compact JavaScript implementation**, and troubleshoot common issues.
 
 ---
 
@@ -44,60 +44,75 @@ witness access_witness(): Bytes<32>;
 
 export circuit increment_counter(): [] {
     // 1. Fetch the private data via the witness
-    let secret_code = access_witness();
+    const secret_code = access_witness();
 
     // 2. Verify the secret code matches the expected hash
     // The hash function is evaluated locally, and a proof of correct execution is generated.
-    let computed_hash = crypto::sha256(secret_code);
-    assert computed_hash == SECRET_HASH "Invalid access code";
+    const computed_hash = persistentHash<Bytes<32>>(secret_code);
+    assert(computed_hash == SECRET_HASH, "Invalid access code");
 
     // 3. Update the public ledger
     counter = counter + 1;
 }
 ```
 
-### 2. Providing the Witness in `midnight-js`
+### 2. Providing the Witness in TypeScript
 
-When executing the `increment_counter` circuit from your frontend or backend, the `midnight-js` SDK needs to know how to resolve the `access_witness()`. You provide this via the `providers` object when creating the contract instance.
+When the Compact compiler processes your contract, it generates a JavaScript implementation in the `managed/` directory. The generated `Contract` class requires a **witnesses object** whose keys match the witness names declared in your `.compact` file.
+
+Each witness function receives a `WitnessContext` carrying the current ledger view, private state, and contract address, and returns a tuple of the updated private state and the witness value.
 
 ```typescript
-import { createContract } from '@midnight-network/midnight-js/contracts';
-import { accessControlContract } from './generated/access_control.js'; // Generated from Compact
+import { Contract, Ledger } from './managed/access_control/contract/index.js';
+import { WitnessContext } from '@midnight-ntwrk/compact-runtime';
 
-// The user inputs their secret code in the UI
-const userSecretCode = new Uint8Array([/* ... 32 bytes of secret data ... */]);
-
-// Set up the providers, including the witness provider
-const providers = {
-  // ... wallet, node, and proof providers ...
-  witnessProvider: {
-    // The key must match the name of the witness in your Compact code
-    access_witness: () => userSecretCode,
-  }
+// Define the shape of your private state
+type AccessControlPrivateState = {
+  readonly secretCode: Uint8Array;
 };
 
-// Initialize the contract
-const contract = await createContract({
-  contractId: 'your-contract-id-here',
-  contract: accessControlContract,
-  providers,
+// Create a factory for initial private state
+const createPrivateState = (secretCode: Uint8Array): AccessControlPrivateState => ({
+  secretCode,
 });
 
-// Execute the circuit
-async function performIncrement() {
-  try {
-    console.log("Generating proof locally...");
-    // When this is called, midnight-js will invoke access_witness() from the provider
-    const tx = await contract.increment_counter();
-    
-    console.log("Submitting proof to the network...");
-    await tx.submit();
-    console.log("Counter incremented successfully!");
-  } catch (error) {
-    console.error("Failed to increment counter:", error);
-  }
-}
+// Implement witnesses — keys must match Compact witness names exactly
+const witnesses = {
+  access_witness: ({
+    privateState,
+  }: WitnessContext<Ledger, AccessControlPrivateState>): [
+    AccessControlPrivateState,
+    Uint8Array,
+  ] => [privateState, privateState.secretCode],
+};
+
+// Instantiate the contract with the witnesses object
+const contract = new Contract(witnesses);
 ```
+
+Once instantiated, you can call the circuit through `contract.impureCircuits`:
+
+```typescript
+// Build a circuit context with ledger state and private state
+const context = {
+  originalState: {
+    counter: 0n,
+  },
+  privateState: createPrivateState(
+    new Uint8Array([/* ... 32 bytes of secret data ... */])
+  ),
+  contractAddress: '0x...',
+  transactionContext: {},
+};
+
+// Execute the circuit locally — this invokes access_witness() automatically
+const { result, context: updatedContext } =
+  contract.impureCircuits.increment_counter(context);
+
+console.log('New counter value:', updatedContext.originalState.counter);
+```
+
+For a complete walkthrough of importing the generated module, writing witnesses, calling circuits, and running tests, see [Using Compact contracts from JavaScript](./compact-javascript-runtime).
 
 ---
 
@@ -106,8 +121,8 @@ async function performIncrement() {
 When working with witnesses, you might encounter a few common pitfalls. 
 
 ### 1. "Witness not provided" or "Missing witness" Error
-**Cause**: The SDK attempted to execute a circuit that calls a witness, but no matching function was found in the `witnessProvider`.
-**Solution**: Ensure the key in your `witnessProvider` object *exactly* matches the name of the witness defined in your `.compact` file.
+**Cause**: The `Contract` constructor validates that every witness declared in Compact has a matching key in the witnesses object. If any key is missing, the constructor throws.
+**Solution**: Ensure every key in your witnesses object *exactly* matches the name of the witness defined in your `.compact` file.
 
 ### 2. Non-Deterministic Witnesses
 **Cause**: If your witness function returns different values if called multiple times during the same execution context, proof generation will fail. The prover evaluates the circuit multiple times to generate constraints.
@@ -115,15 +130,17 @@ When working with witnesses, you might encounter a few common pitfalls.
 
 ```typescript
 // BAD: Generates a new random value every time it's called
-witnessProvider: {
-  get_random_nonce: () => crypto.getRandomValues(new Uint8Array(32)), 
-}
+const witnesses = {
+  get_random_nonce: ({ privateState }: WitnessContext<Ledger, MyPrivateState>) =>
+    [privateState, crypto.getRandomValues(new Uint8Array(32))],
+};
 
 // GOOD: Value is fixed for the duration of the execution
 const fixedNonce = crypto.getRandomValues(new Uint8Array(32));
-witnessProvider: {
-  get_random_nonce: () => fixedNonce,
-}
+const witnesses = {
+  get_random_nonce: ({ privateState }: WitnessContext<Ledger, MyPrivateState>) =>
+    [privateState, fixedNonce],
+};
 ```
 
 ### 3. State Commitment Mismatches
@@ -132,5 +149,5 @@ witnessProvider: {
 
 ## Next Steps
 
-- Learn more about [Compact Data Types](/docs/compact/data-types).
-- Explore [Local State Storage](/docs/midnight-js/local-state) for persisting private data across sessions.
+- Learn more about [Compact data types](../compact/data-types).
+- Explore [Using Compact contracts from JavaScript](./compact-javascript-runtime) for the full generated-module API.
