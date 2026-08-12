@@ -31,16 +31,22 @@ In your Compact contract, you define a `witness` block. This tells the compiler 
 
 ```compact
 // access_control.compact
-pragma language_version >= 0.14.0;
+pragma language_version 0.16;
+
+import CompactStandardLibrary;
 
 export ledger counter: Uint<32>;
 
 // The network knows the hash of the secret code, but not the code itself.
-export const SECRET_HASH: Bytes<32> = 
-  0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef; // Example hash
+// The expected hash is set once at deployment via the constructor.
+export ledger secret_hash: Bytes<32>;
 
 // Define the witness structure
 witness access_witness(): Bytes<32>;
+
+constructor(sk: Bytes<32>) {
+    secret_hash = disclose(persistentHash<Bytes<32>>(sk));
+}
 
 export circuit increment_counter(): [] {
     // 1. Fetch the private data via the witness
@@ -49,7 +55,7 @@ export circuit increment_counter(): [] {
     // 2. Verify the secret code matches the expected hash
     // The hash function is evaluated locally, and a proof of correct execution is generated.
     const computed_hash = persistentHash<Bytes<32>>(secret_code);
-    assert(computed_hash == SECRET_HASH, "Invalid access code");
+    assert(computed_hash == secret_hash, "Invalid access code");
 
     // 3. Update the public ledger
     counter = counter + 1;
@@ -63,7 +69,9 @@ When the Compact compiler processes your contract, it generates a JavaScript imp
 Each witness function receives a `WitnessContext` carrying the current ledger view, private state, and contract address, and returns a tuple of the updated private state and the witness value.
 
 ```typescript
-import { Contract, Ledger } from './managed/access_control/contract/index.js';
+import * as RT from '@midnight-ntwrk/compact-runtime';
+import { Contract, ledger } from './managed/access_control/contract/index.js';
+import type { Ledger } from './managed/access_control/contract/index.js';
 import { WitnessContext } from '@midnight-ntwrk/compact-runtime';
 
 // Define the shape of your private state
@@ -90,26 +98,30 @@ const witnesses = {
 const contract = new Contract(witnesses);
 ```
 
-Once instantiated, you can call the circuit through `contract.impureCircuits`:
+Once instantiated, build a circuit context with the runtime helpers and call the circuit through `contract.impureCircuits`. Build the context with `RT.createConstructorContext` and `RT.createCircuitContext` rather than by hand — a real `CircuitContext` carries query-context state that the wrappers validate.
 
 ```typescript
-// Build a circuit context with ledger state and private state
-const context = {
-  originalState: {
-    counter: 0n,
-  },
-  privateState: createPrivateState(
-    new Uint8Array([/* ... 32 bytes of secret data ... */])
-  ),
-  contractAddress: '0x...',
-  transactionContext: {},
-};
+const COIN = '0'.repeat(64);
+const ADDR = RT.sampleContractAddress();
+const secretCode = new Uint8Array([/* ... 32 bytes of secret data ... */]);
 
-// Execute the circuit locally — this invokes access_witness() automatically
-const { result, context: updatedContext } =
-  contract.impureCircuits.increment_counter(context);
+// 1. Create the genesis state with the constructor
+const ctor = contract.initialState(
+  RT.createConstructorContext(createPrivateState(secretCode), COIN),
+  secretCode,   // constructor argument: the secret key to hash and store
+);
 
-console.log('New counter value:', updatedContext.originalState.counter);
+// 2. Build a circuit context from the constructor result
+const ctx = RT.createCircuitContext(
+  ADDR, COIN, ctor.currentContractState, createPrivateState(secretCode),
+);
+
+// 3. Call the impure circuit — this invokes access_witness() automatically
+const call = contract.impureCircuits.increment_counter(ctx);
+
+// 4. Read the resulting ledger state with the generated helper
+const state = ledger(call.context.currentQueryContext.state);
+console.log('New counter value:', state.counter);
 ```
 
 For a complete walkthrough of importing the generated module, writing witnesses, calling circuits, and running tests, see [Using Compact contracts from JavaScript](./compact-javascript-runtime).
