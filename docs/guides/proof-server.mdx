@@ -1,0 +1,344 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Proof server"
+description: Why Midnight needs Docker, the proof server and proof generation, and how to run, verify, and connect to a local proof server.
+toc_max_heading_level: 2
+sidebar_position: 35
+---
+
+# Why Midnight needs Docker, the proof server and proof generation
+
+If you have tried to build on Midnight, you have probably hit this within the first ten minutes:
+
+```
+Error: connect ECONNREFUSED 127.0.0.1:6300
+```
+
+Somewhere in the setup guide there was a `docker run` command. You skipped it, or Docker was not running, and now nothing works.
+
+The reasonable question at that point is, why does a blockchain SDK need Docker at all?
+
+This guide answers that by following the actual chain of reasoning, from what happens when you call a smart contract on Midnight, to why that requires a separate local service, to why that service ships as a container. It then gets you running, verified, and past the two things that most commonly go wrong next, choosing a network, and generating tDUST.
+
+## Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- Node.js v22 or later
+- The Compact toolchain installed. See [install the Midnight toolchain](/getting-started/installation).
+
+## Step 1: Your smart contract runs locally
+
+On most chains, you submit a transaction and validators execute your smart contract. Everyone sees the inputs.
+
+On Midnight, execution happens on your device. When you call a *circuit*, Midnight's term for a smart contract function, it runs locally and produces two things:
+
+- A **public transcript**: the on-chain values it read and wrote, and the rules it followed.
+- A **private transcript**: your *witness* data, the secret inputs that never leave your machine.
+
+What reaches the network is the public transcript plus a ZK proof that the transcript is correct, meaning your hidden values satisfy every constraint in the circuit.
+
+The network learns that the rules were followed. It never learns your inputs.
+
+This is the core of Midnight's privacy model, and it is also why your local environment has a component other chains do not.
+
+## Step 2: Proving is expensive, verifying is cheap
+
+One asymmetry drives everything here.
+
+Verifying a proof is fast. Under Midnight's deployed cost model, proof verification costs a constant of roughly 3.3 milliseconds plus a small term that scales with size. That is what keeps on-chain verification affordable.
+
+Creating a proof is the expensive half. Midnight's proving system is PLONK-family with KZG commitments over the BLS12-381 curve. In practice this means proving requires a large set of shared public parameters, called a structured reference string, in addition to the proving key for your own circuit.
+
+That work does not belong in a browser tab, and reimplementing it in JavaScript is not practical. So the prover ships as a native service, the proof server.
+
+Its job description is short:
+
+- It accepts an unproven transaction plus the key material for the circuits involved: proving key, verifier key, and ZKIR.
+- It runs heavy math.
+- It returns proofs.
+
+:::note
+
+The proof server does not hold your wallet keys. It cannot sign a transaction and it cannot spend funds. It builds proofs, and that is the entire job.
+
+:::
+
+It does see your witness data, because that is what it proves things about. Which leads directly to the next point.
+
+## Step 3: Why it runs on your machine
+
+Because the proof server receives your private inputs, using someone else's proof server means handing your secrets to a stranger.
+
+Run it locally, or at most on a remote machine you control, over an encrypted channel.
+
+Run locally, the data path is short. Your private data goes from your wallet, to a process on the same machine, and stops.
+
+The proof server reaches outward once, at startup, to download the public proving parameters from https://srs.midnight.network/ and prepare the built-in key material for shielded token and DUST operations. That data is public and identical for every user. Your witness data is never part of it.
+
+:::note
+
+Pass `--no-fetch-params` to skip the startup download, and set `MIDNIGHT_PARAM_SOURCE` to point at your own mirror.
+
+:::
+
+This also explains why the first start is much slower than every later one. The image itself is around 100 MB. The parameters it fetches on the first run are the slow part.
+
+## Step 4: Why Docker specifically
+
+This is the question developers actually ask, so the alternatives deserve a straight answer.
+
+| Approach | Why it is not the default |
+| :---- | :---- |
+| npm install | The prover is compiled Rust with native cryptographic dependencies. Shipping it through npm means prebuilt binaries for every operating system and architecture, or asking every developer to install a Rust toolchain. |
+| Native binary download | Workable, but you inherit platform-specific linking, permissions, and PATH problems. You also lose the version pinning that matters when the node, indexer, and proof server have to stay compatible. |
+| In-browser WASM | Increasingly real. Some wallets now compile the prover to WASM and prove in the tab. It is not the path the tooling and tutorials assume, and cold-start key loading is its own tradeoff. |
+| Hosted proof server | Defeats the purpose. The proof server sees your witness data. |
+| Docker | One command, identical behaviour across macOS, Linux, and WSL. Version-pinnable, so it stays in step with the node and indexer. Isolated, so it does not touch your system. Disposable, so a broken state is fixed by restarting a container. |
+
+Docker is not a stylistic preference. It is the lowest-friction way to distribute a native cryptographic service to developers across three operating systems while keeping versions aligned.
+
+## Run the proof server
+
+```shell
+docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+```
+
+Or run it with Docker Compose. Save the following as `proof-server.yml`:
+
+```yaml
+services:
+  proof-server:
+    image: 'midnightntwrk/proof-server:8.1.0'
+    command: ['midnight-proof-server', '-v']
+    ports:
+      - '127.0.0.1:6300:6300'
+    environment:
+      RUST_BACKTRACE: 'full'
+    healthcheck:
+      test: ['CMD-SHELL', 'echo > /dev/tcp/127.0.0.1/6300']
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+```
+
+Start it with:
+
+```shell
+docker compose -f proof-server.yml up -d
+```
+
+You should see output similar to:
+
+```
+starting service: "actix-web-service-0.0.0.0:6300", workers: 12, listening on: 0.0.0.0:6300
+```
+
+Leave it running. Every transaction you prove goes through it.
+
+:::note
+
+At the time of writing, 8.1.0 is the current stable tag. The `latest` tag exists but lags behind: it was last republished in May 2026, while 8.1.0 and the 9.0.0 release candidates came after. Pinning also keeps the proof server aligned with your node and indexer versions. Check the [compatibility matrix](/relnotes/support-matrix) for the version tested against your target network.
+
+:::
+
+### A note on port 6300
+
+The proof server has a `--port` flag and a `MIDNIGHT_PROOF_SERVER_PORT` environment variable, so the port is configurable.
+
+Leave it on 6300 anyway. Lace hardcodes `localhost:6300` for the Undeployed network, and the examples you are likely to copy assume it. If 6300 is genuinely occupied on your host, remap only the host side and update your DApp configuration to match:
+
+```shell
+docker run -p 6301:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+```
+
+## Verify it is working
+
+A running container does not guarantee a working proof server. Run these three checks:
+
+```shell
+curl http://localhost:6300/health
+# {"status":"ok","timestamp":"..."}
+
+curl http://localhost:6300/version
+# 8.1.0
+
+curl http://localhost:6300/ready
+# {"status":"ok","jobsProcessing":0,"jobsPending":0,"jobCapacity":0,"timestamp":"..."}
+```
+
+`/ready` is the most useful during development. If `jobsPending` climbs while `jobsProcessing` stays flat, proving jobs are queuing. The server keeps a small pool of proving workers, two by default, adjustable with `--num-workers`.
+
+:::note
+
+The `workers: 12` line in the startup log counts HTTP workers, scaled to your CPU count. It is not the number of proving workers.
+
+:::
+
+## Connect your DApp
+
+The proof server is reached through a provider.
+
+```ts
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+
+const zkConfigProvider = new NodeZkConfigProvider<'myCircuit'>(
+  '/path/to/contract/build',
+);
+
+const proofProvider = httpClientProofProvider(
+  'http://localhost:6300',
+  zkConfigProvider,
+);
+```
+
+Two providers, two jobs. The `zkConfigProvider` serves the compiler artifacts, meaning the proving key, verifier key, and ZKIR for each circuit. The `proofProvider` carries them to the server alongside your transaction. Use `NodeZkConfigProvider` for artifacts on the filesystem, and `FetchZkConfigProvider` when they are hosted over HTTP.
+
+Both belong in your providers object:
+
+```ts
+const providers = {
+  privateStateProvider,
+  publicDataProvider,
+  zkConfigProvider,
+  proofProvider,
+  walletProvider,
+  midnightProvider,
+};
+```
+
+If you are a wallet user rather than a builder, Lace points at the same place. Go to **Settings → Midnight → Local** and select `http://localhost:6300`. That is currently the only proving option Lace supports.
+
+### Where proving sits in a transaction
+
+1. Execute the circuit locally, producing an unproven transaction.
+2. Generate ZK proofs through the `proofProvider`. This is the proof server's step.
+3. Balance the transaction through the `walletProvider`.
+4. Submit to the network through the `midnightProvider`.
+5. Wait for finalisation through the `publicDataProvider`.
+
+Step 2 is the only step the proof server takes part in. If your DApp hangs, look there first.
+
+:::note
+
+The prover verifies its own proof before returning it. If your keys and circuit do not match, the error says check that your keys match rather than failing silently at submission. In practice this almost always means stale build artifacts. Recompile the smart contract.
+
+:::
+
+## Choose a network
+
+Network selection is the second most common stumbling block, and the answer is simpler than it looks.
+
+| Network | Network ID | What it is | Use it when |
+| :---- | :---- | :---- | :---- |
+| Undeployed | `undeployed` | A local stack you run yourself: node, indexer, and proof server | You are developing and iterating. Fastest loop, no faucet, no waiting. |
+| Preview | `preview` | Live test network, the primary development environment maintained by core engineering | You need to test against a real network with current features. |
+| Preprod | `preprod` | Live pre-production network for final testing before Mainnet | You are validating close-to-production behaviour. |
+| Mainnet | `mainnet` | Production | You are shipping. |
+
+Start on Undeployed. tDUST generates in minutes rather than hours, there is no faucet queue, and you can reset the whole chain by restarting containers. Move to Preview or Preprod when you need to test against infrastructure you do not control.
+
+Whichever you choose, set it explicitly.
+
+**Undeployed:**
+
+```ts
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('undeployed');
+
+export const CONFIG = {
+  indexer: 'http://localhost:8088/api/v4/graphql',
+  indexerWS: 'ws://localhost:8088/api/v4/graphql/ws',
+  node: 'ws://localhost:9944',
+  proofServer: 'http://localhost:6300',
+};
+```
+
+**Preprod:**
+
+```ts
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('preprod');
+
+export const CONFIG = {
+  indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
+  indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+  node: 'https://rpc.preprod.midnight.network',
+  proofServer: 'http://127.0.0.1:6300',
+};
+```
+
+**Preview:**
+
+```ts
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+setNetworkId('preview');
+
+export const CONFIG = {
+  indexer: 'https://indexer.preview.midnight.network/api/v4/graphql',
+  indexerWS: 'wss://indexer.preview.midnight.network/api/v4/graphql/ws',
+  node: 'https://rpc.preview.midnight.network',
+  proofServer: 'http://127.0.0.1:6300',
+};
+```
+
+The `proofServer` value is a local address in every case. Proving is your machine's job regardless of which network you target.
+
+The local stack uses fixed ports: node on 9944, indexer on 8088, and proof server on 6300. These are exactly the defaults Lace hardcodes for Undeployed, so selecting **Undeployed** in Lace connects with no further configuration.
+
+## Generate tDUST
+
+Once the proof server is running, the next wall is fees. Midnight transactions are paid for in DUST, and on test networks you use tDUST. DUST behaves unlike any gas token you have used before.
+
+You cannot transfer DUST and you cannot buy it. It is a resource generated by held NIGHT over time.
+
+The mechanism, briefly:
+
+- NIGHT and DUST use different keys, so a registration table links a NIGHT public key to a DUST address. This step is called *designation*.
+- A NIGHT UTXO generates DUST toward a cap proportional to the NIGHT it holds. Under the initial parameters that is 5 DUST per NIGHT, reaching the full cap in roughly a week.
+- Generation is linear from zero, so you have usable DUST long before the cap. Expect roughly 12 hours on a fresh wallet on a live network, and about 5 minutes on a local network.
+- Spend DUST and it regenerates. Spend the backing NIGHT and the DUST decays to zero.
+
+### Why tDUST looks stuck at zero
+
+This is the most common report from newly created wallets, and it is usually not stuck. It never started.
+
+A DUST UTXO is created only when a NIGHT UTXO is created **and** that key already has a registration table entry. Designation is not retroactive, so tNIGHT that arrived before you designated a DUST address generates nothing.
+
+Order matters:
+
+1. Create your wallet.
+2. Request tNIGHT from the faucet.
+3. Designate a DUST address.
+
+If you funded the wallet first and are now watching a zero balance, you do not need a new wallet. Designate the DUST address, then create a fresh tNIGHT UTXO by sending tNIGHT to yourself. The new UTXO generates normally.
+
+Beyond ordering, check these:
+
+- **You are waiting less time than you think.** On a live network, allow hours rather than minutes.
+- **You are looking at a wallet on a different network.** Preview and Preprod are separate chains with separate faucets and separate balances.
+- **The transaction sat too long.** DUST spends carry a timestamp and a grace period of about 3 hours. A transaction built and left overnight is rejected.
+
+## What to remember
+
+The proof server is not incidental tooling. It is where Midnight's core tradeoff physically lives: heavy, privacy-preserving work on your machine, and a millisecond public check on-chain.
+
+- It runs on your machine because it sees your witness data.
+- It never touches your wallet keys, and it cannot sign or spend.
+- It ships in Docker because that is the cleanest way to distribute a native cryptographic service across three operating systems with versions pinned.
+- Pin the tag, keep it running, and point everything at `localhost:6300`.
+
+Start on Undeployed, designate your DUST address before you fund the wallet, and the first ten minutes stop being the hard part.
+
+## Next steps
+
+- [Install the Midnight toolchain](/getting-started/installation)
+- [Set up a local network with the quickstart](/getting-started/quickstart)
+- [Networks and environments](/guides/networks-and-environments)
+- [Acquire tNIGHT and tDUST](/guides/acquire-tokens)
+- [Understand the DUST architecture](/concepts/dust-architecture)
