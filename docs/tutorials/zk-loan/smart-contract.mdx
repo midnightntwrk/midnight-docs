@@ -111,7 +111,7 @@ cat > package.json << 'EOF'
     "ws": "^8.18.3"
   },
   "overrides": {
-    "smoldot": "npm:@aspect-build/empty@0.0.0",
+    "smoldot": "npm:empty-npm-package@1.0.0",
     "@midnight-ntwrk/ledger-v8": "8.1.0",
     "@midnight-ntwrk/midnight-js-network-id": "4.1.1"
   },
@@ -196,7 +196,7 @@ struct SchnorrHashInput<#n> {
     msg: Vector<n, Field>;
 }
 
-witness getSchnorrReduction(challengeHash: Field): [Field, Uint<248>];
+witness getSchnorrReduction(challengeHash: Field): [Uint<7>, Uint<248>];
 
 export circuit schnorrVerify<#n>(msg: Vector<n, Field>, signature: SchnorrSignature, pk: JubjubPoint): [] {
 
@@ -212,6 +212,7 @@ export circuit schnorrVerify<#n>(msg: Vector<n, Field>, signature: SchnorrSignat
     const TWO_248: Field = 452312848583266388373324160190187140051835877600158453279131187530910662656 as Field;
 
     const [q, cTruncated] = getSchnorrReduction(cFull);
+    assert(disclose(q) < 116, "Schnorr quotient out of range");
     assert(disclose(q) * TWO_248 + (disclose(cTruncated) as Field) == cFull, "Invalid challenge reduction");
 
     const c: Field = disclose(cTruncated) as Field;
@@ -257,6 +258,10 @@ Since Compact language version `0.22`, two `JubjubPoint` values can no longer be
 :::
 
 The truncation uses a *witness* (`getSchnorrReduction`). The TypeScript code provides the quotient and remainder of dividing by 2^248, and the circuit verifies `q * 2^248 + r == cFull`. This is a common pattern in ZK systems: let the prover compute something expensive off-chain, then verify the result cheaply on-chain.
+
+:::caution Constrain witness values fully
+The reduction equation alone is not enough. Circuit arithmetic is modulo the BLS12-381 scalar prime, and 2^248 is invertible in that field — so if the quotient were an unconstrained `Field`, a malicious prover could pick *any* truncated challenge `r` and solve for a matching `q`, satisfying the equation while decoupling the challenge from the hash. That would allow forging an attestation signature without the provider's secret key. Typing the quotient as `Uint<7>` and asserting `q < 116` (the largest honest quotient is `floor((p - 1) / 2^248) = 115`) forces the equation to hold over the *integers*, tying `r` to the hash instead of leaving it a free choice. The general lesson: witness values are prover-controlled inputs — constrain them until only honest values can satisfy the circuit.
+:::
 
 `schnorrChallenge` is a `pure` circuit (no side effects, no ledger access). It computes the same challenge hash that `schnorrVerify` uses. It is exported so the attestation API can compute the same hash off-chain when signing.
 
@@ -723,7 +728,7 @@ In the code above, each witness function receives a `WitnessContext` containing 
 
 *   `getAttestedScoringWitness`: extracts the credit profile, attestation signature, and provider ID from private state.
 
-*   `getSchnorrReduction`: computes the quotient and remainder of dividing the challenge hash by 2^248 (Jubjub scalar field truncation).
+*   `getSchnorrReduction`: computes the quotient and remainder of dividing the challenge hash by 2^248 (Jubjub scalar field truncation). The circuit declares the quotient as `Uint<7>` and asserts it is below 116, so the reduction is checked over the integers rather than modulo the field prime — the honest quotient is always in [0, 115], so the TypeScript implementation needs no special handling.
 
 *   `getUserSecret`: returns the 32-byte secret that drives all caller identity in this contract. Because `UserSecretKey` is now a `new type` over `Bytes<32>`, its generated TypeScript type is a plain `Uint8Array` — the witness returns the bare secret, with no `{ bytes: ... }` wrapper. The contract feeds it into two pure circuits — `deriveUserPublicKey(secret, pin)` for per-user PIN-bound identity, and `deriveAdminPublicKey(secret)` for the admin role. Only the deploying admin's secret hashes to the value stored in `contractAdmin`; everyone else's `getUserSecret` returns a value whose admin-derivation does not match, so admin assertions fail for them. Domain-separator strings (`"zkloan:admin:pk:v1"` vs `"zkloan:user:pk:v1"`) keep the two derivations from the same secret uncorrelated. The runtime length check rejects malformed witnesses at proof time.
 
