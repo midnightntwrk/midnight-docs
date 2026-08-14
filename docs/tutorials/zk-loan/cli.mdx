@@ -13,13 +13,13 @@ tags: [tutorials, advanced, zero-knowledge, loan, dapp]
 
 The smart contract is compiled. The attestation API can sign credit data. The proof server can generate zero-knowledge (ZK) proofs. Now you need a way to talk to all three.
 
-In [Part 1](./smart-contract), you built the Compact smart contract and witness layer. In [Part 2](./attestation-api), you built the attestation API and set up the proof server. This final part builds the CLI that ties everything together, then runs the full flow end-to-end on a local Midnight network. The same CLI can target Midnight's Preprod network by switching a single environment variable.
+In [Part 1](./smart-contract), you built the Compact smart contract and witness layer. In [Part 2](./attestation-api), you built the attestation API and set up the proof server. This final part builds the CLI that ties everything together, then runs the full flow end-to-end on a local Midnight network. The same CLI can target Midnight's Preprod network by running a different entry-point script.
 
 You will build two things:
 
 1.  **CLI**: An interactive command-line tool that handles wallet creation, smart contract deployment, attestation provider registration, loan requests, and on-chain state inspection.
 
-2.  **End-to-end test**: A walkthrough that exercises the complete system: fund a wallet with tNIGHT, deploy the smart contract, register a provider, request a loan with private credit data, and verify that only the outcome appears on-chain.
+2.  **End-to-end test**: A walkthrough that exercises the complete system: build a funded wallet, deploy the smart contract, register a provider, request a loan with private credit data, and verify that only the outcome appears on-chain.
 
 ### Prerequisites
 
@@ -31,7 +31,7 @@ You will build two things:
 
 ## Build the CLI
 
-The CLI is a TypeScript application that orchestrates wallet operations, smart contract interactions, and attestation requests. It consists of seven files, each with a distinct responsibility.
+The CLI is a TypeScript application that orchestrates wallet operations, smart contract interactions, and attestation requests. It consists of nine source files, each with a distinct responsibility.
 
 ### Configuration
 
@@ -85,12 +85,12 @@ export class PreprodConfig implements Config {
 }
 
 
-export class LocalDevConfig implements Config {
+export class StandaloneConfig implements Config {
   logDir = path.resolve(
     currentDir,
     "..",
     "logs",
-    "localdev",
+    "standalone",
     `${new Date().toISOString()}.log`,
   );
   indexer = "http://127.0.0.1:8088/api/v4/graphql";
@@ -98,10 +98,13 @@ export class LocalDevConfig implements Config {
   node = "http://127.0.0.1:9944";
   proofServer = "http://127.0.0.1:6300";
   networkId = "undeployed";
+  constructor() {
+    setNetworkId("undeployed");
+  }
 }
 ```
 
-This file covers both networks: `PreprodConfig` points the indexer and node at Midnight's remote infrastructure, while `LocalDevConfig` points them at a local stack. In both cases the proof server runs locally on port `6300` — the Docker container you started in [Part 2](./attestation-api) for Preprod, or the one bundled with [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network).
+This file covers both networks: `PreprodConfig` points the indexer and node at Midnight's remote infrastructure, while `StandaloneConfig` points them at a local stack. In both cases the proof server runs locally on port `6300` — the Docker container you started in [Part 2](./attestation-api) for Preprod, or the one bundled with [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network).
 
 Key details:
 
@@ -111,7 +114,7 @@ Key details:
 
 *   The indexer provides two connections: HTTP for queries and WebSocket for real-time subscription to ledger state changes.
 
-*   `LocalDevConfig` connects to [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network), a standalone Docker-based development environment that runs the Midnight node, indexer, and proof server locally. It uses the `undeployed` network ID, and all services run on `localhost`.
+*   `StandaloneConfig` connects to [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network), a standalone Docker-based development environment that runs the Midnight node, indexer, and proof server locally. It uses the `undeployed` network ID, and all services run on `localhost`. Its constructor calls `setNetworkId('undeployed')` immediately, so address derivation uses the right network ID as soon as the config is instantiated.
 
 ### Type definitions
 
@@ -340,7 +343,7 @@ Set `DEBUG_LEVEL=debug` in your environment for verbose output during developmen
 
 ### Core API implementation
 
-This is the core module that connects the CLI to the Midnight SDK. It handles four responsibilities: creating and funding wallets from BIP-39 mnemonics, deploying or joining smart contracts on the configured network, fetching Schnorr attestations from the API you built in [Part 2](./attestation-api), and wrapping each smart contract circuit call (loan requests, PIN changes, admin operations) in a function the interactive CLI can invoke. Because of its size, this page presents it in logical sections with explanations between each block.
+This is the core module that connects the CLI to the Midnight SDK. It handles four responsibilities: creating and funding wallets from BIP-39 mnemonics or a hex seed, deploying or joining smart contracts on the configured network, fetching Schnorr attestations from the API you built in [Part 2](./attestation-api), and wrapping each smart contract circuit call (loan requests, PIN changes, admin operations) in a function the interactive CLI can invoke. Because of its size, this page presents it in logical sections with explanations between each block.
 
 Create `zkloan-credit-scorer-cli/src/api.ts` and add the following sections in order.
 
@@ -797,7 +800,7 @@ export const displayContractState = async (
     logger.info(
       `Admin public key: ${Buffer.from(ledgerState.contractAdmin).toString('hex')}`,
     );
-    logger.info(`Blocklist size: ${ledgerState.blacklist.size()}`);
+    logger.info(`Blacklist size: ${ledgerState.blacklist.size()}`);
   }
   return { contractAddress, ledgerState };
 };
@@ -881,7 +884,7 @@ export const waitForFunds = (wallet: WalletFacade) =>
         const shielded =
           state.shielded?.balances[ledger.nativeToken().raw] ?? 0n;
         logger.info(
-          `Waiting for funds. Synced: ${state.isSynced}, Unshielded: ${unshielded}, Shielded: ${shielded}`,
+          `Waiting for NIGHT funds. Synced: ${state.isSynced}, Unshielded: ${unshielded}, Shielded: ${shielded}`,
         );
       }),
       Rx.filter((state) => state.isSynced),
@@ -995,7 +998,7 @@ The wallet infrastructure handles three concerns:
 
 #### Wallet initialization
 
-The code block below derives three key roles (Zswap, NightExternal, Dust) from a single BIP-39 mnemonic, initializes the corresponding wallets, and waits for synchronization and funding before returning a ready-to-use wallet context.
+The code block below derives three key roles (Zswap, NightExternal, Dust) from a single seed — produced from a BIP-39 mnemonic, or supplied directly as a hex string — initializes the corresponding wallets, and waits for synchronization and funding before returning a ready-to-use wallet context.
 
 ```typescript
 // Validate a BIP-39 mnemonic and convert it to a seed buffer
@@ -1153,6 +1156,35 @@ export const buildFreshWallet = async (
   logger.info(`Generated new wallet mnemonic: ${mnemonic}`);
   return await buildWalletAndWaitForFunds(config, mnemonic);
 };
+
+// Build wallet from a hex seed (for the genesis wallet on the local network)
+export const buildWalletFromHexSeed = async (
+  config: Config,
+  hexSeed: string,
+): Promise<WalletContext> => {
+  logger.info('Building wallet from hex seed...');
+  const seed = Buffer.from(hexSeed, 'hex');
+  const walletContext = await initWalletWithSeed(seed, config);
+
+  logger.info(
+    `Your wallet address: ${walletContext.unshieldedKeystore.getBech32Address().asString()}`,
+  );
+
+  logger.info('Waiting for wallet to sync...');
+  await waitForSync(walletContext.wallet);
+
+  const { total } = await displayWalletBalances(walletContext.wallet);
+
+  if (total === 0n) {
+    logger.info('Waiting to receive tokens...');
+    await waitForFunds(walletContext.wallet);
+    await displayWalletBalances(walletContext.wallet);
+  }
+
+  await registerNightForDust(walletContext);
+
+  return walletContext;
+};
 ```
 
 The wallet initialization derives three key roles from a single BIP-39 mnemonic:
@@ -1163,7 +1195,7 @@ The wallet initialization derives three key roles from a single BIP-39 mnemonic:
 
 *   **DUST**: Used for generating DUST tokens that pay transaction fees
 
-`buildWalletAndWaitForFunds` is the high-level function the CLI calls. It converts the mnemonic to a seed, initializes all three wallet types, waits for synchronization, checks the balance, and registers NIGHT UTXOs for DUST generation.
+`buildWalletAndWaitForFunds` is the high-level function the CLI calls when targeting Preprod. It converts the mnemonic to a seed, initializes all three wallet types, waits for synchronization, checks the balance, and registers NIGHT UTXOs for DUST generation. `buildWalletFromHexSeed` follows the same steps but starts from a raw hex seed instead of a mnemonic — on the local standalone network the CLI uses it with the well-known genesis seed, whose funds already exist in the genesis block.
 
 #### Provider configuration and utilities
 
@@ -1253,8 +1285,9 @@ Create `zkloan-credit-scorer-cli/src/cli.ts` and add the following sections in o
 
 #### Imports and menu prompts
 
-The code block below sets up the CLI's foundation. It imports the API module, the shared type definitions, and Node's `readline` for interactive terminal input, then declares two menu prompt strings:
+The code block below sets up the CLI's foundation. It imports the API module, the shared type definitions, the `testcontainers` types (used when the test suite drives the CLI against Docker containers), and Node's `readline` for interactive terminal input. It then declares the genesis wallet seed and two menu prompt strings:
 
+- `GENESIS_MINT_WALLET_SEED`: the well-known seed that owns the tokens minted in a local development node's genesis block — used only on standalone networks to build a pre-funded wallet.
 - `DEPLOY_OR_JOIN_QUESTION`: the first menu, shown after wallet setup, asking whether to deploy a new contract or join an existing one.
 - `MAIN_LOOP_QUESTION`: the main menu, shown after a contract is deployed or joined, listing the loan and admin actions.
 
@@ -1263,16 +1296,27 @@ import { stdin as input, stdout as output } from "node:process";
 import { createInterface, type Interface } from "node:readline/promises";
 import { type Logger } from "pino";
 import {
+  type StartedDockerComposeEnvironment,
+  type DockerComposeEnvironment,
+} from "testcontainers";
+import {
   type ZKLoanCreditScorerProviders,
   type DeployedZKLoanCreditScorerContract,
 } from "./common-types";
-import { type Config } from "./config";
+import { type Config, StandaloneConfig } from "./config";
 import * as api from "./api";
 import type { WalletContext } from "./api";
 import { getUserProfile } from "./state.utils";
 import "dotenv/config";
 
 let logger: Logger;
+
+/**
+ * This seed gives access to tokens minted in the genesis block of a local development node - only
+ * used in standalone networks to build a wallet with initial funds.
+ */
+const GENESIS_MINT_WALLET_SEED =
+  "0000000000000000000000000000000000000000000000000000000000000001";
 
 // Menu prompt shown after wallet setup
 const DEPLOY_OR_JOIN_QUESTION = `
@@ -1289,7 +1333,7 @@ You can do one of the following:
   2. Change PIN
   3. Display contract state
   4. Display wallet balances
-  5. [Admin] Add user to blacklist
+  5. [Admin] Blacklist a user
   6. [Admin] Remove user from blacklist
   7. [Admin] Rotate admin role to new derived public key
   8. [Admin] Register attestation provider
@@ -1345,7 +1389,7 @@ These functions handle the two user-facing operations: requesting a loan (which 
 const requestLoan = async (
   contract: DeployedZKLoanCreditScorerContract,
   providers: ZKLoanCreditScorerProviders,
-  walletContext: WalletContext,
+  _walletContext: WalletContext,
   rli: Interface,
 ): Promise<void> => {
   const amountStr = await rli.question(
@@ -1380,7 +1424,7 @@ const changePinFlow = async (
   await api.changePin(contract, BigInt(oldPinStr), BigInt(newPinStr));
   logger.info("PIN change submitted successfully!");
   logger.info(
-    "Note: If you have many loans, then you might need to call this multiple times to complete the migration.",
+    "Note: If you have many loans, you may need to call this multiple times to complete the migration.",
   );
 };
 ```
@@ -1478,7 +1522,7 @@ const removeProviderFlow = async (
 
 #### Main loop and wallet selection
 
-The main loop presents the ten-option menu and routes each choice to the corresponding flow function. The wallet selection prompts the user to create or restore a wallet before entering the main loop:
+The main loop presents the ten-option menu and routes each choice to the corresponding flow function. Wallet selection depends on the network: on the local standalone network the CLI skips the menu entirely and builds a pre-funded wallet from the genesis seed, while on Preprod it prompts the user to create or restore a wallet before entering the main loop:
 
 ```typescript
 // Main interaction loop — routes menu choices to flow functions
@@ -1546,11 +1590,19 @@ You can do one of the following:
   4. Exit
 Which would you like to do? `;
 
-// Present wallet options and return the initialized wallet context
+// Return the initialized wallet context. On the standalone (local) network
+// the menu is skipped and the genesis wallet is built from its hex seed;
+// otherwise the wallet options menu is presented.
 const buildWallet = async (
   config: Config,
   rli: Interface,
 ): Promise<WalletContext | null> => {
+  if (config instanceof StandaloneConfig) {
+    // For standalone, use genesis wallet with hex seed
+    return await api.buildWalletFromHexSeed(config, GENESIS_MINT_WALLET_SEED);
+  }
+
+  // Check if mnemonic is available in environment
   const envMnemonic = process.env.WALLET_MNEMONIC;
 
   while (true) {
@@ -1581,12 +1633,47 @@ const buildWallet = async (
   }
 };
 
+// Rewrite a config URL so its port matches the host port that
+// testcontainers mapped for the named container
+const mapContainerPort = (
+  env: StartedDockerComposeEnvironment,
+  url: string,
+  containerName: string,
+) => {
+  const mappedUrl = new URL(url);
+  const container = env.getContainer(containerName);
+
+  mappedUrl.port = String(container.getFirstMappedPort());
+
+  return mappedUrl.toString().replace(/\/+$/, "");
+};
+
 // Entry point — build wallet, configure providers, enter main loop
-export const run = async (config: Config, _logger: Logger): Promise<void> => {
+export const run = async (
+  config: Config,
+  _logger: Logger,
+  dockerEnv?: DockerComposeEnvironment,
+): Promise<void> => {
   logger = _logger;
   api.setLogger(_logger);
   const rli = createInterface({ input, output, terminal: true });
+  let env;
   let walletContext: WalletContext | null = null;
+
+  if (dockerEnv !== undefined) {
+    env = await dockerEnv.up();
+
+    if (config instanceof StandaloneConfig) {
+      config.indexer = mapContainerPort(env, config.indexer, "zkloan-indexer");
+      config.indexerWS = mapContainerPort(env, config.indexerWS, "zkloan-indexer");
+      config.node = mapContainerPort(env, config.node, "zkloan-node");
+      config.proofServer = mapContainerPort(
+        env,
+        config.proofServer,
+        "zkloan-proof-server",
+      );
+    }
+  }
 
   try {
     walletContext = await buildWallet(config, rli);
@@ -1615,6 +1702,15 @@ export const run = async (config: Config, _logger: Logger): Promise<void> => {
         }
       } catch (e) {
         logger.error(`Error closing wallet: ${e}`);
+      } finally {
+        try {
+          if (env !== undefined) {
+            await env.down();
+            logger.info("Goodbye");
+          }
+        } catch (e) {
+          logger.error(`Error shutting down docker environment: ${e}`);
+        }
       }
     }
   }
@@ -1622,29 +1718,55 @@ export const run = async (config: Config, _logger: Logger): Promise<void> => {
 ```
 
 The CLI has three layers of interaction:
-- **Wallet selection**: Generate a fresh wallet, restore from a mnemonic, or load from the `.env` file.
+- **Wallet selection**: On the local standalone network this is automatic — the CLI builds the genesis wallet from `GENESIS_MINT_WALLET_SEED`, which already holds funds. On Preprod a menu offers to generate a fresh wallet, restore from a mnemonic, or load the mnemonic from the `.env` file.
 - **Deploy or join**: Deploy a new smart contract or connect to an existing one by address.
 - **Main loop**: The ten-option menu for loan requests, admin operations, and state inspection.
 
 Each menu option maps to a flow function that prompts for input and calls the corresponding API function. Errors are caught and logged without crashing the CLI, so you can retry operations.
 
-### Entry point
+The optional third parameter of `run`, `dockerEnv`, is used by the test suite: it passes a testcontainers `DockerComposeEnvironment`, which `run` starts and tears down itself, rewriting the standalone config's URLs to the dynamically mapped container ports via `mapContainerPort`. When you run the CLI interactively, this parameter is omitted and the CLI connects to whatever network is already running.
 
-The entry point picks the network configuration from the `NETWORK` environment variable (defaulting to Preprod), creates the logger, and hands both to the CLI runner.
+### Entry points
 
-Create `zkloan-credit-scorer-cli/src/index.ts`:
+Rather than one entry file that switches on an environment variable, the CLI ships a small entry file per network — each hardcodes its network configuration, creates the logger, and hands both to the CLI runner. A separate barrel module re-exports the API and CLI functions for consumers such as the test suite.
+
+Create `zkloan-credit-scorer-cli/src/index.ts` — the barrel:
+
+```typescript
+export * from './api';
+export * from './cli';
+```
+
+Create `zkloan-credit-scorer-cli/src/standalone.ts` — the local-network entry point:
 
 ```typescript
 import { createLogger } from './logger-utils.js';
 import { run } from './cli.js';
-import { PreprodConfig, LocalDevConfig } from './config.js';
+import { StandaloneConfig } from './config.js';
 
-const network = process.env.NETWORK ?? 'preprod';
-const config = network === 'localdev' ? new LocalDevConfig() : new PreprodConfig();
+// Connects to an already-running local Midnight network (managed by midnight-local-network).
+// No docker containers are started here — the network must be running at the default ports:
+//   Node:         http://127.0.0.1:9944
+//   Indexer:      http://127.0.0.1:8088
+//   Proof Server: http://127.0.0.1:6300
+const config = new StandaloneConfig();
 const logger = await createLogger(config.logDir);
-logger.info(`Starting CLI with network: ${config.networkId}`);
 await run(config, logger);
 ```
+
+Create `zkloan-credit-scorer-cli/src/preprod-remote.ts` — the Preprod entry point:
+
+```typescript
+import { createLogger } from './logger-utils.js';
+import { run } from './cli.js';
+import { PreprodConfig } from './config.js';
+
+const config = new PreprodConfig();
+const logger = await createLogger(config.logDir);
+await run(config, logger);
+```
+
+The entry file you run decides the network — there is no environment variable to set. `standalone.ts` expects the local node, indexer, and proof server to already be running at the default ports; it does not start any Docker containers itself.
 
 ### Package configuration
 
@@ -1657,15 +1779,22 @@ Create `zkloan-credit-scorer-cli/package.json`:
   "private": true,
   "type": "module",
   "scripts": {
-    "preprod": "node --experimental-specifier-resolution=node --loader ts-node/esm src/index.ts",
-    "local": "NETWORK=localdev node --experimental-specifier-resolution=node --loader ts-node/esm src/index.ts",
-    "build": "rm -rf dist && tsc --project tsconfig.build.json"
+    "preprod-remote": "node --experimental-specifier-resolution=node --loader ts-node/esm src/preprod-remote.ts",
+    "standalone": "node --experimental-specifier-resolution=node --loader ts-node/esm src/standalone.ts",
+    "test-api": "docker compose -f standalone.yml pull && DEBUG='testcontainers' vitest run",
+    "test-against-preprod": "RUN_ENV_TESTS=true TEST_ENV=preprod TEST_WALLET_SEED=1dec0dd58fbe4d3206ef960aebff95a77e09dffbd19f3e9439d23fe6de4fcdd1 vitest run",
+    "build": "rm -rf dist && tsc --project tsconfig.build.json",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start-preprod-remote": "npm run build && npm run preprod-remote"
   },
   "dependencies": {
     "zkloan-credit-scorer-contract": "*"
   }
 }
 ```
+
+`standalone` and `preprod-remote` run the two entry points directly through ts-node — one per network. `test-api` drives the automated end-to-end suite against Docker containers (using the `standalone.yml` compose file via testcontainers), and `test-against-preprod` runs the same suite against the live Preprod network.
 
 Create `zkloan-credit-scorer-cli/tsconfig.json`:
 
@@ -1703,7 +1832,7 @@ Create `zkloan-credit-scorer-cli/tsconfig.build.json`:
 ```json
 {
   "extends": "./tsconfig.json",
-  "exclude": ["src/test/**/*.ts"],
+  "exclude": ["src/**/*.test.ts"],
   "compilerOptions": {}
 }
 ```
@@ -1712,31 +1841,32 @@ The CLI uses `dotenv` to load environment variables from a `.env` file in the `z
 
 ```bash
 cat > zkloan-credit-scorer-cli/.env.example << 'EOF'
-# Required. Strong password used to encrypt the on-disk private state.
-# Rules (enforced by the level-private-state-provider in Midnight JS 4.x):
-#   - at least 16 characters
-#   - characters from at least three of: uppercase, lowercase, digits, symbols
-#   - no 4-or-more identical characters in a row (e.g. aaaa)
-#   - no 4-or-more sequential character codes (e.g. abcd, 1234)
-# Losing this password means losing access to the encrypted state — there is no recovery.
-MIDNIGHT_STORAGE_PASSWORD=
+# Password used to encrypt the contract's private state on disk via the
+# midnight-js-level-private-state-provider. Required.
+#
+# Rules enforced by the provider (v4+):
+#   - At least 16 characters
+#   - Mix of at least 3 of: uppercase, lowercase, digits, special chars
+#   - No 4+ identical chars in a row
+#   - No 4+ sequential char codes (e.g. 'abcd', '1234')
+#
+# Losing this password = losing access to the local encrypted private state.
+# The provider has no recovery mechanism.
+MIDNIGHT_STORAGE_PASSWORD=""
 
-# Optional. Paste a 24-word BIP-39 mnemonic to restore the same wallet
-# across CLI sessions via menu option 3.
-WALLET_MNEMONIC=
-
-# Optional. Defaults to http://localhost:4000 if unset.
-ATTESTATION_API_URL=http://localhost:4000
+# Optional BIP39 mnemonic for the wallet. If unset, the CLI uses a hex seed.
+# Needed when running `npm run preprod-remote` — the wallet must hold tDUST.
+# WALLET_MNEMONIC=""
 EOF
 
 cp zkloan-credit-scorer-cli/.env.example zkloan-credit-scorer-cli/.env
 ```
 
-Edit `zkloan-credit-scorer-cli/.env` and set `MIDNIGHT_STORAGE_PASSWORD` to a value that satisfies the rules above. Leave `WALLET_MNEMONIC` empty for now — after you generate or fund a wallet in the testing step, paste your mnemonic here so you can restore the same wallet in future sessions using option 3 in the CLI menu.
+Edit `zkloan-credit-scorer-cli/.env` and set `MIDNIGHT_STORAGE_PASSWORD` to a value that satisfies the rules above. Leave `WALLET_MNEMONIC` commented out — the local standalone flow does not use it, because the CLI builds its wallet from the genesis hex seed automatically. It matters only when you target Preprod with `npm run preprod-remote`: uncomment it and paste the 24-word mnemonic of a funded wallet so you can restore it with option 3 in the CLI's wallet menu.
 
 ## Run the CLI
 
-The final part brings everything together by testing the complete flow using [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network), a standalone Docker environment that runs the Midnight node, indexer, and proof server locally. Its `npm start` wizard can transfer NIGHT to any address you give it; the ZKLoan CLI then registers that NIGHT for DUST automatically, so the wallet is ready to submit transactions.
+The final part brings everything together by testing the complete flow using [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network), a standalone Docker environment that runs the Midnight node, indexer, and proof server locally. On this network the ZKLoan CLI builds its wallet from the well-known genesis seed — which already owns the tokens minted in the genesis block — and registers that NIGHT for DUST automatically, so the wallet is ready to submit transactions without any manual funding.
 
 You need three terminal windows.
 
@@ -1772,10 +1902,10 @@ npm start
 
 This pulls the Docker images and starts the node, indexer, and proof server on ports `9944`, `8088`, and `6300`. It then initializes a genesis master wallet and shows an interactive menu. If a network is already running, then the wizard first prompts you to reuse it or restart with fresh images — choose either.
 
-Leave this terminal at the main menu. You'll come back to it once the ZKLoan CLI prints a wallet address that needs funding. Closing the menu or pressing `Ctrl+C` shuts the network down.
+Leave this terminal at the main menu — the network keeps running while it is open. Closing the menu or pressing `Ctrl+C` shuts the network down. You do not need the wizard's funding options for this tutorial: the ZKLoan CLI funds itself from the genesis wallet.
 
 :::note Containers-only alternative
-If you only want the bare containers without the funding wizard, then you can use `docker compose -f standalone.yml up -d` from the same folder instead. The trade-off is that you would have to handle wallet funding and DUST registration yourself.
+If you only want the bare containers without the interactive wizard, then you can use `docker compose -f standalone.yml up -d` from the same folder instead. The ZKLoan CLI still funds itself from the genesis wallet and handles DUST registration either way.
 :::
 
 ### Start the attestation API
@@ -1807,41 +1937,40 @@ In your third terminal, start the CLI from the project root:
 
 ```bash
 cd zkloan-credit-scorer-cli
-npm run local
+npm run standalone
 ```
 
-The `local` script already exports `NETWORK=localdev` — you do not need to prefix it.
+The `standalone` script runs `src/standalone.ts`, which targets the local network you started in the first terminal — there is no environment variable to set.
 
 The CLI walks you through five phases:
 
-1. Fund the wallet.
+1. Build the wallet (automatic).
 2. Deploy the contract.
 3. Register the attestation provider.
 4. Request a loan.
 5. Inspect the on-chain state.
 
-#### 1. Fund the wallet
+#### 1. Build the wallet (automatic)
 
-When the wallet menu appears, pick **option 1 (Build a fresh wallet)**. The CLI generates a 24-word mnemonic, derives the wallet, and prints:
+On the local network there is no wallet menu and no manual funding step. The CLI detects the standalone configuration and builds its wallet from the well-known genesis seed, which owns the tokens minted in the local network's genesis block:
 
 ```
-Your wallet address: mn_shield-addr_undeployed1q…
-Waiting to receive tokens...
+Building wallet from hex seed...
+Your wallet address: mn_addr_undeployed1h3ssm5ru…
+Waiting for wallet to sync...
 ```
 
-Copy the `mn_shield-addr_undeployed1q…` address. Switch to your **first terminal** (the local-dev menu), pick **`[2] Fund accounts by public key (NIGHT transfer only)`**, and paste the address. The wizard transfers 50,000 NIGHT to it.
+Once the wallet syncs, the balance check finds the genesis funds and calls `registerNightForDust` automatically. When you see `Dust registration complete!`, the wallet has both NIGHT (value) and DUST (fees) and is ready to transact.
 
-Switch back to the CLI terminal. Within ~10–20 seconds the "Waiting to receive tokens..." poller will see the funds and call `registerNightForDust` automatically. Once you see `Dust registration complete!`, the wallet has both NIGHT (value) and DUST (fees) and is ready to transact.
-
-:::tip Reuse the same wallet across runs
-The generated mnemonic only lives in this terminal session. To restore the same funded wallet next time, copy the mnemonic into `WALLET_MNEMONIC` in `zkloan-credit-scorer-cli/.env` and pick **option 3 (Use mnemonic from .env file)** on the next start.
+:::tip Funding on Preprod
+The wallet menu — fresh wallet, mnemonic, or `.env` mnemonic — only appears when you target Preprod with `npm run preprod-remote`. There the CLI prints the wallet's unshielded address (`mn_addr_preprod1q…`) and waits for funds: send tNIGHT to that address from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/), and store the mnemonic in `WALLET_MNEMONIC` in `zkloan-credit-scorer-cli/.env` so **option 3 (Use mnemonic from .env file)** restores the same funded wallet on later runs.
 :::
 
 #### 2. Deploy the contract
 
 The CLI now shows the deploy/join menu. Pick **option 1 (Deploy a new ZKLoan Credit Scorer contract)**. The proof server generates the deployment proof — this takes about a minute.
 
-When it finishes, the CLI logs `Deployed contract at address: 02…` and drops you into the main 10-option menu.
+When it finishes, the CLI logs `Deployed contract at address: …` — a 64-character hex string, different on every deploy — and drops you into the main 10-option menu.
 
 #### 3. Register the attestation provider
 
@@ -1863,6 +1992,6 @@ The CLI fetches an attestation from the API, stores it in the local private stat
 
 #### 5. Inspect the on-chain state
 
-Pick **option 3 (Display contract state)**. The CLI logs the contract address, the admin public key (the hash of the deploying admin's user secret), blacklist size, and the loan record (status + authorized amount).
+Pick **option 3 (Display contract state)**. The CLI logs the contract address, the admin public key (the hash of the deploying admin's user secret), and the blacklist size. Loan records live in the on-chain `loans` map, keyed by your derived user public key — they just aren't part of this display command's output.
 
 Notice what is **not** on-chain: your credit score, income, employment tenure, attestation signature, or PIN. The transaction proved your eligibility without revealing any of those — only the outcome was disclosed.
