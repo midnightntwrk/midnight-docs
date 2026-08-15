@@ -88,36 +88,22 @@ The signing module generates key pairs and produces Schnorr signatures that the 
 Create a file `signing.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
 
 ```typescript
-import {
-  ecMulGenerator,
-  jubjubPointX,
-  jubjubPointY,
-  type JubjubPoint,
-} from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
-import { ZKLoanCreditScorer } from "zkloan-credit-scorer-contract";
+import { ecMulGenerator, type JubjubPoint } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { ZKLoanCreditScorer } from 'zkloan-credit-scorer-contract';
 const { pureCircuits } = ZKLoanCreditScorer;
 
 type SchnorrSignature = {
   announcement: JubjubPoint;
   response: bigint;
 };
-import * as crypto from "crypto";
+import * as crypto from 'crypto';
 
-// The order of the Jubjub elliptic curve subgroup used by Midnight.
-// All scalar arithmetic (nonce generation, response computation) must
-// be reduced modulo this value to produce valid curve operations.
-const JUBJUB_ORDER =
-  6554484396890773809930967563523245729705921265872317281365359162392183254199n;
-// 2^248, used to truncate the challenge hash. The Jubjub curve order
-// is ~252 bits, but transientHash outputs values in BLS12-381's scalar
-// field (~255 bits). Reducing modulo 2^248 keeps the challenge within
-// a safe range for the curve. Use this exact value — it is not configurable.
-const TWO_248 =
-  452312848583266388373324160190187140051835877600158453279131187530910662656n;
+const JUBJUB_ORDER = 6554484396890773809930967563523245729705921265872317281365359162392183254199n;
+const TWO_248 = 452312848583266388373324160190187140051835877600158453279131187530910662656n;
 
 function randomScalar(): bigint {
   const bytes = crypto.randomBytes(32);
-  let val = BigInt("0x" + bytes.toString("hex"));
+  let val = BigInt('0x' + bytes.toString('hex'));
   return val % JUBJUB_ORDER;
 }
 
@@ -128,22 +114,23 @@ export function generateKeyPair(): { sk: bigint; pk: JubjubPoint } {
 }
 
 export function getPublicKey(sk: bigint): JubjubPoint {
-  return ecMulGenerator(sk);
+  return ecMulGenerator(((sk % JUBJUB_ORDER) + JUBJUB_ORDER) % JUBJUB_ORDER);
 }
 
-export function sign(sk: bigint, msg: bigint[]): SchnorrSignature {
+export function sign(
+  sk: bigint,
+  msg: bigint[],
+): SchnorrSignature {
+  sk = ((sk % JUBJUB_ORDER) + JUBJUB_ORDER) % JUBJUB_ORDER;
   const pk = ecMulGenerator(sk);
   const k = randomScalar();
   const R = ecMulGenerator(k);
-  const cFull = pureCircuits.schnorrChallenge(
-    jubjubPointX(R),
-    jubjubPointY(R),
-    jubjubPointX(pk),
-    jubjubPointY(pk),
-    msg,
-  );
+  // pureCircuits.schnorrChallenge returns the full transientHash output.
+  // The circuit truncates it to 248 bits (mod 2^248) before using in EC ops.
+  const cFull = pureCircuits.schnorrChallenge(R.x, R.y, pk.x, pk.y, msg);
   const c = cFull % TWO_248;
-  const s = (((k + c * sk) % JUBJUB_ORDER) + JUBJUB_ORDER) % JUBJUB_ORDER;
+  // Compute response: s = (k + c * sk) mod JUBJUB_ORDER
+  const s = ((k + c * sk) % JUBJUB_ORDER + JUBJUB_ORDER) % JUBJUB_ORDER;
   return { announcement: R, response: s };
 }
 
@@ -168,15 +155,18 @@ export function signCreditData(
 
 The signing uses the Jubjub elliptic curve (Midnight's native internal curve). Here is the Schnorr signing flow, step by step:
 
-1.  Generate a random nonce `k`.
-2.  Compute the announcement `R = G * k` (where G is the curve generator).
-3.  Compute the challenge hash using `pureCircuits.schnorrChallenge()` — this is the same hash function the smart contract uses, which is critical for the signature to verify on-chain.
-4.  Truncate the challenge to 248 bits: `c = cFull % 2^248`.
-5.  Compute the response: `s = (k + c * sk) mod JUBJUB_ORDER`.
+1.  Normalize the secret key into the Jubjub scalar field: `sk = ((sk % JUBJUB_ORDER) + JUBJUB_ORDER) % JUBJUB_ORDER`.
+2.  Generate a random nonce `k`.
+3.  Compute the announcement `R = G * k` (where G is the curve generator).
+4.  Compute the challenge hash using `pureCircuits.schnorrChallenge()` — this is the same hash function the smart contract uses, which is critical for the signature to verify on-chain.
+5.  Truncate the challenge to 248 bits: `c = cFull % 2^248`.
+6.  Compute the response: `s = (k + c * sk) mod JUBJUB_ORDER`.
 
 The resulting signature is `(R, s)`. The smart contract verifies it by checking: `G * s == R + publicKey * c`.
 
-The critical detail is step 3. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` covered in [Part 1](./smart-contract). Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the ZK circuit. If a different hash were used, then every signature would fail verification.
+Step 1 matters more than it looks: `ecMulGenerator` only accepts scalars below the Jubjub curve order and throws an "out of bounds for prime field" error otherwise. Both `sign` and `getPublicKey` reduce the key modulo `JUBJUB_ORDER` first, so a key loaded from an arbitrary 32-byte value (which is usually larger than the ~252-bit curve order) still works.
+
+The critical detail is step 4. The `pureCircuits.schnorrChallenge()` function is generated from the Compact smart contract's `pure circuit schnorrChallenge` covered in [Part 1](./smart-contract). Because both the off-chain signer and the on-chain verifier use the same hash function, the signatures produced here verify inside the ZK circuit. If a different hash were used, then every signature would fail verification.
 
 The `signCreditData` function is a convenience wrapper. It takes the four credit data fields (credit score, monthly income, months as customer, and the user public key hash). It converts them to `bigint` and passes them to the generic `sign` function.
 
@@ -189,119 +179,90 @@ Create `zkloan-credit-scorer-attestation-api/src/server.ts`:
 ```typescript
 import restify from 'restify';
 import { signCreditData, getPublicKey } from './signing.js';
-import type {
-  AttestationRequest,
-  AttestationResponse,
-  ProviderInfoResponse,
-  HealthResponse,
-} from './types.js';
-import {
-  jubjubPointX,
-  jubjubPointY,
-  type JubjubPoint,
-} from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import type { AttestationRequest, AttestationResponse, ProviderInfoResponse, HealthResponse } from './types.js';
+import type { JubjubPoint } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 
-export function createServer(
-  providerSk: bigint,
-  providerId: number,
-): restify.Server {
+export function createServer(providerSk: bigint, providerId: number): restify.Server {
   const server = restify.createServer({ name: 'zkloan-attestation-api' });
   server.use(restify.plugins.bodyParser());
 
-  server.pre(
-    (req: restify.Request, res: restify.Response, next: restify.Next) => {
-      res.header('Access-Control-Allow-Origin', '*');
-      res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.header('Access-Control-Allow-Headers', 'Content-Type');
-      if (req.method === 'OPTIONS') {
-        res.send(204);
-        return next(false);
-      }
-      return next();
-    },
-  );
+  // CORS support for browser-based UI
+  server.pre((req: restify.Request, res: restify.Response, next: restify.Next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+      res.send(204);
+      return next(false);
+    }
+    return next();
+  });
 
   const providerPk: JubjubPoint = getPublicKey(providerSk);
 
-  server.post(
-    '/attest',
-    (req: restify.Request, res: restify.Response, next: restify.Next) => {
-      try {
-        const body = req.body as AttestationRequest;
+  server.post('/attest', (req: restify.Request, res: restify.Response, next: restify.Next) => {
+    try {
+      const body = req.body as AttestationRequest;
 
-        if (
-          body.creditScore == null ||
-          body.monthlyIncome == null ||
-          body.monthsAsCustomer == null ||
-          body.userPubKeyHash == null
-        ) {
-          res.send(400, {
-            error:
-              'Missing required fields: creditScore, monthlyIncome, monthsAsCustomer, userPubKeyHash',
-          });
-          return next();
-        }
-
-        const userPubKeyHash = BigInt(body.userPubKeyHash);
-
-        const signature = signCreditData(
-          providerSk,
-          body.creditScore,
-          body.monthlyIncome,
-          body.monthsAsCustomer,
-          userPubKeyHash,
-        );
-
-        const response: AttestationResponse = {
-          signature: {
-            announcement: {
-              x: jubjubPointX(signature.announcement).toString(),
-              y: jubjubPointY(signature.announcement).toString(),
-            },
-            response: signature.response.toString(),
-          },
-          message: {
-            creditScore: body.creditScore.toString(),
-            monthlyIncome: body.monthlyIncome.toString(),
-            monthsAsCustomer: body.monthsAsCustomer.toString(),
-            userPubKeyHash: userPubKeyHash.toString(),
-          },
-        };
-
-        res.send(200, response);
-      } catch (err: any) {
-        res.send(500, { error: err.message });
+      if (body.creditScore == null || body.monthlyIncome == null ||
+          body.monthsAsCustomer == null || body.userPubKeyHash == null) {
+        res.send(400, { error: 'Missing required fields: creditScore, monthlyIncome, monthsAsCustomer, userPubKeyHash' });
+        return next();
       }
-      return next();
-    },
-  );
 
-  server.get(
-    '/provider-info',
-    (_req: restify.Request, res: restify.Response, next: restify.Next) => {
-      const response: ProviderInfoResponse = {
-        providerId,
-        publicKey: {
-          x: jubjubPointX(providerPk).toString(),
-          y: jubjubPointY(providerPk).toString(),
+      const userPubKeyHash = BigInt(body.userPubKeyHash);
+
+      const signature = signCreditData(
+        providerSk,
+        body.creditScore,
+        body.monthlyIncome,
+        body.monthsAsCustomer,
+        userPubKeyHash,
+      );
+
+      const response: AttestationResponse = {
+        signature: {
+          announcement: {
+            x: signature.announcement.x.toString(),
+            y: signature.announcement.y.toString(),
+          },
+          response: signature.response.toString(),
+        },
+        message: {
+          creditScore: body.creditScore.toString(),
+          monthlyIncome: body.monthlyIncome.toString(),
+          monthsAsCustomer: body.monthsAsCustomer.toString(),
+          userPubKeyHash: userPubKeyHash.toString(),
         },
       };
-      res.send(200, response);
-      return next();
-    },
-  );
 
-  server.get(
-    '/health',
-    (_req: restify.Request, res: restify.Response, next: restify.Next) => {
-      const response: HealthResponse = {
-        status: 'ok',
-        providerId,
-      };
       res.send(200, response);
-      return next();
-    },
-  );
+    } catch (err: any) {
+      res.send(500, { error: err.message });
+    }
+    return next();
+  });
+
+  server.get('/provider-info', (_req: restify.Request, res: restify.Response, next: restify.Next) => {
+    const response: ProviderInfoResponse = {
+      providerId,
+      publicKey: {
+        x: providerPk.x.toString(),
+        y: providerPk.y.toString(),
+      },
+    };
+    res.send(200, response);
+    return next();
+  });
+
+  server.get('/health', (_req: restify.Request, res: restify.Response, next: restify.Next) => {
+    const response: HealthResponse = {
+      status: 'ok',
+      providerId,
+    };
+    res.send(200, response);
+    return next();
+  });
 
   return server;
 }
@@ -322,23 +283,24 @@ The entry point handles key management and starts the server.
 Create a file `index.ts` inside the `zkloan-credit-scorer-attestation-api/src` folder and add the following code snippet:
 
 ```typescript
-import {
-  jubjubPointX,
-  jubjubPointY,
-} from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
 import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { createServer } from './server.js';
 import { generateKeyPair, getPublicKey } from './signing.js';
 
-setNetworkId(process.env.NETWORK_ID || 'preprod');
+setNetworkId(process.env.NETWORK_ID || 'undeployed');
 
 const PORT = parseInt(process.env.PORT || '4000', 10);
 const PROVIDER_ID = parseInt(process.env.PROVIDER_ID || '1', 10);
 
+// Jubjub scalar field order — the generator's scalar must be reduced mod this
+// or ecMulGenerator throws "out of bounds for prime field".
+const JUBJUB_ORDER = 6554484396890773809930967563523245729705921265872317281365359162392183254199n;
+
 let providerSk: bigint;
 
 if (process.env.PROVIDER_SECRET_KEY) {
-  providerSk = BigInt('0x' + process.env.PROVIDER_SECRET_KEY);
+  const raw = BigInt('0x' + process.env.PROVIDER_SECRET_KEY);
+  providerSk = raw % JUBJUB_ORDER;
   console.log('Loaded provider secret key from environment');
 } else {
   const keyPair = generateKeyPair();
@@ -347,15 +309,11 @@ if (process.env.PROVIDER_SECRET_KEY) {
 }
 
 const pk = getPublicKey(providerSk);
-const pkX = jubjubPointX(pk);
-const pkY = jubjubPointY(pk);
 console.log(`Provider ID: ${PROVIDER_ID}`);
 console.log(`Provider public key:`);
-console.log(`  x: ${pkX}`);
-console.log(`  y: ${pkY}`);
-console.log(
-  `Register this provider on-chain with: registerProvider(${PROVIDER_ID}, {x: ${pkX}n, y: ${pkY}n})`,
-);
+console.log(`  x: ${pk.x}`);
+console.log(`  y: ${pk.y}`);
+console.log(`Register this provider on-chain with: registerProvider(${PROVIDER_ID}, {x: ${pk.x}n, y: ${pk.y}n})`);
 
 const server = createServer(providerSk, PROVIDER_ID);
 server.listen(PORT, () => {
@@ -367,7 +325,9 @@ The entry point supports two modes:
 
 *   **Ephemeral mode** (default): Generates a fresh key pair on startup. This is useful for development and testing, but the key changes every time you restart the server. You need to re-register the provider on-chain after each restart.
 
-*   **Persistent mode**: Set the `PROVIDER_SECRET_KEY` environment variable to a hex-encoded secret key. The server loads this key on startup, so the public key stays the same across restarts.
+*   **Persistent mode**: Set the `PROVIDER_SECRET_KEY` environment variable to a hex-encoded secret key. The server loads this key on startup, so the public key stays the same across restarts. The raw value is reduced modulo `JUBJUB_ORDER` before use — most random 32-byte keys are larger than the ~252-bit curve order, and `ecMulGenerator` would throw on an un-reduced scalar.
+
+The network ID defaults to `undeployed` (a local network). Set the `NETWORK_ID` environment variable when targeting another network such as Preprod.
 
 When the server starts, it prints the provider's public key coordinates and a ready-made `registerProvider` command. Copy these values — you need them in [Part 3](./cli) when registering the provider through the CLI.
 
@@ -386,23 +346,24 @@ Create a `package.json` file inside the root `zkloan-credit-scorer-attestation-a
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "zkloan-credit-scorer-contract": "0.1.0",
-    "@midnight-ntwrk/compact-runtime": "^0.16.0",
     "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
     "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
     "restify": "^11.1.0"
   },
   "devDependencies": {
     "@types/restify": "^8.5.12",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "vitest": "^4.0.15"
   }
 }
 ```
 
-The attestation API pulls `ecMulGenerator`, `jubjubPointX`, `jubjubPointY`, and `JubjubPoint` from `@midnight-ntwrk/midnight-js-protocol/compact-runtime`, so `midnight-js-protocol` is a direct dep here. `@midnight-ntwrk/compact-runtime` stays too because the generated contract code (imported transitively through `zkloan-credit-scorer-contract`) needs it at runtime.
+The attestation API pulls `ecMulGenerator` and the `JubjubPoint` type from `@midnight-ntwrk/midnight-js-protocol/compact-runtime`, so `midnight-js-protocol` is a direct dep here. Note there is no direct `@midnight-ntwrk/compact-runtime` dependency: the generated contract code needs it at runtime, but it is declared by the `contract` package and resolved through `zkloan-credit-scorer-contract`, so this package does not declare it again.
 
 Next, create `zkloan-credit-scorer-attestation-api/tsconfig.json` with the following code snippet:
 
@@ -474,7 +435,7 @@ With the API built, here is how attestation works end-to-end across all three co
 Here is a walkthrough of each step, matching the numbers in the diagram above:
 
 1. **Register the provider.** The admin calls `registerProvider` on-chain, storing the attestation API's Jubjub public key in the smart contract's `providers` map. This is the only setup step that touches the blockchain.
-2. **Request attestation.** The CLI sends the user's credit data and the derived public-key hash to the attestation API. The CLI computes the public key hash from the user's wallet key and secret PIN using the `publicKey` pure circuit from [Part 1](./smart-contract).
+2. **Request attestation.** The CLI sends the user's credit data and the derived public-key hash to the attestation API. The CLI computes the public key hash from the user's local 32-byte secret key (held in private state — the wallet key is never used for identity) and secret PIN using the `deriveUserPublicKey` pure circuit from [Part 1](./smart-contract), then hashes the resulting public key.
 3. **Sign and return.** The attestation API signs all four fields (credit score, monthly income, months as a customer, and user public key hash) as a single Schnorr signature. Including the public key hash in the signed message binds the attestation to a specific user; a different user cannot reuse this signature.
 4. **Submit the loan request.** The CLI stores the signature in the user's private state and calls `requestLoan`. The signature is sent to the proof server as part of the ZK witness. It never appears in the transaction data that reaches the blockchain.
 5. **Verify in ZK.** Inside the circuit, `evaluateApplicant` retrieves the signature from the witness, looks up the provider's public key from the ledger, and runs `schnorrVerify`. Verification fails if the data was tampered with, the wrong provider signed it, or the attestation belongs to a different user. When that happens, the assertion fails and the transaction reverts.
