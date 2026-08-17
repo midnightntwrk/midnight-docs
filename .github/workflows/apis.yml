@@ -67,7 +67,9 @@ jobs:
         run: |
           git config --global user.email "midnight-ci@users.noreply.github.com"
           git config --global user.name "Midnight CI GitHub Action"
-          git config --global url.https://${GH_TOKEN}@github.com/.insteadOf https://github.com/
+          # Credential helper reads GH_TOKEN from each step's env at fetch time;
+          # never persists the token to disk (gitconfig is readable by build steps).
+          gh auth setup-git
 
       - name: Clone compact repo
         if: ${{ github.event.inputs.component == 'compact' }}
@@ -77,6 +79,7 @@ jobs:
           git clone --branch "$BRANCH_COMPACT" https://github.com/LFDT-Minokawa/compact
         env:
           BRANCH_COMPACT: ${{ github.event.inputs.branch_compact }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone ledger repo
         if: ${{ github.event.inputs.component == 'ledger' }}
@@ -86,6 +89,7 @@ jobs:
           git clone --branch "$BRANCH_LEDGER" https://github.com/midnightntwrk/midnight-ledger.git
         env:
           BRANCH_LEDGER: ${{ github.event.inputs.branch_ledger }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Update DApp connector
         if: ${{ github.event.inputs.component == 'dapp-connector' }}
@@ -110,6 +114,7 @@ jobs:
           fi
         env:
           BRANCH_DAPP_CONNECTOR: ${{ github.event.inputs.branch_dapp_connector }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Update ledger
         if: ${{ github.event.inputs.component == 'ledger' }}
@@ -136,6 +141,7 @@ jobs:
           echo -e "# Midnight JS API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
         env:
           BRANCH_MIDNIGHT_JS: ${{ github.event.inputs.branch_midnight_js }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Update testkit-js
         if: ${{ github.event.inputs.component == 'testkit-js' }}
@@ -152,6 +158,7 @@ jobs:
           echo -e "# Testkit JS API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
         env:
           BRANCH_MIDNIGHT_JS: ${{ github.event.inputs.branch_midnight_js }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Update midnight-indexer
         if: ${{ github.event.inputs.component == 'midnight-indexer' }}
@@ -172,6 +179,7 @@ jobs:
           cp temp/midnight-indexer/indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}.graphql ${STATIC_DIR}
         env:
           BRANCH_INDEXER: ${{ github.event.inputs.branch_indexer }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           INDEXER_SCHEMA_VERSION: ${{ github.event.inputs.indexer_schema_version }}
 
       - name: Update wallet
@@ -188,6 +196,7 @@ jobs:
           cp -r ${SRC_DIR}/* ${DEST_DIR}
         env:
           BRANCH_WALLET: ${{ github.event.inputs.branch_wallet }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Inject H1 header into midnight-js packages
         if: ${{ github.event.inputs.component == 'midnight-js' }}
@@ -220,6 +229,7 @@ jobs:
           echo -e "# Onchain Runtime API\n\n$(cat ${DEST_DIR}/README.md)" > ${DEST_DIR}/README.md
         env:
           BRANCH_ONCHAIN_RUNTIME: ${{ github.event.inputs.branch_onchain_runtime }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Update Compact standard library
         if: ${{ github.event.inputs.component == 'compact' }}
@@ -283,7 +293,7 @@ jobs:
       - name: Create a PR
         if: ${{ steps.prep.outputs.UPDATE == 'true' }}
         run: |
-            gh pr create --base "$BRANCH_MERGE" --title 'Merge API documentation from "$COMPONENT"' --body 'Merging API documentation - created by Midnight CI Github Action'
+            gh pr create --base "$BRANCH_MERGE" --title "Merge API documentation from $COMPONENT" --body 'Merging API documentation - created by Midnight CI Github Action'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           BRANCH_MERGE: ${{ github.event.inputs.branch_merge }}
