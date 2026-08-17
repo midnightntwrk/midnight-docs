@@ -1,0 +1,249 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight Docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: Index contract state with EffectStream
+title: Index contract state with EffectStream
+description: "Run an EffectStream node that watches a Midnight contract, decode its public ledger with a schema, and serve the result over HTTP."
+sidebar_position: 48
+toc_max_heading_level: 2
+keywords: [midnight, effectstream, indexing, indexer, ledger schema, dapp, cross-chain, preview]
+tags: [midnight, effectstream, indexing, dapp, ledger]
+---
+
+# Index contract state with EffectStream
+
+Use this guide to build an indexer for a Midnight contract. An indexer watches the contract's public state, keeps its own records, and answers questions the chain does not.
+
+The procedures target the `preview` network and a contract you need not deploy, so the whole guide runs with no local stack. Reading one chain is the smallest thing [EffectStream](https://effectstream.github.io/docs/) does; [Additional resources](#additional-resources) points to the cross-chain path.
+
+## Prerequisites
+
+These apply to every procedure in this guide:
+
+- [Bun](https://bun.sh). EffectStream runs TypeScript directly and uses Bun as its package manager. See [Set up Bun for Midnight development](./install-bun-runtime-midnight).
+- Network access to the hosted `preview` indexer listed in the [environment reference](./networks-and-environments#environment-reference).
+- `curl`, or any HTTP client, for the verification steps.
+
+These procedures read from a hosted indexer over HTTPS, so they need no Docker, no Midnight node, no proof server, and no Compact Toolchain.
+
+:::note The compatibility matrix does not cover EffectStream
+
+The EffectStream packages depend on no `@midnight-ntwrk/*` package, so the [support matrix](../relnotes/support-matrix) governs the contract half of a project and not this half.
+
+:::
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Why a DApp needs an indexer
+
+A Midnight contract stores its current public state and nothing else. Who holds the top score? What changed in the last hour? The chain answers neither. It keeps no history you can query, and it computes no totals.
+
+An indexer answers them. It watches state changes, applies a function you write to each one, and stores the result in a database you control. It handles changes in chain order, so replaying the same history rebuilds the same database.
+
+Midnight already runs an indexer, and this guide connects to it rather than replacing it. The Midnight indexer reports what the chain holds, and your DApp reaches it through the `publicDataProvider` in [Deploying and operating a contract](./deploy-and-operate#the-transaction-pipeline-and-its-providers). EffectStream reads from that indexer and builds your own derived state on top.
+
+Reading the ledger has two consequences. A change reaches your code only after several blocks of confirmation, so a chain reorganization cannot leave your database holding state the chain later drops. And your code sees exactly what the contract discloses, which makes [Ledger schemas and contract design](#ledger-schemas-and-contract-design) a contract decision.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Run the indexer
+
+Build and run a node that watches a Midnight contract and prints each state change. The contract used here is a counter already running on `preview`, so you deploy nothing.
+
+### Procedure
+
+1. Create an empty project directory, then add a `package.json` with the single dependency an EffectStream node needs. Pin the version here rather than in the import statement:
+
+   ```json title="package.json"
+   {
+     "name": "midnight-indexer",
+     "private": true,
+     "scripts": {
+       "start": "bun index.ts"
+     },
+     "dependencies": {
+       "@effectstream/node-sdk": "0.104.0"
+     }
+   }
+   ```
+
+2. Install with Bun. Run a real install rather than relying on the auto-install cache: the SDK reaches packages that import themselves by name, and resolving those imports needs a `node_modules` directory the cache never creates:
+
+   ```bash
+   bun install
+   ```
+
+3. Create `index.ts` alongside `package.json`. A single `runNode` call describes the whole node, taking a name, a database, the sources to watch, and one transition function per source:
+
+   ```ts title="index.ts"
+   import { midnightContract, pglite, runNode } from "@effectstream/node-sdk";
+
+   await runNode({
+     appName: "midnight-indexer",
+     database: pglite(),
+     sources: {
+       counter: midnightContract({
+         network: "preview",
+         address: "c1a9ec7c4d2566f59456fd915a0438bf4dc9b8671d4c2308d30af796c51ad20f",
+         startBlockHeight: "latest",
+         ledger: { round: "uint128" },
+       }),
+     },
+     transitions: {
+       counter: ({ state, blockHeight }) => {
+         console.log(`round ${state.round} at block ${blockHeight}`);
+       },
+     },
+   });
+   ```
+
+   `pglite()` gives the node an embedded PostgreSQL-compatible database, held in memory unless you pass a `dataDir`. The `sources` key, `counter` here, is yours to choose, and `transitions` reuses it so the two stay paired. Setting `network` selects the hosted indexer, and `address` takes the contract's 64-character hex address with no `0x` prefix. [Ledger schemas and contract design](#ledger-schemas-and-contract-design) covers the `ledger` option.
+
+4. Start the node:
+
+   ```bash
+   bun start
+   ```
+
+5. Read the decoded state in the transition, which receives an object. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number, and byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
+
+:::tip Replay history to confirm the wiring
+
+A transition fires on state changes, not on blocks, so a quiet contract prints nothing. Set `startBlockHeight` to a low block number to replay past changes.
+
+:::
+
+### Verification
+
+The node connects to preview and logs each block it fetches, like this:
+
+```text
+[Midnight:preview] Fetching blocks from 456487 to 456487.
+04:28:20 INFO effectstream-sync-block-merge: finalized block 20 @ undefined... | {"clock":[20,20]}
+04:28:21 INFO effectstream-sync-block-merge: finalized block 21 @ undefined... | {"clock":[21,21],"midnight-counter":[456486,456486]}
+```
+
+A `round N at block M` line appears whenever the contract's state changes. A contract nobody is calling produces no such line, which is the case the tip above covers.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Ledger schemas and contract design
+
+The `ledger` option is the interface between a Compact contract and everything that reads it. For a counter with one numeric field the choice makes no difference. For a real contract it shapes how you write the contract itself.
+
+EffectStream matches schema keys to ledger fields by position. The first key reads the first field, the second key reads the second, and so on until your schema runs out. This positional match replaces a compiler-generated decoder, which is why a node needs no contract artifacts.
+
+A schema accepts these types:
+
+- `"uint8"` through `"uint128"`, decoded little-endian into decimal strings
+- `"bytes"`, decoded into a `0x`-prefixed hex string
+- `"boolean"`
+- `{ type: "map", value: <type> }`, nesting arbitrarily, with keys as `0x` hex strings
+- `{ type: "option", value: <type> }`, decoding to `null` when absent
+
+A `struct`, `Vector`, or `enum` fails at parse time. Two things follow, and both are decisions you make in Compact rather than in TypeScript.
+
+Fields at the end cost nothing to leave out, since the reader stops where your schema does. A field the schema cannot express blocks every field after it, because there is no way to skip a position. A struct sitting third in your ledger therefore costs you the fourth field and the fifth as well. Put the fields an indexer reads at the top of your ledger, and structs and digests at the bottom.
+
+When a struct does need indexing, flatten it into sibling top-level declarations keyed the same way. A `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations, which costs nothing on-chain:
+
+```compact
+// An indexer reads these, in this order.
+export ledger status: Map<Bytes<32>, Uint<8>>;
+export ledger winner: Map<Bytes<32>, Uint<8>>;
+export ledger scores: Map<Bytes<32>, Map<Uint<16>, Uint<8>>>;
+
+// Structs and digests go last.
+export ledger commitments: Map<Bytes<32>, GameKeys>;
+```
+
+The matching schema stops where the structs begin:
+
+```ts
+ledger: {
+  status: { type: "map", value: "uint8" },
+  winner: { type: "map", value: "uint8" },
+  scores: { type: "map", value: { type: "map", value: "uint8" } },
+}
+```
+
+Which fields go at the top is the question [Security and best practices](./security-best-practices#on-chain-visibility) asks about `disclose()`: what should a public reader see? Identity commitments and Merkle roots serve in-circuit checks, so they belong at the bottom.
+
+For a contract you cannot reshape, EffectStream's full configuration API uses the compiler-generated decoder instead, which reads anything Compact can express.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Serve indexed state over HTTP
+
+Expose what the node records so the rest of your application can read it. `runNode` hosts an HTTP server.
+
+### Prerequisites
+
+- A running node, from [Run the indexer](#run-the-indexer).
+
+### Procedure
+
+1. Replace `index.ts` with this version. It records the value in a variable instead of logging it, and adds an `api` function to serve it:
+
+   ```ts title="index.ts"
+   import { midnightContract, pglite, runNode } from "@effectstream/node-sdk";
+
+   let round = "waiting for the next contract update";
+
+   await runNode({
+     appName: "midnight-indexer",
+     database: pglite(),
+     sources: {
+       counter: midnightContract({
+         network: "preview",
+         address: "c1a9ec7c4d2566f59456fd915a0438bf4dc9b8671d4c2308d30af796c51ad20f",
+         startBlockHeight: "latest",
+         ledger: { round: "uint128" },
+       }),
+     },
+     transitions: {
+       counter: ({ state }) => {
+         round = state.round;
+       },
+     },
+     api: async (server) => {
+       server.get("/round", async (_request, reply) => reply.send({ round }));
+     },
+   });
+   ```
+
+2. Restart the node and request the endpoint. The server listens on port 9999 unless you set `apiPort` on `runNode`.
+
+:::caution Choose the database mode deliberately
+
+`pglite()` holds data in memory by default, so every run starts at the chain tip and misses whatever happened while the node was down. Passing `pglite({ dataDir: "./data" })` persists the database, and the node then resumes from the block height it recorded.
+
+:::
+
+### Verification
+
+The endpoint answers with the value the last transition recorded, or the starting value when no transition has fired yet:
+
+```bash
+curl http://localhost:9999/round
+```
+
+```json
+{"round":"waiting for the next contract update"}
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Indexer troubleshooting
+
+Failures on this guide's path, and their fixes.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Install fails resolving a package that imports itself by name | Bun's auto-install cache created no `node_modules` anchor | Run `bun install` before `bun start` |
+| The first transition takes far longer than expected | EffectStream holds each change for several blocks of confirmation | Wait. The delay keeps the database consistent with settled state |
+| A comparison against a decoded number never matches | Unsigned integers decode to decimal strings, not numbers | Convert with `BigInt(state.field)` before comparing |
+| Parse error naming an array where a scalar belongs | A `struct` or `Vector` sits at a schema position | Reorder the contract's ledger, or flatten the struct; see [Ledger schemas and contract design](#ledger-schemas-and-contract-design) |
+
+## Additional resources
+
+- [EffectStream documentation](https://effectstream.github.io/docs/): the full API surface, and the cross-chain templates that pair Midnight with an EVM chain, Bitcoin, or Cardano.
+- [Deploying and operating a contract](./deploy-and-operate): the providers a DApp uses to reach the Midnight indexer directly, and how to deploy a contract of your own to index.
+- [Networks and environments](./networks-and-environments): every endpoint, network ID, and the local stack.
+- [Security and best practices](./security-best-practices): what a chain observer sees, and how `disclose()` decides it.
+- [Support matrix](../relnotes/support-matrix): the versions governing the contract half of a project.
