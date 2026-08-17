@@ -41,7 +41,7 @@ An indexer answers them. It watches state changes, applies a function you write 
 
 Midnight already runs an indexer, and this guide connects to it rather than replacing it. The Midnight indexer reports what the chain holds, and your DApp reaches it through the `publicDataProvider` in [Deploying and operating a contract](./deploy-and-operate#the-transaction-pipeline-and-its-providers). EffectStream reads from that indexer and builds your own derived state on top.
 
-Reading the ledger has two consequences. A change reaches your code only after several blocks of confirmation, so a chain reorganization cannot leave your database holding state the chain later drops. And your code sees exactly what the contract discloses, which makes [Ledger schemas and contract design](#ledger-schemas-and-contract-design) a contract decision.
+Reading the ledger has two consequences. A change reaches your code only after several blocks of confirmation, so a chain reorganization cannot leave your database holding state the chain later drops. And your code sees exactly what the contract discloses, which makes [What the ledger schema can read](#what-the-ledger-schema-can-read) a contract decision.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Run the indexer
@@ -95,7 +95,7 @@ Build and run a node that watches a Midnight contract and prints each state chan
    });
    ```
 
-   `pglite()` gives the node an embedded PostgreSQL-compatible database, held in memory unless you pass a `dataDir`. The `sources` key, `counter` here, is yours to choose, and `transitions` reuses it so the two stay paired. Setting `network` selects the hosted indexer, and `address` takes the contract's 64-character hex address with no `0x` prefix. [Ledger schemas and contract design](#ledger-schemas-and-contract-design) covers the `ledger` option.
+   `pglite()` gives the node an embedded PostgreSQL-compatible database, held in memory unless you pass a `dataDir`. The `sources` key, `counter` here, is yours to choose, and `transitions` reuses it so the two stay paired. Setting `network` selects the hosted indexer, and `address` takes the contract's 64-character hex address with no `0x` prefix. [What the ledger schema can read](#what-the-ledger-schema-can-read) covers the `ledger` option, and whether it works for the contract you have in mind.
 
 4. Start the node:
 
@@ -124,13 +124,11 @@ The node connects to preview and logs each block it fetches, like this:
 A `round N at block M` line appears whenever the contract's state changes. A contract nobody is calling produces no such line, which is the case the tip above covers.
 
 {/* _mod-docs-content-type: CONCEPT */}
-## Ledger schemas and contract design
+## What the ledger schema can read
 
-The `ledger` option is the interface between a Compact contract and everything that reads it. For a counter with one numeric field the choice makes no difference. For a real contract it shapes how you write the contract itself.
+The `ledger` option declares how to decode public state, which is why a node needs no compiled contract artifacts. It also decides which contracts a node can read at all, so check it against your contract before you plan around it.
 
-EffectStream matches schema keys to ledger fields by position. The first key reads the first field, the second key reads the second, and so on until your schema runs out. This positional match replaces a compiler-generated decoder, which is why a node needs no contract artifacts.
-
-A schema accepts these types:
+EffectStream matches schema keys to ledger fields by position. The first key reads the first field, the second key reads the second, and so on until your schema runs out. A schema accepts these types:
 
 - `"uint8"` through `"uint128"`, decoded little-endian into decimal strings
 - `"bytes"`, decoded into a `0x`-prefixed hex string
@@ -138,11 +136,15 @@ A schema accepts these types:
 - `{ type: "map", value: <type> }`, nesting arbitrarily, with keys as `0x` hex strings
 - `{ type: "option", value: <type> }`, decoding to `null` when absent
 
-A `struct`, `Vector`, or `enum` fails at parse time. Two things follow, and both are decisions you make in Compact rather than in TypeScript.
+A `struct`, `Vector`, or `enum` fails at parse time. Because the match is positional, one unreadable field blocks every field after it. A struct sitting third in a ledger costs you the fourth field and the fifth as well.
 
-Fields at the end cost nothing to leave out, since the reader stops where your schema does. A field the schema cannot express blocks every field after it, because there is no way to skip a position. A struct sitting third in your ledger therefore costs you the fourth field and the fifth as well. Put the fields an indexer reads at the top of your ledger, and structs and digests at the bottom.
+:::caution Some contracts need the compiler-generated decoder instead
 
-When a struct does need indexing, flatten it into sibling top-level declarations keyed the same way. A `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations, which costs nothing on-chain:
+A schema cannot express structs, enums, or wrapped types, and Compact contracts use all three. When your contract's ledger holds one near the top, use EffectStream's full configuration API instead, which takes the decoder the Compact compiler generates and reads anything the language can express. See the [EffectStream documentation](https://effectstream.github.io/docs/home/chains/midnight).
+
+:::
+
+When you control the contract, you can design its ledger so a schema reads it. Put the fields an indexer needs at the top, and structs and digests at the bottom. Flatten a struct that needs indexing into sibling top-level declarations keyed the same way: a `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations, which costs nothing on-chain.
 
 ```compact
 // An indexer reads these, in this order.
@@ -165,8 +167,6 @@ ledger: {
 ```
 
 Which fields go at the top is the question [Security and best practices](./security-best-practices#on-chain-visibility) asks about `disclose()`: what should a public reader see? Identity commitments and Merkle roots serve in-circuit checks, so they belong at the bottom.
-
-For a contract you cannot reshape, EffectStream's full configuration API uses the compiler-generated decoder instead, which reads anything Compact can express.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Serve indexed state over HTTP
@@ -238,7 +238,7 @@ Failures on this guide's path, and their fixes.
 | Install fails resolving a package that imports itself by name | Bun's auto-install cache created no `node_modules` anchor | Run `bun install` before `bun start` |
 | The first transition takes far longer than expected | EffectStream holds each change for several blocks of confirmation | Wait. The delay keeps the database consistent with settled state |
 | A comparison against a decoded number never matches | Unsigned integers decode to decimal strings, not numbers | Convert with `BigInt(state.field)` before comparing |
-| Parse error naming an array where a scalar belongs | A `struct` or `Vector` sits at a schema position | Reorder the contract's ledger, or flatten the struct; see [Ledger schemas and contract design](#ledger-schemas-and-contract-design) |
+| Parse error naming an array where a scalar belongs | A `struct`, `enum`, or `Vector` sits at a schema position | Use the compiler-generated decoder, or reorder the ledger if you control the contract; see [What the ledger schema can read](#what-the-ledger-schema-can-read) |
 
 ## Additional resources
 
