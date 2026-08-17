@@ -410,7 +410,7 @@ export const features = [
     coverage: {
       bboard: x(`${BB_IMPL}#wait-for-unshielded-funds`),
       "private-party": x(`${PP_SC}#compact-tutorial`),
-      "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
+      "zk-loan": x(`${ZK_CLI}#1-build-the-wallet-automatic`)
     }
   },
   {
@@ -638,7 +638,7 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-dust-generation`),
-      "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
+      "zk-loan": x(`${ZK_CLI}#1-build-the-wallet-automatic`)
     }
   },
   {
@@ -646,7 +646,7 @@ export const features = [
     section: WALLET,
     coverage: {
       bboard: x(`${BB_IMPL}#implement-dust-generation`),
-      "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
+      "zk-loan": x(`${ZK_CLI}#1-build-the-wallet-automatic`)
     }
   },
 
@@ -682,7 +682,7 @@ export const features = [
     section: DEVNET,
     coverage: {
       bboard: x(`${BB_IMPL}#wait-for-unshielded-funds`),
-      "zk-loan": x(`${ZK_CLI}#1-fund-the-wallet`)
+      "zk-loan": x(`${ZK_CLI}#1-build-the-wallet-automatic`)
     }
   },
   {
