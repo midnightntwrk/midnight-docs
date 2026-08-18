@@ -1,0 +1,230 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: Host Undeployed on Fly.io
+title: Host Undeployed on Fly.io
+description: Run the Undeployed node, indexer, and proof server on Fly.io, and send prove requests over public HTTPS instead of Fly 6PN.
+sidebar_position: 2
+toc_max_heading_level: 2
+tags:
+  - tutorials
+  - fly
+  - undeployed
+  - proof-server
+  - intermediate
+  - midnight-network
+---
+
+# Host Undeployed on Fly.io
+
+This page publishes the same three services as [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev). The network ID stays `undeployed`. The difference is reachability: a phone or CI job can call HTTPS endpoints instead of `localhost`.
+
+Fly.io app names are globally unique. Replace `midnight-undeployed-*` with a slug you own.
+
+## Why the proof server must be public HTTPS
+
+The `midnightntwrk/proof-server` binary listens on IPv4 only. Fly's private network (6PN) is IPv6-only. If midnight-js points at `http://midnight-undeployed-proof.internal:6300`, prove requests never connect.
+
+fly-proxy terminates public HTTPS and forwards to the machine over IPv4. The stock binary works with no sidecar. Keep the node off the public internet. Proxy it from a laptop when you deploy a contract.
+
+| App | Public? | Why |
+| --- | --- | --- |
+| `midnight-undeployed-node` | 6PN-internal only | Chain RPC should not be on the internet |
+| `midnight-undeployed-indexer` | HTTPS and WSS | GraphQL for midnight-js |
+| `midnight-undeployed-proof` | HTTPS | IPv4-only binary behind fly-proxy |
+
+Give the proof server 2 GB of RAM. A cold load of a proving key needs about 1.5 GB. Set `auto_stop_machines = false`. A stopped proof server turns the first prove into minutes of waiting.
+
+:::caution Do not health-check with curl
+
+The proof-server image does not ship `curl`. An in-container `curl` healthcheck fails even when the process is healthy. Check `/version` from your laptop, or use a TCP probe.
+
+:::
+
+## Create the apps
+
+Install [`flyctl`](https://fly.io/docs/flyctl/install/), then sign in.
+
+```bash
+flyctl auth login
+flyctl apps create midnight-undeployed-node --org personal
+flyctl apps create midnight-undeployed-indexer --org personal
+flyctl apps create midnight-undeployed-proof --org personal
+flyctl volumes create chain_data -a midnight-undeployed-node --region iad --size 1 --yes
+```
+
+Scale each app to one machine. Two node machines are two chain participants.
+
+```bash
+flyctl scale count 1 -a midnight-undeployed-node --yes
+flyctl scale count 1 -a midnight-undeployed-indexer --yes
+flyctl scale count 1 -a midnight-undeployed-proof --yes
+```
+
+## Node (6PN-internal)
+
+Save as `fly.node.toml`. Bind RPC to IPv6 so other apps on 6PN can reach `midnight-undeployed-node.internal:9944`. Do not add `[http_service]`.
+
+```toml
+app = "midnight-undeployed-node"
+primary_region = "iad"
+
+[processes]
+  app = "--alice --force-authoring --experimental-rpc-endpoint \"listen-addr=[::]:9944,methods=unsafe\""
+
+[build]
+  image = "midnightntwrk/midnight-node:1.0.0"
+
+[env]
+  CFG_PRESET = "dev"
+  SIDECHAIN_BLOCK_BENEFICIARY = "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+
+[mounts]
+  source = "chain_data"
+  destination = "/node/chain"
+
+[[services]]
+  internal_port = 9944
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 9944
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"
+```
+
+```bash
+flyctl deploy -c fly.node.toml --remote-only --ha=false --wait-timeout=600
+```
+
+If you destroy the `chain_data` volume, every previously deployed contract address is invalid.
+
+## Indexer (public HTTPS and WSS)
+
+Save as `fly.indexer.toml`. Point it at the node's 6PN DNS name. Bind GraphQL to IPv6 with `APP__INFRA__API__ADDRESS = "::"`. Indexer passwords below match [midnight-local-dev `standalone.env.example`](https://github.com/midnightntwrk/midnight-local-dev/blob/main/standalone.env.example) and are for Undeployed only.
+
+```toml
+app = "midnight-undeployed-indexer"
+primary_region = "iad"
+
+[build]
+  image = "midnightntwrk/indexer-standalone:4.3.3"
+
+[env]
+  RUST_LOG = "indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info"
+  APP__INFRA__NODE__URL = "ws://midnight-undeployed-node.internal:9944"
+  APP__APPLICATION__NETWORK_ID = "undeployed"
+  APP__INFRA__STORAGE__PASSWORD = "indexer"
+  APP__INFRA__PUB_SUB__PASSWORD = "indexer"
+  APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD = "indexer"
+  APP__INFRA__SECRET = "303132333435363738393031323334353637383930313233343536373839303132"
+  APP__INFRA__SPO_NODE__URL = "ws://midnight-undeployed-node.internal:9944"
+  APP__INFRA__SPO_NODE__BLOCKFROST_ID = "e2e-test-dummy-id"
+  APP__INFRA__API__ADDRESS = "::"
+
+[http_service]
+  internal_port = 8088
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 500
+    soft_limit = 400
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1gb"
+```
+
+```bash
+flyctl deploy -c fly.indexer.toml --remote-only --ha=false --wait-timeout=600
+```
+
+GraphQL is `https://midnight-undeployed-indexer.fly.dev/api/v4/graphql`. The WebSocket path is `/api/v4/graphql/ws`.
+
+## Proof server (public HTTPS)
+
+Save as `fly.proof.toml`. Do not route prove traffic over `*.internal`.
+
+```toml
+app = "midnight-undeployed-proof"
+primary_region = "iad"
+
+[build]
+  image = "midnightntwrk/proof-server:8.1.0"
+
+[processes]
+  app = "midnight-proof-server -v"
+
+[http_service]
+  internal_port = 6300
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 4
+    soft_limit = 2
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "2gb"
+```
+
+```bash
+flyctl deploy -c fly.proof.toml --remote-only --ha=false --wait-timeout=900
+```
+
+Confirm the process from your laptop:
+
+```bash
+curl -sS https://midnight-undeployed-proof.fly.dev/version
+```
+
+## Deploy a contract from a laptop
+
+midnight-js still needs node RPC. Keep that port private. From a laptop, proxy it:
+
+```bash
+flyctl proxy 9944:9944 -a midnight-undeployed-node
+```
+
+Point providers at:
+
+```text
+MIDNIGHT_INDEXER_URL=https://midnight-undeployed-indexer.fly.dev/api/v4/graphql
+MIDNIGHT_INDEXER_WS_URL=wss://midnight-undeployed-indexer.fly.dev/api/v4/graphql/ws
+MIDNIGHT_PROOF_SERVER_URL=https://midnight-undeployed-proof.fly.dev
+MIDNIGHT_NODE_URL=http://127.0.0.1:9944
+```
+
+`setNetworkId('undeployed')` stays the same as local Docker.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Prove hangs, then fails to connect | Proof URL is `*.internal` or `http://` | Use the public HTTPS proof URL |
+| Indexer never becomes ready | Node is not producing blocks, or 6PN DNS is wrong | Check `APP__INFRA__NODE__URL` and `flyctl logs -a midnight-undeployed-node` |
+| `curl` healthcheck fails in Fly | Proof-server image has no `curl` | Probe `/version` from outside the VM |
+| First prove takes minutes | Machine auto-stopped or RAM is under 2 GB | Set `auto_stop_machines = false` and `memory = "2gb"` |
+| Old contract addresses 404 | Recreating the node volume | Redeploy the contract |
+
+## Next
+
+Deploy NFT-ZK against this stack and call `mintAdmin`. See [Deploy and mint NFT-ZK](/tutorials/nft-zk-fly/mint-nft-zk).

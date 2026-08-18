@@ -1,0 +1,161 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: Deploy and mint NFT-ZK
+title: Deploy and mint NFT-ZK
+description: Deploy NFT-ZK to hosted Undeployed and call mintAdmin with the constructor admin key, plus Compact pitfalls you must avoid.
+sidebar_position: 3
+toc_max_heading_level: 2
+tags:
+  - tutorials
+  - nft-zk
+  - compact
+  - undeployed
+  - intermediate
+  - midnight-network
+---
+
+# Deploy and mint NFT-ZK
+
+This page deploys the official NFT-ZK wrapper from [example-nft-contracts](https://github.com/midnightntwrk/example-nft-contracts) to hosted Undeployed. It then calls `mintAdmin` with the same admin secret the constructor stored on-chain.
+
+The Compact tests in that repository use the in-memory simulator. Simulator success does not prove deploy or mint on a real node.
+
+## Admin-keypair authorization
+
+NFT-ZK follows a modular pattern. Import `NftZk` and wrap `mint` and `burn` with your own authorization. The example wrapper uses an admin keypair. The deployer's DApp generates the private key and stores it in private state. The contract derives the matching public key and stores that on the ledger. The deployer's wallet identity is never recorded.
+
+```compact
+pragma language_version >= 0.22.0;
+
+import CompactStandardLibrary;
+import "./modules/NftZk";
+
+export {
+  balanceOf,
+  ownerOf,
+  approve,
+  getApproved,
+  setApprovalForAll,
+  isApprovedForAll,
+  transfer,
+  transferFrom,
+  generateHashKey
+};
+
+struct AdminSecretKey { bytes: Bytes<32>; }
+struct AdminPublicKey { bytes: Bytes<32>; }
+
+export ledger contractAdmin: AdminPublicKey;
+
+witness getAdminSecret(): AdminSecretKey;
+
+constructor() {
+  contractAdmin = disclose(deriveAdminPublicKey(getAdminSecret()));
+}
+
+export circuit deriveAdminPublicKey(sk: AdminSecretKey): AdminPublicKey {
+  return AdminPublicKey {
+    bytes: persistentHash<Vector<2, Bytes<32>>>([
+      pad(32, "nftzk:admin:pk:v1"),
+      sk.bytes
+    ])
+  };
+}
+
+export circuit mintAdmin(to: ZswapCoinPublicKey, tokenId: Uint<64>): [] {
+  assert(
+    contractAdmin == deriveAdminPublicKey(getAdminSecret()),
+    "Not authorized to mint."
+  );
+  mint(to, tokenId);
+}
+```
+
+`assert(hash != pad(32, ""))` is not access control. A non-empty hash is not authorization. The constructor stores `deriveAdminPublicKey(getAdminSecret())`. Later circuits must re-derive that key from the witness.
+
+Persist the constructor admin secret next to the contract address. Mint fails if `getAdminSecret()` returns a different 32-byte value than deploy.
+
+The TypeScript witness must return that stored key:
+
+```ts
+getAdminSecret: ({ privateState }) => {
+  if (privateState.adminSecretKey) {
+    return [privateState, { bytes: privateState.adminSecretKey }];
+  }
+  throw new Error("No admin secret key found.");
+}
+```
+
+## Deploy against Fly.io
+
+Compile the contract first:
+
+```bash
+git clone https://github.com/midnightntwrk/example-nft-contracts.git
+cd example-nft-contracts
+yarn install
+yarn compact
+```
+
+Keep `flyctl proxy 9944:9944 -a midnight-undeployed-node` running in another terminal. Then point midnight-js at hosted Undeployed:
+
+```bash
+export MIDNIGHT_INDEXER_URL=https://midnight-undeployed-indexer.fly.dev/api/v4/graphql
+export MIDNIGHT_INDEXER_WS_URL=wss://midnight-undeployed-indexer.fly.dev/api/v4/graphql/ws
+export MIDNIGHT_PROOF_SERVER_URL=https://midnight-undeployed-proof.fly.dev
+export MIDNIGHT_NODE_URL=http://127.0.0.1:9944
+```
+
+Use `setNetworkId('undeployed')`. Fund deploy from the Undeployed genesis wallet. Do not expect Lace to sign Undeployed transactions. Lace on Undeployed is identity and reads only.
+
+Build a fresh `MidnightWalletProvider` per `deployContract` or `callTx`, then call `stop()` in a `finally` block. Do not cache the wallet across HTTP requests. A cached provider blocks the next call and can dirty LevelDB.
+
+After deploy, write a gitignored state file that includes:
+
+- Contract address
+- Private-state store name (must match every later call)
+- `adminSecretKey`, `local_secret`, and `shared_secret`
+
+Then call `found.callTx.mintAdmin(to, tokenId)` with that same private state.
+
+:::tip Proof URL
+
+`MIDNIGHT_PROOF_SERVER_URL` must be the public HTTPS proof app. Do not use `http://midnight-undeployed-proof.internal:6300`. See [Host Undeployed on Fly.io](/tutorials/nft-zk-fly/host-on-fly).
+
+:::
+
+## Compact pitfalls on Undeployed
+
+These failures show up on a real Undeployed node, not in the simulator.
+
+### Insert-only maps
+
+**Symptom:** `Wallet.Other: wasm.transaction_feesWithMargin` or `transaction_merge` Unreachable, often wrapped as `SubmissionError`.
+
+**Cause:** Compact `Map.insert` on a key that already exists. Overwrite interacts badly with Undeployed dust fee balancing.
+
+**Design rule:** public maps are insert-or-append with a new key only. Do not maintain `balances[pk] = balances[pk] - amount`. Append a credit row with a fresh nonce instead. Reconstruct balances off-chain if the DApp needs a running total.
+
+### Avoid naming a circuit list
+
+Never name a circuit `list`. Compact reserves that identifier. Name a listing circuit `listSale` instead.
+
+### RpcError 117 and related codes
+
+| Code or shape | Meaning | Fix |
+| --- | --- | --- |
+| **117** (`Invalid Transaction: Custom error: 117`) | Private state or LevelDB is out of sync with the chain | Stop the process, wipe the LevelDB directory, redeploy, restart |
+| **104** | Dirty LevelDB after a failed faucet or mint handoff | Wipe and redeploy |
+| **196** | Verifier key mismatch | Recompile, copy artefacts, wipe LevelDB, redeploy. Never mix new keys with an old chain |
+| `Database failed to open` | Two processes opened the same LevelDB | One writer at a time |
+
+Wiping LevelDB without redeploying produces 117 on the next write. The private-state store name must match deploy and every later `callTx`.
+
+## Next steps
+
+- Run the same contract against local Docker with [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev).
+- Compare endpoints in [Networks and environments](/guides/networks-and-environments).
+- Keep proving local for Preview and Preprod. See [Run the proof server](/guides/run-proof-server).
+- Read the NFT-ZK module notes in [example-nft-contracts](https://github.com/midnightntwrk/example-nft-contracts).
+- Review Compact syntax in the [Compact language guide](/compact/reference/writing).
