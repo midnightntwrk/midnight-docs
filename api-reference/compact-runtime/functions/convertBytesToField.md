@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.16.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.19.0-rc.0**](../README.md)
 
 ***
 
@@ -8,8 +8,10 @@
 
 ```ts
 function convertBytesToField(
+   maxval, 
    n, 
    a, 
+   name, 
    src): bigint;
 ```
 
@@ -19,6 +21,10 @@ Compiler internal for typecasts
 
 ## Parameters
 
+### maxval
+
+`bigint`
+
 ### n
 
 `number`
@@ -26,6 +32,10 @@ Compiler internal for typecasts
 ### a
 
 `Uint8Array`
+
+### name
+
+`string`
 
 ### src
 
