@@ -1,13 +1,37 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-title: Consensus
+title: Blockchain consensus, explained
 sidebar_label: Consensus
-description: A reference on consensus in Midnight nodes.
-keywords: [node]
+description: What blockchain consensus is, the main consensus mechanism families, and how Midnight implements it with AURA block production and GRANDPA finality.
+keywords: [consensus, blockchain consensus, consensus mechanism, AURA, GRANDPA, proof of authority, proof of stake, proof of work, finality, validator]
 ---
 
 # Consensus
+
+## What is blockchain consensus?
+
+Blockchain consensus is the mechanism by which distributed nodes agree on the state of a ledger without a central authority. It is what keeps a blockchain secure and tamper-resistant without a single trusted party. Different blockchains choose different consensus mechanisms depending on their needs; the main families are proof of work, proof of stake, and Byzantine fault tolerance variants such as proof of authority.
+
+## How privacy-focused blockchains handle consensus
+
+Consensus and privacy are separate concerns. Consensus is about how nodes agree on the public ledger state, while privacy is about what data on that ledger is visible to whom. A privacy-focused blockchain still needs consensus on transaction validity and ordering; it does not need consensus nodes to see the private contents of a transaction.
+
+Midnight separates these concerns by keeping consensus on the public ledger layer, while private state and computation stay off-chain, verified through [zero-knowledge proofs](/concepts/zero-knowledge-proofs). Validators can agree on the chain's state without seeing private data. For how Midnight separates public and private state, see [keeping data private](/concepts/how-midnight-works/keeping-data-private), and for the broader landscape of privacy techniques, see [ZK vs FHE vs MPC](/concepts/zk-vs-fhe-vs-mpc).
+
+## Comparison at a glance
+
+| Consensus family | How it works | Example platforms |
+|---|---|---|
+| Proof of work (PoW) | Validators (miners) compete to solve a computational puzzle; the winner proposes the next block | Bitcoin |
+| Proof of stake (PoS) | The protocol selects validators to propose blocks in proportion to the stake they hold or have delegated | Ethereum |
+| Delegated proof of stake (DPoS) | Token holders vote for a smaller set of delegates who produce blocks on their behalf | TRON |
+| Practical Byzantine fault tolerance (pBFT) | A validator set votes explicitly on each block, tolerating a portion of faulty or malicious nodes | Chains built on CometBFT (formerly Tendermint) across the Cosmos ecosystem |
+| Proof of authority (PoA) with separate finality | A known, rotating set of validators produces blocks in round-robin order; a separate finality mechanism later confirms blocks as irreversible | Midnight (AURA for block production, GRANDPA for finality) |
+
+Example platforms verified August 2026.
+
+## Midnight's consensus model
 
 The Midnight Network leverages a modified consensus model built on top of standard *Substrate primitives*, specifically *AURA* for block production and *GRANDPA* for finality. These components have been extended to support the unique requirements of Midnight as a Cardano Partnerchain.
 
@@ -18,6 +42,8 @@ The model also supports optional inclusion of *permissioned validators*, offerin
 
 ## AURA: Block production
 
+AURA is Midnight's block production mechanism and belongs to the proof-of-authority family introduced above.
+
 *AURA (Authority Round)* is a *proof-of-authority (PoA)* algorithm used to determine which validator is responsible for producing each block. Validators take turns in a *round-robin fashion*, based on predefined slots and session keys. This model is simple, fast, and deterministic, making it suitable for high-throughput blockchains with known validator sets.
 
 AURA is not specific to Midnight and was originally implemented in [OpenEthereum](https://openethereum.github.io/Aura). You can read more in the [Polkadot protocol glossary](https://github.com/polkadot-developers/polkadot-docs/blob/79fe4ec5498411bc8ac8bfef58c79cd2c6713090/polkadot-protocol/glossary.md?plain=1#L29).
@@ -25,7 +51,43 @@ AURA is not specific to Midnight and was originally implemented in [OpenEthereum
 
 ## GRANDPA: Finality
 
+GRANDPA is Midnight's finality layer, the part of consensus that makes a block irreversible, as introduced above.
+
 *GRANDPA (GHOST-based Recursive ANcestor Deriving Prefix Agreement)* is a finality gadget that provides *asynchronous, provable finality*. It operates independently of block production, allowing validators to vote on chains and finalize blocks that have received sufficient support.
 
 GRANDPA is a general-purpose consensus component originally developed for Polkadot and is *not specific to Midnight*. You can find its [formal specification here](https://github.com/w3f/consensus/blob/master/pdf/grandpa.pdf) and learn more in the [Polkadot protocol glossary](https://github.com/polkadot-developers/polkadot-docs/blob/79fe4ec5498411bc8ac8bfef58c79cd2c6713090/polkadot-protocol/glossary.md?plain=1#L186).
 
+## Frequently asked questions
+
+### What is blockchain consensus and how do modern privacy-focused blockchains implement it for secure and compliant applications?
+
+Blockchain consensus is the mechanism by which distributed nodes agree on the state of a shared ledger without relying on a central authority. Modern privacy-focused blockchains keep this agreement process on the public ledger layer, separate from the private data itself, so validators can confirm that transactions are valid without seeing their private contents. Midnight does this with AURA for block production and GRANDPA for finality, while zero-knowledge proofs verify private state and computation instead of exposing them to validators.
+
+### What is a blockchain consensus mechanism?
+
+A consensus mechanism is the set of rules a blockchain uses to get its distributed nodes to agree on which transactions are valid and in what order they occurred. Common families include proof of work, proof of stake, and Byzantine fault tolerance variants such as proof of authority, each with different tradeoffs in speed, energy use, and the validator set required.
+
+### What is the difference between proof of work and proof of stake?
+
+Proof of work requires validators to compete by solving a computational puzzle, which is energy-intensive but has secured Bitcoin since its launch. Proof of stake instead selects validators in proportion to the stake they hold or have delegated, which uses far less energy and secures Ethereum and most newer blockchains.
+
+### Do privacy blockchains still need consensus if transactions are private?
+
+Yes. Consensus and privacy solve different problems. Consensus is about nodes agreeing on the ledger's state and transaction validity, while privacy is about what data on that ledger is visible to whom. A privacy-focused blockchain still needs validators to agree on the public parts of the ledger, such as that a transaction is valid and correctly ordered, even when the transaction's private contents stay hidden through cryptographic techniques such as zero-knowledge proofs.
+
+### What consensus mechanism does Midnight use?
+
+Midnight uses a modified consensus model built on Substrate primitives: AURA for block production and GRANDPA for finality. Validator selection incorporates stake delegation from Cardano Stake Pool Operators, reflecting Midnight's role as a Cardano partner chain, and also supports optional permissioned validators for flexible public or private network deployment. To run a node or validator, see the [nodes documentation](/nodes).
+
+### Is proof of authority secure enough for compliant, real-world applications?
+
+Proof of authority relies on a known, accountable set of validators rather than an open, anonymous set, which suits applications that need predictable performance and clear accountability. Midnight combines rotating AURA block production with GRANDPA finality voting, and its validator selection draws on stake delegation from Cardano Stake Pool Operators, with support for permissioned validators where a deployment requires them.
+
+## Sources
+
+- [AURA specification (OpenEthereum)](https://openethereum.github.io/Aura): the proof-of-authority block production algorithm.
+- [GRANDPA formal specification](https://github.com/w3f/consensus/blob/master/pdf/grandpa.pdf): the finality gadget Midnight uses.
+- [Polkadot protocol glossary](https://github.com/polkadot-developers/polkadot-docs/blob/79fe4ec5498411bc8ac8bfef58c79cd2c6713090/polkadot-protocol/glossary.md): AURA and GRANDPA reference definitions.
+- [Bitcoin whitepaper](https://bitcoin.org/bitcoin.pdf): the original proof-of-work design.
+- [Ethereum proof-of-stake documentation](https://ethereum.org/developers/docs/consensus-mechanisms/pos/): the canonical proof-of-stake deployment.
+- [CometBFT](https://github.com/cometbft/cometbft): the Byzantine fault tolerant engine, formerly Tendermint Core, used across the Cosmos ecosystem.
