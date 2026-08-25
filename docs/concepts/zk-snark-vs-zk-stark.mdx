@@ -1,0 +1,101 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: "zk-SNARK vs zk-STARK: key differences"
+sidebar_label: zk-SNARK vs zk-STARK
+description: "zk-SNARK vs zk-STARK compared on trusted setup, proof size, verification speed, and quantum resistance, with real platform examples for each."
+keywords: [zk-SNARK, zk-STARK, zero-knowledge proof, trusted setup, Common Reference String, proof size, verification time, post-quantum resistance, transparency, Halo 2]
+---
+
+# zk-SNARK vs zk-STARK: which approach do privacy-focused blockchains use?
+
+zk-SNARKs and zk-STARKs are both types of zero-knowledge proofs, but they differ in trusted setup requirements, proof size, and quantum resistance. The better choice depends on the application: neither is superior for every workload. Midnight uses zk-SNARKs through Compact, a domain-specific smart contract language based on TypeScript.
+
+## Comparison at a glance
+
+|  | zk-SNARK | zk-STARK |
+|---|---|---|
+| **Trusted setup** | Some constructions require a one-time trusted setup that produces a Common Reference String. Universal setups, used by PLONK-style systems with KZG commitments, are shared across all circuits. Transparent constructions, such as Halo 2, avoid a ceremony entirely | Not required; relies on publicly verifiable randomness |
+| **Proof size** | Small, often under a kilobyte | Larger than most zk-SNARKs, typically tens to hundreds of kilobytes |
+| **Verification time** | Fast, close to constant regardless of computation size | Grows polylogarithmically with computation size; on very large computations, STARK systems can outperform SNARKs despite larger proofs |
+| **Post-quantum resistance** | Most constructions rely on elliptic-curve assumptions and are not considered quantum-resistant | Considered quantum-resistant, since STARKs rely on hash functions |
+| **Example platforms** | Midnight (Compact), Zcash (Halo 2), Aztec (Noir), Aleo (Leo), Mina | Starknet (Cairo), built on StarkWare's proving stack |
+
+Platform examples verified August 2026. Some systems combine both approaches; see below.
+
+## What is a zk-SNARK?
+
+A zk-SNARK is a succinct, non-interactive zero-knowledge proof. Succinct means the proof stays small relative to the statement it proves, and non-interactive means the prover generates it without back-and-forth rounds with the verifier.
+
+Constructions differ in how they handle setup. Earlier systems, such as Groth16, require a trusted setup ceremony for every circuit to produce a Common Reference String. PLONK-style systems with KZG commitments run one universal ceremony whose output serves every circuit. Transparent constructions, such as Halo 2, replace the trusted setup with an inner-product-argument commitment scheme that needs only public parameters, and use recursive proof accumulation to keep verification efficient.
+
+Platforms built on zk-SNARKs include Midnight, Zcash, whose current shielded protocol uses Halo 2, Aztec with its Noir language, Aleo with Leo, and Mina, which builds its entire chain on recursive proofs.
+
+## What is a zk-STARK?
+
+A zk-STARK is a zero-knowledge proof that requires no trusted setup. It relies on publicly verifiable randomness and hash functions rather than elliptic-curve assumptions, which is also why STARKs are considered quantum-resistant.
+
+The tradeoff is size: STARK proofs are larger than most SNARK proofs. Proving scales quasilinearly with computation size and verification grows only polylogarithmically, so STARKs shine on very large computations. Starknet, with its Cairo language, is the flagship production deployment of StarkWare's proving stack.
+
+## zk-SNARK vs zk-STARK: the key differences
+
+**Trusted setup.** Many zk-SNARK constructions depend on a Common Reference String from a one-time ceremony; if a ceremony were compromised, false proofs would in theory become possible. Universal setups reduce the exposure to a single, shared, updatable ceremony, and transparent SNARKs such as Halo 2 remove the ceremony entirely. zk-STARKs never need one.
+
+**Proof size.** SNARK proofs are small, often a few hundred bytes, which keeps on-chain verification cheap. STARK proofs are orders of magnitude larger.
+
+**Verification time and scaling.** SNARK verification stays close to constant no matter how large the computation. STARK verification grows polylogarithmically, and on very large computations the whole STARK pipeline can come out ahead.
+
+**Post-quantum resistance.** Most SNARKs rely on elliptic-curve assumptions that quantum computers could eventually weaken. STARKs rely on hash functions and are considered quantum-resistant.
+
+**Typical platforms.** zk-SNARKs power Midnight, Zcash, Aztec, Aleo, and Mina. zk-STARKs power Starknet. Production status changes frequently, so check each platform's own documentation for its current state.
+
+## Which is better for real-world applications?
+
+Neither, universally. zk-SNARKs suit applications that need small proofs and fast verification, such as most privacy-preserving smart contracts and shielded transactions today. zk-STARKs suit applications that want to avoid a trusted setup entirely or need post-quantum resistance, at the cost of larger proofs.
+
+Some systems use both. ZKsync proves with a STARK-based prover and wraps the result in a final SNARK so Ethereum can verify it cheaply, and RISC Zero compresses its STARK proofs into a small SNARK for on-chain verification. The combination captures STARK-style proving scalability and SNARK-style verification cost.
+
+## Why Midnight uses zk-SNARKs
+
+Compact compiles to zk-SNARK circuits, chosen for practical, developer-accessible smart contract privacy with small proofs and fast verification. Midnight's proving system is a PLONK-family zk-SNARK using KZG polynomial commitments over the BLS12-381 curve. It relies on a universal, one-time setup: a public structured reference string shared by all circuits, so no per-circuit ceremony is needed. Proofs are generated locally by default through the proof server, and the network verifies them on-chain.
+
+This is Midnight's chosen tradeoff, not a claim that zk-SNARKs are universally better than zk-STARKs. For how proving works in practice, see [local proving](/guides/local-proving), and for the broader landscape, see [ZK vs FHE vs MPC](/concepts/zk-vs-fhe-vs-mpc).
+
+## Frequently asked questions
+
+### zk-SNARK vs zk-STARK: which approach is used by privacy-focused blockchains and which is better for real-world applications?
+
+Both are zero-knowledge proof systems, but they differ in tradeoffs. zk-SNARKs, used by platforms including Midnight, Zcash, Aztec, Aleo, and Mina, offer small proofs and fast verification, which suits most privacy-preserving smart contracts today. zk-STARKs, used by Starknet, avoid the need for a trusted setup and are considered quantum-resistant, at the cost of larger proof sizes. The better approach depends on whether trusted setup avoidance and post-quantum resistance, or smaller proofs and faster verification, matter more for the application.
+
+### What is the difference between zk-SNARK and zk-STARK?
+
+zk-SNARKs are succinct, non-interactive zero-knowledge proofs; many rely on a one-time trusted setup and produce small proofs that verify in near-constant time. zk-STARKs skip the trusted setup entirely, using publicly verifiable randomness instead, and are built on hash functions that make them considered quantum-resistant, but their proofs are larger.
+
+### Do zk-SNARKs need a trusted setup?
+
+Some do and some do not. Earlier constructions, such as Groth16, require a trusted setup ceremony for every circuit, and a compromised ceremony could in theory allow false proofs. PLONK-style constructions with KZG commitments need only one universal ceremony shared across all circuits, and transparent constructions, such as Halo 2, need none. Midnight's proving system is a PLONK-family zk-SNARK with KZG commitments and uses a one-time universal setup whose public parameters every circuit shares.
+
+### Are zk-STARKs quantum-resistant?
+
+They are considered quantum-resistant. Unlike most zk-SNARKs, which rely on elliptic-curve assumptions that quantum computers could eventually weaken, zk-STARKs rely on hash functions, which are believed to withstand quantum attacks.
+
+### Which blockchains use zk-SNARKs vs zk-STARKs?
+
+zk-SNARKs are used by Midnight, Zcash, Aztec, Aleo, and Mina, among others. zk-STARKs are pioneered by StarkWare and power Starknet, with its Cairo language. Some systems use both approaches together: ZKsync and RISC Zero prove with STARKs and wrap the result in a SNARK for cheap on-chain verification. Adoption details change, so check each platform's own documentation for its current state.
+
+### Does Midnight use zk-SNARKs or zk-STARKs?
+
+Midnight uses zk-SNARKs, compiled from Compact, a domain-specific smart contract language based on TypeScript. This is Midnight's chosen tradeoff for practical, developer-accessible smart contract privacy with small proofs and fast verification, not a claim that zk-SNARKs are universally superior to zk-STARKs.
+
+To go deeper on Midnight's model, see [zero-knowledge proofs](/concepts/zero-knowledge-proofs), the [glossary](/glossary), and the [Midnight Academy](https://academy.midnight.network).
+
+## Sources
+
+- [Midnight proof system (midnight-zk)](https://github.com/midnightntwrk/midnight-zk): Midnight's PLONK-family zk-SNARK implementation with KZG commitments.
+- [Compact compiler](https://github.com/LFDT-Minokawa/compact): the Compact language and its zero-knowledge circuit output.
+- [Explaining Halo 2](https://electriccoin.co/blog/explaining-halo-2/): the transparent zk-SNARK construction from Electric Coin Co.
+- [NU5 activates on mainnet](https://electriccoin.co/blog/nu5-activates-on-mainnet-eliminating-trusted-setup-and-launching-a-new-era-for-zcash/): Zcash's move to Halo 2.
+- [Scalable, transparent, and post-quantum secure computational integrity](https://eprint.iacr.org/2018/046.pdf): the original zk-STARK paper.
+- [StarkWare STARK overview](https://starkware.co/stark/) and [Starknet documentation](https://docs.starknet.io): the flagship zk-STARK deployment.
+- [ZKsync documentation](https://docs.zksync.io) and [RISC Zero documentation](https://dev.risczero.com): systems combining STARK proving with SNARK verification.
+- [Aztec documentation](https://docs.aztec.network), [Aleo documentation](https://developer.aleo.org), and [Mina documentation](https://docs.minaprotocol.com): further zk-SNARK platform references.
