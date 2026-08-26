@@ -1,0 +1,62 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+slug: echomkb
+title: EchoMKB
+description: EchoMKB is an agent skill that reads the Midnight documentation at answer time, cites the page behind every claim, and reports version drift against the compatibility matrix.
+tags: [agent-skills, ai, developer-tools, versions]
+sidebar_position: 30
+---
+
+# EchoMKB
+
+AI coding assistants carry outdated knowledge of Compact and the Midnight SDK. Agent skills fix part of that problem by shipping curated knowledge, but a bundled snapshot ages: Compact syntax changes between language versions, and package names change between releases.
+
+EchoMKB takes the other approach. It ships almost no Midnight knowledge of its own. On every use it reads the documentation live, and the skill instructions require the agent to cite the page behind each claim.
+
+## Install
+
+```bash
+npx skills add EchoForge-Dev/EchoMKB
+```
+
+The skill works with any assistant the [skills CLI](https://github.com/vercel-labs/skills) supports. It has no dependencies and requires Node 18 or later.
+
+## How a lookup works
+
+1. Fetch `llms.txt` and parse it into an index of documentation pages.
+2. Rank the index against the query on the local machine. The query string is never transmitted.
+3. Open the top-ranked pages through their `.md` endpoints.
+4. Return heading-anchored excerpts, each carrying its source URL and, where the page declares one, its `Compact language X, compiler Y` stamp.
+
+Responses are cached, 15 minutes for the index and 60 minutes for pages.
+
+## Commands
+
+| Command | Purpose |
+|---------|---------|
+| `search <query>` | Rank pages from the live index, open the top matches, and print cited excerpts. |
+| `page <url>` | Print one documentation page as Markdown. |
+| `versions` | Compare the compatibility matrix against release notes, npm, and GitHub releases. |
+| `index` | List the sections of the live documentation index with page counts. |
+| `doctor` | Check connectivity and the local cache. |
+
+## Version drift
+
+The Community projects page notes that community tooling may target compiler or runtime versions that differ from the latest Midnight release. The `versions` command addresses that directly. It reads the [compatibility matrix](/relnotes/support-matrix), then compares each component against the release notes, npm, and GitHub releases, and marks the rows where a release channel has moved ahead of the matrix.
+
+The skill instructions require the agent to report both numbers when answering a version question: what the matrix has tested, and what is newest. Deployments follow the matrix, and quoted syntax follows the version stamp on the page the answer came from.
+
+## Offline behavior
+
+When the documentation is unreachable, `doctor` exits with a non-zero status and the agent falls back to a dated snapshot bundled with the skill. The skill instructions require the agent to state that the answer came from a snapshot rather than from the live documentation.
+
+## Network access
+
+Search and page reads contact `docs.midnight.network` only. The `versions` command additionally reads `registry.npmjs.org` through `npm view` and the releases API on `api.github.com`. Nothing from the user project is transmitted.
+
+## Source
+
+- Repository: https://github.com/EchoForge-Dev/EchoMKB
+- Project page: https://m.echoforgeef.com/echomkb
+- License: Apache-2.0
