@@ -1,0 +1,173 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Node v1.0.0 release notes
+description: Node is a core component of the Midnight Network, responsible for syncing, validating transactions, and maintaining the chain state.
+displayed_sidebar: sidebar
+---
+
+- **Version**: v1.0.0
+- **Date**: May 20, 2026
+- **Environment**: All public networks at time of release
+
+---
+
+## Docker images
+
+```shell
+docker pull midnightntwrk/midnight-node:1.0.0
+docker pull midnightntwrk/midnight-node-toolkit:1.0.0
+```
+
+---
+
+## High-level summary
+
+Node v1.0.0 is the mainnet GA release. It bumps `spec_version` to `1_000_000` and `transaction_version` to `3`. The runtime adopts `TransactionExtension`, replacing the deprecated `SignedExtension`, tightens the throttle pallet, and lands the Midnight-side handler hooks for the Cardano-to-Midnight bridge. The bridge itself is not enabled in this release; the hooks are preparatory plumbing only. The runtime also migrates to measured benchmark weights.
+
+The node aligns with the `polkadot-stable2603` Substrate SDK, gains a self-describing `rpc.discover` endpoint serving an OpenRPC v1.4 spec, and picks up `midnight-ledger` 8.1.0 along with a number of audit-driven hardenings. The toolkit now ships as an independently versioned image with substantial new transaction-generation, caching, and observability features.
+
+A runtime upgrade is required. SDK consumers using polkadot.js or subxt see no breakage: the new `AuthorizeCall` and `WeightReclaim` extensions are zero-sized, so the encoded transaction bytes are unchanged. Only the implicit `transaction_version` mixed into the signature hash differs, and live signers fetch it from chain state on every sign. The only genuine breakage is pre-signed extrinsics held across the upgrade boundary, which is true for any `spec_version` bump.
+
+---
+
+## Audience
+
+This release note is relevant for:
+
+- **Node operators (all networks)**: required upgrade. Roll the binary, then submit the runtime upgrade. Re-check `networkId` against your chainspec, which is now validated on boot.
+- **DApp developers and SDK consumers**: no action required for live signing. polkadot.js and subxt fetch `transaction_version` and `spec_version` from chain state on every sign, and the two new `TransactionExtension` entries are zero-sized, so encoded transaction bytes are unchanged. Pre-signed extrinsics held across the upgrade need re-signing. Use `rpc.discover` if you generate clients from a spec.
+- **Toolkit users and load-test operators**: required upgrade. The toolkit is now independently versioned and ships a new structured-logging stack plus new `show-block`, `batch-single-tx`, and per-seed caching subcommands.
+- **Governance signers**: a new `proposal_weight_bound` parameter is required on `motion_close`. The toolkit `runtime-upgrade` and `update-ledger-parameters` commands accept long-form `--council-members` and `--technical-committee-members` flags.
+- **Cardano bridge consumers**: the Cardano-to-Midnight bridge is not enabled at 1.0.0. The handler hooks ship in the runtime so you can develop against the on-chain shape, but no transfers flow until the bridge is turned on in a later release.
+
+---
+
+## What changed (Summary of updates)
+
+The updates below describe the key changes introduced in this release, grouped by area.
+
+**Runtime**
+
+- Migrated from `SignedExtension` to `TransactionExtension`, adding zero-sized `AuthorizeCall` and `WeightReclaim` extensions and bumping `transaction_version` from 2 to 3.
+- Throttle pallet adds a per-account transaction-count limit (`MaxTxs`) with an `AccountUsage` storage migration.
+- `motion_close` gains a required `proposal_weight_bound` parameter and is promoted to the operational dispatch class.
+- Measured benchmark weights replace default weights across FRAME and local pallets.
+- Early block-weight check in the midnight pallet rejects oversized transactions with `ExhaustsResources` before expensive ledger validation runs.
+- Aligned node, runtime, relay, and partner-chains with the `polkadot-stable2603` Substrate SDK.
+- Landed the Cardano-to-Midnight bridge handler hooks: events, `McTxHash` on each transfer, and a handler return value attached to bridge events. Preparatory only; the bridge is not enabled.
+
+**Node**
+
+- Bumped `midnight-ledger` to 8.1.0, picking up storage-core 1.2.0 incremental garbage collection plus race-condition, panic, leak, and lock-ordering fixes.
+- New `rpc.discover` endpoint serves an OpenRPC v1.4 spec covering 16 custom and 52 Substrate methods with JSON Schema types.
+- `networkId` is validated on node boot against the genesis state.
+- Genesis file loading rejects symlinks, non-regular files, and files over 10 MB. A new `unsafe_allow_symlinks` option (default off) restores symlink support where needed.
+- New `ssl_root_cert` configuration option for Postgres connections.
+- Database host, port, and name are redacted from error logs. Full details remain available at debug level.
+- cNIGHT observation queries are faster through an in-memory `multi_asset.id` cache and coarse primary-key range bounds that let Postgres prune rows before joins.
+- Fixed chain-state truncation after unclean shutdown.
+
+**Toolkit**
+
+- Toolkit images are now versioned independently with `toolkit-X.Y.Z` tags.
+- New `show-block` diagnostic command and `batch-single-tx` bulk transaction generation with file-based caches.
+- Structured logging moves to `tracing_subscriber` with `--log-json`, `--verbose`, and `--quiet` flags. The JSON log format change is breaking for log consumers.
+- Support for multiple shielded coin inputs, fallible contract calls, and zswap state chaining in batched intents.
+- Upgraded subxt from v0.44 to v0.50, plus numerous audit-driven correctness and security fixes.
+
+---
+
+## New features
+
+### Cardano-to-Midnight bridge handler
+
+The runtime implements the Midnight-side handler for the Cardano-to-Midnight bridge. The bridge emits events, each transfer carries an `McTxHash`, and the handler returns a value that is attached to bridge events. This is preparatory plumbing: no transfers flow until the bridge is enabled in a later release.
+
+### Self-describing JSON-RPC API (`rpc.discover`)
+
+The node serves an OpenRPC v1.4 specification through a new `rpc.discover` endpoint, covering 16 custom Midnight methods and 52 Substrate methods with JSON Schema types. The spec is also committed to the repository as `docs/openrpc.json` for offline client generation.
+
+### Throttle pallet: per-account transaction-count limit
+
+The throttle pallet gains a `MaxTxs` per-account transaction-count limit, with a storage migration for the new `AccountUsage` item.
+
+### Diagnostic `show-block` toolkit command
+
+The toolkit can render the contents of a block for diagnostics with the new `show-block` subcommand.
+
+### Bulk transaction generation
+
+The toolkit adds `batch-single-tx` for bulk transaction generation, file-based caches keyed per seed, and a `--seeds` option on `fetch`.
+
+### Per-SQL-query Prometheus timing
+
+The midnight data source exposes per-SQL-query Prometheus timing metrics, giving operators visibility into db-sync query costs.
+
+---
+
+## New features requiring configuration updates
+
+- `--max-tx-gas-cost` transaction-pool filter, carried forward from v0.22.5.
+- `ssl_root_cert` Postgres TLS option.
+- `unsafe_allow_symlinks` file-loading option (default off). See the known issue below.
+- `networkId` validation on boot. Confirm your chainspec `networkId` matches the genesis state before upgrading.
+
+---
+
+## Deprecations
+
+- `SignedExtension` and `SignedExtra` runtime extension types, replaced by `TransactionExtension`.
+- The toolkit `structured_logger` JSON log format, replaced by `tracing_subscriber`.
+- The toolkit positional `new_authority` argument on `maintain-contract`, replaced by named flags.
+- The `*-hf` ledger feature flags and `cfg(hardfork_test)` test configuration.
+
+---
+
+## Breaking changes or required actions
+
+- **`transaction_version` bumped to 3**: live signers are unaffected because they fetch version material from chain state, but pre-signed extrinsics held across the upgrade boundary must be re-signed.
+- **Cardano-to-Midnight bridge handler API changed**: handlers now return a value attached to bridge events, and each transfer carries an `McTxHash`.
+- **`motion_close` signature changed**: governance signers must supply the new `proposal_weight_bound` parameter.
+- **Throttle pallet storage migration**: the `AccountUsage` migration runs as part of the runtime upgrade.
+- **Toolkit JSON log format changed**: log consumers that parse the old `structured_logger` output must be updated for the `tracing_subscriber` format.
+- **Toolkit image tag scheme changed**: toolkit images are now tagged independently as `toolkit-X.Y.Z`.
+
+---
+
+## Bug fixes and quality improvements
+
+Many fixes in this release come from the Least Authority Q1 2026 node audit. The most user-visible fixes:
+
+- Toolkit: encoding zswap state used the nullifier as the nonce. Fixed, with regression tests covering the nonce/nullifier distinction.
+- Node: chain-state truncation after unclean shutdown, fixed by explicitly dropping the database backend so parity-db drains its write-ahead log.
+- Toolkit: `DustWallet` could return already-spent outputs across consecutive spends.
+- Toolkit: the Dust address format was off-spec and is now aligned with the specification.
+- Toolkit: silent overflow in offer-creation arithmetic now returns an explicit `OfferBuildError`, and wallet seed increments return an explicit error on overflow.
+- Toolkit: intent-file reads are capped at 64 MB, and the parent-block-hash fallback now uses a cryptographically secure RNG.
+- Node: unknown system transaction types are rejected with an explicit error instead of being silently accepted.
+- Node: the genesis loader no longer accepts symlinks or files over 10 MB by default.
+- Security: `rustls-webpki` (RUSTSEC-2026-0049) and `astral-tokio-tar` (RUSTSEC-2026-0066) advisories addressed.
+
+---
+
+## Known issues
+
+### Config error: missing field `unsafe_allow_symlinks`
+
+`unsafe_allow_symlinks` is a new configuration value that tells the node to follow symbolic links. The field is required in this release, so nodes that run without a TOML configuration file fail to boot with a missing-field error. Provide the value to avoid the error, for example `UNSAFE_ALLOW_SYMLINKS=true`. Fixed in [v1.0.1](/relnotes/node/node-1-0-1), which gives the field a default.
+
+### Initial sync performance
+
+Initial sync from genesis is slow on some operator hardware, with around 0.2 blocks per second observed. If a curated paritydb snapshot is published for your network, use it; otherwise allow extra time on first bootstrap. Tracked in [#1298](https://github.com/midnightntwrk/midnight-node/issues/1298).
+
+---
+
+## Links and references
+
+- [GitHub release: node-1.0.0](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.0)
+- [Midnight node on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node)
+- [Node toolkit on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit)
+- [OpenRPC specification (`docs/openrpc.json`)](https://github.com/midnightntwrk/midnight-node/blob/main/docs/openrpc.json)
+- [Test evidence for 1.0.0](https://github.com/midnightntwrk/midnight-node/blob/main/docs/releases/1.0.0/test-evidence/test-evidence-1.0.0-rc.8.md)
+- [Known issues board](https://github.com/midnightntwrk/midnight-node/issues?q=is%3Aissue+is%3Aopen+label%3Abug)
