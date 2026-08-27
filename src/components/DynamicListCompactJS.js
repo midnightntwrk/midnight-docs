@@ -19,10 +19,18 @@ const releases = [
   {
     version: '2.5.3',
     status: 'LATEST',
-    date: '27 August 2026',
-    summary: 'Summary of Release 2.5.3',
-    details: [],
-    artifacts: [],
+    date: '9 July 2026',
+    summary: 'Maintenance release from the migrated midnight-sdk repository with a CommonJS exports fix.',
+    details: [
+      'Fixed the CommonJS exports configuration of the package.',
+      'Security update: bumped the `tar` dependency to 7.5.16.',
+      'Updated development dependencies and release automation.',
+      'First version published to npm from the migrated `midnightntwrk/midnight-sdk` repository; supersedes the 2.5.1 and 2.5.2 alignment versions.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/2.5.3' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-sdk/releases/tag/compact-js-v2.5.3' },
+    ],
     link: '/relnotes/compact-js/compact-js-2-5-3',
   },
   {
