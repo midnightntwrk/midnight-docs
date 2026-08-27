@@ -17,8 +17,17 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '8.1.0',
+    version: '8.1.1',
     status: 'LATEST',
+    date: '27 August 2026',
+    summary: 'Summary of Release 8.1.1',
+    details: [],
+    artifacts: [],
+    link: '/relnotes/ledger/ledger-8-1-1',
+  },
+  {
+    version: '8.1.0',
+    status: 'SUPPORTED',
     date: '13 May 2026',
     summary: 'Storage layer improvements, deadlock fixes, and enhanced wallet WASM bindings',
     details: [
