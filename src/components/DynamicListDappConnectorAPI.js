@@ -19,10 +19,18 @@ const releases = [
   {
     version: '4.0.1',
     status: 'LATEST',
-    date: '27 August 2026',
-    summary: 'Summary of Release 4.0.1',
-    details: [],
-    artifacts: [],
+    date: '17 February 2026',
+    summary: 'Patch release adding the `payFees` option to all transacting methods for sponsored-fee flows',
+    details: [
+      'All transacting methods now accept the `payFees` option that was previously only available on `makeIntent`.',
+      'Disabling fee payment supports sponsored-fee flows where a separate wallet pays transaction fees.',
+      'Backwards-compatible: omitting the option keeps the existing fee payment behavior.',
+      'The motivation for the option is documented in the API specification.',
+    ],
+    artifacts: [
+      { name: 'NPM package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-dapp-connector-api/releases/tag/v4.0.1' },
+    ],
     link: '/relnotes/dapp-connector-api/dapp-connector-api-4-0-1',
   },
   {
