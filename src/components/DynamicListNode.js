@@ -17,8 +17,17 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.22.5',
+    version: '1.0.1',
     status: 'LATEST',
+    date: '27 August 2026',
+    summary: 'Summary of Release 1.0.1',
+    details: [],
+    artifacts: [],
+    link: '/relnotes/node/node-1-0-1',
+  },
+  {
+    version: '0.22.5',
+    status: 'SUPPORTED',
     date: '24 April 2026',
     summary: 'Summary of Release 0.22.5',
     details: [
