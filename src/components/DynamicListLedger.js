@@ -19,10 +19,18 @@ const releases = [
   {
     version: '8.1.1',
     status: 'LATEST',
-    date: '27 August 2026',
-    summary: 'Summary of Release 8.1.1',
-    details: [],
-    artifacts: [],
+    date: '31 July 2026',
+    summary: 'Patch release with array-handling test coverage and an npm scope change to `@midnightntwrk`',
+    details: [
+      'No protocol, serialization, or API behavior changes for well-formed transactions.',
+      'Added test coverage for array handling.',
+      'Clippy 1.97 lint cleanups across the workspace.',
+      'npm packages now publish under the `@midnightntwrk` scope; update dependencies such as `@midnight-ntwrk/ledger-v8` to `@midnightntwrk/ledger-v8`.',
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnightntwrk/ledger-v8' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-8.1.1' },
+    ],
     link: '/relnotes/ledger/ledger-8-1-1',
   },
   {
