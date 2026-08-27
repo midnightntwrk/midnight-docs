@@ -17,8 +17,17 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.0.0',
+    version: '4.0.1',
     status: 'LATEST',
+    date: '27 August 2026',
+    summary: 'Summary of Release 4.0.1',
+    details: [],
+    artifacts: [],
+    link: '/relnotes/dapp-connector-api/dapp-connector-api-4-0-1',
+  },
+  {
+    version: '4.0.0',
+    status: 'SUPPORTED',
     date: '28 January 2026',
     summary: 'Summary of v4.0.0',
     details: [
