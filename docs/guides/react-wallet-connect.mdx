@@ -40,6 +40,36 @@ Then install the DApp Connector API package:
 ```bash
 npm install @midnight-ntwrk/dapp-connector-api
 ```
+### Configure Vite for Midnight packages
+
+Midnight SDK packages ship WASM modules (via wasm-bindgen) that require specific Vite configuration. Without this step, your app will render a blank page in development or fail with `Cannot access '__wbindgen_start' before initialization`.
+
+Open `vite.config.ts` and add the following:
+
+```typescript
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [react()],
+  optimizeDeps: {
+    // Midnight WASM packages use top-level init calls that break
+    // when Vite pre-bundles them in dev mode. Excluding them
+    // preserves the correct module init order.
+    exclude: [
+      '@midnight-ntwrk/ledger-v8',
+      '@midnight-ntwrk/onchain-runtime-v3',
+      '@midnight-ntwrk/zkir-v2',
+    ],
+  },
+});
+```
+
+:::caution Why this matters
+Vite's dev-server dependency optimizer eagerly bundles dependencies into single modules. Midnight's WASM glue code calls `__wbindgen_start()` at the module top level during initialization. Pre-bundling reorders this init sequence, producing a blank page with no visible error in the console. The `optimizeDeps.exclude` setting tells Vite to serve these packages unbundled, preserving the correct initialization order. Production builds are unaffected.
+:::
+
+If you are working in a monorepo where multiple packages depend on `@midnight-ntwrk/compact-runtime`, also add `resolve.dedupe` to prevent WASM dual-instantiation (see the [Vite WASM resolution guide](https://github.com/midnightntwrk/midnight-js/blob/main/docs/guides/vite-wasm-resolution.md) for details).
 
 After completing this tutorial, you'll understand:
 
