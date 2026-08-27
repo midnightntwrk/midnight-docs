@@ -17,8 +17,17 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '2.5.0',
+    version: '2.5.3',
     status: 'LATEST',
+    date: '27 August 2026',
+    summary: 'Summary of Release 2.5.3',
+    details: [],
+    artifacts: [],
+    link: '/relnotes/compact-js/compact-js-2-5-3',
+  },
+  {
+    version: '2.5.0',
+    status: 'SUPPORTED',
     date: '20 March 2026',
     summary: 'Compatibility and tooling update for Compact.js.',
     details: [
