@@ -171,6 +171,11 @@ const config = {
       '@docusaurus/plugin-client-redirects',
       {
         redirects: [
+          // Kapa MCP server moved from community to the core AI integration section
+          {
+            from: '/sdks/community/ai-tools/kapa-mcp-server',
+            to: '/ai-integration/kapa-mcp-server',
+          },
           // Academy redirects (external)
           {
             from: [
