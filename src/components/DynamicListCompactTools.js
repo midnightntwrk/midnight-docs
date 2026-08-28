@@ -17,8 +17,52 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.4.0',
+    version: '0.5.2',
     status: 'LATEST',
+    date: '18 August 2026',
+    summary: 'Maintenance release: compact compile --help shows the full compiler help.',
+    details: [
+      '`compact compile --help` now forwards to the underlying `compactc`, so the help output lists every flag the selected compiler accepts, including `--feature-zkir-v3`.',
+      'Update an existing installation with `compact self update`.',
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.5.2' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-5-2',
+  },
+  {
+    version: '0.5.1',
+    status: 'SUPPORTED',
+    date: '25 March 2026',
+    summary: 'Adds native ARM64 Linux binaries, fixing the zkir SIGILL crash in ARM Docker environments.',
+    details: [
+      'Release artifacts now include an `aarch64-unknown-linux-musl` build, so ARM Docker environments no longer emulate the x64 binaries.',
+      'Fixes the zkir `SIGILL` crash reported when running under emulation on ARM hosts.',
+      'No functional changes to the CLI itself.',
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.5.1' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-5-1',
+  },
+  {
+    version: '0.5.0',
+    status: 'SUPPORTED',
+    date: '17 March 2026',
+    summary: 'Usability release: subcommand abbreviations and partial version numbers for update.',
+    details: [
+      'Subcommands accept official aliases such as `fmt` for `format` and `fx` for `fixup`, plus any unambiguous prefix.',
+      '`compact update` accepts partial version numbers, so `compact update 0.30` installs the latest 0.30.x toolchain.',
+      'Known issue: no aarch64 Linux build, so zkir crashes with `SIGILL` in ARM Docker environments; fixed in 0.5.1.',
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.5.0' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-5-0',
+  },
+  {
+    version: '0.4.0',
+    status: 'SUPPORTED',
     date: '21 January 2026',
     summary: 'Summary of Release 0.4.0',
     details: [
