@@ -1,6 +1,38 @@
 # Detailed API reference
 
-## Structs
+## Top-level exports and native types and functions
+
+Exporting a type or circuit from the top level of a contract makes its
+definition visible and usable from the contract's TypeScript API.  Exporting a
+circuit from the top level of a contract additionally makes it one of the
+contract's endpoints for on-chain transactions.
+
+Many of the the types and functions defined in the standard library are
+**native** types and functions.  These are ones that have special handling of
+some kind in the Compact compiler.  As a consequence of this special handling,
+they cannot currently be exported from the top level of a contract.
+
+It is a compiler error to try to export these types and functions.
+
+You can, however, export type aliases for native types and export circuits that
+wrap native functions.  For example:
+
+```compact
+import { JubjubPoint as nativeJubjubPoint, ecAdd as nativeEcAdd } from CompactStandardLibrary;
+
+export type JubjubPoint = nativeJubjubPoint;
+
+export pure circuit ecAdd(a: JubjubPoint, b: JubjubPoint): JubjubPoint {
+  return nativeEcAdd(a, b);
+}
+```
+
+The generated TypeScript API will include definitions for `JubjubPoint` and
+`ecAdd`.  Note that the standard library's `ecAdd` is polymorphic (it works with
+other curve types besides Jubjub) but the exported version only works for
+`JubjubPoint`.
+
+## Structure types
 
 ### `Maybe`
 
@@ -27,17 +59,40 @@ struct Either<A, B> {
 }
 ```
 
-### `NativePoint`
+### `JubjubSchnorrSignature`
 
-A point on the proof systems embedded curve, in affine coordinates.
-
-Only outputs of elliptic curve operations are actually guaranteed to lie on the
-curve.
+A Schnorr signature over the JubJub embedded curve. Contains an announcement
+point and a scalar response, used with [`jubjubSchnorrVerify`](#jubjubschnorrverify).
 
 ```compact
-struct NativePoint {
-  x: Field;
-  y: Field;
+struct JubjubSchnorrSignature {
+  announcement: JubjubPoint;
+  response: Field;
+}
+```
+
+### `JubjubSchnorrSignature`
+
+A Schnorr signature over the JubJub embedded curve. Contains an announcement
+point and a scalar response, used with [`jubjubSchnorrVerify`](#jubjubschnorrverify).
+
+```compact
+struct JubjubSchnorrSignature {
+  announcement: JubjubPoint;
+  response: Field;
+}
+```
+
+### `Secp256k1EcdsaSignature`
+
+An ECDSA signature over the secp256k1 curve, used with
+[`secp256k1EcdsaVerify`](#secp256k1ecdsaverify). The `r` and `s` components are
+`Secp256k1Scalar`s.
+
+```compact
+struct Secp256k1EcdsaSignature {
+  r: Secp256k1Scalar;
+  s: Secp256k1Scalar;
 }
 ```
 
@@ -157,6 +212,160 @@ and [`mintUnshieldedToken`](#mintunshieldedtoken).
 
 ```compact
 struct UserAddress { bytes: Bytes<32>; }
+```
+
+## Events
+
+Events are struct types that can be emitted using an `emit` operation.
+
+### `ShieldedSpend`
+
+Shielded coin consumed, new coin created for a user recipient.
+
+Serialized size is 32.
+
+```compact
+struct ShieldedSpend {
+  nullifier: Bytes<32> // indexed
+}
+```
+
+### `ShieldedReceive`
+
+A contract accepts an incoming shielded coin.
+
+`contractAddress` set when received by a contract, absent for user recipients.
+
+ Serialized size is 578.
+
+```compact
+struct ShieldedReceive {
+  commitment: Bytes<32>, // indexed
+  ciphertext: Maybe<Bytes<512>>,
+  contractAddress: Maybe<Bytes<32>>
+}
+```
+
+### `ShieldedMint`
+
+New shielded tokens created.
+
+`tokenType` derived by the consumer from `domainSep` + `ContractLog.address`.
+
+ Serialized size is 81.
+ 
+```compact
+struct ShieldedMint {
+  commitment: Bytes<32>, // indexed
+  domainSep: Bytes<32>, // indexed
+  amount: Maybe<Uint<128>>
+}
+```
+
+### `ShieldedBurn`
+
+Shielded coin sent to the burn address.
+
+Supply tracking — tokens permanently removed from circulation.
+
+Serialized size is 49.
+ 
+```compact
+struct ShieldedBurn {
+  nullifier: Bytes<32>, // indexed
+  amount: Maybe<Uint<128>>
+}
+```
+
+### `UnshieldedSpend`
+
+Public token sent from a sender.
+
+Serialized size is 145.
+
+```compact
+struct UnshieldedSpend {
+  sender: Either<ZswapCoinPublicKey, ContractAddress>, // indexed
+  domainSep: Bytes<32>, // indexed
+  tokenType: Bytes<32>, // indexed
+  amount: Uint<128>
+}
+```
+
+### `UnshieldedReceive`
+
+Public token sent to a recipient.
+
+Serialized size is 145.
+
+```compact
+struct UnshieldedReceive {
+  recipient: Either<ZswapCoinPublicKey, ContractAddress>, // indexed
+  domainSep: Bytes<32>, // indexed
+  tokenType: Bytes<32>, // indexed
+  amount: Uint<128>
+}
+```
+
+### `UnshieldedMint`
+
+New unshielded tokens created.
+
+Serialized size is 80.
+
+```compact
+struct UnshieldedMint {
+  domainSep: Bytes<32>, // indexed
+  tokenType: Bytes<32>, // indexed
+  amount: Uint<128>
+}
+```
+
+### `UnshieldedBurn`
+
+Unshielded coin sent to the burn address.
+
+Serialized size is 113.
+
+```compact
+struct UnshieldedBurn {
+  sender: Either<ZswapCoinPublicKey, ContractAddress>, // indexed
+  tokenType: Bytes<32>, // indexed
+  amount: Uint<128>
+}
+```
+
+### `Paused`
+
+Contract operations suspended.
+
+Serialized size is 0.
+
+```compact
+struct Paused {}
+```
+
+### `Unpaused`
+
+Contract operations resumed.
+
+Serialized size is 0.
+
+```compact
+struct Unpaused {}
+```
+
+### `Misc`
+
+Miscellaneous event type.
+
+Serialized size is 288.
+
+```compact
+struct Misc {
+  name: Bytes<32>,
+  payload: Bytes<256>
+}
 ```
 
 ## Circuits
@@ -287,36 +496,207 @@ circuit upgradeFromTransient(x: Field): Bytes<32>;
 
 ```
 
-### `ecAdd`
+### `keccak256`
 
-This function add two elliptic [`NativePoint`](#nativepoint)s (in multiplicative
-notation)
+This function hashes its input using the Keccak-256 algorithm.  It returns the
+32-byte digest.
 
 ```compact
-circuit ecAdd(a: NativePoint, b: NativePoint): NativePoint;
+circuit keccak256<T>(value: T): Bytes<32>;
+```
+
+### `JubjubPoint`
+
+This is a native type.
+
+The type of points on the embedded elliptic curve.  It represents a pair of
+affine x- and y-coordinates.  The coordinates are native `Field` (BLS12-381)
+values.
+
+### `JubjubScalar`
+
+This is a native type.
+
+The type of numeric values between 0 (inclusive) and the order of the
+prime-order subgroup of the Jubjub embedded elliptic curve (exclusive).  It is
+the type of the scalars used to multiply Jubjub curve points.
+
+The maximum value (one less that the field order) is (decimal)
+6554484396890773809930967563523245729705921265872317281365359162392183254198
+and (hexadecimal)
+0xe7db4ea6533afa906673b0101343b00a6682093ccc81082d0970e5ed6f72cb6.
+
+### `constructJubjubPoint`
+
+This is a native circuit.
+
+This function constructs a [`JubjubPoint`](#jubjubpoint) from its x- and
+y-coordinates.  Neither the standard library nor the Compact JavaScript runtime
+package will actually verify that a constructed point actually lies on the
+Jubjub curve.  The behavior of constructing or operating on an invalid Jubjub
+curve point is undefined.  You will not normally be able to construct proofs
+involving invalid Jubjub curve points.
+
+```compact
+circuit constructJubjubPoint(x: Field, y: Field): JubjubPoint;
+```
+
+### `jubjubPointX`
+
+This is a native circuit.
+
+This function extracts the x-coordinate from a [`JubjubPoint`](#jubjubpoint).
+
+```compact
+circuit jubjubPointX(pt: JubjubPoint): Field;
+```
+
+### `jubjubPointY`
+
+This is a native circuit.
+
+This function extracts the y-coordinate from a [`JubjubPoint`](#jubjubpoint).
+
+```compact
+circuit jubjubPointY(pt: JubjubPoint): Field;
+```
+
+### `Secp256k1Point`
+
+This is a native type.
+
+The type of points on the secp256k1 elliptic curve.  It represents a pair of
+affine x- and y-coordinates.  The coordinates are `Secp256k1Base` values.
+Secp256k1 points cannot be created in Compact, but they can be passed as circuit
+arguments and returned from witness functions.  The behavior of operating on an
+invalid secp256k1 curve point is undefined.  You will not normally be able to
+construct proofs involving invalid secp256k1 curve points.
+
+The (additive) identity point does not have a representation as a pair of
+coordinates.  It is represented in Compact as `default<Secp256k1Point>`.
+
+### `Secp256k1Base`
+
+This is a native type.
+
+The type of values between 0 (inclusive) and the order of the base field of the
+secp256k1 elliptic curve (exclusive).  It is the type of the affine coordinates
+of a point on that curve.
+
+The maximum value (one less than the field order) is (decimal)
+115792089237316195423570985008687907853269984665640564039457584007908834671662
+and (hexadecimal)
+0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e.
+
+### `Secp256k1Scalar`
+
+This is a native type.
+
+The type of numeric values betwen 0 (inclusive) and the order of the secp256k1
+group (exclusive).  This is the type of the scalars used to multiply secp256k1
+curve points.
+
+The maximum value (one less than the field order) is (decimal)
+115792089237316195423570985008687907852837564279074904382605163141518161494336
+and (hexadecimal)
+0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140.
+
+### `secp256k1PointX`
+
+This is a native type.
+
+This function extracts the affine x-coordinate from a
+[`Secp256k1Point`](#secp256k1point).
+
+```compact
+circuit secp256k1PointX(pt: Secp256k1Point): Secp256k1Base;
+```
+
+### `secp256k1PointY`
+
+This is a native type.
+
+This function extracts the affine y-coordinate from a
+[`Secp256k1Point`](#secp256k1point).
+
+```compact
+circuit secp256k1PointY(pt: Secp256k1Point): Secp256k1Base;
+```
+
+### `ecAdd`
+
+This function adds two elliptic curve points. It is polymorphic for the
+following types:
+* [`JubjubPoint`](#jubjubpoint)s
+* [`Secp256k1Point`](#secp256k1point)s.
+
+```compact
+circuit ecAdd(a: JubjubPoint, b: JubjubPoint): JubjubPoint;
+circuit ecAdd(a: Secp256k1Point, b: Secp256k1Point): Secp256k1Point;
+```
+
+### `ecNeg`
+
+This function negates an elliptic [`JubjubPoint`](#jubjubpoint). On the JubJub
+twisted Edwards curve, the negation of `(x, y)` is `(-x, y)`.
+
+```compact
+circuit ecNeg(a: JubjubPoint): JubjubPoint;
 ```
 
 ### `ecMul`
 
-This function multiplies an elliptic [`NativePoint`](#nativepoint) by a scalar
-(in multiplicative notation)
+This function multiplies an elliptic curve point by a scalar. It is polymorphic for the
+following types:
+* [`JubjubPoint`](#jubjubpoint)s
+* [`Secp256k1Point`](#secp256k1point)s.
 
 ```compact
-circuit ecMul(a: NativePoint, b: Field): NativePoint;
+circuit ecMul(a: JubjubPoint, b: JubjubScalar): JubjubPoint;
+circuit ecMul(a: Secp256k1Point, b: Secp256k1Scalar): Secp256k1Point;
 ```
 
 ### `ecMulGenerator`
 
-This function multiplies the primary group generator of the embedded curve
-by a scalar (in multiplicative notation)
+This function multiplies the primary group generator of a curve by a
+scalar. It is polymorphic for the following types:
+* [`JubjubPoint`](#jubjubpoint)s
+* [`Secp256k1Point`](#secp256k1point)s.
 
 ```compact
-circuit ecMulGenerator(b: Field): NativePoint;
+circuit ecMulGenerator(b: JubjubScalar): JubjubPoint;
+circuit ecMulGenerator(b: Secp256k1Scalar): Secp256k1Point;
+```
+
+### `neg`
+
+Negates a field element, i.e. returns the value `y` such that
+`add(x, y)` is `0` in the field. Polymorphic function
+that works over types: 
+* `Secp256k1Scalar`
+* `Secp256k1Base`
+
+```compact
+circuit neg(x: Secp256k1Scalar): Secp256k1Scalar;
+circuit neg(x: Secp256k1Base): Secp256k1Base;
+```
+
+### `inv`
+
+Returns the multiplicative inverse of a field element, i.e. the value
+`y` such that `mul(x, y)` is `1` in the field. Polymorphic function
+that works over types: 
+* `Secp256k1Scalar`
+* `Secp256k1Base`
+
+```compact
+circuit inv(x: Secp256k1Scalar): Secp256k1Scalar;
+circuit inv(x: Secp256k1Base): Secp256k1Base;
 ```
 
 ### `hashToCurve`
 
-This function maps arbitrary types to [`NativePoint`](#nativepoint)s.
+This function maps arbitrary types to [`JubjubPoint`](#nativepoint)s.
 
 Outputs are guaranteed to have unknown discrete logarithm with respect to
 the group base, and any other output, but are not guaranteed to be unique (a
@@ -326,7 +706,64 @@ Inputs of different types `T` may have the same output, if they have the same
 field-aligned binary representation.
 
 ```compact
-circuit hashToCurve<T>(value: T): NativePoint;
+circuit hashToCurve<T>(value: T): JubjubPoint;
+```
+
+### `jubjubSchnorrVerify`
+
+Verifies a Schnorr signature over the JubJub embedded curve. Takes a message
+as a vector of `N` field elements, a [`JubjubSchnorrSignature`](#jubjubschnorrsignature),
+and a verification key (a [`JubjubPoint`](#nativepoint) on the embedded curve).
+Returns true if the signature is valid; false if the signature does not verify.
+
+To actually enforce that a signature is valid in a Compact circuit, use an
+`assert` that the result is true.
+
+```compact
+circuit jubjubSchnorrVerify<#N>(
+          msg: Vector<N, Field>,
+          signature: JubjubSchnorrSignature,
+          pk: JubjubPoint
+          ): Boolean;
+```
+
+### `jubjubSchnorrVerify`
+
+Verifies a Schnorr signature over the JubJub embedded curve. Takes a message
+as a vector of `n` field elements, a [`JubjubSchnorrSignature`](#jubjubschnorrsignature),
+and a verification key (a [`JubjubPoint`](#nativepoint) on the embedded curve).
+Asserts that the signature is valid; fails if the signature does not verify.
+
+```compact
+circuit jubjubSchnorrVerify<#n>(msg: Vector<n, Field>, signature: JubjubSchnorrSignature, vk: JubjubPoint): [];
+```
+
+### `secp256k1EcdsaVerify`
+
+Verifies an ECDSA signature over the secp256k1 curve. Takes a 32-byte message
+hash, a [`Secp256k1EcdsaSignature`](#secp256k1ecdsasignature), and a public key
+(a [`Secp256k1Point`](#secp256k1point)). Returns true if the signature is valid;
+false otherwise.
+
+The circuit takes `msgHash` as given and does not constrain it to any message.
+The caller is expected to bind it to the actual message by hashing that message
+in-circuit (e.g. with [`keccak256`](#keccak256) for Ethereum-style signatures or
+[`persistentHash`](#persistenthash) for Bitcoin-style ones).
+
+To actually enforce that a signature is valid in a Compact circuit, use an
+`assert` that the result is true.
+
+```compact
+circuit secp256k1EcdsaVerify(msgHash: Bytes<32>, sig: Secp256k1EcdsaSignature, pk: Secp256k1Point): Boolean;
+```
+
+### `secp256k1EthereumAddress`
+
+Derives the 20-byte Ethereum-style address of a secp256k1 public key, i.e. the
+low 20 bytes of the Keccak-256 hash of the [`Secp256k1Point`](#secp256k1point).
+
+```compact
+circuit secp256k1EthereumAddress(pk: Secp256k1Point): Bytes<20>;
 ```
 
 ### `merkleTreePathRoot`
@@ -598,4 +1035,24 @@ Returns true if the current block time is less than or equal to the given value.
 
 ```compact
 circuit blockTimeLte(time: Uint<64>): Boolean;
+```
+
+### `serialize<T, #n>`
+
+Returns the canonical byte encoding of for a given value of event type. 
+Note that `serialize` can only be instantiated for an event type and its
+canonical serialized size.
+
+```compact
+circuit serialize<T, #n> (x: T): Bytes<n>;
+```
+
+### `deserialize<T, #n>`
+
+Reconstructs a value of type event from its canonical byte encoding.
+Note that `deserialize` can only be instantiated for an event type and its
+canonical serialized size.
+
+```compact
+circuit deserialize<T, #n> (x: Bytes<n>): T;
 ```
