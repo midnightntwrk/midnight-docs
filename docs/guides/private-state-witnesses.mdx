@@ -1,37 +1,43 @@
 ---
-title: Managing Private State with Witnesses
-description: A practical guide to using witnesses for private state management in Compact and the midnight-js SDK.
-sidebar_position: 4
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Manage private state with witnesses
+description: Declare witnesses in Compact, implement them in TypeScript with the Compact runtime, wire up private state, and avoid common witness pitfalls.
+sidebar_position: 46
+tags: [witnesses, private-state, compact, zero-knowledge, typescript, smart-contracts]
 ---
 
-# Managing Private State with Witnesses
+In the Midnight Network, **zero-knowledge (ZK) proofs** let you keep data private while maintaining verifiable state. A core concept in building Midnight DApps is the **witness**: a function that supplies data known to the user (the prover) but kept hidden from the network (the verifiers).
 
-In the Midnight Network, ensuring data privacy while maintaining verifiable state is achieved through **Zero-Knowledge (ZK) proofs**. A core concept in building Midnight dApps is the **witness**—data that is known to the user (the prover) but kept hidden from the network (the verifiers).
+This guide covers how to declare witnesses in Compact, implement them in TypeScript against the compiler's generated module, and troubleshoot common issues.
 
-This guide covers how to define and use witnesses in the **Compact DSL**, integrate them using the **Compact JavaScript implementation**, and troubleshoot common issues.
+## Prerequisites
 
----
+- The Compact developer tools installed, with `compact compile` working.
+- A Node.js project with `@midnight-ntwrk/compact-runtime@0.16.0` installed. This is the version in the [compatibility matrix](/relnotes/support-matrix), and the examples on this page target its API.
+- Familiarity with compiling a contract and importing its generated module. [Using Compact contracts from JavaScript](./compact-javascript-runtime) covers this end to end.
 
-## Core Concepts
+## Core concepts
 
-Before diving into code, it's important to understand the role of a witness in a Midnight dApp:
-1. **Public State (Ledger)**: Data stored on the Midnight blockchain that anyone can read.
-2. **Private State**: Data kept locally by the user.
-3. **Witness**: A function or variable that supplies private data to a smart contract circuit during local execution. The circuit uses this data to generate a ZK proof, which is then submitted to the network. The network verifies the proof without ever seeing the witness data.
+Before diving into code, it helps to understand the role of a witness in a Midnight DApp:
 
----
+- **Public state (ledger)**: Data stored on the Midnight blockchain that anyone can read.
+- **Private state**: Data kept locally by the user's DApp and never sent to the network. Your TypeScript code defines its shape and keeps it up to date.
+- **Witness**: A function, declared in Compact and implemented in TypeScript, that supplies private data to a smart contract circuit during local execution. The circuit uses this data to generate a ZK proof, which the DApp submits to the network. The network verifies the proof without ever seeing the witness data.
 
-## Step-by-Step Walkthrough: A Private Access Code
+Private state and witnesses are related but distinct: a witness usually reads from (and may update) your private state, and because a witness value arrives untrusted, the circuit must assert any property of it that the contract relies on.
 
-Let's build a simple circuit where a user must provide a secret access code to update a public counter. The network will know the counter increased, but will never know the access code used.
+## Step-by-step walkthrough: a private access code
 
-### 1. Defining the Circuit in Compact
+Build a circuit where a user must provide a secret access code to update a public counter. The network knows the counter increased, but never learns the access code used.
 
-In your Compact contract, you define a `witness` block. This tells the compiler that the circuit expects external, private input during execution.
+### 1. Define the circuit in Compact
+
+In your Compact contract, you declare a `witness` function. This tells the compiler that the circuit expects external, private input during execution, supplied by your TypeScript code at call time.
 
 ```compact
 // access_control.compact
-pragma language_version 0.16;
+pragma language_version >= 0.16;
 
 import CompactStandardLibrary;
 
@@ -41,7 +47,7 @@ export ledger counter: Uint<32>;
 // The expected hash is set once at deployment via the constructor.
 export ledger secret_hash: Bytes<32>;
 
-// Define the witness structure
+// Declare the witness function
 witness access_witness(): Bytes<32>;
 
 constructor(sk: Bytes<32>) {
@@ -58,11 +64,11 @@ export circuit increment_counter(): [] {
     assert(computed_hash == secret_hash, "Invalid access code");
 
     // 3. Update the public ledger
-    counter = counter + 1;
+    counter = (counter + 1) as Uint<32>;
 }
 ```
 
-### 2. Providing the Witness in TypeScript
+### 2. Provide the witness in TypeScript
 
 When the Compact compiler processes your contract, it generates a JavaScript implementation in the `managed/` directory. The generated `Contract` class requires a **witnesses object** whose keys match the witness names declared in your `.compact` file.
 
@@ -84,7 +90,7 @@ const createPrivateState = (secretCode: Uint8Array): AccessControlPrivateState =
   secretCode,
 });
 
-// Implement witnesses — keys must match Compact witness names exactly
+// Implement witnesses: keys must match Compact witness names exactly
 const witnesses = {
   access_witness: ({
     privateState,
@@ -98,12 +104,12 @@ const witnesses = {
 const contract = new Contract(witnesses);
 ```
 
-Once instantiated, build a circuit context with the runtime helpers and call the circuit through `contract.impureCircuits`. Build the context with `RT.createConstructorContext` and `RT.createCircuitContext` rather than by hand — a real `CircuitContext` carries query-context state that the wrappers validate.
+Once instantiated, build a circuit context with the runtime helpers and call the circuit through `contract.impureCircuits`. Use `RT.createConstructorContext` and `RT.createCircuitContext` rather than assembling the context by hand: a real `CircuitContext` carries query-context state that the wrappers validate.
 
 ```typescript
 const COIN = '0'.repeat(64);
 const ADDR = RT.sampleContractAddress();
-const secretCode = new Uint8Array([/* ... 32 bytes of secret data ... */]);
+const secretCode = new Uint8Array(32).fill(7); // any 32-byte secret
 
 // 1. Create the genesis state with the constructor
 const ctor = contract.initialState(
@@ -116,7 +122,7 @@ const ctx = RT.createCircuitContext(
   ADDR, COIN, ctor.currentContractState, createPrivateState(secretCode),
 );
 
-// 3. Call the impure circuit — this invokes access_witness() automatically
+// 3. Call the impure circuit, which invokes access_witness() automatically
 const call = contract.impureCircuits.increment_counter(ctx);
 
 // 4. Read the resulting ledger state with the generated helper
@@ -128,17 +134,17 @@ For a complete walkthrough of importing the generated module, writing witnesses,
 
 ---
 
-## Troubleshooting & Best Practices
+## Troubleshooting and best practices
 
 When working with witnesses, you might encounter a few common pitfalls. 
 
-### 1. "Witness not provided" or "Missing witness" Error
+### 1. "Witness not provided" or "Missing witness" errors
 **Cause**: The `Contract` constructor validates that every witness declared in Compact has a matching key in the witnesses object. If any key is missing, the constructor throws.
 **Solution**: Ensure every key in your witnesses object *exactly* matches the name of the witness defined in your `.compact` file.
 
-### 2. Non-Deterministic Witnesses
-**Cause**: If your witness function returns different values if called multiple times during the same execution context, proof generation will fail. The prover evaluates the circuit multiple times to generate constraints.
-**Solution**: Ensure your witness functions are **pure** and **deterministic**. If you need to generate a random value, generate it *once* before calling the contract method, store it in a variable, and have the witness function return that variable.
+### 2. Non-deterministic witnesses
+**Cause**: If your witness function returns different values when called more than once for the same circuit call, the values recorded during local execution no longer match the values used during proof generation, and proving fails.
+**Solution**: Ensure your witness functions are deterministic for the duration of a call. If you need a random value, generate it *once* before calling the contract method, store it in a variable, and have the witness function return that variable.
 
 ```typescript
 // BAD: Generates a new random value every time it's called
@@ -155,11 +161,13 @@ const witnesses = {
 };
 ```
 
-### 3. State Commitment Mismatches
-**Cause**: You updated public state in the ledger based on private state, but the private state was invalid according to the circuit's `assert` statements.
-**Solution**: Always validate inputs on the client side before invoking the contract to save time. Proof generation is computationally expensive, so failing early in the UI is better than failing during proof generation.
+### 3. Failed asserts during proof generation
+**Cause**: The private data your witness supplied did not satisfy the circuit's `assert` statements, for example a secret whose hash does not match the stored `secret_hash`.
+**Solution**: Validate inputs on the client side before invoking the contract. Proof generation is computationally expensive, so failing early in the UI is better than failing partway through proving.
 
-## Next Steps
+## Next steps
 
 - Learn more about [Compact data types](../compact/data-types).
 - Explore [Using Compact contracts from JavaScript](./compact-javascript-runtime) for the full generated-module API.
+- Harden contracts that consume witness data with [Security and best practices](./security-best-practices).
+- When you are ready for a network, [Deploy and operate a contract](./deploy-and-operate) covers providers, deployment, and maintenance.

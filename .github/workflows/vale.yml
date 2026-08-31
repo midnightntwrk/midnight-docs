@@ -16,48 +16,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # 7.0.0
         with:
           node-version: 22
-
+    
       - run: npm install -g mdx2vast
 
-      - name: Install Vale
-        env:
-          VALE_VERSION: "3.17.1"
-        run: |
-          curl -fsSL -o /tmp/vale.tar.gz \
-            "https://github.com/errata-ai/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
-          mkdir -p "$HOME/.local/bin"
-          tar -xzf /tmp/vale.tar.gz -C "$HOME/.local/bin" vale
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/vale" --version
-
-      - name: Generate Vale report
-        id: vale
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/vale-report.mjs --out vale-report.md
-
-      - name: Publish to job summary
-        run: cat vale-report.full.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Post sticky PR comment
-        if: steps.vale.outputs.has_findings == 'true' && !github.event.pull_request.head.repo.fork
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
+      - name: Run Vale
+        uses: errata-ai/vale-action@85f9f7f2c5f449ac0ae5b66662961bae3f77ca6a # v2.1.2
         with:
-          header: vale-lint
-          path: vale-report.md
-
-      - name: Delete stale comment when clean
-        if: steps.vale.outputs.has_findings == 'false' && !github.event.pull_request.head.repo.fork
-        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
-        with:
-          header: vale-lint
-          delete: true
+          reporter: github-pr-review
+          filter_mode: added
+          files: '["docs", "sdks"]'
+          fail_on_error: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
