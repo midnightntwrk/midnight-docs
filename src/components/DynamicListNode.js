@@ -17,8 +17,45 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.22.5',
+    version: '1.0.1',
     status: 'LATEST',
+    date: '14 July 2026',
+    summary: 'Patch release on the 1.0.0 GA line with a default for unsafe_allow_symlinks and regenerated Preview network configuration.',
+    details: [
+      '`unsafe_allow_symlinks` now has a default value, so nodes without a TOML configuration file boot without the missing-field error from v1.0.0.',
+      'Regenerated the Preview network genesis and chain spec.',
+      'Removed the incorrect `NIGHT` asset name from the Preview reserve configuration.',
+      'Backported the ledger version bump and updated dependencies to fix the release build.',
+      'Ships with `toolkit-1.0.0` and `runtime-1.0.0`; no runtime upgrade is required.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.1' },
+    ],
+    link: '/relnotes/node/node-1-0-1',
+  },
+  {
+    version: '1.0.0',
+    status: 'SUPPORTED',
+    date: '20 May 2026',
+    summary: 'Mainnet GA release: runtime 1.0.0 with TransactionExtension, throttle limits, bridge handler plumbing, rpc.discover, and ledger 8.1.0.',
+    details: [
+      'Runtime upgrade required: `spec_version` 1_000_000 and `transaction_version` 3, with `SignedExtension` replaced by `TransactionExtension`.',
+      'Cardano-to-Midnight bridge handler hooks land in the runtime; the bridge itself is not enabled in this release.',
+      'New `rpc.discover` endpoint serves an OpenRPC v1.4 spec covering 16 custom and 52 Substrate methods.',
+      'Throttle pallet adds a per-account transaction-count limit with an `AccountUsage` storage migration.',
+      'Toolkit is now independently versioned and adds `show-block`, `batch-single-tx`, file-based caches, and structured logging.',
+      'Picks up `midnight-ledger` 8.1.0 and numerous audit-driven hardenings.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.0' },
+    ],
+    link: '/relnotes/node/node-1-0-0',
+  },
+  {
+    version: '0.22.5',
+    status: 'SUPPORTED',
     date: '24 April 2026',
     summary: 'Summary of Release 0.22.5',
     details: [

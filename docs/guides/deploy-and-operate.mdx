@@ -1,0 +1,870 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Deploying and operating a contract
+description: "Wire the Midnight.js providers, deploy a Compact contract to a network, observe its state, and operate the maintenance authority that keeps it updatable."
+sidebar_label: "Deploy and operate a contract"
+sidebar_position: 47
+toc_max_heading_level: 2
+keywords: [midnight, deploy, providers, midnight-js, maintenance authority, updatability, indexer, smart contract]
+tags: [midnight, javascript, deployment, smart-contracts, providers]
+---
+
+# Deploying and operating a contract
+
+A contract that passes its off-chain tests is ready for a network. Getting it there, and keeping it working afterwards, is one workflow with four parts: wire up the providers that Midnight.js uses to reach the network, deploy the contract and hold onto its address, observe its on-chain state, and operate the maintenance authority that lets you update its circuits later.
+
+This guide walks that workflow in order. The examples deploy the [bulletin board contract](https://github.com/midnightntwrk/example-bboard) to the local network from [Networks and environments](./networks-and-environments#running-a-local-network), so every step runs with nothing at risk; the same code moves to Preprod by swapping endpoints and funding a real wallet.
+
+## Prerequisites
+
+These apply to every procedure in this guide:
+
+- A fully compiled contract: `compact compile` without skip flags, so the output contains `keys/` and `zkir/` alongside `contract/`. [Using Compact contracts from JavaScript](./compact-javascript-runtime) covers the compile and the generated module.
+- A running network. The procedures use the local stack from [Running a local network](./networks-and-environments#running-a-local-network); its clone also provides the wallet helpers the verification tests import.
+- A wallet holding NIGHT and registered for DUST generation, since every transaction costs DUST. On the local network the genesis wallet is pre-funded; on Preprod, follow [Funding a wallet](./acquire-tokens).
+- Node.js 22 or later, with the `@midnight-ntwrk/midnight-js-*` packages at the version the [support matrix](../relnotes/support-matrix) pairs with your compiler.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## The transaction pipeline and its providers
+
+Submitting a circuit call is a pipeline, and each stage has a pluggable component. When a DApp calls a deployed contract, Midnight.js executes the contract logic locally, generates a zero-knowledge proof of that execution, balances the transaction with DUST to cover its fee, and submits the result to the network. Reading, rather than writing, follows the same shape: contract state comes from an indexer, and private state never leaves the machine.
+
+The `MidnightProviders` object names one provider per capability, and every deploy or call takes the whole object:
+
+- `privateStateProvider` stores the contract's private state, and the signing keys the SDK generates, on the local device.
+- `publicDataProvider` queries and subscribes to on-chain contract state through the indexer's GraphQL API.
+- `zkConfigProvider` supplies the prover key, verifier key, and ZKIR artifacts from the compile.
+- `proofProvider` sends proof requests to a proof server.
+- `walletProvider` exposes the wallet's receiving keys and balances transactions.
+- `midnightProvider` submits the finalized transaction.
+
+An optional seventh slot, `loggerProvider`, accepts a logger; the six above are required.
+
+The type is generic over your contract, so the compiler catches a circuit name or private state shape that does not match:
+
+```typescript
+import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+
+export type BBoardPrivateState = { readonly secretKey: Uint8Array };
+export type BBoardProviders = MidnightProviders<'post' | 'takeDown', 'bboardPrivateState', BBoardPrivateState>;
+```
+
+Keep these aliases in a shared module, such as a `common-types.ts`, when your API and UI packages use the same contract types.
+
+Which implementation fills each slot depends on where the code runs; the [Provider implementations](#provider-implementations) reference lists the options. The procedures below use the Node.js implementations.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Configuring providers for a contract
+
+Construct the six providers and assemble them into the object every deploy and call takes. The code below targets the local network; for a public network, swap the endpoints from the [environment reference](./networks-and-environments#environment-reference).
+
+### Procedure
+
+1. Install the provider packages, letting the [support matrix](../relnotes/support-matrix) set the versions:
+
+   ```bash
+   npm install @midnight-ntwrk/midnight-js-types @midnight-ntwrk/midnight-js-contracts \
+     @midnight-ntwrk/midnight-js-network-id @midnight-ntwrk/midnight-js-level-private-state-provider \
+     @midnight-ntwrk/midnight-js-indexer-public-data-provider @midnight-ntwrk/midnight-js-node-zk-config-provider \
+     @midnight-ntwrk/midnight-js-http-client-proof-provider @midnight-ntwrk/midnight-js-utils
+   ```
+
+2. Set the network ID before touching any provider, and polyfill `WebSocket` in Node.js so the wallet SDK's indexer connection works; the public data provider ships its own implementation. Midnight.js reads the network ID when it normalizes addresses and builds transactions:
+
+   ```typescript
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import { WebSocket } from 'ws';
+
+   setNetworkId('undeployed'); // local network; 'preprod', 'preview', or 'mainnet' for public networks
+   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+   ```
+
+3. Create the private state provider. It persists private state and signing keys to an encrypted LevelDB store on the local device. Two of its options are enforced at runtime: `accountId` is required, so stored state is scoped to one wallet and cannot leak across accounts, and the encryption password must be at least 16 characters with at least three of the four character classes (uppercase, lowercase, digits, special characters):
+
+   ```typescript
+   import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+
+   const privateStateProvider = levelPrivateStateProvider({
+     privateStateStoreName: 'bboard-private-state',
+     signingKeyStoreName: 'bboard-signing-keys',
+     privateStoragePasswordProvider: () => 'Docs-Verify-2026',
+     accountId: walletAddress, // the wallet's Bech32m address, or another per-account identifier
+   });
+   ```
+
+   :::warning Derive the password, do not hardcode it
+
+   The password encrypts private state and signing keys at rest. In production, derive it from wallet credentials or a key management system rather than shipping a literal in your source.
+
+   :::
+
+   :::note Browser environments
+
+   `levelPrivateStateProvider` works in browser environments. The SDK resolves the crypto
+   backend automatically: it uses Web Crypto where `crypto.subtle` is available and falls back to
+   a pure-JS implementation where it is not. Leaving `cryptoBackend` unset is the safer default,
+   because requesting `'webcrypto'` explicitly turns an unavailable Web Crypto API into a thrown
+   error rather than a fallback. That matters in non-secure contexts, such as a page served over
+   plain `http://` on a non-loopback host, and in React Native.
+
+   The `level` package resolves to `browser-level` (IndexedDB) in browser bundles through its
+   package.json `browser` field, which Vite and webpack honor automatically, so you do not need
+   extra storage configuration. Keep private state access on the client: code that runs outside a
+   browser bundle, such as Next.js server components, API routes, or Edge functions, resolves to
+   the native `classic-level` instead.
+
+   :::
+
+4. Create the public data provider with your indexer's query and subscription endpoints:
+
+   ```typescript
+   import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+
+   const publicDataProvider = indexerPublicDataProvider(
+     'http://127.0.0.1:8088/api/v4/graphql',
+     'ws://127.0.0.1:8088/api/v4/graphql/ws',
+   );
+   ```
+
+5. Create the ZK config provider, pointed at the compile output directory that holds `keys/` and `zkir/`. The type parameter is the union of your circuit names:
+
+   ```typescript
+   import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+
+   const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>('/path/to/managed/bboard');
+   ```
+
+6. Create the proof provider from the proof server URL and the ZK config provider, which supplies the artifacts proving needs:
+
+   ```typescript
+   import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+
+   const proofProvider = httpClientProofProvider('http://127.0.0.1:6300', zkConfigProvider);
+   ```
+
+7. Implement the wallet and submission providers. One class can serve both slots, backed by a synced `WalletFacade`. Import the ledger types from `@midnight-ntwrk/midnight-js-protocol/ledger`, not from the ledger package directly; the protocol package re-exports the exact copies Midnight.js compiles against, and pulling in a second copy of the ledger package fails to type-check:
+
+   ```typescript
+   import {
+     type CoinPublicKey,
+     type EncPublicKey,
+     type FinalizedTransaction,
+     ZswapSecretKeys,
+     DustSecretKey,
+   } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import {
+     type WalletProvider,
+     type MidnightProvider,
+     type UnboundTransaction,
+   } from '@midnight-ntwrk/midnight-js-types';
+   import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+   import { type WalletFacade } from '@midnight-ntwrk/wallet-sdk';
+
+   class BBoardWalletProvider implements WalletProvider, MidnightProvider {
+     constructor(
+       private readonly wallet: WalletFacade,
+       private readonly zswapSecretKeys: ZswapSecretKeys,
+       private readonly dustSecretKey: DustSecretKey,
+     ) {}
+
+     getCoinPublicKey(): CoinPublicKey {
+       return this.zswapSecretKeys.coinPublicKey;
+     }
+
+     getEncryptionPublicKey(): EncPublicKey {
+       return this.zswapSecretKeys.encryptionPublicKey;
+     }
+
+     async balanceTx(tx: UnboundTransaction, ttl: Date = ttlOneHour()): Promise<FinalizedTransaction> {
+       const recipe = await this.wallet.balanceUnboundTransaction(
+         tx,
+         { shieldedSecretKeys: this.zswapSecretKeys, dustSecretKey: this.dustSecretKey },
+         { ttl },
+       );
+       return await this.wallet.finalizeRecipe(recipe);
+     }
+
+     submitTx(tx: FinalizedTransaction): Promise<string> {
+       return this.wallet.submitTransaction(tx);
+     }
+   }
+   ```
+
+   `getCoinPublicKey` and `getEncryptionPublicKey` expose the keys that receive and decrypt shielded outputs, `balanceTx` selects DUST to cover the fee and finalizes the transaction, and `submitTx` sends it to the network. [Funding a wallet](./acquire-tokens) covers building and syncing the `WalletFacade` and deriving the secret keys.
+
+8. Assemble the object, passing the same instance as both `walletProvider` and `midnightProvider`:
+
+   ```typescript
+   const walletProvider = new BBoardWalletProvider(wallet, zswapSecretKeys, dustSecretKey);
+
+   const providers: BBoardProviders = {
+     privateStateProvider,
+     publicDataProvider,
+     zkConfigProvider,
+     proofProvider,
+     walletProvider,
+     midnightProvider: walletProvider,
+   };
+   ```
+
+### Verification
+
+The providers assemble against real compile artifacts and endpoints, and the private state provider enforces its `accountId` requirement. This file, like every test in this guide, runs inside the [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev) clone from the local network setup, importing its wallet helpers. Save it under `docs-tests/` in the clone and run:
+
+```bash
+npx vitest run docs-tests --testTimeout=600000 --hookTimeout=600000
+```
+
+```typescript title="docs-tests/providers.test.ts"
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import { StandaloneConfig } from '../src/config.js';
+import { buildWalletFromHexSeed, closeWallet, type WalletContext } from '../src/wallet.js';
+
+const BBOARD = new URL('../managed-bboard', import.meta.url).pathname;
+const GENESIS_SEED = '0'.repeat(63) + '1';
+
+describe('configuring providers', () => {
+  const config = new StandaloneConfig();
+  let ctx: WalletContext;
+
+  beforeAll(async () => {
+    ctx = await buildWalletFromHexSeed(config, GENESIS_SEED);
+  });
+  afterAll(async () => {
+    await closeWallet(ctx);
+  });
+
+  it('rejects a private-state store configured without an accountId', () => {
+    expect(() =>
+      (levelPrivateStateProvider as any)({
+        privateStateStoreName: 'docs-no-account-state',
+        signingKeyStoreName: 'docs-no-account-keys',
+        privateStoragePasswordProvider: () => 'Docs-Verify-2026',
+      }),
+    ).toThrow('accountId is required');
+  });
+
+  it('assembles all six providers against real artifacts and endpoints', async () => {
+    const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>(BBOARD);
+
+    const walletAndMidnightProvider = {
+      getCoinPublicKey: () => ctx.shieldedSecretKeys.coinPublicKey,
+      getEncryptionPublicKey: () => ctx.shieldedSecretKeys.encryptionPublicKey,
+      balanceTx: async (tx: any, ttl: Date = ttlOneHour()) => {
+        const recipe = await ctx.wallet.balanceUnboundTransaction(
+          tx,
+          { shieldedSecretKeys: ctx.shieldedSecretKeys, dustSecretKey: ctx.dustSecretKey },
+          { ttl },
+        );
+        return await ctx.wallet.finalizeRecipe(recipe);
+      },
+      submitTx: (tx: any) => ctx.wallet.submitTransaction(tx),
+    };
+
+    const providers = {
+      privateStateProvider: levelPrivateStateProvider({
+        privateStateStoreName: 'docs-bboard-private-state',
+        signingKeyStoreName: 'docs-bboard-signing-keys',
+        privateStoragePasswordProvider: () => 'Docs-Verify-2026',
+        accountId: ctx.unshieldedKeystore.getBech32Address().asString(),
+      }),
+      publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
+      zkConfigProvider,
+      proofProvider: httpClientProofProvider(config.proofServer, zkConfigProvider),
+      walletProvider: walletAndMidnightProvider,
+      midnightProvider: walletAndMidnightProvider,
+    };
+
+    expect(Object.keys(providers).sort()).toEqual([
+      'midnightProvider',
+      'privateStateProvider',
+      'proofProvider',
+      'publicDataProvider',
+      'walletProvider',
+      'zkConfigProvider',
+    ]);
+
+    const verifierKey = await zkConfigProvider.getVerifierKey('post');
+    expect(verifierKey.length).toBeGreaterThan(0);
+  });
+});
+```
+
+```text
+ ✓ docs-tests/providers.test.ts > configuring providers > rejects a private-state store configured without an accountId 1ms
+ ✓ docs-tests/providers.test.ts > configuring providers > assembles all six providers against real artifacts and endpoints 5ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Deploying a contract
+
+Deploy by pairing the generated contract module with its compile artifacts, then calling `deployContract`. The contract address that comes back is how everything else reaches the contract, so capture it.
+
+### Prerequisites
+
+- The providers object from [Configuring providers for a contract](#configuring-providers-for-a-contract).
+
+### Procedure
+
+1. Build a `CompiledContract` from the generated module. `make` names the contract and takes the generated `Contract` class, `withWitnesses` attaches your witness implementations, and `withCompiledFileAssets` points at the compile output directory:
+
+   ```typescript
+   import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+   import { Contract } from './managed/bboard/contract/index.js';
+
+   const witnesses = {
+     localSecretKey: ({ privateState }) => [privateState, privateState.secretKey],
+   };
+
+   const compiled = CompiledContract.withCompiledFileAssets(
+     CompiledContract.withWitnesses(CompiledContract.make('bboard', Contract), witnesses),
+     '/path/to/managed/bboard',
+   );
+   ```
+
+2. Deploy, supplying the private state identifier and the initial private state. The call executes the contract's constructor, proves it, balances the fee, submits, and resolves once the transaction is finalized:
+
+   ```typescript
+   import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+   const deployed = await deployContract(providers, {
+     compiledContract: compiled,
+     privateStateId: 'bboardPrivateState',
+     initialPrivateState: { secretKey },
+   });
+
+   const contractAddress = deployed.deployTxData.public.contractAddress;
+   ```
+
+   When you do not pass a `signingKey`, `deployContract` samples a fresh one, sets it as the contract's maintenance authority, and stores it in your private state provider under the contract's address. [Operating a maintenance authority](#operating-a-maintenance-authority) covers supplying your own, and [`DeployContractOptions`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployContractOptions) lists every option.
+
+3. Store `contractAddress` wherever your application needs it. Anyone reconnecting to the contract, from a CLI, a server, or a frontend, does so by address:
+
+   ```typescript
+   import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+   const found = await findDeployedContract(providers, {
+     contractAddress,
+     compiledContract: compiled,
+     privateStateId: 'bboardPrivateState',
+     initialPrivateState: { secretKey },
+   });
+   ```
+
+4. Call circuits through `callTx`. Each call builds, proves, balances, and submits a transaction, resolving with its identifiers:
+
+   ```typescript
+   const call = await found.callTx.post('Hello from the network!');
+   // call.public.txId, call.public.blockHeight
+   ```
+
+### Verification
+
+A real deploy to the local network returns an address, the reconnected contract accepts a circuit call, and the indexer serves the resulting state:
+
+```typescript title="docs-tests/deploy.test.ts"
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { deployContract, findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import { Contract, State, ledger } from '../managed-bboard/contract/index.js';
+import { StandaloneConfig } from '../src/config.js';
+import { buildWalletFromHexSeed, registerNightForDust, closeWallet, type WalletContext } from '../src/wallet.js';
+
+const BBOARD = new URL('../managed-bboard', import.meta.url).pathname;
+const GENESIS_SEED = '0'.repeat(63) + '1';
+const secretKey = new Uint8Array(32);
+
+const witnesses = {
+  localSecretKey: ({ privateState }: any) => [privateState, privateState.secretKey],
+};
+
+describe('deploying a contract', () => {
+  const config = new StandaloneConfig();
+  let ctx: WalletContext;
+  let providers: any;
+  let compiled: any;
+  let contractAddress: string;
+
+  beforeAll(async () => {
+    ctx = await buildWalletFromHexSeed(config, GENESIS_SEED);
+    await registerNightForDust(ctx);
+
+    const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>(BBOARD);
+    const walletAndMidnightProvider = {
+      getCoinPublicKey: () => ctx.shieldedSecretKeys.coinPublicKey,
+      getEncryptionPublicKey: () => ctx.shieldedSecretKeys.encryptionPublicKey,
+      balanceTx: async (tx: any, ttl: Date = ttlOneHour()) => {
+        const recipe = await ctx.wallet.balanceUnboundTransaction(
+          tx,
+          { shieldedSecretKeys: ctx.shieldedSecretKeys, dustSecretKey: ctx.dustSecretKey },
+          { ttl },
+        );
+        return await ctx.wallet.finalizeRecipe(recipe);
+      },
+      submitTx: (tx: any) => ctx.wallet.submitTransaction(tx),
+    };
+    providers = {
+      privateStateProvider: levelPrivateStateProvider({
+        privateStateStoreName: 'docs-bboard-private-state',
+        signingKeyStoreName: 'docs-bboard-signing-keys',
+        privateStoragePasswordProvider: () => 'Docs-Verify-2026',
+        accountId: ctx.unshieldedKeystore.getBech32Address().asString(),
+      }),
+      publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
+      zkConfigProvider,
+      proofProvider: httpClientProofProvider(config.proofServer, zkConfigProvider),
+      walletProvider: walletAndMidnightProvider,
+      midnightProvider: walletAndMidnightProvider,
+    };
+
+    compiled = CompiledContract.withCompiledFileAssets(
+      CompiledContract.withWitnesses(CompiledContract.make('bboard', Contract), witnesses),
+      BBOARD,
+    );
+  });
+  afterAll(async () => {
+    await closeWallet(ctx);
+  });
+
+  it('deploys and returns the contract address', async () => {
+    const deployed = await deployContract(providers, {
+      compiledContract: compiled,
+      privateStateId: 'bboardPrivateState',
+      initialPrivateState: { secretKey },
+    });
+    contractAddress = deployed.deployTxData.public.contractAddress;
+    expect(contractAddress).toMatch(/^[0-9a-f]{64,}$/);
+  });
+
+  it('reconnects with findDeployedContract and calls a circuit', async () => {
+    const found = await findDeployedContract(providers, {
+      contractAddress,
+      compiledContract: compiled,
+      privateStateId: 'bboardPrivateState',
+      initialPrivateState: { secretKey },
+    });
+    const call = await found.callTx.post('Deployed from the guide verification');
+    expect(call.public.txId).toBeDefined();
+    expect(call.public.blockHeight).toBeGreaterThan(0);
+  });
+
+  it('reads the deployed state through the indexer', async () => {
+    const state = await providers.publicDataProvider.queryContractState(contractAddress);
+    const board = ledger(state.data);
+    expect(board.state).toBe(State.OCCUPIED);
+    expect(board.message.value).toBe('Deployed from the guide verification');
+  });
+});
+```
+
+```text
+ ✓ docs-tests/deploy.test.ts > deploying a contract > deploys and returns the contract address 20427ms
+ ✓ docs-tests/deploy.test.ts > deploying a contract > reconnects with findDeployedContract and calls a circuit 18675ms
+ ✓ docs-tests/deploy.test.ts > deploying a contract > reads the deployed state through the indexer 8ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Promoting a deployment to Preprod
+
+Promote the deploy you ran in [Deploying a contract](#deploying-a-contract) to Preprod, the public testnet where your contract is visible to other developers and explorers. The code does not change; only the configuration does. If you started from the [hello world tutorial](../getting-started/hello-world) instead, its repository packages this whole flow as `yarn test:preprod`, with the same steps behind the script.
+
+### Prerequisites
+
+- A deploy working against the local network, from [Deploying a contract](#deploying-a-contract).
+
+### Procedure
+
+1. Fund a Preprod wallet: request tNIGHT from the faucet, then register it for DUST generation, following [Funding a wallet](./acquire-tokens). Without DUST, submission fails with `Wallet.InsufficientFunds`.
+
+2. Keep the wallet secret out of your source. Load the seed or mnemonic from an environment file that your version control ignores:
+
+   ```bash
+   # .env.preprod  (listed in .gitignore; never commit or share it)
+   MIDNIGHT_PREPROD_SEED=...   # 64 hex characters, or a 24-word mnemonic variable
+   ```
+
+3. Point the configuration at Preprod: `setNetworkId('preprod')`, the Preprod indexer and node endpoints from the [environment reference](./networks-and-environments#environment-reference), and a proof server you run yourself, following [Run a proof server](./run-proof-server). The proof server sees witness data in the clear, so it stays local even when the network is public.
+
+4. Run the same deploy code from [Deploying a contract](#deploying-a-contract) against the new configuration. The first sync of a fresh Preprod wallet walks the chain's history and takes substantially longer than the local network's.
+
+### Verification
+
+Look up the printed contract address on a Preprod explorer, such as [midnightexplorer.com](https://preprod.midnightexplorer.com/) or [subscan.io](https://midnight-preprod.subscan.io/). The explorer shows the deploy transaction and each subsequent call transaction at that address.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Observing contract and chain state
+
+Watch what your deployed contract does from the outside: read its public state through the indexer, and follow blocks and events at the node when you need the chain-level view.
+
+### Procedure
+
+1. Read contract state through the public data provider and decode it with the generated `ledger()` function. Pass the state's `data` field; the surrounding `ContractState` itself is not accepted:
+
+   ```typescript
+   const state = await providers.publicDataProvider.queryContractState(contractAddress);
+   const board = ledger(state.data);
+   // board.state, board.message.value, board.sequence: typed getters, no manual decoding
+   ```
+
+2. For the chain-level view, connect to the node's RPC endpoint with [`@polkadot/api`](https://polkadot.js.org/docs/api/), which speaks to any Substrate-based chain, including Midnight:
+
+   ```typescript
+   import { ApiPromise, WsProvider } from '@polkadot/api';
+
+   const api = await ApiPromise.create({
+     provider: new WsProvider('ws://127.0.0.1:9944'),
+   });
+   ```
+
+3. Subscribe to new blocks. The callback fires once per block with its header:
+
+   ```typescript
+   api.rpc.chain.subscribeNewHeads((lastHeader) => {
+     console.log(`\nBlock #${lastHeader.number} has been added`);
+   });
+   ```
+
+4. Extract transactions and events from a block. On Substrate chains a transaction is an extrinsic: data arriving from outside the chain asking it to act, whether signed by a user, unsigned, or inherent system data such as the block timestamp:
+
+   ```typescript
+   const blockHash = await api.rpc.chain.getBlockHash(blockNumber);
+   const signedBlock = await api.rpc.chain.getBlock(blockHash);
+
+   signedBlock.block.extrinsics.forEach((extrinsic, index) => {
+     console.log(`\nExtrinsic ${index}: ${extrinsic.method.section}.${extrinsic.method.method}`);
+   });
+
+   const apiAt = await api.at(blockHash);
+   const events = await apiAt.query.system.events();
+   events.forEach(({ event, phase }) => {
+     console.log(`\nEvent: ${event.section}.${event.method}, phase: ${phase.toString()}`);
+     console.log(`Data: ${event.data.toString()}`);
+   });
+   ```
+
+### Verification
+
+A live node delivers block headers to the subscription, and a block gives up its extrinsics and events:
+
+```typescript title="docs-tests/observe-chain.test.ts"
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { ApiPromise, WsProvider } from '@polkadot/api';
+
+describe('observing the chain', () => {
+  let api: ApiPromise;
+
+  beforeAll(async () => {
+    api = await ApiPromise.create({
+      provider: new WsProvider('ws://127.0.0.1:9944'),
+      noInitWarn: true,
+    });
+  });
+  afterAll(async () => {
+    await api.disconnect();
+  });
+
+  it('delivers new block headers to a subscription', async () => {
+    const header = await new Promise<any>((resolve) => {
+      const unsubscribe = api.rpc.chain.subscribeNewHeads((lastHeader) => {
+        unsubscribe.then((stop) => stop());
+        resolve(lastHeader);
+      });
+    });
+    expect(header.number.toNumber()).toBeGreaterThan(0);
+  });
+
+  it('extracts extrinsics and events from a block', async () => {
+    const header = await api.rpc.chain.getHeader();
+    const blockHash = await api.rpc.chain.getBlockHash(header.number.toNumber());
+    const signedBlock = await api.rpc.chain.getBlock(blockHash);
+    expect(signedBlock.block.extrinsics.length).toBeGreaterThan(0);
+
+    const apiAt = await api.at(blockHash);
+    const events = await apiAt.query.system.events();
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0].event.section).toBeDefined();
+  });
+});
+```
+
+```text
+ ✓ docs-tests/observe-chain.test.ts > observing the chain > delivers new block headers to a subscription 50ms
+ ✓ docs-tests/observe-chain.test.ts > observing the chain > extracts extrinsics and events from a block 58ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+```
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Contract updatability and the maintenance authority
+
+A deployed contract's circuits are bound to the proof system that compiled them. As Midnight's proving stack evolves, proving schemes, the circuit intermediate representation, or verifier key formats can change, and a circuit deployed under the old rules can reach a point where its proofs can no longer be generated or verified. Updatability is how a contract survives that, and it is a decision you make at deployment, not after.
+
+The mechanism is verifier key management. Each circuit is represented on-chain by a verifier key per proof system version, and a contract's designated authority can change them after deployment. That authority is the contract maintenance authority, a committee of public keys with a signature threshold, and it can do exactly three things:
+
+- **Insert a verifier key** for a circuit at a proof system version, restoring or adding functionality. A key must not already exist at that version; remove the old one first.
+- **Remove a verifier key**, after which the network rejects transactions using that circuit at that version.
+- **Replace the authority itself**, transferring control to a new committee, or relinquishing control entirely by setting an empty one.
+
+At the ledger level, a contract deployed with no authority configured is permanently non-upgradable: the default is an empty committee with a threshold of one, a condition no signature set can satisfy. Deploying through Midnight.js changes that picture: `deployContract` installs a single-signature authority for you, sampling a fresh signing key and storing it in your private state provider unless you supply your own. Whichever path you take, decide deliberately. A contract holding long-term state that cannot practically migrate, such as vesting schedules or an identity registry, needs a maintained authority; a contract meant to be immutable needs the authority relinquished so no key can ever change it.
+
+Whoever holds the authority's keys can rewrite what the contract accepts, so custody is a security decision: distribute control across independent parties and follow the [key custody guidance](./security-best-practices#rotating-an-owner-key) in the security guide. Track proof system changes through the [support matrix](../relnotes/support-matrix) and plan circuit updates before an incompatibility arrives; where you relinquished updatability, plan contract migration instead.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Operating a maintenance authority
+
+Exercise the three maintenance operations against a deployed contract: disable a circuit by removing its verifier key, re-enable it by inserting one, and hand control to a new authority.
+
+### Prerequisites
+
+- A deployed contract and its providers, from [Deploying a contract](#deploying-a-contract).
+- The maintenance authority's signing key, held by your private state provider or supplied at deploy time.
+
+### Procedure
+
+1. To control the authority explicitly, generate a signing key and pass it at deploy time. Reusing one key across deployments gives several contracts the same authority:
+
+   ```typescript
+   import { sampleSigningKey } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+
+   const signingKey = sampleSigningKey();
+   const deployed = await deployContract(providers, {
+     compiledContract: compiled,
+     privateStateId: 'bboardPrivateState',
+     initialPrivateState: { secretKey },
+     signingKey,
+   });
+   ```
+
+2. Remove a circuit's verifier key through the per-circuit maintenance interface. Both [`DeployedContract`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/DeployedContract) and [`FoundContract`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/FoundContract) expose `circuitMaintenanceTx`, with one [`CircuitMaintenanceTxInterface`](/api-reference/midnight-js/@midnight-ntwrk/midnight-js-contracts/type-aliases/CircuitMaintenanceTxInterface) per circuit. Once the transaction lands, the network rejects calls to that circuit:
+
+   ```typescript
+   await deployed.circuitMaintenanceTx.takeDown.removeVerifierKey();
+   ```
+
+3. Insert a verifier key to re-enable the circuit. The ZK config provider reads it from the compile output; after a compiler upgrade, this is how the freshly compiled key replaces the stranded one:
+
+   ```typescript
+   const verifierKey = await zkConfigProvider.getVerifierKey('takeDown');
+   await deployed.circuitMaintenanceTx.takeDown.insertVerifierKey(verifierKey);
+   ```
+
+4. Replace the authority when control should move, passing the new committee's signing key:
+
+   ```typescript
+   await deployed.contractMaintenanceTx.replaceAuthority(sampleSigningKey());
+   ```
+
+### Verification
+
+Removing the verifier key makes the network reject the circuit, inserting it restores the circuit, and the authority transfer succeeds, all against a real deployment:
+
+```typescript title="docs-tests/maintenance.test.ts"
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+import { sampleSigningKey } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+import { Contract } from '../managed-bboard/contract/index.js';
+import { StandaloneConfig } from '../src/config.js';
+import { buildWalletFromHexSeed, registerNightForDust, closeWallet, type WalletContext } from '../src/wallet.js';
+
+const BBOARD = new URL('../managed-bboard', import.meta.url).pathname;
+const GENESIS_SEED = '0'.repeat(63) + '1';
+const secretKey = new Uint8Array(32);
+
+const witnesses = {
+  localSecretKey: ({ privateState }: any) => [privateState, privateState.secretKey],
+};
+
+describe('operating a maintenance authority', () => {
+  const config = new StandaloneConfig();
+  let ctx: WalletContext;
+  let deployed: any;
+
+  beforeAll(async () => {
+    ctx = await buildWalletFromHexSeed(config, GENESIS_SEED);
+    await registerNightForDust(ctx);
+
+    const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>(BBOARD);
+    const walletAndMidnightProvider = {
+      getCoinPublicKey: () => ctx.shieldedSecretKeys.coinPublicKey,
+      getEncryptionPublicKey: () => ctx.shieldedSecretKeys.encryptionPublicKey,
+      balanceTx: async (tx: any, ttl: Date = ttlOneHour()) => {
+        const recipe = await ctx.wallet.balanceUnboundTransaction(
+          tx,
+          { shieldedSecretKeys: ctx.shieldedSecretKeys, dustSecretKey: ctx.dustSecretKey },
+          { ttl },
+        );
+        return await ctx.wallet.finalizeRecipe(recipe);
+      },
+      submitTx: (tx: any) => ctx.wallet.submitTransaction(tx),
+    };
+    const providers = {
+      privateStateProvider: levelPrivateStateProvider({
+        privateStateStoreName: 'docs-bboard-private-state',
+        signingKeyStoreName: 'docs-bboard-signing-keys',
+        privateStoragePasswordProvider: () => 'Docs-Verify-2026',
+        accountId: ctx.unshieldedKeystore.getBech32Address().asString(),
+      }),
+      publicDataProvider: indexerPublicDataProvider(config.indexer, config.indexerWS),
+      zkConfigProvider,
+      proofProvider: httpClientProofProvider(config.proofServer, zkConfigProvider),
+      walletProvider: walletAndMidnightProvider,
+      midnightProvider: walletAndMidnightProvider,
+    };
+
+    const compiled = CompiledContract.withCompiledFileAssets(
+      CompiledContract.withWitnesses(CompiledContract.make('bboard', Contract), witnesses),
+      BBOARD,
+    );
+
+    deployed = await deployContract(providers, {
+      compiledContract: compiled,
+      privateStateId: 'bboardPrivateState',
+      initialPrivateState: { secretKey },
+      signingKey: sampleSigningKey(),
+    });
+    await deployed.callTx.post('Maintenance drill');
+  });
+  afterAll(async () => {
+    await closeWallet(ctx);
+  });
+
+  it('removing a verifier key disables the circuit on-chain', async () => {
+    await deployed.circuitMaintenanceTx.takeDown.removeVerifierKey();
+    await expect(deployed.callTx.takeDown()).rejects.toThrow(
+      "Operation 'takeDown' is undefined",
+    );
+  });
+
+  it('inserting the verifier key re-enables the circuit', async () => {
+    const zkConfigProvider = new NodeZkConfigProvider<'post' | 'takeDown'>(BBOARD);
+    const verifierKey = await zkConfigProvider.getVerifierKey('takeDown');
+    await deployed.circuitMaintenanceTx.takeDown.insertVerifierKey(verifierKey);
+    const call = await deployed.callTx.takeDown();
+    expect(call.public.txId).toBeDefined();
+  });
+
+  it('replaces the contract maintenance authority', async () => {
+    await expect(
+      deployed.contractMaintenanceTx.replaceAuthority(sampleSigningKey()),
+    ).resolves.not.toThrow();
+  });
+});
+```
+
+```text
+ ✓ docs-tests/maintenance.test.ts > operating a maintenance authority > removing a verifier key disables the circuit on-chain 17403ms
+ ✓ docs-tests/maintenance.test.ts > operating a maintenance authority > inserting the verifier key re-enables the circuit 36159ms
+ ✓ docs-tests/maintenance.test.ts > operating a maintenance authority > replaces the contract maintenance authority 18699ms
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Provider implementations
+
+Which implementation fills each provider slot, by environment. Packages live under the `@midnight-ntwrk/` scope at the versions the [support matrix](../relnotes/support-matrix) lists.
+
+| Slot | Implementation | Package | Notes |
+|---|---|---|---|
+| `privateStateProvider` | `levelPrivateStateProvider` | `midnight-js-level-private-state-provider` | Encrypted LevelDB on the local device. Requires `accountId`; password needs 16 or more characters and three of four character classes |
+| `publicDataProvider` | `indexerPublicDataProvider` | `midnight-js-indexer-public-data-provider` | Takes the indexer HTTP and WebSocket URLs. Queries run in Node.js and browsers; for browser subscriptions, pass the native `WebSocket` as its third argument |
+| `zkConfigProvider` | `NodeZkConfigProvider` | `midnight-js-node-zk-config-provider` | Reads `keys/` and `zkir/` from the local filesystem |
+| `zkConfigProvider` | `FetchZkConfigProvider` | `midnight-js-fetch-zk-config-provider` | Fetches the same artifacts over HTTP, for browsers and hosted setups |
+| `proofProvider` | `httpClientProofProvider` | `midnight-js-http-client-proof-provider` | Takes the proof server URL and the `zkConfigProvider` |
+| `walletProvider`, `midnightProvider` | your class over `WalletFacade` | `wallet-sdk` | One instance can fill both slots, as in [Configuring providers for a contract](#configuring-providers-for-a-contract) |
+
+### Verifying passwords early with a canary value
+
+Without an explicit check, a wrong password is not caught until the app attempts to decrypt
+real private state data, which may happen deep inside a transaction flow. The failure also
+looks different depending on the active backend: Web Crypto rejects with a `DOMException`
+named `OperationError`, while the pure-JS backend throws a plain `Error`.
+
+A canary value written at account creation lets you catch a wrong password at unlock time
+with a clear message. Split provisioning from verification: a missing canary and a wrong
+password are indistinguishable at read time, so bootstrapping the canary from a `null` read
+would certify the failure it exists to catch.
+
+```typescript
+import type { PrivateStateProvider } from '@midnight-ntwrk/midnight-js-types';
+
+const CANARY_KEY = '__canary__';
+const CANARY_VALUE = 'midnight-verified';
+
+// Call once, when the account's store is created, using a password you know is correct.
+// Never call this to repair a missing canary: at that point a missing canary and a wrong
+// password look identical, and you would be storing the wrong password as the reference.
+async function provisionCanary(provider: PrivateStateProvider): Promise<void> {
+  await provider.set(CANARY_KEY, CANARY_VALUE);
+}
+
+// Call on every later unlock.
+async function verifyPassword(provider: PrivateStateProvider): Promise<void> {
+  let stored: unknown;
+  try {
+    stored = await provider.get(CANARY_KEY);
+  } catch (cause) {
+    // Decryption failed, so the AES-GCM authentication tag did not verify.
+    // Other faults reach here too, such as an unavailable crypto backend,
+    // so keep the original error attached.
+    throw new Error('Incorrect password: private state could not be decrypted', { cause });
+  }
+  if (stored === null) {
+    throw new Error('No canary stored for this account. Provision one when the store is created.');
+  }
+  if (stored !== CANARY_VALUE) {
+    throw new Error('Canary mismatch: private state may be corrupt.');
+  }
+}
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Deployment troubleshooting
+
+Failures you are likely to hit on this guide's path, and their fixes. Every quoted message comes from a real run.
+
+| Error | Cause | Fix |
+|---|---|---|
+| `accountId is required. Provide an account identifier` | `levelPrivateStateProvider` called without `accountId` | Pass a per-account identifier, such as the wallet's Bech32m address |
+| `PasswordValidationError: Password must contain at least 3 of: uppercase letters, lowercase letters, digits, special characters` | The private-state encryption password is too weak | Provide a password with at least three of the four character classes |
+| `Password is shorter than 16 characters` | The private-state encryption password fails the length rule | Use 16 characters or more |
+| `Wallet.InsufficientFunds` | The wallet has NIGHT but no spendable DUST | Register NIGHT for DUST generation and wait for a spendable coin; see [Funding a wallet](./acquire-tokens) |
+| tsc: `Types have separate declarations of a private property 'type_'` | Ledger types imported from the ledger package directly, clashing with the copies Midnight.js compiles against | Import `ZswapSecretKeys`, `DustSecretKey`, and transaction types from `@midnight-ntwrk/midnight-js-protocol/ledger` |
+| `expected instance of ContractMaintenanceAuthority` (or another `expected instance of` error at deploy) | The generated contract module and Midnight.js resolve different copies of the runtime, so class checks fail across the trees | Keep the contract's `managed` output and Midnight.js in the same package tree with one `node_modules` |
+| `Operation 'takeDown' is undefined for contract state` | The circuit's verifier key was removed, or none exists at the current proof system version | Insert a verifier key for the circuit; see [Operating a maintenance authority](#operating-a-maintenance-authority) |
+| `expected instance of ChargedState` | `ledger()` was passed the whole `ContractState` from the indexer | Pass its `data` field: `ledger(state.data)` |
+| Indexer exits on first start of a fresh local chain | Startup race documented with the local stack | See [Local network troubleshooting](./networks-and-environments#local-network-troubleshooting) |
+
+## Additional resources
+
+- [Using Compact contracts from JavaScript](./compact-javascript-runtime): the generated module, witnesses, and the off-chain test suite that proves contract logic before you spend DUST on it.
+- [Funding a wallet](./acquire-tokens): faucet tNIGHT and DUST registration, in Lace and with the wallet SDK.
+- [Networks and environments](./networks-and-environments): the local stack, every endpoint, and the mainnet readiness checklist.
+- [Security and best practices](./security-best-practices): the pre-deployment checklist, including upgrade-key custody.
+- [Midnight.js API reference](/api-reference/midnight-js): `deployContract`, `findDeployedContract`, and the provider interfaces in full.
+- [Support matrix](../relnotes/support-matrix): which compiler, runtime, and SDK versions pair.
