@@ -17,8 +17,17 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '8.1.1',
+    version: '8.1.2',
     status: 'LATEST',
+    date: '04 September 2026',
+    summary: 'Summary of Release 8.1.2',
+    details: [],
+    artifacts: [],
+    link: '/relnotes/ledger/ledger-8-1-2',
+  },
+  {
+    version: '8.1.1',
+    status: 'SUPPORTED',
     date: '31 July 2026',
     summary: 'Patch release with array-handling test coverage and an npm scope change to `@midnightntwrk`',
     details: [
