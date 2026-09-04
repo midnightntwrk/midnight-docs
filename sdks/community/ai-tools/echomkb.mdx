@@ -1,0 +1,110 @@
+---
+slug: echomkb
+title: EchoMKB
+description: Community agent skill reporting per-network supported versus released versions, citing docs URLs with compiler stamps, and searching upstream issue trackers.
+tags: [agent-skills, ai, developer-tools, support-matrix]
+sidebar_position: 30
+---
+
+# EchoMKB
+
+The AI tools for Midnight divide the work. The [Kapa MCP server](/ai-integration/kapa-mcp-server) answers what the docs say. [Midnight Expert](/ai-integration/midnight-expert) writes Compact and checks it against the real compiler. Community skills such as [Midnight agent skills](/sdks/community/ai-tools/midnight-agent-skills) give an assistant the syntax and the gotchas. EchoMKB is the fourth step: report what the network did.
+
+EchoMKB covers the step that comes after those tools have done their job: the answer is correct, the contract compiles, and the network still rejects the transaction. That step is about versions, evidence, and the loop back upstream. Which toolchain does Preprod support today, as opposed to what npm published this week? Which docs page, stamped with which compiler version, is the claim coming from? Has anyone already hit this exact failure, and if not, what does a report the maintainers can act on look like?
+
+## Where it fits
+
+Each row names the tool to reach for. EchoMKB is the last three.
+
+| Question | Tool |
+|---|---|
+| "What do the docs say about DUST generation?" | Kapa MCP server |
+| "Write a sealed-bid voting contract and compile it." | Midnight Expert |
+| "What is the `disclose()` rule, and why does `.value()` fail?" | Midnight agent skills |
+| "Which version do I pin for Preprod? Is the newest release supported anywhere yet?" | EchoMKB `versions` |
+| "Give me the URL and the page stamp for this claim." | EchoMKB `search` and `page` |
+| "The docs say this circuit call should work. The network rejects it." | EchoMKB `issues`, then its reporting method |
+
+When your session has the Kapa MCP server installed, the skill's protocol tells the assistant to ask Kapa for documentation questions first. Its own search runs only when Kapa is absent or not responding, and the assistant says so in the answer rather than falling back silently.
+
+## Install
+
+The skill installs through the skills CLI and works with every agent the CLI supports, including Claude Code, Cursor, Codex, Copilot, and Gemini CLI. It needs Node.js 18 or later and has no dependencies.
+
+```bash
+npx skills add EchoForge-Dev/EchoMKB
+```
+
+To pull a newer version later, run `npx skills update echomkb`.
+
+Nothing is bundled. Every answer is fetched when you ask, from `docs.midnight.network` and, for version and issue questions, from the npm registry and the GitHub API. Fetched pages are cached for minutes in the OS temp directory and never ship with the skill.
+
+## Supported versus released
+
+Compatibility on Midnight is per network. Preview, Preprod, and Mainnet each list their own supported versions in the [compatibility matrix](/relnotes/support-matrix), and the newest release is often supported on none of them yet. That gap is the normal state: a release reaches npm and GitHub first and enters the matrix after testing. The version you must not pin yet is usually the newest one.
+
+The `versions` command reads the matrix per network and places it next to the release notes, npm, and GitHub, so the assistant reports both columns instead of picking the highest number it can find.
+
+```bash
+node skills/echomkb/scripts/echomkb.mjs versions
+```
+
+The output is one table with a column per network for what is supported, columns for what is released, and a status column. A status of "released, not yet supported on any network" is information, not a warning. The command also reads the "Compact language X, compiler Y" stamp from a Compact reference page and compares it to the toolchain each network supports. When the docs are written for a newer compiler than any network runs, the assistant is told to say so before it quotes syntax.
+
+:::info[What the command reads]
+`versions` reads the compatibility matrix and the release notes as published. It does not query the networks themselves, so it reports what the matrix says a network supports, not what a node is running at this moment.
+:::
+
+## Every claim with its source
+
+The `search` command ranks the live docs index and opens the top pages. Each excerpt carries its URL and, where the page has one, its compiler stamp. The `page` command returns one docs page as markdown with the same stamp. The skill's rules require the assistant to cite the URL for every Midnight-specific claim and to read a whole page before quoting a signature.
+
+```bash
+node skills/echomkb/scripts/echomkb.mjs search "disclose witness ledger write"
+node skills/echomkb/scripts/echomkb.mjs page /compact/data-types/ledger-adt
+```
+
+This is the fallback path for documentation questions. With the Kapa MCP server present, the assistant uses Kapa for those and keeps these commands for the moments when it needs the exact URL and stamp behind an answer.
+
+## When the docs and the network disagree
+
+This is the step the other tools stop before, and the one EchoMKB is built around. The `issues` command searches the upstream trackers live, across the `midnightntwrk` organization, `input-output-hk/lace`, and the Compact compiler repository, newest first.
+
+```bash
+node skills/echomkb/scripts/echomkb.mjs issues "read-only circuit zero fee"
+```
+
+The skill's protocol runs it before the assistant starts debugging from scratch and before it files anything, because the failure may already be known, and a comment with your environment and observation on an existing issue is worth more than a duplicate. When nothing matches, the protocol walks the assistant through a report the maintainers can act on: pin the environment (network, node and indexer versions, wallet SDK and dust-wallet versions, whether the failing circuit reads or writes state), reproduce on a second network, search again with the exact error text, then write up the reproduction, the evidence, what was ruled out, and what the SDK or docs should do.
+
+The assistant may draft the issue or the comment, but files it only after you have read the final text and said so, because it carries your name. The method came out of two reports filed during the MLH Midnight Hackathon ([midnight-wallet#700](https://github.com/midnightntwrk/midnight-wallet/issues/700) and [lace#2257](https://github.com/input-output-hk/lace/issues/2257)); each report that reaches a tracker improves the source material Kapa and Midnight Expert draw from. That is the loop: find the answer with Kapa, build with Midnight Expert, report what the network did with EchoMKB.
+
+## Doctor
+
+Inside an MCP client, an endpoint that is down and an OAuth session that has expired look identical: the tool returns nothing. The `doctor` command sends one anonymous handshake to the Kapa MCP endpoint and tells you which of the two it is, alongside a connectivity check for the docs site and the skill's own cache.
+
+```bash
+node skills/echomkb/scripts/echomkb.mjs doctor
+```
+
+## Privacy and network access
+
+The `search`, `page`, and `index` commands contact `docs.midnight.network` only. The `versions` command also runs `npm view` against the npm registry and calls `api.github.com`. The `issues` command calls `api.github.com` only, without credentials. The `doctor` command sends one anonymous MCP handshake to `midnight.mcp.kapa.ai` with no credentials and no content. Nothing from your repository leaves your machine.
+
+## Rather no answer than a wrong one
+
+Everything this skill says is fetched at the time of the question. Nothing ships inside it: no snapshot of the docs, no stored matrix, no ledger of past observations. A copy of Midnight knowledge taken last month gives answers that were true last month, and the assistant cannot tell which ones stopped being true.
+
+So when a source is unreachable, the tool either serves a page from its own short-lived cache, labelled with its age, and the assistant says so in the answer, or it says that it has no answer. The skill's rules forbid falling back to training data or to recall. A missing answer costs a minute; a wrong version pin or a wrong disclosure rule costs a deploy.
+
+## Compatibility and status
+
+- **Compact and runtime versions:** the skill ships no compiled artifacts and pins no Midnight versions of its own. It reads the compatibility matrix at run time, so it tracks whatever the matrix lists for each network.
+- **Runtime requirement:** Node.js 18 or later.
+- **Audit status:** not audited.
+- **License:** Apache-2.0.
+- **Issues:** file them on the [EchoMKB repository](https://github.com/EchoForge-Dev/EchoMKB/issues). The maintainers of EchoMKB, not the Midnight Foundation, maintain this skill.
+
+## Source
+
+- Repository: https://github.com/EchoForge-Dev/EchoMKB
+- Install: `npx skills add EchoForge-Dev/EchoMKB`
