@@ -34,6 +34,9 @@ export default function NavbarLayout({ children }: PropsWithChildren) {
   if (
     location.includes("/blog") &&
     location !== "/blog" &&
+    location !== "/blog/archive" &&
+    location !== "/blog/authors" &&
+    !location.includes("/blog/tags") &&
     !location.includes("/index")
   ) {
     const { metadata, frontMatter } = useBlogPost();
