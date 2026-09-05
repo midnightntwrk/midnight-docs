@@ -43,7 +43,7 @@ const COMPONENTS = [
   { name: 'Compact toolchain',  repo: 'midnightntwrk/compact',                     tag: /^compactc-v(\d+\.\d+\.\d+)$/,                             list: 'src/components/DynamicListCompact.js' },
   { name: 'Compact devtools',   repo: 'midnightntwrk/compact',                     tag: /^compact-v(\d+\.\d+\.\d+)$/,                              list: 'src/components/DynamicListCompactTools.js' },
   { name: 'Compact JS',         repo: 'midnightntwrk/midnight-sdk',                tag: /^compact-js-v(\d+\.\d+\.\d+)$/,                           list: 'src/components/DynamicListCompactJS.js' },
-  { name: 'Wallet SDK',         repo: 'midnightntwrk/midnight-wallet',             tag: /^@midnight-?ntwrk\/wallet-sdk-facade@(\d+\.\d+\.\d+)$/,   list: 'src/components/DynamicListWallet.js' },
+  { name: 'Wallet SDK',         repo: 'midnightntwrk/midnight-wallet',             tag: /^@midnight-?ntwrk\/wallet-sdk@(\d+\.\d+\.\d+)$/,   list: 'src/components/DynamicListWallet.js' },
 ];
 
 const api = async (path) => {
