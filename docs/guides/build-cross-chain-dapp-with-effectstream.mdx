@@ -20,9 +20,9 @@ Use this guide to build a DApp whose state lives on Midnight and an EVM chain at
 
 These apply to every procedure in this guide:
 
-- [Bun](https://bun.sh). See [Set up Bun for Midnight development](./install-bun-runtime-midnight).
-- [Foundry](https://www.getfoundry.sh/). `forge` compiles the Solidity artifacts, and the orchestrator checks for it on PATH before starting.
-- The Compact compiler, which the orchestrator also checks on PATH. The template pins `0.31.0`, so run `compact update 0.31.0`.
+- [Bun](https://bun.sh). See [Set up Bun for Midnight development](./how-to/bun-runtime-midnight).
+- [Foundry](https://www.getfoundry.sh/). `forge` compiles the Solidity artifacts, and the orchestrator checks for it on `PATH` before starting.
+- The Compact compiler, which the orchestrator also checks on `PATH`. The template pins `0.31.0`, so run `compact update 0.31.0`.
 - Roughly 8 GB of free memory, and a raised Node heap for the frontend build. Vite transforms about 9000 modules and exceeds Node's default limit, so export `NODE_OPTIONS=--max-old-space-size=8192` before starting.
 
 The template launches its own Midnight stack, so you need no separately running node or proof server.
@@ -34,11 +34,11 @@ Splitting a DApp across chains usually means a bridge: a message-passing contrac
 
 EffectStream targets the weaker requirement. When you need a consistent view of two chains rather than atomic execution across them, neither chain has to know the other exists. Both are ingested independently, and a state machine you write merges them into one database.
 
-The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which the user supplies to both. The rollup joins on that key.
+The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The rollup joins on that key.
 
 One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so what a `disclose()` call publishes is what your state machine can see. Designing the circuit designs the sync surface.
 
-A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row, and you will see it skip events while the two chains catch up.
+A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row, and you see it skip events while the two chains catch up.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Run the template
@@ -109,7 +109,7 @@ Four files carry a chain event from the wire into your API. Read them in order t
 
 `packages/node/config.dev.ts` declares networks, sync protocols, and primitives. One primitive per chain, each naming a `stateMachinePrefix`:
 
-```ts
+```typescript
 .addPrimitive(
   (syncProtocols) => syncProtocols.parallelMidnight,
   (network, deployments, syncProtocol) => ({
