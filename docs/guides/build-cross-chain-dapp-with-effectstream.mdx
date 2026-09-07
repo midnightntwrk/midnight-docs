@@ -20,9 +20,11 @@ Use this guide to build a DApp whose state lives on Midnight and an EVM chain at
 
 These apply to every procedure in this guide:
 
+- [Git](https://git-scm.com/) for cloning the template repository.
+- [Docker](https://www.docker.com/) (or Docker Desktop) running, used by the orchestrator to start containerized services including the Midnight node, proof server, indexer, and database.
 - [Bun](https://bun.sh). See [Set up Bun for Midnight development](./how-to/bun-runtime-midnight).
 - [Foundry](https://www.getfoundry.sh/). `forge` compiles the Solidity artifacts, and the orchestrator checks for it on `PATH` before starting.
-- The Compact compiler, which the orchestrator also checks on `PATH`. The template pins `0.31.0`, so run `compact update 0.31.0`.
+- The Compact compiler, which the orchestrator also checks on `PATH`. The template pins `0.31.1`, so run `compact update --no-set-default 0.31.1`.
 - Roughly 8 GB of free memory, and a raised Node heap for the frontend build. Vite transforms about 9000 modules and exceeds Node's default limit, so export `NODE_OPTIONS=--max-old-space-size=8192` before starting.
 
 The template launches its own Midnight stack, so you need no separately running node or proof server.
@@ -36,7 +38,7 @@ EffectStream targets the weaker requirement. When you need a consistent view of 
 
 The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The rollup joins on that key.
 
-One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so what a `disclose()` call publishes is what your state machine can see. Designing the circuit designs the sync surface.
+One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so values disclosed in circuits and committed to the ledger are what your state machine can see. Designing the circuit designs the sync surface.
 
 A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row, and you see it skip events while the two chains catch up.
 
@@ -189,7 +191,7 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
 
 5. Decode the field in the `midnightContractState` transition in `packages/node/state-machine.ts`. A `Bytes<32>` ledger field arrives as fixed-width bytes, so `decodeField` turns it back into a string. Add a line next to the existing ones:
 
-   ```ts
+   ```typescript
    const contract_address = decodeField(payload.contract_address);
    const token_id = decodeField(payload.token_id);
    const property_name = decodeField(payload.property_name);
@@ -215,5 +217,4 @@ curl http://localhost:9999/api/erc721
 
 - [Index contract state with EffectStream](./index-state-with-effectstream): the read path, one Midnight contract, no local stack.
 - [EffectStream documentation](https://effectstream.github.io/docs/): the full API surface, the batcher, and the other cross-chain templates.
-- [Security and best practices](./security-best-practices#on-chain-visibility): what `disclose()` makes public, which is what a sync node reads.
-
+- [Security and best practices](./security-best-practices#on-chain-visibility): how `disclose()` permits private data to cross into public ledger state.
