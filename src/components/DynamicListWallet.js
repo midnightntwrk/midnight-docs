@@ -19,8 +19,58 @@ import { useLocation } from '@docusaurus/router';
 // CURRENT releases (shown on Canary/next and future versions)
 const releases = [
   {
-    version: '3.0.0',
+    version: '1.2.0',
     status: 'LATEST',
+    date: '1 July 2026',
+    summary: 'DUST registration fee hardening and a helper to wait for DUST accrual; first release under the @midnightntwrk npm scope.',
+    details: [
+      'Fixed a race in `WalletFacade.registerNightUtxosForDustGeneration` where the registration fee could exceed `allow_fee_payment`, causing `BalanceCheckOverspend` rejections; the wallet now estimates the fee at build time and throws before submission.',
+      'Added `WalletFacade.waitForGeneratedDust(utxos, requiredAmount, opts?)` to defer registration until enough DUST has accrued; pair with `estimateRegistration`.',
+      'The SDK now publishes under the `@midnightntwrk` npm scope; 1.2.0 is available under both scopes.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/wallet-sdk/v/1.2.0' },
+    ],
+    link: '/relnotes/wallet/wallet-sdk-1-2-0',
+  },
+  {
+    version: '1.1.0',
+    status: 'SUPPORTED',
+    date: '26 May 2026',
+    summary: 'Patch release fixing DUST registration UTXO races and a packaging bug that broke Vite builds; moves to ledger 8.1.0.',
+    details: [
+      'DUST registration and deregistration no longer double-use NIGHT UTXOs that another in-flight transaction is spending; conflicting builds fail immediately with `SpendUtxoError`.',
+      'Added `UnshieldedWallet.rotateUtxos`, `DustWallet.splitNightUtxosForDustRegistration`, and `DustWallet.attachDustRegistration`.',
+      '`@midnight-ntwrk/wallet-sdk-abstractions` is now a runtime dependency, fixing Vite and esbuild dep-optimization failures.',
+      'Bumped `@midnight-ntwrk/ledger-v8` to `^8.1.0`; consumers must resolve ledger `>=8.1.0`. No public API changes.',
+      'Internal wallet-sdk dependency ranges widened to carets so consumers can dedupe shared packages.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk/v/1.1.0' },
+    ],
+    link: '/relnotes/wallet/wallet-sdk-1-1-0',
+  },
+  {
+    version: '1.0.0',
+    status: 'SUPPORTED',
+    date: '23 April 2026',
+    summary: 'First release of the wallet-sdk umbrella package, introducing a shared transaction history storage layer and DUST wallet transaction history.',
+    details: [
+      'Added transaction history to the DUST wallet.',
+      'Introduced a shared transaction history storage layer; shielded history is reimplemented on it and unshielded history refactored onto it.',
+      'Unified the simulator into the capabilities package with a proper fee payment and block production model.',
+      'Fixed a transaction history race condition by consolidating merge logic in the facade.',
+      '`WalletFacade.signRecipe` no longer fails on valid transactions that contain no intents.',
+      'Updated the SDK to ledger 8.0.3.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/wallet-sdk/v/1.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-sdk-1-0-0',
+  },
+  {
+    version: '3.0.0',
+    status: 'SUPPORTED',
     date: '20 March 2026',
     summary: 'Summary of v3.0.0',
     details: [
@@ -111,13 +161,13 @@ const DynamicListWithDropdownFilters = () => {
     .map(release => release.version)
     .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 
-  const versions = ['All', ...sortedVersions];
+  const versions = ['All', ...new Set(sortedVersions)];
 
   // Extract unique statuses and keep "All" at the top
   const sortedStatuses = ['All', ...new Set(versionedReleases.map(release => release.status))];
 
   // Set latest version as default if releases exist
-  const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
+  const latestVersion = versionedReleases.length > 0 ? versionedReleases[0].version : 'All';
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
