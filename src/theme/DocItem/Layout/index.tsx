@@ -1,4 +1,4 @@
-import React, {type ReactNode} from "react";
+import React, { type ReactNode } from "react";
 import clsx from "clsx";
 import { useWindowSize } from "@docusaurus/theme-common";
 import { useDoc } from "@docusaurus/plugin-content-docs/client";
@@ -29,9 +29,35 @@ function useDocTOC() {
 
 export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
-  const { metadata } = useDoc();
+  const { metadata, frontMatter } = useDoc();
   const { editUrl, unversionedId } = metadata as any;
-  const showTools = unversionedId !== "index" && !unversionedId?.endsWith("/index");
+  const showTools =
+    unversionedId !== "index" && !unversionedId?.endsWith("/index");
+
+  const techArticleSchemaType = {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: metadata?.title || frontMatter?.title,
+    author: {
+      "@type":
+        metadata?.lastUpdatedBy || frontMatter?.last_update?.author
+          ? "Person"
+          : "Organization",
+      name:
+        metadata?.lastUpdatedBy ||
+        frontMatter?.last_update?.author ||
+        "Midnight"
+    },
+    datePublished: metadata?.lastUpdatedAt
+      ? new Date(metadata?.lastUpdatedAt).toISOString()
+      : frontMatter?.last_update?.date
+        ? new Date(frontMatter?.last_update?.date).toISOString()
+        : "",
+    // proficiencyLevel: undefined,
+    // dependencies: undefined,
+    description: metadata?.description || frontMatter?.description
+    // image: undefined
+  };
 
   return (
     <div className="row">
@@ -39,19 +65,27 @@ export default function DocItemLayout({ children }) {
         <DocVersionBanner />
         <div className={styles.docItemContainer}>
           <article>
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: JSON.stringify(techArticleSchemaType).replace(
+                  /</g,
+                  "\\u003c"
+                )
+              }}
+            />
             <div className={styles.breadcrumbsRow}>
               <div className={styles.breadcrumbsLeft}>
-                {children?.type?.metadata?.sourceDirName !== "." && <DocBreadcrumbs />}
+                {children?.type?.metadata?.sourceDirName !== "." && (
+                  <DocBreadcrumbs />
+                )}
               </div>
               <div className={styles.breadcrumbsRight}>
                 <DocVersionBadge />
                 {showTools && <DocTools />}
               </div>
             </div>
-            {editUrl && (
-              <div className={styles.topMeta}>
-              </div>
-            )}
+            {editUrl && <div className={styles.topMeta}></div>}
             {docTOC.mobile}
 
             <DocItemContent>{children}</DocItemContent>
