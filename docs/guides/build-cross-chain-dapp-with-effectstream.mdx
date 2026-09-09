@@ -16,6 +16,12 @@ Use this guide to build a DApp whose state lives on Midnight and an EVM chain at
 
 [Index contract state with EffectStream](./index-state-with-effectstream) covers reading one Midnight contract. This guide covers the case EffectStream exists for: correlating two chains, and writing to them.
 
+:::warning[Community-maintained, not officially supported]
+
+[EffectStream](https://github.com/effectstream/effectstream) maintains the template and the `@effectstream/*` packages this guide uses, not the Midnight Foundation. The template lives on the repository's default branch and its pinned versions change, so when the template and this guide disagree, follow the template. Report EffectStream problems on the [EffectStream tracker](https://github.com/effectstream/effectstream/issues), and problems with this page on the [Midnight docs repository](https://github.com/midnightntwrk/midnight-docs/issues).
+
+:::
+
 ## Prerequisites
 
 These apply to every procedure in this guide:
@@ -86,7 +92,7 @@ INFO effectstream-sync-block-merge: finalized block 145 @ 0xdf3de2... | {"mainNt
 {/* _mod-docs-content-type: REFERENCE */}
 ## Local service endpoints
 
-Every service the template starts.
+The template starts these services on the ports shown.
 
 | Service | URL |
 |---|---|
@@ -98,7 +104,7 @@ Every service the template starts.
 | EVM chain (main) | `http://localhost:8545` |
 | EVM chain (parallel) | `http://localhost:8546` |
 | Midnight node RPC | `http://localhost:9944` |
-| Midnight indexer | `http://localhost:8088/api/v3/graphql` |
+| Midnight indexer | `http://localhost:8088/api/v4/graphql` |
 | Midnight proof server | `http://localhost:6300` |
 | Database | `postgres://postgres:postgres@localhost:5432/postgres` |
 
@@ -171,7 +177,7 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
    }
    ```
 
-   Adding an argument changes the circuit's signature, so every caller needs the new value. The frontend calls this circuit in `packages/frontend/client/src/increment.ts`, and the batcher calls it in `packages/batcher/midnight-balancing.ts`.
+   Adding an argument changes the circuit's signature, so every caller needs the new value. Step 7 covers the two callers.
 
 2. Recompile the circuit so the generated ledger reader includes the new field:
 
@@ -179,9 +185,9 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
    bun run build:midnight
    ```
 
-3. Add a column to the migration in `packages/database/migrations/`.
+3. Add a `rarity TEXT` column to the `evm_midnight_properties` table in `packages/database/migrations/000-init.sql`, the single migration the template ships.
 
-4. Add the column to the matching query in `packages/database/sql/sm_example.sql`, then regenerate the typed queries:
+4. In `packages/database/sql/sm_example.sql`, add `rarity` to the `insertEvmMidnightProperty` insert and to the columns `getEvmMidnight` selects, then regenerate the typed queries:
 
    ```bash
    bun run build:pgtypes
@@ -199,9 +205,11 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
 
    Then pass `rarity` into the `insertEvmMidnightProperty` call further down the same transition, alongside the fields already written there.
 
-6. Return the column from `GET /api/erc721` in `packages/node/api.ts`.
+6. In `packages/node/api.ts`, add `rarity: Type.String()` to `ResponseSchema`. The `GET /api/erc721` handler returns whatever `getEvmMidnight` selects, so the schema is the only change the route needs.
 
-7. Restart the stack and set a property from the frontend.
+7. Pass the new argument from the two callers: the frontend in `packages/frontend/client/src/increment.ts`, and the batcher in `packages/batcher/midnight-balancing.ts`. Nothing in the template's build checks these files against the circuit, so a caller you forget fails at runtime, the first time it calls `increment`.
+
+8. Restart the stack and set a property from the frontend.
 
 ### Verification
 
@@ -210,6 +218,13 @@ The endpoint returns the new field alongside the existing ones.
 ```bash
 curl http://localhost:9999/api/erc721
 ```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Stop and reset the stack
+
+Press Ctrl+C in the terminal running `bun run dev`. The orchestrator stops every process it started and frees their ports, so nothing survives in the background.
+
+Some state survives on disk under `packages/contracts-midnight/`: the `midnight-level-db*` directories that hold private state, `contract.json`, and `contract-round-value.undeployed.json`, which records the deployed address. The next `bun run dev` runs the package's `midnight-contract:clean` script and deploys a fresh Midnight contract at a new address, so properties you set in an earlier run belong to a contract the new run no longer watches.
 
 ## Additional resources
 
