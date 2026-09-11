@@ -99,6 +99,23 @@ Construct the six providers and assemble them into the object every deploy and c
 
    :::
 
+   :::note Browser environments
+
+   `levelPrivateStateProvider` works in browser environments. The SDK resolves the crypto
+   backend automatically: it uses Web Crypto where `crypto.subtle` is available and falls back to
+   a pure-JS implementation where it is not. Leaving `cryptoBackend` unset is the safer default,
+   because requesting `'webcrypto'` explicitly turns an unavailable Web Crypto API into a thrown
+   error rather than a fallback. That matters in non-secure contexts, such as a page served over
+   plain `http://` on a non-loopback host, and in React Native.
+
+   The `level` package resolves to `browser-level` (IndexedDB) in browser bundles through its
+   package.json `browser` field, which Vite and webpack honor automatically, so you do not need
+   extra storage configuration. Keep private state access on the client: code that runs outside a
+   browser bundle, such as Next.js server components, API routes, or Edge functions, resolves to
+   the native `classic-level` instead.
+
+   :::
+
 4. Create the public data provider with your indexer's query and subscription endpoints:
 
    ```typescript
@@ -780,6 +797,51 @@ Which implementation fills each provider slot, by environment. Packages live und
 | `zkConfigProvider` | `FetchZkConfigProvider` | `midnight-js-fetch-zk-config-provider` | Fetches the same artifacts over HTTP, for browsers and hosted setups |
 | `proofProvider` | `httpClientProofProvider` | `midnight-js-http-client-proof-provider` | Takes the proof server URL and the `zkConfigProvider` |
 | `walletProvider`, `midnightProvider` | your class over `WalletFacade` | `wallet-sdk` | One instance can fill both slots, as in [Configuring providers for a contract](#configuring-providers-for-a-contract) |
+
+### Verifying passwords early with a canary value
+
+Without an explicit check, a wrong password is not caught until the app attempts to decrypt
+real private state data, which may happen deep inside a transaction flow. The failure also
+looks different depending on the active backend: Web Crypto rejects with a `DOMException`
+named `OperationError`, while the pure-JS backend throws a plain `Error`.
+
+A canary value written at account creation lets you catch a wrong password at unlock time
+with a clear message. Split provisioning from verification: a missing canary and a wrong
+password are indistinguishable at read time, so bootstrapping the canary from a `null` read
+would certify the failure it exists to catch.
+
+```typescript
+import type { PrivateStateProvider } from '@midnight-ntwrk/midnight-js-types';
+
+const CANARY_KEY = '__canary__';
+const CANARY_VALUE = 'midnight-verified';
+
+// Call once, when the account's store is created, using a password you know is correct.
+// Never call this to repair a missing canary: at that point a missing canary and a wrong
+// password look identical, and you would be storing the wrong password as the reference.
+async function provisionCanary(provider: PrivateStateProvider): Promise<void> {
+  await provider.set(CANARY_KEY, CANARY_VALUE);
+}
+
+// Call on every later unlock.
+async function verifyPassword(provider: PrivateStateProvider): Promise<void> {
+  let stored: unknown;
+  try {
+    stored = await provider.get(CANARY_KEY);
+  } catch (cause) {
+    // Decryption failed, so the AES-GCM authentication tag did not verify.
+    // Other faults reach here too, such as an unavailable crypto backend,
+    // so keep the original error attached.
+    throw new Error('Incorrect password: private state could not be decrypted', { cause });
+  }
+  if (stored === null) {
+    throw new Error('No canary stored for this account. Provision one when the store is created.');
+  }
+  if (stored !== CANARY_VALUE) {
+    throw new Error('Canary mismatch: private state may be corrupt.');
+  }
+}
+```
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Deployment troubleshooting
