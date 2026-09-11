@@ -17,8 +17,26 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '8.1.1',
+    version: '8.1.2',
     status: 'LATEST',
+    date: '24 August 2026',
+    summary: 'Security patch hardening deserialization: non-canonical encodings and invariant-violating values are rejected',
+    details: [
+      'Hardens low-level deserialization across `serialize`, `base-crypto`, `storage`, `onchain-state`, `onchain-vm`, and `transient-crypto`: non-canonical encodings and values violating type invariants no longer decode.',
+      'An 8.1.2 node rejects data an 8.1.1 node accepts; the change is breaking only for environments containing maliciously formed transactions.',
+      'Delivered to mainnet nodes prior to the public release.',
+      'Fixes several panic and overflow paths: `DustParameters::time_to_cap` zero-divide guard, saturating Dust `seq` increments and delta accumulation, and Zswap binding randomness extraction no longer panics.',
+      'All bumps are patch-level with internal dependencies pinned exactly, so consumers cannot resolve past the fix.',
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnightntwrk/ledger-v8' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-8.1.2' },
+    ],
+    link: '/relnotes/ledger/ledger-8-1-2',
+  },
+  {
+    version: '8.1.1',
+    status: 'SUPPORTED',
     date: '31 July 2026',
     summary: 'Patch release with array-handling test coverage and an npm scope change to `@midnightntwrk`',
     details: [
