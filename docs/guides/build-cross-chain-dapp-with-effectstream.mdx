@@ -26,9 +26,11 @@ Use this guide to build a DApp whose state lives on Midnight and an EVM chain at
 
 These apply to every procedure in this guide:
 
-- [Bun](https://bun.sh). See [Set up Bun for Midnight development](./install-bun-runtime-midnight).
-- [Foundry](https://www.getfoundry.sh/). `forge` compiles the Solidity artifacts, and the orchestrator checks for it on PATH before starting.
-- The Compact compiler, which the orchestrator also checks on PATH. The template pins `0.31.0`, so run `compact update 0.31.0`.
+- [Git](https://git-scm.com/) for cloning the template repository.
+- [Docker](https://www.docker.com/), only on platforms without native Midnight binaries. On Linux x86-64 and Apple silicon the orchestrator runs the Midnight node, indexer, and proof server as native binaries; on other platforms it falls back to Docker images for the indexer and proof server.
+- [Bun](https://bun.sh). See [Set up Bun for Midnight development](/how-to/bun-runtime-midnight).
+- [Foundry](https://www.getfoundry.sh/). `forge` compiles the Solidity artifacts, and the orchestrator checks for it on `PATH` before starting.
+- The Compact toolchain, which the orchestrator checks on `PATH` before starting. The template's build script selects toolchain `0.33.0-rc.2` explicitly, and `compact update` cannot install prereleases, so download `compactc_v0.33.0-rc.2_<target>.zip` from the [Compact releases](https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.33.0-rc.2) and unzip it into `~/.compact/versions/0.33.0-rc.2/<target>/`, using the same `<target>` as the zip name, for example `aarch64-darwin`. Your default toolchain stays as it is. Confirm with `compact compile +0.33.0-rc.2 --version`, which prints `0.33.0`.
 - Roughly 8 GB of free memory, and a raised Node heap for the frontend build. Vite transforms about 9000 modules and exceeds Node's default limit, so export `NODE_OPTIONS=--max-old-space-size=8192` before starting.
 
 The template launches its own Midnight stack, so you need no separately running node or proof server.
@@ -40,11 +42,11 @@ Splitting a DApp across chains usually means a bridge: a message-passing contrac
 
 EffectStream targets the weaker requirement. When you need a consistent view of two chains rather than atomic execution across them, neither chain has to know the other exists. Both are ingested independently, and a state machine you write merges them into one database.
 
-The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which the user supplies to both. The rollup joins on that key.
+The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The rollup joins on that key.
 
-One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so what a `disclose()` call publishes is what your state machine can see. Designing the circuit designs the sync surface.
+One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so values a circuit discloses and writes to the ledger are what your state machine can see. Designing the circuit designs the sync surface.
 
-A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row, and you will see it skip events while the two chains catch up.
+A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row, and you see it skip events while the two chains catch up.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Run the template
@@ -115,7 +117,7 @@ Four files carry a chain event from the wire into your API. Read them in order t
 
 `packages/node/config.dev.ts` declares networks, sync protocols, and primitives. One primitive per chain, each naming a `stateMachinePrefix`:
 
-```ts
+```typescript
 .addPrimitive(
   (syncProtocols) => syncProtocols.parallelMidnight,
   (network, deployments, syncProtocol) => ({
@@ -195,7 +197,7 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
 
 5. Decode the field in the `midnightContractState` transition in `packages/node/state-machine.ts`. A `Bytes<32>` ledger field arrives as fixed-width bytes, so `decodeField` turns it back into a string. Add a line next to the existing ones:
 
-   ```ts
+   ```typescript
    const contract_address = decodeField(payload.contract_address);
    const token_id = decodeField(payload.token_id);
    const property_name = decodeField(payload.property_name);
@@ -230,5 +232,4 @@ Some state survives on disk under `packages/contracts-midnight/`: the `midnight-
 
 - [Index contract state with EffectStream](./index-state-with-effectstream): the read path, one Midnight contract, no local stack.
 - [EffectStream documentation](https://effectstream.github.io/docs/): the full API surface, the batcher, and the other cross-chain templates.
-- [Security and best practices](./security-best-practices#on-chain-visibility): what `disclose()` makes public, which is what a sync node reads.
-
+- [Security and best practices](./security-best-practices#on-chain-visibility): how `disclose()` permits private data to cross into public ledger state.
