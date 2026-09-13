@@ -16,6 +16,12 @@ Use this guide to build an indexer for a Midnight contract. An indexer watches t
 
 The procedures target the `preview` network and a contract you need not deploy, so the whole guide runs with no local stack. Reading one chain is the smallest thing [EffectStream](https://effectstream.github.io/docs/) does; [Additional resources](#additional-resources) points to the cross-chain path.
 
+:::warning[Community-maintained, not officially supported]
+
+[EffectStream](https://github.com/effectstream/effectstream) maintains the `@effectstream/*` packages and the templates this guide uses, not the Midnight Foundation. The project changes often, so when its repository and this guide disagree, follow the repository. Report EffectStream problems on the [EffectStream tracker](https://github.com/effectstream/effectstream/issues), and problems with this page on the [Midnight docs repository](https://github.com/midnightntwrk/midnight-docs/issues).
+
+:::
+
 ## Prerequisites
 
 These apply to every procedure in this guide:
@@ -37,7 +43,7 @@ The EffectStream packages depend on no `@midnight-ntwrk/*` package, so the [supp
 
 A Midnight contract stores its current public state and nothing else. Who holds the top score? What changed in the last hour? The chain answers neither. It keeps no history you can query, and it computes no totals.
 
-An indexer answers them. It watches state changes, applies a function you write to each one, and stores the result in a database you control. It handles changes in chain order, so replaying the same history rebuilds the same database.
+An indexer answers them. It watches state changes, applies a function you write to each one, and can store the result in a database you control. It handles changes in chain order, so replaying the same history produces the same result.
 
 Midnight already runs an indexer, and this guide connects to it rather than replacing it. The Midnight indexer reports what the chain holds, and your DApp reaches it through the `publicDataProvider` in [Deploying and operating a contract](./deploy-and-operate#the-transaction-pipeline-and-its-providers). EffectStream reads from that indexer and builds your own derived state on top.
 
@@ -95,7 +101,7 @@ Build and run a node that watches a Midnight contract and prints each state chan
    });
    ```
 
-   `pglite()` gives the node an embedded PostgreSQL-compatible database, held in memory unless you pass a `dataDir`. The `sources` key, `counter` here, is yours to choose, and `transitions` reuses it so the two stay paired. Setting `network` selects the hosted indexer, and `address` takes the contract's 64-character hex address with no `0x` prefix. [What the ledger schema can read](#what-the-ledger-schema-can-read) covers the `ledger` option, and whether it works for the contract you have in mind.
+   `pglite()` gives the node an embedded PostgreSQL-compatible database, held in memory unless you pass a `dataDir`. The `sources` key, `counter` here, is yours to choose, and `transitions` reuses it so the two stay paired. Setting `network` selects the hosted indexer, and `address` takes the contract's 64-character hex address with no `0x` prefix. `startBlockHeight` takes `"latest"` to begin at the block the indexer is on, or a block number to replay from that height. [What the ledger schema can read](#what-the-ledger-schema-can-read) covers the `ledger` option, and whether it works for the contract you have in mind.
 
 4. Start the node:
 
@@ -103,23 +109,27 @@ Build and run a node that watches a Midnight contract and prints each state chan
    bun start
    ```
 
-5. Read the decoded state in the transition, which receives an object. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number, and byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
+5. Read the decoded state in the transition, which receives an object with `state`, `blockHeight`, `blockTimestamp`, `network`, and `address`. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number. Byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
 
-:::tip Replay history to confirm the wiring
+:::tip Replay history instead of waiting for a call
 
-A transition fires on state changes, not on blocks, so a quiet contract prints nothing. Set `startBlockHeight` to a low block number to replay past changes.
+A transition fires on state changes, not on blocks, so a quiet contract prints nothing. `startBlockHeight` takes a block number to replay from that height instead of starting at the tip. Keep the replay short: the node fetches a few blocks per second, and the hosted indexer answers `403 Forbidden` to a client that fetches too much, too fast. Find the block of the contract's most recent call with the indexer's [`contractAction` query](/api-reference/midnight-indexer/operations/queries/contract-action) and start a little below it. The counter used in this guide was last called at block 377864.
 
 :::
 
 ### Verification
 
-The node connects to preview and logs each block it fetches, like this:
+The node connects to `preview`, starts its HTTP server, and logs each block it fetches, like this:
 
 ```text
-[Midnight:preview] Fetching blocks from 456487 to 456487.
-04:28:20 INFO effectstream-sync-block-merge: finalized block 20 @ undefined... | {"clock":[20,20]}
-04:28:21 INFO effectstream-sync-block-merge: finalized block 21 @ undefined... | {"clock":[21,21],"midnight-counter":[456486,456486]}
+[MidnightClient] Using indexer https://indexer.preview.midnight.network/api/v4/graphql (network: preview)
+Paima Engine HTTP server running on http://127.0.0.1:9999
+[Midnight:preview] Fetching blocks from 788014 to 788014.
+10:20:19 INFO effectstream-sync-block-merge: finalized block 1 @ undefined... | {"clock":[1,1]}
+10:20:21 INFO effectstream-sync-block-merge: finalized block 3 @ undefined... | {"clock":[3,3],"midnight-counter":[788014,788014]}
 ```
+
+The `finalized block` numbers are EffectStream's own clock, which starts at 1 on every run, and `@ undefined` fills the slot where a merged block hash would go. The Midnight height is the `midnight-counter` pair, which appears on the ticks that carried a Midnight block. Your heights differ.
 
 A `round N at block M` line appears whenever the contract's state changes. A contract nobody is calling produces no such line, which is the case the tip above covers.
 
@@ -140,11 +150,11 @@ A `struct`, `Vector`, or `enum` fails at parse time. Because the match is positi
 
 :::caution Some contracts need the compiler-generated decoder instead
 
-A schema cannot express structs, enums, or wrapped types, and Compact contracts use all three. When your contract's ledger holds one near the top, use EffectStream's full configuration API instead, which takes the decoder the Compact compiler generates and reads anything the language can express. See the [EffectStream documentation](https://effectstream.github.io/docs/home/chains/midnight).
+A schema cannot express structs, enums, or wrapped types, and Compact contracts use all three. When your contract's ledger holds one near the top, use EffectStream's full configuration API instead. It takes the decoder the Compact compiler generates and reads anything the language can express. See the [EffectStream documentation](https://effectstream.github.io/docs/home/chains/midnight).
 
 :::
 
-When you control the contract, you can design its ledger so a schema reads it. Put the fields an indexer needs at the top, and structs and digests at the bottom. Flatten a struct that needs indexing into sibling top-level declarations keyed the same way: a `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations, which costs nothing on-chain.
+When you control the contract, you can design its ledger so a schema reads it. Put the fields an indexer needs at the top, and structs and digests at the bottom. Flatten a struct that needs indexing into sibling top-level declarations keyed the same way. A `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations. The trade is four ledger containers and four writes per update instead of one, so weigh it against how often the values change.
 
 ```compact
 // An indexer reads these, in this order.
@@ -166,7 +176,7 @@ ledger: {
 }
 ```
 
-Which fields go at the top is the question [Security and best practices](./security-best-practices#on-chain-visibility) asks about `disclose()`: what should a public reader see? Identity commitments and Merkle roots serve in-circuit checks, so they belong at the bottom.
+Ordering is an indexing decision, not a privacy one. Every ledger field is public wherever it sits, which is the point [Security and best practices](./security-best-practices#on-chain-visibility) makes about `disclose()`. Put the fields a schema must read first. Identity commitments and Merkle roots serve in-circuit checks rather than readers, so they belong at the bottom.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Serve indexed state over HTTP
@@ -231,18 +241,19 @@ curl http://localhost:9999/round
 {/* _mod-docs-content-type: REFERENCE */}
 ## Indexer troubleshooting
 
-Failures on this guide's path, and their fixes.
+This table lists the failures you may hit on this guide's path, with their fixes.
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | Install fails resolving a package that imports itself by name | Bun's auto-install cache created no `node_modules` anchor | Run `bun install` before `bun start` |
 | The first transition takes far longer than expected | EffectStream holds each change for several blocks of confirmation | Wait. The delay keeps the database consistent with settled state |
 | A comparison against a decoded number never matches | Unsigned integers decode to decimal strings, not numbers | Convert with `BigInt(state.field)` before comparing |
+| The node stops with `Unable to read the Midnight preview tip: 403 Forbidden` | The hosted indexer is refusing your client, which happens when a replay fetches too many blocks too fast | Wait before retrying, and start the replay a little below the height you need rather than at block 1 |
 | Parse error naming an array where a scalar belongs | A `struct`, `enum`, or `Vector` sits at a schema position | Use the compiler-generated decoder, or reorder the ledger if you control the contract; see [What the ledger schema can read](#what-the-ledger-schema-can-read) |
 
 ## Additional resources
 
-- [EffectStream documentation](https://effectstream.github.io/docs/): the full API surface, and the cross-chain templates that pair Midnight with an EVM chain, Bitcoin, or Cardano.
+- [EffectStream documentation](https://effectstream.github.io/docs/): the project's own documentation, and the cross-chain templates that pair Midnight with an EVM chain, Bitcoin, or Cardano.
 - [Deploying and operating a contract](./deploy-and-operate): the providers a DApp uses to reach the Midnight indexer directly, and how to deploy a contract of your own to index.
 - [Networks and environments](./networks-and-environments): every endpoint, network ID, and the local stack.
 - [Security and best practices](./security-best-practices): what a chain observer sees, and how `disclose()` decides it.
