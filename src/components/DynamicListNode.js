@@ -19,10 +19,20 @@ const releases = [
   {
     version: '1.0.2',
     status: 'LATEST',
-    date: '16 September 2026',
-    summary: 'Summary of Release 1.0.2',
-    details: [],
-    artifacts: [],
+    date: '11 September 2026',
+    summary: 'Patch release on the 1.0.0 GA line that fixes block timestamp validation for the first transaction of a block, picks up ledger 8.1.2, and clears toolkit image security findings.',
+    details: [
+      'Fixed inconsistent transaction validation caused by a warm validation cache; the correction now applies only to the first ledger transaction of a block and is measured from the parent block timestamp.',
+      'Unblocked Preview at block 128537 and extended `tblock_correction_disable_after` to 31 October 2026 (UTC).',
+      'Added `tblock_correction_offset` and `tblock_correction_disable_after` configuration values with defaults that need no action.',
+      'Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that hardens deserialization.',
+      'Cleared critical and high scanner findings in the toolkit image (bundled npm 11.18.0, npm audit fixes).',
+      'Runtime stays at 1.0.0; no runtime upgrade required.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.2' },
+    ],
     link: '/relnotes/node/node-1-0-2',
   },
   {
