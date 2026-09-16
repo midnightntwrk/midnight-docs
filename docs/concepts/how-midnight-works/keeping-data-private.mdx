@@ -142,12 +142,13 @@ export ledger items: MerkleTree<10, Field>;
 witness findItem(item: Field): MerkleTreePath<10, Field>;
 
 export circuit insert(item: Field): [] {
-  items.insert(item);
+  items.insert(disclose(item));
 }
 
 export circuit check(item: Field): [] {
   const path = findItem(item);
-  assert(items.checkRoot(merkleTreePathRoot<10, Field>(path.value)), "path must be valid");
+  assert(path.leaf == item, "path is not for this item");
+  assert(items.checkRoot(disclose(merkleTreePathRoot<10, Field>(path))), "path must be valid");
 }
 ```
 
@@ -158,6 +159,8 @@ function findItem(context: WitnessContext, item: bigint): MerkleTreePath<bigint>
     return context.ledger.items.findPathForLeaf(item)!;
 }
 ```
+
+The `path.leaf == item` assert binds the proof to `item`. `findItem` is a witness, so without that line any valid path in the tree would satisfy `checkRoot`, whichever item it belongs to. See [Restricting a circuit to a group](../../guides/security-best-practices#restricting-a-circuit-to-a-group) in the security guide.
 
 Note that `pathForLeaf` is preferable when possible, as it does not require an
 *O(n)* scan of the tree, although it does require knowledge of where the item was
@@ -200,16 +203,17 @@ export ledger authorizedNullifiers: Set<Bytes<32>>;
 export ledger restrictedCounter: Counter;
 
 export circuit addAuthority(pk: Bytes<32>): [] {
-  authorizedCommitments.insert(pk);
+  authorizedCommitments.insert(disclose(pk));
 }
 
 export circuit increment(): [] {
   const sk = secretKey();
   const authPath = findAuthPath(publicKey(sk));
-  assert(authorizedCommitments.checkRoot(merkleTreePathRoot<10, Bytes<32>>(authPath)),
-    "not authorized");
+  assert(authPath.leaf == publicKey(sk), "path is not for this key");
+  assert(authorizedCommitments.checkRoot(
+    disclose(merkleTreePathRoot<10, Bytes<32>>(authPath))), "not authorized");
   const nul = nullifier(sk);
-  assert !authorizedNullifiers.member(nul) "already incremented";
+  assert(!authorizedNullifiers.member(disclose(nul)), "already incremented");
   authorizedNullifiers.insert(disclose(nul));
   restrictedCounter.increment(1);
 }
@@ -222,3 +226,5 @@ circuit nullifier(sk: Bytes<32>): Bytes<32> {
   return persistentHash<Vector<2, Bytes<32>>>([pad(32, "nullifier-domain"), sk]);
 }
 ```
+
+The `authPath.leaf == publicKey(sk)` assert binds the path to the caller's key. The tree's leaves are public, so anyone can compute a valid path for an authorized key, and `findAuthPath` is a witness the prover controls. Without that line, a secret key that was never authorized could pass with someone else's path, and its fresh nullifier would not stop it. See [Restricting a circuit to a group](../../guides/security-best-practices#restricting-a-circuit-to-a-group) in the security guide.
