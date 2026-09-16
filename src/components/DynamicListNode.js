@@ -17,8 +17,17 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '1.0.1',
+    version: '1.0.2',
     status: 'LATEST',
+    date: '16 September 2026',
+    summary: 'Summary of Release 1.0.2',
+    details: [],
+    artifacts: [],
+    link: '/relnotes/node/node-1-0-2',
+  },
+  {
+    version: '1.0.1',
+    status: 'SUPPORTED',
     date: '14 July 2026',
     summary: 'Patch release on the 1.0.0 GA line with a default for unsafe_allow_symlinks and regenerated Preview network configuration.',
     details: [
