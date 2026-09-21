@@ -2,12 +2,12 @@
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Node v1.0.2 release notes
-description: Node v1.0.2 fixes inconsistent transaction validation caused by the block timestamp correction, picks up the ledger 8.1.2 security release, and clears security findings in the toolkit image.
+description: Node is a core component of the Midnight Network, responsible for syncing, validating transactions, and maintaining the chain state.
 displayed_sidebar: sidebar
 ---
 
 - **Version**: v1.0.2
-- **Date**: September 11, 2026
+- **Date**: September 18, 2026
 - **Components**: `node-1.0.2`, `toolkit-1.0.0`, `runtime-1.0.0`
 
 ---
@@ -19,15 +19,17 @@ docker pull midnightntwrk/midnight-node:1.0.2
 docker pull midnightntwrk/midnight-node-toolkit:1.0.0
 ```
 
+The toolkit version number is unchanged, but the `midnight-node-toolkit:1.0.0` image was rebuilt for this release and carries the dependency fixes described below. Pull the tag again to pick them up.
+
 ---
 
 ## High-level summary
 
-Node v1.0.2 is a patch release on the [v1.0.0 GA line](/relnotes/node/node-1-0-0). It corrects how the node validates the first transaction of a block against the block timestamp, which had caused nodes to disagree on transaction validity and stalled Preview at block 128536. It also moves the ledger 8 dependency to the [ledger 8.1.2 security release](/relnotes/ledger/ledger-8-1-2) and clears security scanner findings in the toolkit image.
+Node v1.0.2 is a small dependency and security patch on the [v1.0.0 GA line](/relnotes/node/node-1-0-0). It moves the ledger 8 dependency to the [ledger 8.1.2 security release](/relnotes/ledger/ledger-8-1-2), clears `npm audit` findings in the toolkit JavaScript packages and the local environment, and moves the toolkit image to Node.js 24 LTS along with the resolver fix that move required.
 
-The runtime stays at 1.0.0, so no runtime upgrade is required. Operators update the node binary or image.
+There are no node, pallet, or runtime logic changes. The runtime stays at 1.0.0 with `spec_version` `1_000_000` and `transaction_version` `3`, so no runtime upgrade is required. Operators update the node binary or image and pull the toolkit image again.
 
-The changelog attached to the GitHub release is cumulative and repeats changes that already shipped in v1.0.0 and v1.0.1. The changes listed below are the delta from v1.0.1.
+The changelog attached to the GitHub release is cumulative and repeats changes that already shipped in v1.0.0 and v1.0.1. The changes listed below are the delta from v1.0.1, taken from the [comparison between the two tags](https://github.com/midnightntwrk/midnight-node/compare/node-1.0.1...node-1.0.2).
 
 ---
 
@@ -35,10 +37,12 @@ The changelog attached to the GitHub release is cumulative and repeats changes t
 
 This release note is relevant for users who:
 
-- Run Midnight node infrastructure on any network. The block timestamp correction has a cutoff date after which nodes that have not synced past the affected historical blocks stop applying it, so update before then.
-- Run the node toolkit image and have security scanning on their images.
+- Run Midnight node infrastructure on any network and want the ledger 8.1.2 deserialization hardening.
+- Run the node toolkit image or the toolkit JavaScript packages and scan their dependencies for advisories.
+- Run the toolkit on Node.js 24.21 or later, where the previous toolkit release failed with a stack overflow.
+- Run the local development environment and build contracts in its contract compiler image.
 
-DApp developers do not need to take any action for this release. The ledger 8.1.2 change tightens what the node accepts from the network; well-formed transactions are unaffected.
+DApp developers do not need to take any action for this release.
 
 ---
 
@@ -46,12 +50,13 @@ DApp developers do not need to take any action for this release. The ledger 8.1.
 
 The updates below describe the key changes introduced in this release.
 
-- Fixed inconsistent transaction validation caused by a warm validation cache verifying transactions at a different block timestamp than the block they were included in.
-- Limited the block timestamp correction to the first ledger transaction of a block and measured it from the parent block timestamp, which unblocked Preview at block 128537.
-- Extended the cutoff after which the correction is disabled to 31 October 2026 (UTC), so networks can sync past the affected historical blocks.
-- Added two node configuration values, `tblock_correction_offset` and `tblock_correction_disable_after`, with defaults that need no operator action.
-- Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that hardens deserialization.
-- Cleared critical and high findings in the toolkit image by bumping the bundled npm and applying npm audit fixes.
+- Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that rejects non-canonical encodings and values that violate their type invariants rather than decoding them.
+- Picked up the companion ledger crate bumps: `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-storage-core` 1.2.1, and `midnight-serialize` 1.1.1.
+- Cleared `npm audit` findings in the toolkit JavaScript packages and the local environment: `js-yaml` 4.3.2, `nanoid` 3.3.19, `toml` 4.3.0 through an override, `turbo` 2.9.14, and `vitest` 4.1.11.
+- Moved the toolkit image from Node.js 23.11.0 to Node.js 24.21.0 LTS.
+- Fixed a toolkit stack overflow on Node.js 24.21 and later, where the module resolve hook re-entered itself.
+- Refreshed the pinned apt package versions in the local environment contract compiler image.
+- Left the runtime at 1.0.0 and the toolkit at 1.0.0, so no runtime upgrade is required.
 
 ---
 
@@ -63,36 +68,29 @@ No new features in this release.
 
 ## Breaking changes
 
-No breaking changes to the node interface. The runtime remains at 1.0.0.
+No breaking changes to the node interface. The runtime remains at 1.0.0 and no runtime upgrade is required.
 
-Ledger 8.1.2 rejects non-canonical encodings and values that violate their type invariants, which 8.1.1 decoded. Transactions built with a supported SDK are unaffected. See the [ledger 8.1.2 release notes](/relnotes/ledger/ledger-8-1-2) for the details.
+Ledger 8.1.2 narrows what deserializes, so a node on 8.1.2 rejects some data that a node on 8.1.1 accepted. Transactions built with a supported SDK are unaffected. See the [ledger v8.1.2 release notes](/relnotes/ledger/ledger-8-1-2) for the per-crate rules.
 
 ---
 
 ## Bug fixes and quality improvements
 
-### Block timestamp correction for the first transaction of a block
-
-A transaction validated from a warm strict cache on the producing node could be verified at a later timestamp than the block it landed in, so other nodes rejected the block. The node now accepts those historical transactions by applying a correction to the block timestamp used for validation. The correction applies only to the first ledger transaction of a block, is measured from the parent block timestamp, and is not applied on the mempool path. An earlier version of the correction was applied too broadly and stalled Preview at block 128536; this release imports that block.
-
-Two configuration values control the behaviour and both have defaults:
-
-```toml
-# Must equal slot_duration_secs * (1 + MaxSkippedSlots): 6 * 2
-tblock_correction_offset = 12
-# Saturday, 31 October 2026 at 00:00:00 UTC
-tblock_correction_disable_after = 1793404800
-```
-
-Sync nodes past the affected historical blocks before the cutoff; after it the correction is no longer applied. ([#1932](https://github.com/midnightntwrk/midnight-node/pull/1932), [#1964](https://github.com/midnightntwrk/midnight-node/pull/1964), [#1965](https://github.com/midnightntwrk/midnight-node/pull/1965), [#1995](https://github.com/midnightntwrk/midnight-node/pull/1995))
-
 ### Ledger 8.1.2
 
-The ledger 8 pin moves from 8.1.1 to 8.1.2. The release hardens low-level deserialization across the ledger crates, guards `DustParameters::time_to_cap` against a zero decay rate, uses saturating arithmetic for DUST sequence and delta accumulation, and stops Zswap binding randomness extraction from panicking on a proof preimage without a witness. Crate versions: `midnight-ledger` and `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-zkir` 2.1.1. ([#2145](https://github.com/midnightntwrk/midnight-node/pull/2145))
+The ledger 8 pin moves from 8.1.1 to 8.1.2. The release hardens low-level deserialization across the `serialize`, `base-crypto`, `storage`, `onchain-state`, `onchain-vm`, and `transient-crypto` crates, guards `DustParameters::time_to_cap` against a zero generation decay rate, uses saturating arithmetic for DUST sequence increments and for delta accumulation in `normalize_deltas`, stops Zswap binding randomness extraction from panicking on a proof preimage with no witness, and counts contract call public inputs through `ContractCall::public_inputs_len` instead of materializing them.
 
-### Toolkit image security findings
+### Toolkit dependency advisories
 
-The bundled npm in the toolkit image moves from 11.11.0 to 11.18.0, which clears a critical `tar` advisory and the other flagged packages vendored inside the npm CLI. npm audit fixes for `toml`, `nanoid`, `turbo` and `vitest` are backported to the release line. The toolkit version is unchanged. ([#1919](https://github.com/midnightntwrk/midnight-node/pull/1919), [#2145](https://github.com/midnightntwrk/midnight-node/pull/2145))
+`npm audit` findings in the toolkit JavaScript packages and the local environment are cleared: `js-yaml` moves to 4.3.2, `nanoid` to 3.3.19, `turbo` to 2.9.14, and `vitest` to 4.1.11, with `toml` pinned to 4.3.0 through an override. ([#2179](https://github.com/midnightntwrk/midnight-node/pull/2179))
+
+### Toolkit on Node.js 24 LTS
+
+The toolkit image moves from Node.js 23.11.0 to Node.js 24.21.0 LTS. From Node.js 24.21, the CommonJS `require.resolve` call inside the toolkit is itself routed through `registerHooks`, so the toolkit resolve hook re-entered for the same bare specifier and overflowed the stack. The hook now tracks the specifiers it is resolving and skips interception on re-entry, letting default resolution finish. ([#2179](https://github.com/midnightntwrk/midnight-node/pull/2179))
+
+### Local environment contract compiler image
+
+The pinned `jq`, `curl`, and `libssl-dev` package versions in the local environment contract compiler image are refreshed to versions still published in the Debian bookworm archive, so the image builds again.
 
 ---
 
@@ -105,6 +103,7 @@ No new known issues in this release.
 ## Links and references
 
 - [GitHub release: node-1.0.2](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.2)
+- [Comparison from node-1.0.1 to node-1.0.2](https://github.com/midnightntwrk/midnight-node/compare/node-1.0.1...node-1.0.2)
 - [Midnight node on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node)
 - [Node toolkit on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit)
 - [Ledger v8.1.2 release notes](/relnotes/ledger/ledger-8-1-2)
