@@ -17,6 +17,31 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
+    version: '4.3.7',
+    status: 'SUPPORTED',
+    note: 'Upstream pre-release, pending QA sign-off. A targeted Mainnet maintenance patch off v4.3.3-hotfix, not a roll-up of 4.3.4 or 4.3.5.',
+    date: '18 August 2026',
+    summary: 'Mainnet maintenance patch fixing the DUST validity window, with no schema or migration change.',
+    details: [
+      'Fixed `OutOfDustValidityWindow` and `IntentTtlExpired` on the first regular transaction of a block',
+      'Chain indexer now reproduces the node mempool `tblock` bump off the parent block timestamp',
+      'Seeds the block timestamp from the highest stored block on restart',
+      'Consolidated the runtime-upgrade enactment-block tolerance in `get_contract_state` from `v4.3.3-hotfix`',
+      'No GraphQL schema change and no new migrations relative to 4.3.3',
+      'Drop-in upgrade from `v4.3.3-hotfix` or `v4.3.3`, no chain reset',
+      'Excludes the 4.4.0-preview content carried by the `v4.3.4` and `v4.3.5` tags',
+      'Pairs with Node 1.0.0 and Ledger 8.1.0',
+    ],
+    artifacts: [
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+      { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-3-7',
+  },
+  {
     version: '4.3.3',
     status: 'LATEST',
     date: '4 June 2026',
