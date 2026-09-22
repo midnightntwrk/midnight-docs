@@ -17,6 +17,14 @@
 // indexer 4.1.0 missing between documented 4.0.2 and 4.3.2), not just a lagging
 // latest, while ignoring history older than the supported window.
 //
+// A component that ships as an npm package can set `npm` to its package name.
+// A stable tag whose version was never published to that package is a
+// version-alignment tag, not a release readers can install, so it is reported
+// in the summary table but never opened as an issue. Compact JS 2.5.2 is the
+// case this exists for: it was tagged during the midnight-sdk repository
+// migration, never published to npm, and 2.5.3 supersedes it. The registry
+// lookup fails open, so an npm outage can never hide a real gap.
+//
 // When a gap is found, the script opens one GitHub issue per component and
 // version (title: "Release notes gap: <component> <version>"). An issue that
 // already exists for that title, open or closed, is never recreated, so
@@ -44,6 +52,9 @@ if (!TOKEN) {
 
 // tag: anchored regex whose first capture group is the version, with any
 // prerelease suffix included so prereleases can be reported in the summary.
+// npm (optional): package whose published versions decide whether a stable tag
+// is a real release. Only set it for a component whose git tag versions and
+// npm versions are the same numbers.
 const COMPONENTS = [
   { name: 'Node',               repo: 'midnightntwrk/midnight-node',               tag: /^node-(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,                                  list: 'src/components/DynamicListNode.js' },
   { name: 'Ledger',             repo: 'midnightntwrk/midnight-ledger',             tag: /^ledger-(\d+\.\d+\.\d+(?:\.\d+)?(?:-[0-9A-Za-z.]+)?)$/,                                list: 'src/components/DynamicListLedger.js' },
@@ -52,7 +63,7 @@ const COMPONENTS = [
   { name: 'DApp Connector API', repo: 'midnightntwrk/midnight-dapp-connector-api', tag: /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,                                      list: 'src/components/DynamicListDappConnectorAPI.js' },
   { name: 'Compact toolchain',  repo: 'midnightntwrk/compact',                     tag: /^compactc-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,                             list: 'src/components/DynamicListCompact.js' },
   { name: 'Compact devtools',   repo: 'midnightntwrk/compact',                     tag: /^compact-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,                              list: 'src/components/DynamicListCompactTools.js' },
-  { name: 'Compact JS',         repo: 'midnightntwrk/midnight-sdk',                tag: /^compact-js-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,                           list: 'src/components/DynamicListCompactJS.js' },
+  { name: 'Compact JS',         repo: 'midnightntwrk/midnight-sdk',                tag: /^compact-js-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,                           list: 'src/components/DynamicListCompactJS.js', npm: '@midnight-ntwrk/compact-js' },
   { name: 'Wallet SDK',         repo: 'midnightntwrk/midnight-wallet',             tag: /^@midnight-?ntwrk\/wallet-sdk@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/,   list: 'src/components/DynamicListWallet.js' },
 ];
 
@@ -123,6 +134,21 @@ const upstreamReleases = async (component) => {
   return { stable, newestStable: newest(stable), newestPrerelease: newest(prerelease) };
 };
 
+// Versions that actually exist on npm for a package, or null when the lookup
+// fails. Null means "do not filter", so a registry outage never hides a gap.
+const npmVersions = async (pkg) => {
+  try {
+    const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkg)}`, {
+      headers: { Accept: 'application/vnd.npm.install-v1+json' },
+    });
+    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    return new Set(Object.keys((await res.json()).versions ?? {}));
+  } catch (e) {
+    console.error(`npm lookup failed for ${pkg}: ${e.message}`);
+    return null;
+  }
+};
+
 const issueExists = async (title) => {
   const q = encodeURIComponent(`repo:${DOCS_REPO} is:issue in:title "${title}"`);
   const found = await api(`/search/issues?q=${q}&per_page=20`);
@@ -167,17 +193,29 @@ for (const c of COMPONENTS) {
   }
 
   // Stable releases inside the supported window with no DynamicList entry.
-  const missing = upstream.stable
+  let missing = upstream.stable
     .filter((r) => !known.has(r.version) && (!floor || cmpVersion(r.version, floor) > 0))
     .sort((a, b) => cmpVersion(a.version, b.version));
 
+  // Drop version-alignment tags: a stable tag the package never published is
+  // not installable, so it gets no release notes.
+  let unpublished = [];
+  if (c.npm && missing.length > 0) {
+    const published = await npmVersions(c.npm);
+    if (published) {
+      unpublished = missing.filter((r) => !published.has(r.version)).map((r) => r.version);
+      missing = missing.filter((r) => published.has(r.version));
+    }
+  }
+  const note = unpublished.length > 0 ? ` (not on npm: ${unpublished.join(', ')})` : '';
+
   if (missing.length === 0) {
-    rows.push([c.name, documented, upstream.newestStable.version, preCell, ':white_check_mark:']);
+    rows.push([c.name, documented, upstream.newestStable.version, preCell, `:white_check_mark:${note}`]);
     continue;
   }
 
   gaps += missing.length;
-  rows.push([c.name, documented, upstream.newestStable.version, preCell, `:x: missing ${missing.map((r) => r.version).join(', ')}`]);
+  rows.push([c.name, documented, upstream.newestStable.version, preCell, `:x: missing ${missing.map((r) => r.version).join(', ')}${note}`]);
 
   for (const r of missing) {
     const title = `Release notes gap: ${c.name} ${r.version}`;
