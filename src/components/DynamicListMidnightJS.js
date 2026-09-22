@@ -36,10 +36,28 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-4-1-1',
   },
   {
+    version: '4.1.0',
+    status: 'SUPPORTED',
+    date: '20 May 2026',
+    summary: 'Async Web Crypto storage encryption, midnight-js-protocol package, React Native support, security fixes',
+    details: [
+      'Migrated `StorageEncryption` to the async Web Crypto API with a `StorageEncryption.create()` factory (breaking)',
+      'Added `@midnight-ntwrk/midnight-js-protocol` for version-agnostic protocol imports; direct imports are blocked by ESLint (breaking)',
+      'Added a `CryptoBackend` abstraction with a Noble fallback and an injectable `levelFactory` for React Native',
+      'Added `DAppConnectorWalletAdapter` to `testkit-js` for wallet-delegated proving in tests',
+      'Replaced the SHA-256 password verifier with PBKDF2 and blocked path traversal in the ZK config providers',
+      'Routed shielded coins from fallible-segment circuit operations to the correct Zswap offer',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-1-0',
+  },
+  {
     version: '4.0.4',
     status: 'SUPPORTED',
     date: '1 April 2026',
-    summary: 'Summary of Release 4.0.4',
+    summary: 'Barrel package, DApp Connector proof provider, per-recipient encryption key resolution',
     details: [
       'Introduced `@midnight-ntwrk/midnight-js` barrel package',
       'Added `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider`',
@@ -51,6 +69,25 @@ const releases = [
       { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
     ],
     link: '/relnotes/midnight-js/midnight-js-4-0-4',
+  },
+  {
+    version: '4.0.3',
+    status: 'SUPPORTED',
+    date: '27 March 2026',
+    summary: 'New barrel and wallet-proving packages; publish incomplete, superseded by 4.0.4',
+    details: [
+      'Added the `@midnight-ntwrk/midnight-js` barrel package',
+      'Added `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider` for wallet-delegated proving',
+      'Fixed 15 `testkit-js` bugs across assertions, error propagation, and environment variables',
+      'Made `waitForFunds` always return a `bigint` and fixed `BigInt` JSON precision loss',
+      'Added tests that reproduce the `sendUnshielded` failure reported in issue 720',
+      'Consolidated development dependency updates and refreshed API documentation',
+      'Publish did not complete: install 4.0.4 or later, which includes every change listed here',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-3',
   },
   {
     version: '4.0.2',
