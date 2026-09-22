@@ -1,0 +1,110 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Node v1.0.2 release notes
+description: Node is a core component of the Midnight Network, responsible for syncing, validating transactions, and maintaining the chain state.
+displayed_sidebar: sidebar
+---
+
+- **Version**: v1.0.2
+- **Date**: September 18, 2026
+- **Components**: `node-1.0.2`, `toolkit-1.0.0`, `runtime-1.0.0`
+
+---
+
+## Docker images
+
+```shell
+docker pull midnightntwrk/midnight-node:1.0.2
+docker pull midnightntwrk/midnight-node-toolkit:1.0.0
+```
+
+The toolkit version number is unchanged, but the `midnight-node-toolkit:1.0.0` image was rebuilt for this release and carries the dependency fixes described below. Pull the tag again to pick them up.
+
+---
+
+## High-level summary
+
+Node v1.0.2 is a small dependency and security patch on the [v1.0.0 GA line](/relnotes/node/node-1-0-0). It moves the ledger 8 dependency to the [ledger 8.1.2 security release](/relnotes/ledger/ledger-8-1-2), clears `npm audit` findings in the toolkit JavaScript packages and the local environment, and moves the toolkit image to Node.js 24 LTS along with the resolver fix that move required.
+
+There are no node, pallet, or runtime logic changes. The runtime stays at 1.0.0 with `spec_version` `1_000_000` and `transaction_version` `3`, so no runtime upgrade is required. Operators update the node binary or image and pull the toolkit image again.
+
+The changelog attached to the GitHub release is cumulative and repeats changes that already shipped in v1.0.0 and v1.0.1. The changes listed below are the delta from v1.0.1, taken from the [comparison between the two tags](https://github.com/midnightntwrk/midnight-node/compare/node-1.0.1...node-1.0.2).
+
+---
+
+## Audience
+
+This release note is relevant for users who:
+
+- Run Midnight node infrastructure on any network and want the ledger 8.1.2 deserialization hardening.
+- Run the node toolkit image or the toolkit JavaScript packages and scan their dependencies for advisories.
+- Run the toolkit on Node.js 24.21 or later, where the previous toolkit release failed with a stack overflow.
+- Run the local development environment and build contracts in its contract compiler image.
+
+DApp developers do not need to take any action for this release.
+
+---
+
+## What changed (Summary of updates)
+
+The updates below describe the key changes introduced in this release.
+
+- Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that rejects non-canonical encodings and values that violate their type invariants rather than decoding them.
+- Picked up the companion ledger crate bumps: `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-storage-core` 1.2.1, and `midnight-serialize` 1.1.1.
+- Cleared `npm audit` findings in the toolkit JavaScript packages and the local environment: `js-yaml` 4.3.2, `nanoid` 3.3.19, `toml` 4.3.0 through an override, `turbo` 2.9.14, and `vitest` 4.1.11.
+- Moved the toolkit image from Node.js 23.11.0 to Node.js 24.21.0 LTS.
+- Fixed a toolkit stack overflow on Node.js 24.21 and later, where the module resolve hook re-entered itself.
+- Refreshed the pinned apt package versions in the local environment contract compiler image.
+- Left the runtime at 1.0.0 and the toolkit at 1.0.0, so no runtime upgrade is required.
+
+---
+
+## New features
+
+No new features in this release.
+
+---
+
+## Breaking changes
+
+No breaking changes to the node interface. The runtime remains at 1.0.0 and no runtime upgrade is required.
+
+Ledger 8.1.2 narrows what deserializes, so a node on 8.1.2 rejects some data that a node on 8.1.1 accepted. Transactions built with a supported SDK are unaffected. See the [ledger v8.1.2 release notes](/relnotes/ledger/ledger-8-1-2) for the per-crate rules.
+
+---
+
+## Bug fixes and quality improvements
+
+### Ledger 8.1.2
+
+The ledger 8 pin moves from 8.1.1 to 8.1.2. The release hardens low-level deserialization across the `serialize`, `base-crypto`, `storage`, `onchain-state`, `onchain-vm`, and `transient-crypto` crates, guards `DustParameters::time_to_cap` against a zero generation decay rate, uses saturating arithmetic for DUST sequence increments and for delta accumulation in `normalize_deltas`, stops Zswap binding randomness extraction from panicking on a proof preimage with no witness, and counts contract call public inputs through `ContractCall::public_inputs_len` instead of materializing them.
+
+### Toolkit dependency advisories
+
+`npm audit` findings in the toolkit JavaScript packages and the local environment are cleared: `js-yaml` moves to 4.3.2, `nanoid` to 3.3.19, `turbo` to 2.9.14, and `vitest` to 4.1.11, with `toml` pinned to 4.3.0 through an override. ([#2179](https://github.com/midnightntwrk/midnight-node/pull/2179))
+
+### Toolkit on Node.js 24 LTS
+
+The toolkit image moves from Node.js 23.11.0 to Node.js 24.21.0 LTS. From Node.js 24.21, the CommonJS `require.resolve` call inside the toolkit is itself routed through `registerHooks`, so the toolkit resolve hook re-entered for the same bare specifier and overflowed the stack. The hook now tracks the specifiers it is resolving and skips interception on re-entry, letting default resolution finish. ([#2179](https://github.com/midnightntwrk/midnight-node/pull/2179))
+
+### Local environment contract compiler image
+
+The pinned `jq`, `curl`, and `libssl-dev` package versions in the local environment contract compiler image are refreshed to versions still published in the Debian bookworm archive, so the image builds again.
+
+---
+
+## Known issues
+
+No new known issues in this release.
+
+---
+
+## Links and references
+
+- [GitHub release: node-1.0.2](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.2)
+- [Comparison from node-1.0.1 to node-1.0.2](https://github.com/midnightntwrk/midnight-node/compare/node-1.0.1...node-1.0.2)
+- [Midnight node on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node)
+- [Node toolkit on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit)
+- [Ledger v8.1.2 release notes](/relnotes/ledger/ledger-8-1-2)
+- [Node v1.0.1 release notes](/relnotes/node/node-1-0-1)
