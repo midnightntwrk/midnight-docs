@@ -1,0 +1,135 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight.js v4.1.0 release notes
+displayed_sidebar: sidebar
+description: Release notes for Midnight.js v4.1.0, covering the async StorageEncryption API, the midnight-js-protocol package for version-agnostic protocol imports, Web Crypto and React Native support, and security fixes.
+---
+
+* **Version**: v4.1.0
+* **Date**: May 20, 2026
+* **Node.js requirement**: >=22
+
+---
+
+## High-level summary
+
+This release migrates storage encryption to the Web Crypto API with a pluggable backend, which makes `level-private-state-provider` usable in browsers and React Native, and introduces `@midnight-ntwrk/midnight-js-protocol`, a package that re-exports the ledger, Compact runtime, Compact.js, on-chain runtime and Platform JS packages behind version-agnostic subpaths. Both are breaking changes for code that constructs `StorageEncryption` directly or imports protocol packages directly. The release also ships several security fixes and fixes shielded coin routing for fallible-segment circuit operations.
+
+## Audience
+
+This release note is most relevant for developers who:
+
+- Construct `StorageEncryption` directly or call its `encrypt`, `decrypt` or `verifyPassword` methods.
+- Import types or functions from `@midnight-ntwrk/ledger-v8`, `@midnight-ntwrk/compact-runtime`, `@midnight-ntwrk/compact-js`, `@midnight-ntwrk/onchain-runtime-v3` or `@midnight-ntwrk/platform-js` in a Midnight.js application.
+- Build DApps for the browser or React Native.
+- Mint or move shielded tokens from circuits that run in the fallible segment.
+
+## Summary of updates
+
+- Migrated `StorageEncryption` to the async Web Crypto API with a `StorageEncryption.create()` factory (breaking).
+- Added `@midnight-ntwrk/midnight-js-protocol` with version-agnostic subpaths for the protocol packages; an ESLint rule blocks direct imports (breaking).
+- Added a `CryptoBackend` abstraction with a Noble pure-JS fallback and an injectable `levelFactory` for React Native.
+- Added `DAppConnectorWalletAdapter` and `DAppConnectorInitialAPI` to `testkit-js` for wallet-delegated proving in end-to-end tests.
+- Replaced the in-memory SHA-256 password verifier with PBKDF2, blocked path traversal in the ZK config providers and `VersionManager`, and made `decryptValue` fail closed.
+- Routed shielded coins produced by fallible-segment circuit operations to the correct Zswap offer.
+- Removed Node-only `fs` and `path` imports from `midnight-js-contracts` so it bundles for the browser.
+
+---
+
+## New features
+
+### Web Crypto storage encryption with a pluggable backend
+
+`StorageEncryption` in `level-private-state-provider` uses `globalThis.crypto.subtle` instead of the Node.js `crypto` module. A `cryptoBackend` option on `levelPrivateStateProvider` selects `'webcrypto'` (default when available) or `'noble'`, a pure-JS fallback built on `@noble/ciphers` and `@noble/hashes` for environments without a secure context. New type exports: `CryptoBackend`, `CryptoBackendType`, `StorageEncryptionOptions`. ([#798](https://github.com/midnightntwrk/midnight-js/pull/798), [#827](https://github.com/midnightntwrk/midnight-js/pull/827))
+
+### Injectable `levelFactory` for React Native
+
+`LevelPrivateStateProviderConfig` accepts an optional `levelFactory` so any `AbstractLevel`-compatible store can replace the default Node.js `Level`, which unblocks React Native consumers. New exports: `LevelFactory`, `DatabaseLevel`. ([#827](https://github.com/midnightntwrk/midnight-js/pull/827))
+
+### Protocol package
+
+`@midnight-ntwrk/midnight-js-protocol` wraps the five external protocol packages behind subpaths such as `@midnight-ntwrk/midnight-js-protocol/ledger` and `@midnight-ntwrk/midnight-js-protocol/compact-runtime`, so a future ledger or runtime upgrade changes only this package. ([#832](https://github.com/midnightntwrk/midnight-js/pull/832))
+
+### `DAppConnectorWalletAdapter` in testkit-js
+
+`DAppConnectorWalletAdapter` wraps `MidnightWalletProvider` behind the `ConnectedAPI` interface with local WASM proving, and `DAppConnectorInitialAPI` provides an `InitialAPI` with network ID validation, so the DApp Connector proving flow can be tested end to end without a standalone proof server. ([#855](https://github.com/midnightntwrk/midnight-js/pull/855))
+
+### Input validation helpers
+
+`assertSafeName` and `assertSemVer` in `@midnight-ntwrk/midnight-js-utils` reject empty, over-long, traversal-bearing or non-semver inputs. ([#875](https://github.com/midnightntwrk/midnight-js/pull/875))
+
+---
+
+## Breaking changes
+
+### `StorageEncryption` is async
+
+The constructor is replaced by the async factory `StorageEncryption.create(password)`, and `encrypt`, `decrypt`, `verifyPassword`, `decryptWithPassword` and `invalidateEncryptionCache` return promises. `isDecryptionError` recognises Web Crypto `DOMException` messages.
+
+```typescript
+// Before (v4.0.4)
+const encryption = new StorageEncryption(password);
+const encrypted = encryption.encrypt(data);
+
+// After (v4.1.0)
+const encryption = await StorageEncryption.create(password);
+const encrypted = await encryption.encrypt(data);
+```
+
+### Protocol imports go through `midnight-js-protocol`
+
+Direct imports from the protocol packages are replaced by the subpaths below. An ESLint `no-restricted-imports` rule reports the old form.
+
+| Before (v4.0.4) | After (v4.1.0) |
+|---|---|
+| `@midnight-ntwrk/ledger-v8` | `@midnight-ntwrk/midnight-js-protocol/ledger` |
+| `@midnight-ntwrk/compact-runtime` | `@midnight-ntwrk/midnight-js-protocol/compact-runtime` |
+| `@midnight-ntwrk/compact-js` | `@midnight-ntwrk/midnight-js-protocol/compact-js` |
+| `@midnight-ntwrk/onchain-runtime-v3` | `@midnight-ntwrk/midnight-js-protocol/onchain-runtime` |
+| `@midnight-ntwrk/platform-js` | `@midnight-ntwrk/midnight-js-protocol/platform-js` |
+
+### Behaviour changes to be aware of
+
+- `verifyPassword` runs PBKDF2 (600K iterations) instead of a single SHA-256 round, so a cold read after a cache miss takes hundreds of milliseconds. Subsequent reads hit the cached key. The on-disk format is unchanged. ([#883](https://github.com/midnightntwrk/midnight-js/pull/883))
+- `assertDefined` and `assertUndefined` accept falsy values (`0`, `''`, `false`, `0n`); code that relied on the old truthiness check needs an explicit predicate. ([#900](https://github.com/midnightntwrk/midnight-js/pull/900))
+- `decryptValue` throws on unrecognised data during password rotation instead of returning raw bytes. ([#885](https://github.com/midnightntwrk/midnight-js/pull/885))
+
+---
+
+## Bug fixes and quality improvements
+
+### Shielded coins routed to the correct segment
+
+`createUnprovenLedgerCallTx` put every shielded input and output into the guaranteed Zswap offer regardless of the circuit segment that produced it, so coins minted by fallible-segment operations failed to balance with `InsufficientFunds`. `zswapStateToSegmentedOffer` now builds separate guaranteed and fallible offers by matching each coin against the partitioned transcript; cross-segment ambiguity throws instead of falling back silently. ([#876](https://github.com/midnightntwrk/midnight-js/pull/876), [#877](https://github.com/midnightntwrk/midnight-js/pull/877))
+
+### Browser-bundleable `midnight-js-contracts`
+
+`logTransaction()` no longer imports `node:fs` and `node:path` to write a debug trace, so `@midnight-ntwrk/midnight-js-contracts` bundles for the browser. ([#869](https://github.com/midnightntwrk/midnight-js/pull/869))
+
+### Path traversal blocked in ZK providers and `VersionManager`
+
+`circuitId` is validated before any path or URL is built in `node-zk-config-provider` and `fetch-zk-config-provider`, and `getVersionDir` is the single validator in `compact/version-manager` with a containment check before removal. ([#875](https://github.com/midnightntwrk/midnight-js/pull/875))
+
+### HTML responses rejected by `FetchZkConfigProvider`
+
+Single-page-app servers return `index.html` with HTTP 200 for missing artifact paths; the provider now checks the content type and rejects `text/html` with an error that names the URL and status. ([#785](https://github.com/midnightntwrk/midnight-js/pull/785))
+
+### Dependencies
+
+`@apollo/client` moves from 3.14.0 to 4.1.6, `compactc` to 0.31.0 with test fixtures recompiled, and testkit-js consumes the `@midnight-ntwrk/wallet-sdk` barrel package 1.0.0 instead of the individual `wallet-sdk-*` packages. ([#666](https://github.com/midnightntwrk/midnight-js/pull/666), [#902](https://github.com/midnightntwrk/midnight-js/pull/902), [#862](https://github.com/midnightntwrk/midnight-js/pull/862))
+
+---
+
+## Known issues
+
+No new known issues in this release.
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight.js repository](https://github.com/midnightntwrk/midnight-js)
+- **Release documentation**: [v4.1.0 release notes, breaking changes and migration guide](https://github.com/midnightntwrk/midnight-js/tree/main/docs/releases/v4.1.0)
+- **API reference**: [Midnight.js API documentation](/api-reference/midnight-js/packages)
+- **Release**: [v4.1.0 on GitHub](https://github.com/midnightntwrk/midnight-js/releases/tag/v4.1.0)
