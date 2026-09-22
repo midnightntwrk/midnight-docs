@@ -71,6 +71,25 @@ const releases = [
     link: '/relnotes/midnight-js/midnight-js-4-0-4',
   },
   {
+    version: '4.0.3',
+    status: 'SUPPORTED',
+    date: '27 March 2026',
+    summary: 'New barrel and wallet-proving packages; publish incomplete, superseded by 4.0.4',
+    details: [
+      'Added the `@midnight-ntwrk/midnight-js` barrel package',
+      'Added `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider` for wallet-delegated proving',
+      'Fixed 15 `testkit-js` bugs across assertions, error propagation, and environment variables',
+      'Made `waitForFunds` always return a `bigint` and fixed `BigInt` JSON precision loss',
+      'Added tests that reproduce the `sendUnshielded` failure reported in issue 720',
+      'Consolidated development dependency updates and refreshed API documentation',
+      'Publish did not complete: install 4.0.4 or later, which includes every change listed here',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-4-0-3',
+  },
+  {
     version: '4.0.2',
     status: 'SUPPORTED',
     date: '24 March 2026',
