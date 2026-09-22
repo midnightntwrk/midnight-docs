@@ -43,34 +43,26 @@ For complete package details, see the [wallet SDK release notes](../../relnotes/
 
 ## Installation
 
-Install the wallet SDK using your preferred package manager:
+The wallet SDK ships as one barrel package, `@midnightntwrk/wallet-sdk`, which re-exports every sub-package listed above. Install it together with the ledger package:
 
 <Tabs>
   <TabItem value="npm">
     ```bash
-    npm install @midnightntwrk/wallet-sdk-facade@VERSION \
-                @midnightntwrk/wallet-sdk-hd@VERSION \
-                @midnightntwrk/wallet-sdk-address-format@VERSION \
-                @midnightntwrk/wallet-sdk-unshielded-wallet@VERSION \
-                @midnightntwrk/wallet-sdk-shielded@VERSION \
-                @midnightntwrk/wallet-sdk-dust-wallet@VERSION \
-                @midnight-ntwrk/ledger-v8
+    npm install @midnightntwrk/wallet-sdk@VERSION @midnight-ntwrk/ledger-v8
     ```
   </TabItem>
   <TabItem value="yarn">
     ```bash
-    yarn add @midnightntwrk/wallet-sdk-facade@VERSION \
-                @midnightntwrk/wallet-sdk-hd@VERSION \
-                @midnightntwrk/wallet-sdk-address-format@VERSION \
-                @midnightntwrk/wallet-sdk-unshielded-wallet@VERSION \
-                @midnightntwrk/wallet-sdk-shielded@VERSION \
-                @midnightntwrk/wallet-sdk-dust-wallet@VERSION \
-                @midnight-ntwrk/ledger-v8
+    yarn add @midnightntwrk/wallet-sdk@VERSION @midnight-ntwrk/ledger-v8
     ```
   </TabItem>
 </Tabs>
 
-Replace `VERSION` with the compatible version of the wallet SDK packages as defined in the [release compatibility matrix](../../relnotes/support-matrix).
+Replace `VERSION` with the wallet SDK version in the [release compatibility matrix](../../relnotes/support-matrix).
+
+:::note
+The matrix lists the version of the barrel package. The sub-packages have their own version lines, so do not install a sub-package at the barrel version. Install a sub-package individually only if you need to pin it, and take its version from the [wallet SDK release notes](../../relnotes/wallet/).
+:::
 
 ## Wallet architecture
 
@@ -788,16 +780,19 @@ Always stop the wallet before exiting your application to ensure proper cleanup 
 
 For DApp integration, use the DApp Connector API, which provides a standardized interface for wallet interactions. This API enables DApps to interact with browser wallets like Lace through a consistent interface. 
 
-The example below shows how a DApp connects to and interacts with a Lace Midnight wallet.
+The example below shows how a DApp finds an installed wallet, connects to it, and sends a NIGHT transfer. For a complete React walkthrough, see [Connect a React DApp to a wallet](/guides/react-wallet-connect).
 
 ```typescript
 import { nativeToken } from '@midnight-ntwrk/ledger-v8';
 
-// Check if wallet is available
-const wallet = window.midnight?.mnLace;
+// Wallets inject their Initial API under window.midnight, each keyed by a
+// generated UUID rather than a fixed name, so enumerate the entries and let the
+// user choose when more than one wallet is installed.
+const wallets = Object.values(window.midnight ?? {});
+const wallet = wallets[0];
 
 if (!wallet) {
-  console.error('Please install Lace Midnight wallet');
+  console.error('Please install a Midnight wallet such as Lace');
   throw new Error('Wallet not found');
 }
 
@@ -834,18 +829,19 @@ try {
   console.log('Unshielded address:', unshieldedAddress);
   console.log('Dust address:', dustAddress);
 
-  // Initiate a payment
-  const transaction = await connectedApi.makeTransfer([
+  // Initiate a payment. makeTransfer balances and proves the transaction
+  // (the wallet shows an approval prompt) and returns the serialized result.
+  const { tx } = await connectedApi.makeTransfer([
     {
       kind: 'unshielded',
-      tokenType: nativeToken().raw,
+      type: nativeToken().raw,
       value: 10n ** 6n, // 1 NIGHT
       recipient: 'mn_addr_preprod1abcdef...', // Replace with actual address
     },
   ]);
 
-  // Submit transaction
-  await connectedApi.submitTransaction(transaction);
+  // Submit the proven transaction
+  await connectedApi.submitTransaction(tx);
   console.log('Transaction submitted successfully');
 
 } catch (error) {
