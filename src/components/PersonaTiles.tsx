@@ -22,7 +22,7 @@ const defaultTiles: Tile[] = [
   {
     title: "New to blockchain",
     body: "Learn core ideas related to selective disclosure, ZK proofs, commitments, and how Midnight is different.",
-    to: "/what-is-midnight",
+    to: "/learn/what-is-midnight",
     cta: "Start learning",
   },
   {
