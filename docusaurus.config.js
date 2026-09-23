@@ -176,20 +176,20 @@ const config = {
             from: '/sdks/community/ai-tools/kapa-mcp-server',
             to: '/ai-integration/kapa-mcp-server',
           },
-          // Academy redirects (external)
+          // Midnight Academy is retired; old Academy links land on the Hello World quick start
           {
             from: [
-              '/academy', 
-              '/academy/module-1', 
-              '/academy/module-2', 
-              '/academy/module-3', 
-              '/academy/module-4', 
-              '/academy/module-5', 
-              '/academy/module-6', 
+              '/academy',
+              '/academy/module-1',
+              '/academy/module-2',
+              '/academy/module-3',
+              '/academy/module-4',
+              '/academy/module-5',
+              '/academy/module-6',
               '/academy/module-7',
               '/academy/module-8',
             ],
-            to: 'https://academy.midnight.network/',
+            to: '/getting-started/hello-world',
           },
           {
             from: '/category/examples',
