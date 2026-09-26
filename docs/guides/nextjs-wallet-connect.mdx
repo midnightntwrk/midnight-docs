@@ -12,7 +12,7 @@ toc_max_heading_level: 2
 
 import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
-This guide explains how to create a Next.js application that connects to the Midnight Lace wallet using the DApp Connector API. 
+This guide explains how to create a Next.js application that connects to a Midnight wallet (for example Lace) using the DApp Connector API. 
 You'll build a wallet connection button that displays connection status, providing a foundation for building more complex DApps.
 
 The code examples focus on core functionality and intentionally omit CSS styling. You can add your preferred styling solution such as Tailwind, styled-components, or CSS modules to match your application's design.
@@ -24,7 +24,7 @@ Before you begin, make sure you have:
 - Basic knowledge of TypeScript and JavaScript
 - Familiarity with React and Next.js fundamentals
 - Node.js and npm installed on your system
-- [Midnight Lace wallet extension](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) installed in your browser
+- A Midnight wallet extension installed in your browser (for example [Lace](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk))
 
 ### Set up a Next.js project
 
@@ -49,7 +49,7 @@ npm install @midnight-ntwrk/dapp-connector-api
 ```
 
 :::note
-This guide uses the DApp Connector API v4.0.0. For more information, see the [DApp Connector API documentation](/api-reference/dapp-connector).
+This guide uses the DApp Connector API v4.0.1. For more information, see the [DApp Connector API documentation](/api-reference/dapp-connector).
 :::
 
 After completing this tutorial, you'll understand:
@@ -68,12 +68,35 @@ You'll build a client-side component that handles wallet connection. Since walle
 
 Create `app/components/ConnectWalletButton.tsx`:
 
+Create `app/lib/selectWallet.ts` first so the button stays wallet-agnostic. Wallets inject under `window.midnight` keyed by UUID; Lace may also expose a convenience alias at `window.midnight.mnLace`, but relying on that key alone misses other wallets and can resolve to `undefined` when only the UUID key is present. Enumerate with `Object.values(window.midnight)` - the same pattern as the [React wallet-connect guide](/guides/react-wallet-connect).
+
+```typescript
+import type { InitialAPI } from "@midnight-ntwrk/dapp-connector-api";
+
+export const listWallets = (): InitialAPI[] => {
+  const injected = window.midnight;
+  return injected ? Object.values(injected) : [];
+};
+
+export const selectWallet = (): InitialAPI => {
+  const wallets = listWallets();
+
+  if (wallets.length === 0) {
+    throw new Error("No Midnight wallet found. Please install a Midnight wallet extension.");
+  }
+
+  return wallets[0];
+};
+```
+
+Then create `app/components/ConnectWalletButton.tsx`:
+
 ```typescript
 "use client"; // Next.js directive for client-side rendering
 
 import { useState } from "react";
 import "@midnight-ntwrk/dapp-connector-api";
-import type { InitialAPI } from "@midnight-ntwrk/dapp-connector-api";
+import { selectWallet } from "../lib/selectWallet";
 
 export default function ConnectWalletButton() {
   const [connected, setConnected] = useState(false);
@@ -81,20 +104,20 @@ export default function ConnectWalletButton() {
 
   const handleConnect = async () => {
     try {
-      // Access the Midnight Lace wallet through the window object
-      const wallet: InitialAPI = await window.midnight!.mnLace;
-      
+      // Enumerate window.midnight - do not hardcode mnLace
+      const wallet = selectWallet();
+
       // Connect to the specified network (use 'undeployed' for local development)
-      const connectedApi = await wallet.connect('preprod');
-      
-      // Retrieve the shielded addresses from the wallet
-      const addresses = await connectedApi.getShieldedAddresses();
-      const address = addresses.shieldedAddress;
+      const connectedApi = await wallet.connect("preprod");
+
+      // Prefer unshielded address for display; request shielded only when needed
+      const { unshieldedAddress } = await connectedApi.getUnshieldedAddress();
+      const address = unshieldedAddress;
 
       // Check if the connection is established
       const connectionStatus = await connectedApi.getConnectionStatus();
-      
-      if (connectionStatus) {
+
+      if (connectionStatus.status === "connected") {
         setConnected(true);
         setWalletAddress(address);
         console.log("Connected to wallet:", address);
@@ -134,7 +157,7 @@ This component manages the wallet connection flow:
 
 1. **Client-side rendering**: The `"use client"` directive ensures this component runs in the browser where wallet APIs are available.
 2. **State management**: Uses React's `useState` hook to track connection status and wallet address.
-3. **Connection logic**: The `handleConnect` function accesses the wallet through `window.midnight.mnLace`, connects to the specified network, and retrieves the wallet's shielded address.
+3. **Connection logic**: The `handleConnect` function selects a wallet by enumerating `window.midnight`, connects to the specified network, and retrieves the wallet's unshielded address.
 4. **User feedback**: Displays the wallet address (truncated) and provides connect/disconnect actions.
 
 </Step>
@@ -153,7 +176,7 @@ import ConnectWalletButton from "./components/ConnectWalletButton";
 
 export const metadata: Metadata = {
   title: "Midnight Wallet Connector",
-  description: "Connect to Midnight Lace wallet",
+  description: "Connect to a Midnight wallet",
 };
 
 export default function RootLayout({
