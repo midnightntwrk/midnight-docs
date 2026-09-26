@@ -116,6 +116,8 @@ Handle these differences between connectors:
 
 The Edda Labs midnight-starter-template (demo at `counter.nebula.builders`) wires Lace and 1AM through a copy-pasteable wallet widget. Use it rather than re-deriving the logic:
 
+Prefer discovering the wallet key from `window.midnight` (or the widget's own discovery helpers) rather than hardcoding `mnLace`. Friendly keys such as `mnLace` still appear in some wallets today, but UUID / `rdns` injection is the durable path — see the React wallet-connect guide and [PR #1406](https://github.com/midnightntwrk/midnight-docs/pull/1406).
+
 ```tsx
 import { useWallet } from "@/modules/midnight/wallet-widget/hooks/useWallet";
 
@@ -123,7 +125,14 @@ function ConnectButton() {
   const { connectWallet, disconnect, status, dustBalance } = useWallet();
   if (status?.status === "connected")
     return <button onClick={() => disconnect()}>Connected · DUST {String(dustBalance?.balance)}</button>;
-  return <button onClick={() => connectWallet("mnLace", "preprod")}>Connect Lace</button>;
+
+  // Discover rather than hardcode: prefer Object.keys/values(window.midnight)
+  // or match on name/rdns. Fall back to a known friendly key only if present.
+  const walletKey =
+    Object.keys(window.midnight ?? {}).find((k) => k === "mnLace" || k === "1am") ??
+    Object.keys(window.midnight ?? {})[0];
+  if (!walletKey) return <button disabled>No Midnight wallet</button>;
+  return <button onClick={() => connectWallet(walletKey, "preprod")}>Connect</button>;
 }
 ```
 
