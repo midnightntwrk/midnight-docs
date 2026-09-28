@@ -17,8 +17,28 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '1.0.1',
+    version: '1.0.300',
     status: 'LATEST',
+    date: '22 September 2026',
+    summary: 'Security patch on the 1.0.x line with a coordinated runtime upgrade, a consensus-safe tblock correction, and a regenerated devnet genesis.',
+    details: [
+      'Run Node 1.0.300 on every validator before enacting its runtime; older binaries cannot instantiate the new runtime.',
+      'Reset devnet onto the regenerated genesis, whose hash changed. Preview, Preprod, and Mainnet keep their existing genesis.',
+      'The tblock correction now uses the on-chain runtime version, so validators apply it consistently.',
+      'The toolkit supports spec_version 1000300 and can replay history produced by this runtime.',
+      'Removed gdb from the node, toolkit, and hardfork-test-upgrader images.',
+      'Updated the bundled npm CLI to clear a critical tar advisory.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'Node toolkit', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.300' },
+    ],
+    link: '/relnotes/node/node-1-0-300',
+  },
+  {
+    version: '1.0.1',
+    status: 'SUPPORTED',
     date: '14 July 2026',
     summary: 'Patch release on the 1.0.0 GA line with a default for unsafe_allow_symlinks and regenerated Preview network configuration.',
     details: [
