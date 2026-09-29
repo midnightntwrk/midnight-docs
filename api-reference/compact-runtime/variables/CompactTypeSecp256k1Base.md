@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0-rc.0**](../README.md)
 
 ***
 
@@ -10,4 +10,4 @@
 const CompactTypeSecp256k1Base: CompactType<bigint>;
 ```
 
-Runtime type of the builtin `Secp256k1Base` type
+Runtime type of the standard library's `Secp256k1Base` type

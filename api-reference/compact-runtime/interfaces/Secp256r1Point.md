@@ -1,0 +1,34 @@
+[**@midnight-ntwrk/compact-runtime v0.20.0-rc.0**](../README.md)
+
+***
+
+[@midnight-ntwrk/compact-runtime](../globals.md) / Secp256r1Point
+
+# Interface: Secp256r1Point
+
+A point on the foreign secp256r1 elliptic curve. TypeScript representation of the
+Compact type of the same name.  When identity = true, x and y should be 0.
+
+## Properties
+
+### identity
+
+```ts
+readonly identity: boolean;
+```
+
+***
+
+### x
+
+```ts
+readonly x: bigint;
+```
+
+***
+
+### y
+
+```ts
+readonly y: bigint;
+```

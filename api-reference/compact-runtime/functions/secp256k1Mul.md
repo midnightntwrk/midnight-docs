@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0-rc.0**](../README.md)
 
 ***
 
@@ -10,11 +10,12 @@
 function secp256k1Mul(a, b): Secp256k1Point;
 ```
 
+**`Internal`**
+
 The Compact builtin `ecMul` function for secp256k1 points.
 
-`multiplyUnsafe` is used, instead of `multiply`, because the latter rejects a zero scalar; the
-"unsafe" (variable-time) is due to non-constant time operations, which we don't guarantee
-anyways.
+The point is assumed to be valid, points passed from compiler-generated code
+are always valid ones.
 
 ## Parameters
 

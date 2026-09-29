@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0-rc.0**](../README.md)
 
 ***
 
@@ -126,7 +126,5 @@ The public transcript of operations
 zswapLocalState: EncodedZswapLocalState;
 ```
 
-The Zswap local state this contract accumulated during the call — the shielded coins it
-consumed and produced. Recorded per call, not just for the root, so transaction assembly can
-build one offer contribution per call and bind each contract-owned input and output to the
-contract that actually made it.
+The shielded coins this contract consumed and produced. Recorded per call, not just for the
+root, so an input or output can be attributed to the contract that made it.

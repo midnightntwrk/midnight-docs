@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0-rc.0**](../README.md)
 
 ***
 
@@ -7,63 +7,18 @@
 # Function: crossContractCall()
 
 ```ts
-function crossContractCall(
-   circuitContext, 
-   calleeModule, 
-   calleeCircuitId, 
-   calleeAddress, 
-   calleeIsPure, 
-   callerProofData, ...
-args): Promise<any>;
+function crossContractCall(__namedParameters): Promise<any>;
 ```
 
 **`Internal`**
 
-Calls a circuit defined in another contract from the currently executing contract and returns the result.
+Calls a circuit on another contract and returns its result.
 
 ## Parameters
 
-### circuitContext
+### \_\_namedParameters
 
-[`CircuitContext`](../interfaces/CircuitContext.md)
-
-The current circuit context.
-
-### calleeModule
-
-`Module`
-
-The callee module containing TS executables.
-
-### calleeCircuitId
-
-`string`
-
-The name of the circuit to be called in the contract to be called.
-
-### calleeAddress
-
-`string`
-
-The address of the contract to be called.
-
-### calleeIsPure
-
-`boolean`
-
-A flag indicating whether the circuit being called is pure.
-
-### callerProofData
-
-[`PartialProofData`](../interfaces/PartialProofData.md)
-
-The proof data instance created when the caller circuit was initialized.
-
-### args
-
-...`any`[]
-
-The arguments to the circuit to be called.
+[`CrossContractCallOptions`](../type-aliases/CrossContractCallOptions.md)
 
 ## Returns
 
