@@ -1,0 +1,53 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact developer tools 0.5.3
+description: The Compact developer tools provide the compact CLI for installing toolchains and compiling, formatting, and fixing up Compact smart contracts.
+displayed_sidebar: sidebar
+---
+
+## Compact developer tools 0.5.3 release notes
+
+Compact developer tools (devtools) 0.5.3 is a maintenance release that makes toolchain installs more reliable. You no longer need `unzip` to install a toolchain. If an install fails partway, running `compact update` again now repairs it. In 0.5.2, a retry could leave `compact compile` and other commands broken.
+
+If you have an existing devtools installation, you can update it with the command `compact self update`. This works for installations made with the installer script. If `compact self update` fails with `Unable to load receipt for app compact`, install 0.5.3 with the shell command on the release page instead. To confirm the upgrade, run `compact --version`, which prints `compact 0.5.3`.
+
+If you do not have an existing devtools installation, you can install version 0.5.3 using the shell command shown on [the release page](https://github.com/midnightntwrk/compact/releases/tag/compact-v0.5.3).
+
+## Improvements
+
+### Toolchain installs no longer need `unzip`
+
+`compact update` now unpacks toolchain archives itself instead of running `unzip`. With [devtools 0.5.2](/relnotes/compact-tools/compact-tools-0-5-2), a toolchain install on a system without `unzip` failed with `Failed to spawn artifact extraction command`. A stock Ubuntu 24.04 image under WSL2 is one such system.
+
+When it unpacks an archive, `compact update` also refuses entries whose names escape the archive, such as `../` paths. It never gives an extracted file more than `0755` permissions.
+
+### Help output wraps to your terminal
+
+`compact --help` and the help for its subcommands now wrap to the width of your terminal. Before, they printed long lines. `compact compile --help` is the exception, because it prints the compiler's own help.
+
+## Bug fixes
+
+### The next `compact update` repairs a failed install
+
+If an earlier `compact update <version>` failed partway, running it again now prints `previous installation is incomplete, reinstalling` and installs the version. Before, it reported `already installed` and then failed with `Expecting a file` ([issue #739](https://github.com/LFDT-Minokawa/compact/issues/739)).
+
+`compact update` now unpacks toolchain files into a staging directory and moves `compactc` into place last. An interrupted install never looks complete.
+
+Updating the devtools does not repair a version that an earlier failure left broken. After you update, run `compact update <version>` for that version once more. If it still reports `already installed` but the compiler does not run, delete `~/.compact/versions/<version>`, then run `compact update <version>` again.
+
+### A failed install no longer breaks the default compiler
+
+`compact` now refuses to set a compiler as the default when its binary is missing. Before, a failed retry could leave the default pointing at a missing binary. That broke `compact check`, `compact list`, and `compact compile`. If your default compiler already points at a missing binary, these commands now print the `compact update <version>` command that reinstalls it.
+
+### An unreadable archive no longer fails every retry
+
+If `compact update` cannot read a toolchain archive, it deletes the archive and downloads it once more. Before, every retry reused the same unreadable archive and failed. A full disk or a permissions problem stops the install right away, because a new download would not help.
+
+## Breaking changes
+
+None.
+
+## Known issues
+
+- If you install toolchain 0.22.0 or 0.23.0 with devtools 0.5.3, `std.compact` lands in the toolchain's platform directory instead of in a `lib` subdirectory of it. For example, it lands in `~/.compact/versions/0.23.0/aarch64-darwin/`. A smart contract that uses `include "std";` then fails to compile with `failed to locate file "std.compact"`. To work around it, replace `include "std";` with `import CompactStandardLibrary;`, or create `lib` in that platform directory and move `std.compact` into it, for example `~/.compact/versions/0.23.0/aarch64-darwin/lib/std.compact`. The issue does not affect toolchains 0.24.0 and later, or 0.22.0 and 0.23.0 installs made with an earlier version of the devtools.
