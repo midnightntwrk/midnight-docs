@@ -18,17 +18,17 @@ import { useLocation } from '@docusaurus/router';
 const releases = [
   {
     version: '1.0.2',
-    status: 'LATEST',
+    status: 'SUPPORTED',
     date: '18 September 2026',
-    summary: 'Dependency and security patch on the 1.0.0 GA line that picks up ledger 8.1.2, clears toolkit npm advisories, and moves the toolkit image to Node.js 24 LTS.',
+    summary: 'Binary-only security patch on the 1.0.x line that picks up ledger 8.1.2, clears toolkit npm advisories, and fixes a toolkit-js stack overflow on Node.js 24.15 and later.',
     details: [
+      'Superseded on Preview, Preprod, and Mainnet: runtime 1.0.300 imports host functions that node 1.0.2 lacks, and toolkit 1.0.0 fails on its blocks, so run node and toolkit 1.0.300 there.',
       'Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that rejects non-canonical encodings and values that violate their type invariants.',
-      'Picked up the companion ledger crate bumps: `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-storage-core` 1.2.1, and `midnight-serialize` 1.1.1.',
-      'Cleared `npm audit` findings in the toolkit JavaScript packages and the local environment: `js-yaml` 4.3.2, `nanoid` 3.3.19, `toml` 4.3.0 through an override, `turbo` 2.9.14, and `vitest` 4.1.11.',
-      'Moved the toolkit image from Node.js 23.11.0 to Node.js 24.21.0 LTS.',
-      'Fixed a toolkit stack overflow on Node.js 24.21 and later, where the module resolve hook re-entered itself.',
-      'Refreshed the pinned apt package versions in the local environment contract compiler image.',
-      'No node, pallet, or runtime logic changes. Runtime stays at 1.0.0 and the toolkit at 1.0.0, so no runtime upgrade is required.',
+      'Picked up the ledger 8.1.2 crate set, including the direct dependencies `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-storage-core` 1.2.1, and `midnight-serialize` 1.1.1.',
+      'Cleared `npm audit` findings in the toolkit image JavaScript dependencies: `toml` 4.3.0 through an override, `nanoid` 3.3.19, `turbo` 2.9.14, and `vitest` 4.1.11.',
+      'Rebuilt the `midnight-node-toolkit:1.0.0` image from this release. The toolkit version number is unchanged.',
+      'Fixed a `toolkit-js` stack overflow on Node.js 24.15 and later, where the module resolve hook re-entered itself.',
+      'No pallet or runtime code changes. Runtime stays at 1.0.0, so no runtime upgrade is required.',
     ],
     artifacts: [
       { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
