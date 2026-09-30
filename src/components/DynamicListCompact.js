@@ -19,9 +19,29 @@ import { useLocation } from '@docusaurus/router';
 // elements is used to assign a numeric `id`.
 const releases = [
   {
+  version: '0.35.0',
+  compactVersion: '0.27.0',
+  status: 'LATEST',
+  date: '29 September 2026',
+  summary: 'Release for ledger 9: P256, Curve25519, Ed25519, and SHA-512 support, `kernel.caller()`, run-time resolution of cross-contract calls; not for the current public networks',
+  details: [
+    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`), which is not yet deployed on the public networks; use `compact update 0.31` for contracts deployed today',
+    'Language version 0.27.0 and Compact runtime 0.20.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.20.x',
+    'With `--feature-zkir-v3`: secp256r1 (P256) and Curve25519 types, `secp256r1EcdsaVerify`, `ed25519Verify`, and `sha512`',
+    'New `kernel.caller()` ledger operation and `PublicAddress` type; read the caller only where the call is known to come from a contract',
+    'Cross-contract calls resolve the callee module at run time through a `ContractModuleProvider`; breaking changes to `createCircuitContext` and `crossContractCall`',
+    '`jubjubSchnorrVerify` and `secp256k1EcdsaVerify` fail an assertion when the public key is the identity point',
+    '`compactc --version` prints the commit and date after the version; `contract-info.json` gains a `compiler-commit` field',
+  ],
+  artifacts: [
+    { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.35.0' },
+  ],
+  link: '/relnotes/compact/toolchain-0.35.0',
+},
+  {
   version: '0.34.0',
   compactVersion: '0.26.0',
-  status: 'LATEST',
+  status: 'UNSUPPORTED',
   date: '25 August 2026',
   summary: 'Major release for ledger 9: cross-contract calls, events, Compact value serialization, ZKIR v3; not for the current public networks',
   details: [
