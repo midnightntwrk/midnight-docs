@@ -1,23 +1,58 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact toolchain 0.35.0 release notes
+description: Compact toolchain 0.35.0 targets ledger 9 and adds P256, Curve25519, Ed25519, sha512, kernel.caller(), and run-time cross-contract module resolution.
+displayed_sidebar: sidebar
+---
+
 # Compact toolchain 0.35.0
 
 - **Date:** 2026-09-28
 - **Language version:** 0.27.0
 - **Compact runtime version:** 0.20.0
-- **Environment:** This release works with a Midnight ledger 9 blockchain.  For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/relnotes/overview)
+- **Environment:** This release works with a Midnight ledger 9 blockchain. For the versions that each public network supports, see the [compatibility matrix](/relnotes/support-matrix).
+
+:::warning[Not for the current public networks]
+Toolchain 0.35.0 targets ledger version 9, which is not yet deployed on Preview, Preprod, or Mainnet. Contracts compiled with it require Compact runtime 0.20.x, and npm's `latest` tag for `@midnight-ntwrk/compact-runtime` now points to 0.20.0. To build contracts for the public networks, run `compact update 0.31` and pin the Compact runtime version listed in the [compatibility matrix](/relnotes/support-matrix).
+:::
 
 ## High-level summary
 
 Version 0.35.0 of the Compact toolchain is a major release.
 
-This release builds on 0.34.0.  It adds the secp256r1 (P256) and Curve25519 curves, ECDSA verification over P256, Ed25519 signature verification and `sha512` hashing, all of which require the flag `--feature-zkir-v3`.  It also adds the `kernel.caller()` ledger operation, and cross-contract calls now resolve their callee's implementation at run time, which changes the Compact runtime's cross-contract API.  Several changes are breaking; the entries below mark them.
+This release builds on 0.34.0.  It adds the secp256r1 (P256) and Curve25519 curves, ECDSA verification over P256, Ed25519 signature verification and `sha512` hashing, all of which require the flag `--feature-zkir-v3`.  It also adds the `kernel.caller()` ledger operation, and cross-contract calls now resolve their callee's implementation at run time, which changes the Compact runtime's cross-contract API.  Several changes are breaking; see [Breaking changes](#breaking-changes).
 
-`compact update` installs the latest released version, and `compact update 0.35` installs the latest patch release of toolchain 0.35.
+`compact update` installs the latest released version, which is 0.35.0 at the time of this release, and `compact update 0.35` installs the latest patch release of toolchain 0.35. If you are building contracts to deploy on the public networks today, continue to use Compact toolchain 0.31.x, which `compact update 0.31` installs.
 
 ## Audience
 
-These release notes are intended for Compact smart-contract developers and for DApp developers who use the Compact runtime.
+These release notes are for Compact smart contract developers and for DApp developers who use the Compact runtime.
+
+## Breaking changes
+
+- The language version is 0.27.0. A contract that declares `pragma language_version 0.26;` fails to compile with `language version 0.27.0 mismatch`. Use `pragma language_version 0.27;` or a range such as `>= 0.26`.
+- Contracts compiled with this toolchain require Compact runtime 0.20.x. The generated code throws `Version mismatch` when it loads with any other minor version of `@midnight-ntwrk/compact-runtime`, such as 0.16.0 or 0.19.0.
+- Any call to the standard library's `jubjubSchnorrVerify` or `secp256k1EcdsaVerify` that passes the identity point as the public key now fails an assertion, because doing so is inherently unsafe.
+- `createCircuitContext` takes a single `CircuitContextOptions` object instead of positional parameters. The state provider and the new `ContractModuleProvider` go under one optional `crossContract` member, and `parentBlockHash` stays outside it. The `reentrancyGuard` parameter and the `CircuitContext.reentrancyGuard` field are removed, and the re-entrancy guard always applies.
+- `crossContractCall` takes a single `CrossContractCallOptions` object instead of positional arguments, with the required fields `interfaceName` and `declaration`. Generated code calls this function, so this affects you only if you call it directly.
+- The static dependency crawler, `contract-dependencies.ts`, is removed, with `contractDependencies` and all of its types, including `ContractReferenceLocations`. Generated contract modules no longer export `contractReferenceLocations`.
+- `ContractInterfaceMismatchError` is removed. The runtime reports a `ModuleResolutionError` with an `ImplementationMismatch` failure instead.
+- `isEncodedContractAddress` is removed.
+- Compiled contracts reject a `JubjubPoint` passed in from JavaScript, as a circuit or constructor argument or as a witness result, with a coordinate outside `[0, MAX_FIELD]`. With `--feature-zkir-v3`, they also reject a `Secp256k1Point` that is not on the curve or has a coordinate outside `[0, MAX_SECP256K1_BASE]`. Toolchain 0.34.0 accepted these values at the circuit boundary.
+- `CompactTypeSecp256k1Point.fromValue` rejects an identity flag that is neither 0 nor 1. Previously, any value other than 1 was read as `false`.
+- `CompactTypeUnsignedInteger.toValue`, `CompactTypeEnum.toValue`, and `CompactTypeBytes.toValue` reject arguments they cannot encode faithfully: a value outside the type's range, a non-integer enum tag, or a byte string longer than the type's length.
+- `compactc --version`, `format-compact --version`, and `fixup-compact --version` print the commit and its date after the version, for example `0.35.0 (debb05f94 2026-09-29)`. If a script compares the whole output with a version string, read the `release` field of `compactc --version --verbose` instead.
+
+## Known issues
+
+- A top-level call that reads `kernel.caller()` fails on chain with a read mismatch whenever the balanced intent's unshielded inputs all belong to one user, for example when a user pays unshielded tokens to the contract. Off-chain execution records `none` for a top-level call, because the wallet adds the unshielded inputs when it balances the transaction, after proving has fixed the transcript. Until an intent can explicitly set the top-level caller, read `kernel.caller()` only where the call is known to come from a contract.
+- In Compact runtime 0.20.0, a `Secp256k1Point` or `Secp256r1Point` identity value whose `x` or `y` is not 0 encodes differently from one with both coordinates 0, so `persistentHash` can give different digests for two identity points. Set `x` and `y` to 0 when you pass an identity point from JavaScript. The fix is on the main branch of the Compact repository ([issue #795](https://github.com/LFDT-Minokawa/compact/issues/795)).
+- This release depends on pre-release components: ledger `9.1.0.0-rc.3`, the `zkir-v3` binary from `zkir-3.1.0-rc.1`, and `@midnightntwrk/onchain-runtime-v4` `4.0.0-rc.3`.
 
 ## What changed
+
+This release includes all changes for compiler versions in the range between 0.34.100 and 0.35.0, language versions in the range between 0.26.100 and 0.27.0, and Compact runtime versions in the range between 0.19.100 and 0.20.0. The sections below list those changes by prerelease version, newest first, so some entries describe changes to features that first appeared in an earlier prerelease.
 
 ## [Toolchain 0.34.113, language 0.26.106, runtime 0.19.106]
 
@@ -40,15 +75,6 @@ These release notes are intended for Compact smart-contract developers and for D
   `zkir-v3` dependency, `zkir-3.1.0-rc.1`. Since 0.34.103 it printed the whole
   `flake.nix` line declaring that dependency, because the version was read
   from a `midnight-ledger/` URL and the dependency had moved to midnight-zkir.
-
-### Internal notes
-
-- `zkir-v3` and test-center's `zkir-v3-wasm` track the tag `zkir-3.1.0-rc.1`
-  rather than a revision.
-
-- The end-to-end smoke test also checks `--ledger-version` with
-  `--feature-zkir-v3`, and `LEDGER_VERSION_REGEX` is anchored, so output that
-  merely contains a version no longer passes.
 
 ## [Toolchain 0.34.112, language 0.26.106, runtime 0.19.106]
 
@@ -91,8 +117,8 @@ These release notes are intended for Compact smart-contract developers and for D
 - Compiled contracts now also reject a `Curve25519Point` passed in from
   JavaScript that is on the curve but outside the prime-order subgroup, that
   is, one with a small-order component.  Circuits can only hold subgroup
-  points, so such a point used to be computed with off-circuit and then fail
-  at proving time; it is now a type error.  `isValidCurve25519Point` checks
+  points, so such a point used to be accepted for off-circuit computation and then
+  fail at proving time; it is now a type error.  `isValidCurve25519Point` checks
   subgroup membership as well.  secp256k1 and secp256r1 have cofactor 1, so
   they need no such check.
 
@@ -104,9 +130,9 @@ These release notes are intended for Compact smart-contract developers and for D
   32-byte message hash, an ECDSA signature and a recovery id,
   it returns the corresponding secp256r1 public key.
 
-  Recovery runs off-circuit, as it does for secp256k1.  The standard library
-  has no secp256r1 equivalent of `secp256k1EcdsaVerify` yet, so a recovered
-  secp256r1 key cannot be constrained in circuit.
+  Recovery runs off-circuit, as it does for secp256k1. To constrain a
+  recovered key in circuit, use `secp256r1EcdsaVerify` (see toolchain 0.34.111
+  above).
 
 ### Changed
 
@@ -114,7 +140,7 @@ These release notes are intended for Compact smart-contract developers and for D
   `Curve25519Point` values passed in from JavaScript as circuit or constructor
   arguments or as witness results.  A point is invalid if a coordinate is
   outside the curve's base field, or if it is not on the curve. An
-  invalid point is now a type error instead of being computed with.
+  invalid point is now a type error instead of being used in computation.
 
 ## [Toolchain 0.34.109, language 0.26.105, runtime 0.19.104]
 
@@ -144,7 +170,7 @@ These release notes are intended for Compact smart-contract developers and for D
 ### Added
 
 - There is one new cast available, from `Bytes<64>` to `Curve25519Scalar`.  The
-  semantics is the same as the other from-bytes casts for foreign fields---it
+  semantics is the same as the other from-bytes casts for foreign fields: it
   performs modular reduction by the field modulus of the value represented by
   the byte vector.
 
@@ -167,8 +193,8 @@ These release notes are intended for Compact smart-contract developers and for D
   committed in `compiler/version-config.ss`, so a build nothing stamped cannot
   pass for a release either.
 
-  The commit is reported beside the version rather than inside it --
-  `0.34.102-rc.2 (a1b2c3d4e 2026-09-10)` -- and is recorded in full in `contract-info.json` and
+  The commit is reported beside the version rather than inside it, for example
+  `0.35.0 (debb05f94 2026-09-29)`, and is recorded in full in `contract-info.json` and
   `contract-manifest.json` as a new `compiler-commit` field, leaving
   `compiler-version` a valid semver string. That string is what gets pinned in
   CI and compared by tooling, and semver build metadata is not reliably ignored
@@ -187,8 +213,8 @@ These release notes are intended for Compact smart-contract developers and for D
 - The first of `--help`, `--version`, `--language-version`, `--ledger-version`
   and `--runtime-version` on the command line is the one that acts. Flag
   actions used to run mid-parse, so `--ledger-version --feature-zkir-v3`
-  reported the zkir-v2 ledger version -- the feature flag had not been seen
-  yet -- while the reverse order reported v3. Both orders now report v3.
+  reported the zkir-v2 ledger version (the feature flag had not been seen
+  yet), while the reverse order reported v3. Both orders now report v3.
 
 - `format-compact --version` and `fixup-compact --version` report the commit
   and its date the same way as `compactc --version`: the three tools share one
@@ -211,7 +237,7 @@ These release notes are intended for Compact smart-contract developers and for D
 
 - The standard library now has support for the Curve25519 curve.  It exports two
   new field types `Curve25519Base` and `Curve25519Scalar` and a new point type
-  `Curve25519Point`.  They are similer to the secp256k1 and secp256r1 foreign
+  `Curve25519Point`.  They are similar to the secp256k1 and secp256r1 foreign
   curves, with the exception that the JavaScript point type does not have an
   identity flag.  The curve is a twisted Edwards curve and the identity point is
   `{ x: 0, y: 1 }`.
@@ -259,15 +285,8 @@ These release notes are intended for Compact smart-contract developers and for D
 
 - Fixed a bug in `default` values for secp256k1 field types in ZKIR.  A literal
   0 was used, which has type `Scalar<BLS12-381>`, so the resulting ZKIR code was
-  not well-typed.  Instead, we need to cast that value (indirectly through
+  not well-typed.  The compiler now casts that value (indirectly through
   `Bytes<32>`) to the correct secp256k1 field type.
-
-### Removed
-
-- `SECP256K1_LOW_LIMB_BOUND` is removed.  It's purely an implementation detail that
-  does not need to be exposed by the runtime.  This feature was introduced in
-  Compact runtime 0.19.100, so it's not a breaking change with respect to the
-  released 0.19.0.
 
 ## [Toolchain 0.34.102, language 0.26.0, runtime 0.19.101]
 
@@ -287,34 +306,34 @@ value to be either 0 or 1.
   both the caller's contract type and the chain before entering it. Deploying a
   new implementation at an address no longer means recompiling its callers.
 - Every generated contract module gains two tables:
-  * `declaredInterfaces` — for each contract type the contract calls through,
+  * `declaredInterfaces`: for each contract type the contract calls through,
     the circuit signatures that type declares. Passed to `crossContractCall` at
     the call site, because the descriptor lives in the caller's module and the
     runtime is reached *from* it.
-  * `circuitSignatures` — one entry per external circuit name, carrying `pure`,
+  * `circuitSignatures`: one entry per external circuit name, carrying `pure`,
     `provable`, `argumentTypes` and `resultType`. This is the callee side of
     that comparison.
-    Both appear in the emitted `.d.ts`. The `expectedVk` table is unchanged, 
-    but is now checked past the called circuit — see below.
+    Both appear in the emitted `.d.ts`. The `expectedVk` table is unchanged,
+    but is now checked past the called circuit (see the key agreement entry below).
 - Adds the runtime machinery behind the above. New modules, all re-exported
   from the package index:
-  * `providers.ts` — `ContractModuleProvider`, a user-supplied
+  * `providers.ts`: `ContractModuleProvider`, a user-supplied
     `resolve(address)` returning a `ModuleThunk` for the module deployed there,
     or `undefined` when the application has no binding for it. `resolve` is
     synchronous and total; loading is deferred into the thunk.
-  * `module.ts` — `Module`, the exports the runtime needs from a callee, plus
+  * `module.ts`: `Module`, the exports the runtime needs from a callee, plus
     `ContractCtor`, `ContractInstance`, `ProvableCircuit(s)`, `PureCircuit(s)`.
-  * `interface-descriptor.ts` — `SignatureType`, `InterfaceDescriptor`,
+  * `interface-descriptor.ts`: `SignatureType`, `InterfaceDescriptor`,
     `CircuitSignature(s)`, `DeclaredInterfaces` and friends: the type language
     the two emitted tables are written in.
-  * `conformance.ts` — `checkConformance` and `signatureTypesEqual`, which
+  * `conformance.ts`: `checkConformance` and `signatureTypesEqual`, which
     compare a resolved module's signatures against the caller's contract type
     under six rules (`Existence`, `Purity`, `Provability`, `Arity`,
     `ArgumentType`, `ResultType`), plus `UnreadableSignature` for a type
     constructor this runtime does not know.
-  * `verifier-key-hash.ts` — the branded `VerifierKeyHash` and
+  * `verifier-key-hash.ts`: the branded `VerifierKeyHash` and
     `isVerifierKeyHash` / `asVerifierKeyHash` / `verifierKeyHashOf`.
-  * `module-resolution.ts` — `ModuleResolutionError`, carrying a
+  * `module-resolution.ts`: `ModuleResolutionError`, carrying a
     `ModuleResolutionFailure` discriminated union with eleven kinds:
     `ModuleProviderAbsent`, `PureInterfaceCircuit`, `OperationAbsent`,
     `UnsupportedImplementation`, `ProviderThrew`, `NonconformantImplementation`,
@@ -345,7 +364,7 @@ value to be either 0 or 1.
   between. `parentBlockHash` stays outside the group: it also reaches the VM's
   block context.
 - **Breaking:** `crossContractCall` takes a `CrossContractCallOptions` object,
-  with two new required fields — `interfaceName` and `declaration`.
+  with two new required fields, `interfaceName` and `declaration`.
 - Conformance is checked before key agreement, so a module that does not
   implement the contract type is diagnosed as such rather than as a key
   mismatch.
@@ -362,8 +381,7 @@ value to be either 0 or 1.
 ### Removed
 
 - **Breaking:** the static dependency crawler, `contract-dependencies.ts`, and
-  its thirteen exports have been removed. These API elements have been used for
-  a while.
+  all of its exports have been removed.
 - **Breaking:** generated contract modules no longer export
   `contractReferenceLocations`, which existed to feed the dependency crawler.
   It is gone from the emitted `.d.ts` as well.
@@ -376,27 +394,6 @@ value to be either 0 or 1.
   dependency crawler.
 - The compiler no longer emits an import of the callee's module into a caller's
   generated code, since that is what the provider now supplies.
-
-### Internal notes
-
-- The compiler's `print-contract-header` no longer takes `contract-type*`, and
-  `contract-import-binding`, `contract-import-path`, `get-self-contract-name`
-  and `print-contract-name` went with the callee import.
-- `test-center` gains a `TestChain` that implements `ContractModuleProvider`
-  alongside `ContractStateProvider`, binding each deployed address to its
-  module, plus an `overrideModule` hook so a test can hand the runtime a callee
-  that disagrees with the chain. Verifier keys are installed from one real
-  compiled key with its payload spliced per contract, committed under
-  `test-center/fixtures/verifier-keys/`.
-- `stage-javascript`'s `copy-file` now copies byte-for-byte. It read through a
-  textual port, so Chez transcoded UTF-8 and every invalid byte became U+FFFD —
-  harmless for the `.js` and `.zkir` files it had ever staged, and fatal the
-  first time it staged a `.verifier`.
-- The runtime's `tsconfig` `lib` moves to `es2022` for `Object.hasOwn`, and
-  gains a `typecheck` script that the `test` script runs.
-- `tests-e2e` type-checks for the first time: `moduleResolution` moves to
-  `bundler`, which drops the deprecated `baseUrl` and resolves `vite`'s
-  subpath imports without `skipLibCheck`, plus an explicit `rootDir`.
 
 ## [Toolchain 0.34.100, language 0.26.0, runtime 0.19.100]
 
@@ -436,27 +433,9 @@ value to be either 0 or 1.
   on decode but not on encode, so it was possible to write a value to the ledger
   that could not be read back.
 
-### Added
+## Links and references
 
-- `SECP256K1_LOW_LIMB_BOUND`, the exclusive upper bound of the low-order limb
-  of a secp256k1 field value in its field-aligned binary representation. This
-  replaces an unnamed decimal literal in `CompactTypeSecp256k1Base` and an
-  equivalent but differently spelled expression in `CompactTypeSecp256k1Scalar`.
-
-- `runtime/test/compact-types.test.ts`, a conformance suite for the
-  `CompactType` protocol. For every descriptor it asserts that `alignment()`
-  declares as many atoms as `toValue` produces, that `fromValue` consumes
-  exactly its own prefix, tolerates trailing atoms and fails loudly on truncated
-  input, and that values round trip. It also decodes every ordered pair of
-  descriptors from one shared array, the way the generated tuple and struct
-  classes do, and compares the results element-wise, so a descriptor that
-  decodes correctly only as the last member of a compound fails as the first
-  half of every pair.
-
-  Descriptors are discovered from the module's exports rather than listed, and a
-  coverage test names any exported descriptor that has no sample, so a new
-  descriptor cannot be added without conformance coverage. No runtime unit test
-  previously called any descriptor's `fromValue` or `toValue`.
-
-  End-to-end coverage of specific Compact constructs remains in
-  `compiler/test.ss`; this suite does not duplicate it.
+- [Compact toolchain 0.35.0 on GitHub](https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.35.0)
+- [Changelog in the Compact repository](https://github.com/LFDT-Minokawa/compact/blob/compactc-v0.35.0/CHANGELOG.md)
+- [Compact toolchain 0.34.0 release notes](/relnotes/compact/toolchain-0.34.0)
+- [Compatibility matrix](/relnotes/support-matrix)
