@@ -1,0 +1,542 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight Docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: Build a private smart contract
+title: How to build a private smart contract
+description: "Step-by-step guide to building a private smart contract in Compact: keep data on-device, disclose only what's needed, compile, and test locally."
+sidebar_position: 20
+toc_max_heading_level: 2
+keywords: [private smart contract, confidential smart contract, privacy-preserving smart contract, zero-knowledge proof, private state, public state, compact, witness, disclose, midnight]
+tags: [midnight, compact, privacy, smart contract, zero-knowledge, guides]
+---
+
+# How to build a private smart contract on Midnight
+
+A private smart contract keeps its inputs and state confidential while the network can still verify that every rule was followed. On Midnight, you write the contract in Compact, sensitive data stays on the user's device, and the network receives only a zero-knowledge proof plus the values your contract makes public. By the end of this guide, you have a compiled contract with private inputs, tested on a local devnet.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## How to build a private smart contract
+
+To build a private smart contract on Midnight, follow these six steps:
+
+1. [Set up your environment](#step-1-set-up-your-environment): install the Compact toolchain, Docker, and Node.js.
+2. [Decide what stays private and what goes public](#step-2-decide-what-stays-private-and-what-goes-public): list every piece of data the contract touches and give each one a side.
+3. [Write the contract in Compact](#step-3-write-the-contract-in-compact): declare public state with `ledger`, keep secrets in a `witness`, store only commitments or hashes on-chain, and use `disclose()` only where a value must become public.
+4. [Compile the contract](#step-4-compile-and-understand-the-output): `compact compile` produces the zero-knowledge circuits, the keys, and the TypeScript bindings.
+5. [Test on a local devnet](#step-5-test-on-a-local-devnet): deploy and call the contract with a local proof server, so private data stays on your machine.
+6. [Deploy to Preprod](#step-6-deploy-to-preprod): run the same code against the public test network.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Why "private" in Solidity is not private
+
+Marking a Solidity state variable `private` does not make it confidential. The [Solidity documentation](https://docs.soliditylang.org/en/latest/contracts.html#state-variable-visibility) says: "Making something `private` or `internal` only prevents other contracts from reading or modifying the information, but it will still be visible to the whole world outside of the blockchain." The keyword controls which code can access a variable, not who can read it. Every node stores the contract's data in the open.
+
+Real privacy needs a different execution model, where sensitive data never reaches the chain in readable form. Projects approach this in different ways, including zero-knowledge rollups (for example Aztec), fully homomorphic encryption (for example Zama FHEVM), and trusted execution environments. Midnight uses zero-knowledge proofs: the contract runs on the user's device, and the chain verifies a proof of that execution.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## How privacy works in a Midnight contract
+
+A Midnight contract splits every interaction into a private part that runs on the user's device and a public part that the network verifies and stores. Compact makes that split visible in the code:
+
+- **Privacy is the default.** Circuit arguments and witness results are private unless you deliberately publish them. Disclosure requires a `disclose()` annotation.
+- **`ledger` fields are public, on-chain contract state.** Anyone can read them.
+- **`circuit` definitions encode the rules.** The compiler turns them into zero-knowledge circuits, so a transaction proves that the rules held without showing the private inputs.
+- **`witness` functions run on the user's machine** and provide private data to the circuit, such as a secret key kept in local private state.
+- **The compiler enforces the boundary.** It rejects any program where private data crosses into public state, an exported circuit's return value, or a contract call without `disclose()`.
+- **Some actions always need `disclose()`.** The compiler treats ledger writes, unshielded token transfers, contract-to-contract calls, and the return values of exported circuits as places where private data leaves the proof. Ledger writes and unshielded transfers are visible on-chain. A return value goes to the code that called the circuit.
+
+`disclose()` does not publish a value by itself. It tells the compiler that you intend the value to cross into one of those positions. Contract-to-contract calls need ledger version 9 and Compact toolchain 0.33.0 or later, so the 0.31.1 toolchain in this guide rejects them. For the full model, read [Compact as a privacy-first language](../concepts/how-midnight-works/compact-privacy-first-language) and the public and private state overview in [What is Midnight?](../what-is-midnight).
+
+The following diagram shows where each part runs. The witness, the private state, and proof generation stay on the user's device. The network receives the proof and the public values, verifies the proof, and updates the ledger.
+
+```mermaid
+flowchart LR
+    subgraph device["User device"]
+        direction TB
+        W["Witness and private state<br/>(secret key, bid amount)"]
+        C["Circuit runs locally"]
+        P["Proof server<br/>generates the proof"]
+        W --> C --> P
+    end
+    subgraph network["Midnight network"]
+        direction TB
+        V["Nodes verify the proof"]
+        L["Public ledger<br/>(minimum bid, bidder key, commitment)"]
+        V --> L
+    end
+    P -- "proof and public values" --> V
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Step 1: Set up your environment
+
+You need the Compact toolchain, Node.js, and Docker. The starter repository from [Hello world](../getting-started/hello-world) supplies the project scaffolding, the local network, and a test harness built on Midnight.js.
+
+1. Follow [Install the toolchain](../getting-started/installation) to install:
+
+   - The Compact CLI and compiler, version 0.31.1. The [compatibility matrix](../relnotes/support-matrix) lists the version that each network supports.
+   - Docker, which runs the proof server and the local network.
+   - The Compact VS Code extension, for syntax highlighting.
+
+2. Install [Node.js](https://nodejs.org/) version 22 or later. The starter repository uses Yarn. If the `yarn` command is missing, run `corepack enable`, which ships with Node.js 22 and 24.
+
+3. Clone the starter repository and install its dependencies:
+
+   ```bash
+   git clone https://github.com/midnightntwrk/example-hello-world.git
+   cd example-hello-world
+   yarn install
+   ```
+
+   Run every later command from the `example-hello-world` directory.
+
+### Verification
+
+Confirm the compiler version:
+
+```bash
+compact compile --version
+```
+
+```text
+0.31.1
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Step 2: Decide what stays private and what goes public
+
+Before you write code, list every piece of data the contract touches and decide which side of the boundary it belongs on. A value is public only if the network or other users need to read it.
+
+The example in this guide is a private bid contract. A bidder places a bid that must meet a public minimum. The network verifies that the bid meets the minimum without learning the amount, and the bidder can reveal the amount later.
+
+| Data | Private or public | Where it lives | Why |
+|---|---|---|---|
+| Minimum bid | Public | `sealed ledger` field | Every bidder needs to know the rule, and it must not change after deployment. |
+| Bid amount | Private | Circuit argument, on the bidder's device | The amount is the secret. The proof shows that it meets the minimum. |
+| Bidder's secret key | Private | Witness, from local private state | It identifies the bidder to the contract and never leaves the device. |
+| Bidder key | Public, as a hash | `ledger` map key | The contract needs a stable identifier for each bidder. A hash of the secret key and the contract address reveals neither the key nor a wallet address. |
+| Bid commitment | Public, as a commitment | `ledger` map value | It binds the bidder to one amount without revealing it. |
+| Revealed amount | Public, only after the bidder reveals it | `ledger` map value | The bidder chooses to publish it. |
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Step 3: Write the contract in Compact
+
+Start from the public baseline. This is the contract from [Hello world](../getting-started/hello-world):
+
+```compact
+pragma language_version 0.23;
+
+export ledger message: Opaque<"string">;
+
+export circuit storeMessage(newMessage: Opaque<"string">): [] {
+  message = disclose(newMessage);
+}
+```
+
+The `newMessage` argument starts out private, but `storeMessage` discloses it and writes it to the ledger, so the message is public. A private contract keeps the same shape and changes what reaches the ledger: a commitment or a hash instead of the value.
+
+Create `contracts/private-bid.compact` and build it up in order. Add each block to the end of the file, with one blank line between blocks.
+
+1. Declare the language version, import the standard library, and declare the public state with `export ledger`:
+
+   ```compact title="contracts/private-bid.compact"
+   pragma language_version 0.23;
+
+   import CompactStandardLibrary;
+
+   // Public state: every ledger field is stored on-chain.
+   export sealed ledger minimumBid: Uint<64>;
+   export ledger bidCommitments: Map<Bytes<32>, Bytes<32>>;
+   export ledger revealedBids: Map<Bytes<32>, Uint<64>>;
+   ```
+
+   Only the constructor, or a helper circuit that it calls, can set a `sealed ledger` field, so the minimum cannot change after deployment.
+
+2. Declare a `witness` that supplies the bidder's secret key from their device. A witness has no body in Compact. You implement it in TypeScript in [Step 5](#step-5-test-on-a-local-devnet).
+
+   ```compact
+   // Private input: the witness runs on the bidder's device.
+   witness localSecretKey(): Bytes<32>;
+   ```
+
+3. Set the public rule in the constructor:
+
+   ```compact
+   constructor(minimum: Uint<64>) {
+     // The minimum is a public rule, so the deployer discloses it.
+     minimumBid = disclose(minimum);
+   }
+   ```
+
+4. Add a helper circuit that derives values from the secret key with `persistentHash`. It binds each value to a purpose label and to this contract's address, which `kernel.self()` returns. The same secret key then produces unrelated values in another contract, or in another deployment of this one.
+
+   ```compact
+   // Derives a value that is unique to the secret key, this deployed contract, and one purpose.
+   circuit derive(purpose: Bytes<32>, secretKey: Bytes<32>): Bytes<32> {
+     return persistentHash<Vector<3, Bytes<32>>>([purpose, kernel.self().bytes, secretKey]);
+   }
+   ```
+
+5. Write the `export circuit` that places a bid. It uses the secret, checks the rule, and stores only a commitment:
+
+   ```compact
+   export circuit placeBid(amount: Uint<64>): [] {
+     const secretKey = localSecretKey();
+
+     // The proof shows that the rule holds without revealing the amount.
+     assert(amount >= minimumBid, "Bid is below the minimum");
+
+     // The ledger needs a key for this bidder, so disclose the hash, not the secret.
+     const bidder = disclose(derive(pad(32, "private-bid:key:"), secretKey));
+     assert(!bidCommitments.member(bidder), "This bidder already placed a bid");
+
+     // Store a commitment to the amount. The amount itself stays on the device.
+     const salt = derive(pad(32, "private-bid:salt:"), secretKey);
+     bidCommitments.insert(bidder, persistentCommit<Uint<64>>(amount, salt));
+   }
+   ```
+
+   `persistentCommit` hashes the amount together with a second value that hides it, here a salt derived from the secret key. The compiler accepts a `persistentCommit` result on the ledger without `disclose()`, because it treats a commitment as hiding its input. It does not check that the second argument is random, so supplying a secret, high-entropy value is your responsibility. A plain `persistentHash` of the amount would not be safe: bid amounts are guessable, and anyone can hash guesses until one matches.
+
+   The salt is the same for every call from one bidder. That is safe here because the contract accepts one commitment per bidder. If a contract commits more than once for the same user, use a fresh random value for each commitment, because the same value and the same salt always produce the same commitment.
+
+6. Write the circuit that reveals a bid. This is the only place the amount becomes public:
+
+   ```compact
+   export circuit revealBid(amount: Uint<64>): [] {
+     const secretKey = localSecretKey();
+     const bidder = disclose(derive(pad(32, "private-bid:key:"), secretKey));
+     const salt = derive(pad(32, "private-bid:salt:"), secretKey);
+
+     assert(bidCommitments.member(bidder), "This bidder has not placed a bid");
+     assert(bidCommitments.lookup(bidder) == persistentCommit<Uint<64>>(amount, salt),
+       "Amount does not match the committed bid");
+
+     // The bidder chooses to publish the amount, so disclose it.
+     revealedBids.insert(bidder, disclose(amount));
+   }
+   ```
+
+:::note Witness or circuit argument
+
+Both keep data off-chain. The contract reads the secret key through a witness because the key lives in the bidder's private state and every call needs it. The amount is a circuit argument because the caller supplies it for each call.
+
+:::
+
+The [Private party tutorial](../tutorials/private-party/smart-contract) builds a larger contract from the same patterns, and adds token payments and access control.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Step 4: Compile and understand the output
+
+The compiler checks the privacy boundary, then turns each exported circuit into a zero-knowledge circuit with its own keys.
+
+1. Compile the contract:
+
+   ```bash
+   compact compile contracts/private-bid.compact contracts/managed/private-bid
+   ```
+
+   The first argument is the source file and the second is the output directory.
+
+2. Review the output in `contracts/managed/private-bid`:
+
+   - **Zero-knowledge circuits** in `zkir/`: one circuit for each exported circuit, `placeBid` and `revealBid`.
+   - **Prover and verifier keys** in `keys/`: the proof server uses the prover key to generate a proof, and the network uses the verifier key to check it.
+   - **JavaScript and TypeScript bindings** in `contract/`: the `Contract` class, the `ledger` reader, and the types that your DApp imports.
+
+   A fourth directory, `compiler/`, holds a JSON description of the contract for other tools.
+
+### Verification
+
+The compiler reports both circuits:
+
+```text
+Compiling 2 circuits:
+  circuit "placeBid" (k=14, rows=10227)
+  circuit "revealBid" (k=14, rows=10200)
+Overall progress [====================] 2/2
+```
+
+To see the compiler enforce the boundary, remove `disclose()` from the last line of `revealBid` so that it reads `revealedBids.insert(bidder, amount);`, then compile again. The compiler rejects the program:
+
+```text
+Exception: private-bid.compact line 48 char 15:
+  potential witness-value disclosure must be declared but is not:
+    witness value potentially disclosed:
+      the value of parameter amount of exported circuit revealBid at line 38 char 26
+    nature of the disclosure:
+      ledger operation might disclose the witness value
+    via this path through the program:
+      the second argument to insert at line 48 char 15
+```
+
+The message names the private value (`amount`), where it would become public (a ledger operation), and the path between the two. Your line numbers differ if your file has different spacing. To fix the error, either stop the value from reaching the ledger or, when publishing it is the intent, wrap it in `disclose()` again:
+
+```compact
+revealedBids.insert(bidder, disclose(amount));
+```
+
+Restore the line and recompile before you continue.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Step 5: Test on a local devnet
+
+The starter repository runs a local devnet in Docker: a Midnight node, an indexer, and a proof server. Its test harness uses Midnight.js to deploy and call your contract with a wallet that is pre-funded on the local devnet. The proof server generates every proof locally, so the bid amount and the secret key do not leave your machine.
+
+1. Implement the witness. Create `contracts/witnesses.ts`:
+
+   ```typescript title="contracts/witnesses.ts"
+   import type { WitnessContext } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+   import type { Ledger } from './managed/private-bid/contract/index.js';
+
+   // Private state lives on the bidder's device and never reaches the network.
+   export type PrivateBidPrivateState = {
+     readonly secretKey: Uint8Array;
+   };
+
+   export const witnesses = {
+     // Returns the unchanged private state and the value the circuit asked for.
+     localSecretKey: ({
+       privateState,
+     }: WitnessContext<Ledger, PrivateBidPrivateState>): [PrivateBidPrivateState, Uint8Array] => [
+       privateState,
+       privateState.secretKey,
+     ],
+   };
+   ```
+
+2. Point the project at the new contract. Replace the contents of `contracts/index.ts`:
+
+   ```typescript title="contracts/index.ts"
+   import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+   import path from 'node:path';
+
+   export {
+     Contract,
+     ledger,
+     type Ledger,
+   } from './managed/private-bid/contract/index.js';
+   export { witnesses, type PrivateBidPrivateState } from './witnesses.js';
+   import { Contract } from './managed/private-bid/contract/index.js';
+   import { witnesses } from './witnesses.js';
+
+   const currentDir = path.resolve(new URL(import.meta.url).pathname, '..');
+   export const zkConfigPath = path.resolve(currentDir, 'managed', 'private-bid');
+
+   export const CompiledPrivateBidContract = CompiledContract.make(
+     'PrivateBidContract',
+     Contract,
+   ).pipe(
+     CompiledContract.withWitnesses(witnesses),
+     CompiledContract.withCompiledFileAssets(zkConfigPath),
+   );
+   ```
+
+3. Rename the test file, which keeps the wallet and provider setup from the starter:
+
+   ```bash
+   mv src/test/hw.test.ts src/test/private-bid.test.ts
+   ```
+
+4. In `src/test/private-bid.test.ts`, replace the six-line import statement for `'../../contracts/index.js'` with:
+
+   ```typescript title="src/test/private-bid.test.ts"
+   import { randomBytes } from 'node:crypto';
+   import {
+     CompiledPrivateBidContract,
+     ledger,
+     zkConfigPath,
+     type PrivateBidPrivateState,
+   } from '../../contracts/index.js';
+   ```
+
+5. In the same file, replace the two tests at the end, from `it('Deploys the contract', ...` through the closing `});` of the file, with:
+
+   ```typescript title="src/test/private-bid.test.ts"
+     const MINIMUM_BID = 100n;
+     const BID = 250n;
+
+     // Calls a circuit of the deployed contract with the local private state.
+     const call = (circuitId: 'placeBid' | 'revealBid', amount: bigint) =>
+       submitCallTx(providers, {
+         compiledContract: CompiledPrivateBidContract,
+         contractAddress,
+         privateStateId: PRIVATE_STATE_ID,
+         circuitId,
+         args: [amount],
+       });
+
+     it('Deploys the contract with a public minimum bid', async () => {
+       // The secret key is created on this machine and stays in private state.
+       const initialPrivateState: PrivateBidPrivateState = {
+         secretKey: randomBytes(32),
+       };
+
+       const deployed = await deployContract(providers, {
+         compiledContract: CompiledPrivateBidContract,
+         privateStateId: PRIVATE_STATE_ID,
+         initialPrivateState,
+         args: [MINIMUM_BID],
+       });
+       contractAddress = deployed.deployTxData.public.contractAddress;
+       logger.info(`Contract deployed at: ${contractAddress}`);
+
+       const state = await queryLedger(providers);
+       expect(state.minimumBid).toEqual(MINIMUM_BID);
+       expect(state.bidCommitments.isEmpty()).toBe(true);
+     });
+
+     it('Rejects a bid below the minimum', async () => {
+       await expect(call('placeBid', 50n)).rejects.toThrow(
+         'Bid is below the minimum',
+       );
+     });
+
+     it('Places a bid without putting the amount on the ledger', async () => {
+       await call('placeBid', BID);
+
+       const state = await queryLedger(providers);
+       const [[bidder, commitment]] = [...state.bidCommitments];
+       logger.info(`Bidder key:  ${Buffer.from(bidder).toString('hex')}`);
+       logger.info(`Commitment:  ${Buffer.from(commitment).toString('hex')}`);
+       expect(state.bidCommitments.size()).toEqual(1n);
+       expect(state.revealedBids.isEmpty()).toBe(true);
+     });
+
+     it('Rejects a reveal that does not match the commitment', async () => {
+       await expect(call('revealBid', 300n)).rejects.toThrow(
+         'Amount does not match the committed bid',
+       );
+     });
+
+     it('Reveals the bid when the bidder chooses to', async () => {
+       await call('revealBid', BID);
+
+       const state = await queryLedger(providers);
+       const [[, amount]] = [...state.revealedBids];
+       expect(amount).toEqual(BID);
+     });
+   });
+   ```
+
+6. Start the local devnet, which includes the proof server:
+
+   ```bash
+   yarn env:up
+   ```
+
+7. Run the tests:
+
+   ```bash
+   yarn test:local
+   ```
+
+### Verification
+
+The run ends with all five tests passing:
+
+```text
+[12:27:45.696] INFO (8428): Providers initialized on 'local'. Ready to test!
+[12:28:09.977] INFO (8428): Contract deployed at: eeadb8e70b4057b438924280a999669dde4d37d314aa4b3df66324f0cafd15db
+[12:28:39.056] INFO (8428): Bidder key:  01974ccaeff7e99d4b6cfa9a42cb7496cc86273b823d2c506c7900cfc9df851d
+[12:28:39.061] INFO (8428): Commitment:  c483cdf15845d7f89a828fc4a239e90457ffad45f8940e4704b78768fef4ecd0
+ ✓ src/test/private-bid.test.ts (5 tests) 86613ms
+     ✓ Deploys the contract with a public minimum bid  24466ms
+     ✓ Places a bid without putting the amount on the ledger  28690ms
+     ✓ Reveals the bid when the bidder chooses to  31318ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+```
+
+Your contract address, keys, and timings differ. The test runner lists only the tests that take longer than 300 ms. The two rejected calls fail on your machine before the proof server generates a proof, so they usually finish faster than that.
+
+After `placeBid`, the ledger entry for the bid holds two 32-byte values: the bidder key and the commitment. The amount, 250, does not appear in the contract's public state until `revealBid` runs.
+
+Proof generation takes time. In this run, each transaction took between 24 and 32 seconds from the call to confirmation on the local devnet.
+
+When you finish, stop the devnet:
+
+```bash
+yarn env:down
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Step 6: Deploy to Preprod
+
+Preprod is a public Midnight test network. The contract and the test code do not change. Only the network configuration and the wallet do, and the proof server still runs on your machine.
+
+1. Fund a wallet on the Preprod network with tNIGHT and register it for DUST generation, in the Lace wallet or with the wallet SDK. [Funding a wallet](./acquire-tokens) covers both paths.
+
+2. Copy the example environment file and set one wallet secret in it, either the mnemonic or the seed:
+
+   ```bash
+   cp .env.preprod.example .env.preprod
+   ```
+
+   The repository's `.gitignore` excludes `.env.preprod`. Never commit or share it.
+
+3. Start a local proof server:
+
+   ```bash
+   yarn proof:up
+   ```
+
+4. Run the same tests against Preprod:
+
+   ```bash
+   yarn test:preprod
+   ```
+
+   The first sync of a wallet on Preprod takes much longer than on the local devnet.
+
+For the deployment code behind these scripts and how to confirm a deployment in a block explorer, read [Promoting a deployment to Preprod](./deploy-and-operate#promoting-a-deployment-to-preprod).
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Common mistakes
+
+- **Disclosing more than needed.** `disclose()` silences the compiler for whatever you wrap in it. Disclose the narrowest value that works, such as a hash, a commitment, or the result of a check, not the raw input.
+- **Returning private values from exported circuits.** A return value leaves the proof and goes to the code that called the circuit, so the compiler requires `disclose()` for it. Keep private values inside the circuit, and return nothing or a commitment.
+- **Assuming unshielded transfers are private.** Unshielded tokens, including NIGHT, move in public. A contract that takes an unshielded payment reveals the payer and the amount.
+- **Storing raw personal data on the ledger instead of a commitment.** Every ledger field is public. Store a `persistentCommit` with a random value, and keep the data in private state. Anyone can reverse a plain hash of a guessable value by guessing.
+- **Forgetting that the compiler checks return values.** The compiler treats a value returned from an exported circuit like a ledger write. If it flags a return statement, that value is about to leave the circuit.
+
+## Next steps
+
+- [Private party tutorial](../tutorials/private-party/smart-contract): the full walkthrough of a larger private contract, with token payments and access control.
+- [Tutorials](../tutorials): complete DApps, from a bulletin board to a ZK loan.
+- [Compact language](../compact): the language reference, including [explicit disclosure](../compact/reference/explicit-disclosure).
+- [Midnight.js](/sdks/official/midnight-js): the TypeScript framework that deploys and calls contracts.
+- [Security and best practices](./security-best-practices): authenticate callers, validate inputs, and prevent replay.
+- [The Developer Experience of Building on Midnight](https://midnight.network/blog/Developer-Experience): an overview of the tooling.
+- [Midnight Developer Hub](https://midnight.network/developer-hub): the developer entry point.
+
+## Frequently asked questions
+
+### How do you build a private smart contract?
+
+Decide which data must stay private and which must be public, then use a platform that keeps private data off-chain and proves correct execution with zero-knowledge proofs. On Midnight, you write the contract in Compact, keep secrets in witnesses that run on the user's device, mark the values that must become public with `disclose()`, compile, and test on a local devnet.
+
+### Are private variables in Solidity actually private?
+
+No. According to the Solidity documentation, `private` and `internal` only prevent other contracts from reading or modifying the data. It is still visible to anyone outside the blockchain. Confidential data needs a different model, where sensitive values never reach the public ledger.
+
+### What is a private smart contract?
+
+A private smart contract runs on a blockchain but keeps some or all of its inputs and state confidential, while the network can still verify that the contract's rules were followed. Common techniques include zero-knowledge proofs, fully homomorphic encryption, and trusted execution environments. Midnight uses zero-knowledge proofs.
+
+### Do I need to know cryptography to build a private smart contract on Midnight?
+
+No. You do not write circuits or proofs by hand. Compact has a TypeScript-like syntax, and the compiler generates the zero-knowledge circuits for you. You decide what is private and what is public, and you choose where a hash or a commitment protects a value.
+
+### What does `disclose()` do in Compact?
+
+`disclose()` marks a value as safe to make public. It does not publish the value by itself. It tells the compiler that you intend this value to cross from private into public, for example into a ledger field. Without it, the compiler rejects the program.
+
+### Where is private data stored in a Midnight contract?
+
+Private data stays on the user's device. The contract receives it through witnesses and circuit arguments, and the DApp keeps it in local private state. The proof server receives the private inputs to build the proof, so run it on a machine you control. Only zero-knowledge proofs and the values the contract makes public go to the network.
+
+### Can I test a private smart contract locally?
+
+Yes. The local devnet comes with pre-funded wallets, and the proof server runs locally in Docker, so you can compile, deploy, and interact with your contract before you move to Preprod.
