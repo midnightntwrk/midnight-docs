@@ -2,7 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Node v1.0.300 release notes
-description: Node v1.0.300 is a security release that requires a coordinated runtime upgrade and a devnet reset.
+description: Node is a core component of the Midnight Network, responsible for syncing, validating transactions, and maintaining the chain state.
 displayed_sidebar: sidebar
 ---
 
@@ -23,25 +23,35 @@ docker pull midnightntwrk/midnight-node-toolkit:1.0.300
 
 ## High-level summary
 
-Node v1.0.300 is a security patch on the 1.0.x maintenance line. It includes a coordinated runtime upgrade for all networks. The new runtime imports Ledger8Bridge host functions that older node binaries cannot load, so every validator must run Node 1.0.300 before the runtime is enacted.
+Node v1.0.300 is a patch release on the [v1.0.0 GA line](/relnotes/node/node-1-0-0) that ships runtime 1.0.300. Preview, Preprod, and Mainnet run this runtime, and it calls version 2 of the `apply_transaction` and `validate_guaranteed_execution` ledger host functions. Node v1.0.2 and earlier do not provide these functions, so every node on those networks must run v1.0.300 to keep importing blocks.
 
-Devnet also uses a regenerated chain specification and genesis. Operators on devnet must reset their nodes to the new genesis. Preview, Preprod, and Mainnet keep their existing genesis and upgrade in place.
+The release also adds a block timestamp (`tblock`) correction so that a node syncing from genesis can import some historical blocks, adds toolkit support for the new runtime, and removes `gdb` from the node and toolkit Docker images.
+
+The changes below are the delta from v1.0.2, taken from the [comparison between the two tags](https://github.com/midnightntwrk/midnight-node/compare/node-1.0.2...node-1.0.300).
 
 ---
 
 ## Audience
 
-This release note is for full node and stake pool operators, teams coordinating the runtime upgrade, and toolkit users who replay blocks from the 1.0.300 runtime.
+This release note is relevant for users who:
+
+- Run a Midnight node on Preview, Preprod, or Mainnet. These networks run runtime 1.0.300, which node v1.0.2 and earlier cannot load.
+- Use the node toolkit to fetch or replay blocks from Preview, Preprod, or Mainnet.
+- Use `gdb` inside the node or toolkit container, which the images no longer include.
+
+DApp developers do not need to take any action for this release. `transaction_version` stays at `3`, and the runtime metadata changes only in its version numbers.
 
 ---
 
-## What changed
+## What changed (Summary of updates)
 
-- The tblock correction is now gated by the on-chain runtime version instead of per-node configuration, so validators replay affected history consistently.
-- The toolkit recognizes spec_version 1000300 and its metadata, allowing it to replay history produced by this runtime.
-- The node, toolkit, and hardfork-test-upgrader images no longer include gdb.
-- The bundled npm CLI was updated to clear the critical tar advisory GHSA-23hp-3jrh-7fpw.
-- The devnet chain specification was rebuilt with the 1.0.300 runtime and populated reserve and ICS configuration.
+The updates below describe the key changes introduced in this release.
+
+- Raised the runtime to 1.0.300: `spec_version` moves from `1_000_000` to `1_000_300` and `system_version` from `1` to `3`. `transaction_version` stays at `3`.
+- Added version 2 of the `Ledger8Bridge` `apply_transaction` and `validate_guaranteed_execution` host functions. Runtime 1.0.300 calls them, so older node binaries cannot run it.
+- Added a block timestamp (`tblock`) correction for blocks produced under earlier runtimes. The node validates the first ledger transaction of such a block at the parent block time plus 12 seconds.
+- Added toolkit support for `spec_version` `1_000_300` and its metadata, so the toolkit can process blocks produced by the new runtime.
+- Removed `gdb` from the node and toolkit images.
 
 ---
 
@@ -53,36 +63,60 @@ No new features in this release.
 
 ## Breaking changes
 
-### Coordinate the runtime upgrade
+### Upgrade every node to v1.0.300
 
-The runtime upgrade imports a new Ledger8Bridge host function. A validator still running an older node binary cannot instantiate the runtime and stops importing blocks when the upgrade is enacted.
+All three public networks now run runtime 1.0.300:
 
-Follow this order on each network:
+| Network | Runtime upgrade block | Time (UTC) |
+|---|---|---|
+| Preprod | 2648468 | 21 September 2026, 15:12 |
+| Mainnet | 2738210 | 25 September 2026, 15:08 |
+| Preview | 1074620 | 29 September 2026, 07:16 |
 
-1. Roll every validator onto Node 1.0.300.
-2. Confirm that no validator is still running an older binary.
-3. Enact the runtime with `set_code` only after all validators are upgraded.
-4. Confirm that the runtime reports spec_version 1000300 and transactionVersion 3.
+The new runtime calls version 2 of the `apply_transaction` and `validate_guaranteed_execution` ledger host functions. Node v1.0.2 and earlier do not provide them, so a full, RPC, boot, or validator node on an older version cannot load the runtime and stops importing blocks after the upgrade block. It logs an error that includes `runtime requires function imports which are not present on the host`. Upgrade the node binary or Docker image to v1.0.300 and restart the node.
 
-The runtime upgrade changes system_version from 1 to 3. See the [official release](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.300) for the runtime artifact hashes and governance proposal details.
+This release does not change the Preview, Preprod, or Mainnet chain specifications or genesis, so you do not need to reset or resync your node.
 
-### Reset devnet to the regenerated genesis
+To confirm that your node follows the new runtime, call `state_getRuntimeVersion`. It returns `specVersion` `1000300`, `transactionVersion` `3`, and `systemVersion` `3`.
 
-Devnet only: the genesis hash changes to `0xe50ea0ab2997fab2ea6fce3c198f4ff34e6c4f3e7747c133746053a0e82b60e5`. Wipe node state and reset the chain to the regenerated genesis before restarting. Update any indexer or downstream service that pins the old devnet genesis hash.
+### Upgrade the toolkit to v1.0.300
 
-Preview, Preprod, and Mainnet do not require a state reset or re-sync.
+Toolkit versions earlier than 1.0.300 cannot process blocks produced by runtime 1.0.300 and fail with `indexer received a block made with unsupported node version 1000300`. Use the `midnightntwrk/midnight-node-toolkit:1.0.300` image or the toolkit binary attached to the release.
+
+---
+
+## Bug fixes and quality improvements
+
+### Block timestamp correction for historical blocks
+
+When a transaction enters the mempool, the node validates it against a timestamp 12 seconds (two slots) after the parent block and caches the result. The block producer reused that cached result for the first transaction in a block, so some historical blocks contain a first transaction that is valid only against that later timestamp. A node that validates those blocks against the block's own timestamp, such as a node syncing from genesis, can reject them ([#1924](https://github.com/midnightntwrk/midnight-node/issues/1924)).
+
+Node v1.0.300 validates the first ledger transaction of a block at the parent block's timestamp plus 12 seconds, but only when it replays a block produced by a runtime earlier than 1.0.300. From the runtime upgrade onward, the node validates every transaction against its own block's timestamp. The node hardcodes the 12-second offset, and there are no configuration settings for it. ([#1932](https://github.com/midnightntwrk/midnight-node/pull/1932), [#1965](https://github.com/midnightntwrk/midnight-node/pull/1965), [#2002](https://github.com/midnightntwrk/midnight-node/pull/2002))
+
+### Runtime `system_version` 3
+
+Runtime 1.0.300 raises `system_version` from `1` to `3`. With this change, a later `set_code` first stores the new runtime as pending code, so off-chain runtime API calls, such as RPC queries, no longer run the new runtime against storage it has not migrated yet. You do not need to take any action. ([#1900](https://github.com/midnightntwrk/midnight-node/pull/1900))
+
+### Debugger removed from the node and toolkit images
+
+Removed `gdb` from the `midnight-node` and `midnight-node-toolkit` Docker images. `strace`, `procps-ng`, `vim`, `jq`, and `tree` remain for troubleshooting. ([#2187](https://github.com/midnightntwrk/midnight-node/pull/2187))
+
+### Release re-issued on 30 September 2026
+
+The `node-1.0.300` tag moved on 30 September 2026 to a commit that pins runtime build dependencies in `Cargo.lock`, with no source code changes ([#2224](https://github.com/midnightntwrk/midnight-node/pull/2224)). The release binaries, runtime files, and `1.0.300` Docker images now come from the moved tag, so their checksums and digests differ from those published on 22 September. The compressed runtime attached to the release, `midnight_node_runtime-1.0.300.compact.compressed.wasm`, has the BLAKE2-256 hash `0x39568eeb0802fa59d74ac0bc5c7ab62fc05c23ea947937458a4b011558516138`, the same hash that `state_getStorageHash` returns for the `:code` key (`0x3a636f6465`) on Preview, Preprod, and Mainnet.
 
 ---
 
 ## Known issues
 
-No new known issues are listed for this release.
+No new known issues in this release.
 
 ---
 
 ## Links and references
 
 - [GitHub release: node-1.0.300](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.300)
+- [Comparison from node-1.0.2 to node-1.0.300](https://github.com/midnightntwrk/midnight-node/compare/node-1.0.2...node-1.0.300)
 - [Midnight node on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node)
 - [Node toolkit on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit)
-- [Node v1.0.1 release notes](/relnotes/node/node-1-0-1)
+- [Node v1.0.2 release notes](/relnotes/node/node-1-0-2)
