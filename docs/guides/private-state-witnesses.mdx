@@ -147,22 +147,33 @@ When working with witnesses, you might encounter a few common pitfalls.
 
 **Solution**: Ensure every key in your witnesses object *exactly* matches the name of the witness declared in your `.compact` file. For the other errors the generated module throws, see [Errors from the generated module](./compact-javascript-runtime#errors-from-the-generated-module).
 
-### 2. Non-deterministic witnesses
-**Cause**: If your witness function returns different values when called more than once for the same circuit call, the values recorded during local execution no longer match the values used during proof generation, and proving fails.
-**Solution**: Ensure your witness functions are deterministic for the duration of a call. If you need a random value, generate it *once* before calling the contract method, store it in a variable, and have the witness function return that variable.
+### 2. Witnesses that return a new value on every call
+
+**Cause**: Each `witness` call in a circuit runs your TypeScript function once, and the proof uses the value that call returned. A witness that generates a fresh random value on every call gives each call site, and each later transaction, a different value, and nothing saves it. If you commit to one of those values, you cannot open the commitment later.
+
+**Solution**: If a value must stay the same across call sites or transactions, generate it *once*, store it in private state, and have the witness return the stored value.
 
 ```typescript
-// BAD: Generates a new random value every time it's called
+type MyPrivateState = { readonly nonce?: Uint8Array };
+
+// BAD: Generates a new random value every time it's called, and never saves it
 const witnesses = {
-  get_random_nonce: ({ privateState }: WitnessContext<Ledger, MyPrivateState>) =>
-    [privateState, crypto.getRandomValues(new Uint8Array(32))],
+  get_random_nonce: ({
+    privateState,
+  }: WitnessContext<Ledger, MyPrivateState>): [MyPrivateState, Uint8Array] => [
+    privateState,
+    crypto.getRandomValues(new Uint8Array(32)),
+  ],
 };
 
-// GOOD: Value is fixed for the duration of the execution
-const fixedNonce = crypto.getRandomValues(new Uint8Array(32));
+// GOOD: Generates the value once, stores it in private state, and returns the stored value
 const witnesses = {
-  get_random_nonce: ({ privateState }: WitnessContext<Ledger, MyPrivateState>) =>
-    [privateState, fixedNonce],
+  get_random_nonce: ({
+    privateState,
+  }: WitnessContext<Ledger, MyPrivateState>): [MyPrivateState, Uint8Array] => {
+    const nonce = privateState.nonce ?? crypto.getRandomValues(new Uint8Array(32));
+    return [{ ...privateState, nonce }, nonce];
+  },
 };
 ```
 
