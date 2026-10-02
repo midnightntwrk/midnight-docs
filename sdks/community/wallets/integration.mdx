@@ -34,7 +34,7 @@ type InitialAPI = {
 };
 ```
 
-Support both discovery paths. Wallets such as Lace and 1AM inject under a fixed, friendly key (`window.midnight.mnLace`, `window.midnight['1am']`). The v4 specification instead installs each wallet under its own key and exposes a stable `rdns` field. Discover wallets by scanning `Object.values(window.midnight)` and matching on `rdns` or `name`. Before using a wallet, check its `apiVersion` against the range your DApp supports. The spec notes event-based discovery, like Ethereum's EIP-6963, as a possible future addition, but the current mechanism is the shared `window.midnight` object. ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
+Do not rely on a fixed key. The v4 specification has each wallet install its Initial API under a freshly generated UUID key and expose a stable `rdns` field. Current Lace builds do this: the key changes on every page load, they do not set `mnLace`, and their `rdns` is `io.lace.wallet`. 1AM keeps the fixed key `window.midnight['1am']`, with the `rdns` `com.midnight.1am`. Discover wallets by scanning `Object.values(window.midnight)` and matching on `rdns`, and let your users choose when more than one wallet is present. Before using a wallet, check its `apiVersion` against the range your DApp supports. The spec notes event-based discovery, like Ethereum's EIP-6963, as a possible future addition, but the current mechanism is the shared `window.midnight` object. ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
 
 ## Connect and the ConnectedAPI surface
 
@@ -54,7 +54,7 @@ Support both discovery paths. Wallets such as Lace and 1AM inject under a fixed,
 
 :::warning[Feature-detect, because coverage varies]
 
-The connector is a contract, but not every wallet implements every method. Lace does not implement `getProvingProvider()` or `signData()` (see [Lace](./wallets-overview.mdx#lace)). Always check before calling, for example `typeof api.getProvingProvider === "function"`.
+The connector is a contract, but not every wallet implements every method. Lace 2.4.2, for instance, leaves `hintUsage` undefined and rejects `getTxHistory()` calls with a `Method not implemented.` error (see [Lace](./wallets-overview.mdx#lace)). Lace builds before 2.1.0 also lack `getProvingProvider()`. Always check before calling, for example `typeof api.getProvingProvider === "function"`. Catch rejections too, because a wallet can expose a method without implementing it.
 
 :::
 
@@ -68,9 +68,9 @@ Lace opens a real authorization pop-up. The browser silently blocks it if the br
 
 Every Midnight transaction needs a ZK proof. Who generates that proof is the main difference between wallets, and it maps onto the custody models:
 
-- **Local proof server (Lace).** Lace requires a local proof server (Settings, then Midnight, then Local, at `http://localhost:6300`). Witness data stays on your machine, but you must run the server. Lace does not expose `getProvingProvider()`, so a DApp cannot delegate proving to it.
+- **Local proof server (Lace).** Lace requires a local proof server (Settings, then Midnight, then Local, at `http://localhost:6300`). Witness data stays on your machine, but you must run the server. Lace 2.1.0 and later expose `getProvingProvider()`, and the provider it returns sends each proof request to that same server.
 - **In-browser WASM (1AM).** 1AM compiles Midnight's prover, a Halo2-based zk-SNARK over the BLS12-381 curve, into a few MB of WASM and proves in the tab. There is no separate process, though proving time still depends on circuit size and the one-time cold-start key load. 1AM implements `getProvingProvider()` and offers a hosted Proof Station.
-- **Delegated (`getProvingProvider`).** The v4 connector abstracts proving behind this method; the connector deprecates the old `Configuration.proverServerUri`. Obtain a proving provider from the wallet when it is available, and fall back to a configured proof server for Lace.
+- **Delegated (`getProvingProvider`).** The v4 connector abstracts proving behind this method; the connector deprecates the old `Configuration.proverServerUri`. Obtain a proving provider from the wallet when it is available, and fall back to a configured proof server when it is not.
 
 ## Fees and DUST
 
@@ -84,7 +84,7 @@ This works for any standard-connector wallet (Lace, 1AM). The [CLI connector](./
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
 import type { InitialAPI, ConnectedAPI } from "@midnight-ntwrk/dapp-connector-api";
 
-// 1. Discover (friendly key first, then the v4 rdns scan)
+// 1. Discover: scan window.midnight (keys are not stable, so do not hardcode one)
 const wallets = Object.values(window.midnight ?? {})
   .filter((w): w is InitialAPI => !!w?.name && !!w?.apiVersion);
 
@@ -105,8 +105,8 @@ async function connect(w: InitialAPI, networkId = "preprod"): Promise<ConnectedA
 
 Handle these differences between connectors:
 
-- **Proving:** feature-detect `getProvingProvider`. 1AM has it; Lace does not, so fall back to the local proof server and do not hard-code the deprecated `proverServerUri`.
-- **`signData`:** not on Lace, so feature-detect before any signature-based authentication.
+- **Proving:** feature-detect `getProvingProvider`. 1AM has it, and so does Lace from 2.1.0, where the returned provider sends proof requests to the proof server set in the wallet. If the method is missing, fall back to the local proof server, and do not hard-code the deprecated `proverServerUri`.
+- **`signData`:** Lace implements it and asks your users to confirm each request in a pop-up. As the specification requires, Lace 2.4.0 and later sign `midnight_signed_message:<size>:` followed by your data, where `<size>` is the byte length of the decoded data. Verify the signature against those prefixed bytes. Feature-detect before any signature-based authentication on other wallets.
 - **Pop-up:** Lace opens an auth pop-up, so keep `connect()` synchronous. The reconnect path has no gesture, so poll `window.midnight`, then connect.
 - **Network:** always reconcile the DApp to `getConnectionStatus().networkId`.
 - **DUST:** read `getDustBalance()`, handle both `{ balance: 0n }` and the `cap`, and do not assume sponsored fees.
