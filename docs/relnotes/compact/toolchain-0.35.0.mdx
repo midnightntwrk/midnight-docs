@@ -1,0 +1,144 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Compact toolchain 0.35.0 release notes
+description: Compact toolchain 0.35.0 targets ledger 9 and adds P256, Curve25519, Ed25519, sha512, kernel.caller(), and run-time cross-contract module resolution.
+displayed_sidebar: sidebar
+---
+
+# Compact toolchain 0.35.0
+
+- **Date:** 2026-09-28
+- **Language version:** 0.27.0
+- **Compact runtime version:** 0.20.0
+- **Environment:** This release works with a Midnight ledger 9 blockchain.  For the full compatibility matrix, see the [release notes overview](https://docs.midnight.network/relnotes/overview)
+
+:::warning[Not for the current public networks]
+Toolchain 0.35.0 targets ledger version 9, which is not yet deployed on Preview, Preprod, or Mainnet. Contracts compiled with it require Compact runtime 0.20.x, and npm's `latest` tag for `@midnight-ntwrk/compact-runtime` now points to 0.20.0. To build contracts for the public networks, run `compact update 0.31` and pin the Compact runtime version listed in the [compatibility matrix](/relnotes/support-matrix).
+:::
+
+## High-level summary
+
+Version 0.35.0 of the Compact toolchain is a major release.  It targets Midnight ledger 9 which is not yet deployed on Midnight Mainnet.  IF you are building contracts to be deployed to the current (as of September 28) Midnight Mainnet, you should continue to use Compact toolchain 0.31.x.
+
+This release builds on 0.34.0.  It adds the secp256r1 (P256) and Curve25519 curves, ECDSA verification over P256, Ed25519 signature verification and `sha512` hashing, all of which require the flag `--feature-zkir-v3`.  It also adds the `kernel.caller()` ledger operation, and cross-contract calls now resolve their callee's implementation at run time, which changes the Compact runtime's cross-contract API.  Several changes are breaking; the entries below mark them.
+
+You can update to version 0.35.0 using the Compact devtools.  `compact update` will update to the latest released version, and `compact update 0.35` will specifically update to the latest patch release of toolchain 0.35.  You can also switch back to toolchain version 0.31.x (for a Midnight ledger 8 blockchain) with `compact update 0.31`.
+
+## Audience
+
+These release notes are intended for Compact smart-contract developers and for DApp developers who use the Compact runtime.
+
+## What changed
+
+## New features
+
+### The caller of a circuit is available to the circuit
+
+There is a new ledger operation `kernel.caller()` that returns the caller of a circuit as described below.  The return value is `Maybe<PublicAddress>` and `PublicAddress` is a standard library alias for `Either<ContractAddress, UserAddress>`.
+
+The result is `some(left(addr))` when the circuit is called by a contract with address `addr`.  It is `some(right(addr))` when it is a top-level circuit call and every unshielded input of the containing intent is owned by the user with address `addr`.  It is `none()` otherwise, and always `none()` in a constructor.
+
+The ledger derives the caller value from an intent's unshielded inputs, which a wallet adds when it balances the transaction.  This occurs **after** proof construction off chain.  Off-chain execution records `none()` for a top-level call from a user, so such a call will fail on-chain due to a ledger read mismatch whenever the balanced intent's unshielded inputs all belong to the same user.
+
+Until the ledger is changed to allow setting the top-level caller, you should read `kernel.caller()` only where you know that the call comes from a contract.
+
+### sha512 hashing
+
+There is a new generic standard library circuit `sha512<T>` that uses the SHA-512 hashing algorithm.  It has the same API as the `persistentHash<T>` (which is SHA-256) and `keccak256<T>` circuits.
+
+**This feature requires the flag `--feature-zkir-v3`.**
+
+### Secp256r1 (P256) and Curve25519 foreign curves and fields
+
+The standard library now has support for `Secp256r1Point` and `Curve25519Point` foreign curve points, and the accompanying field types `Secp256r1Base`, `Secp256r1Scalar`, `Curve25519Base`, and `Curve25519Scalar`.  They behave analogously with the secp256k1 cure and fields.
+
+The field types support equals and not-equals comparisons and the full set of Compact arithmetic operations `+`, (binary) `-`, `*`, `neg`, and `inv`.  The field types also support casting to and from `Bytes<32>` byte vectors.  The byte representation is the 32-byte little-endian binary encoding of the value.  Casting to a byte vector and back always gives the original field value.  Casting from a byte vector that represents an out of range unsigned integer will not fail, it will instead reduce the number modulo the field modulus.  `Curve25519Scalar` (only) also supports casting to and from `Bytes<64>` with the same rules as `Bytes<32>`.  The 64-byte representation of a Curve25519 scalar is the same little-endian encoding as `Bytes<32>`, padded with zeros.
+
+The point types cannot be constructed in Compact code.  The have accessors for the X- and Y-coordinates.  The point types support equals and not-equals comparisons, `ecAdd`, `ecMul`, and `ecMulGenerator`.
+
+The Compact runtime exports interfaces `Secp256r1Point` and `Curve25519Point` to use in TypeScript code.  There are also type descriptors and arithmetic operations in the Compact runtime, and constants for the field moduluses and maximum field values.
+
+**This feature requires the flag `--feature-zkir-v3`.**
+
+### ECDSA signature verification over secp256r1 (P256)
+
+The Compact standard library exports a new circuit `secp256r1EcdsaVerify` that verifies an ECDSA signature over the secp256r1 (also known as P256) curve, and returns a boolean value telling whether the verification succeeded.  Like `secp256k1EcdsaVerify`, it asserts that the public key is not the identity point.
+
+The Compact runtime has a new function `secp256r1EcdsaRecover` that can be used to recover a public key can be recovered off-circuit in a DApp's JavaScript or TypeScript code.
+
+**This feature requires the flag `--feature-zkir-v3`.**
+
+### Ed25519 signature verification
+
+The Compact standard library exports a new generic circuit `ed25519Verify<#n>` that verifies an Ed25519 (RFC 8032) signature of an `n`-byte message and returns a boolean value telling whether the verification succeeded.  The challenge is hashed in circuit using `sha512`.  The circuit asserts that the public key is not the identity.
+
+**This feature requires the flag `--feature-zkir-v3`.**
+
+### The compiler now generates ZKIR 3.1
+
+When the feature flag `--feature-zkir-v3` is passed, the compiler will now generate ZKIR 3.1 instead of ZKIR 3.0.  This version of the ZKIR format has new instructions to support the new language features introduced in this Compact release.  It requires a proof server that can support the ZKIR 3.1 format.
+
+Note that ZKIR 3.1 is a minor version release and so it contains only non-breaking changes over ZKIR 3.0.  A ZKIR 3.1 proof server is intended to be able to also process ZKIR 3.0 files.
+
+## Improvements
+
+### Cross-contract calls resolve the callee at runtime
+
+Cross-contract calls now resolve the called contract's implementation at the DApp's run time, rather than importing it at TypeScript compile time.  This is a substantial and **breaking** change to the cross-contract call runtime APIs.
+
+Every generated contract module has two new tables: `declaredInterfaces` for each called contract type, and `circuitSignatures` for each exported circuit.  These appear in the generated `.d.ts` interface file.  They are used for runtime type checks of cross-contract calls.
+
+There are new runtime APIs to support these more flexible cross-contract calls.  Most important for DApp developers is `ContractModuleProvider`, a TypeScript interface with a (user-supplied) `resolve` method that maps a `ContractAddress` to a `ModuleThunk`.
+
+There are a large number of improvements to cross-contract calls, some of which are breaking changes.  For details, see the Compact [`CHANGELOG.md`](https://github.com/LFDT-Minokawa/compact/blob/main/CHANGELOG.md) entry for toolchain version 0.24.101 where these changes were introduced.
+
+### Improvements to encoding and decoding public state
+
+The Compact runtime's decoding of ledger public state values has been improved and hardened.
+
+- Decoding `Opaque<'Uint8Array'>` and `Opaque<'string'>` will now throw a `CompactError` for truncated input.  Previously these returned invalid values.
+- Decoding a Compact `Bytes` value will return a copy of the value.  Previously this aliased the underlying bytes which could cause unintended mutation if the decoded value was mutated.
+- Decoding an out of range `enum` type will throw an exception that mentions `Enum`.  Previously the exception claimed that it expected an `UnsignedInteger`.
+- Decoding a `Secp256k1Point` will reject encoded values where the identity flag is not 0 or 1.  Previously, it treated 1 as `true` and any other value as `false`.
+
+### The toolchain version string is improved
+
+Previously, the toolchain version gotten from the devtools via `compact compile --version` or by invoking the compiler binary directly `compactc --version` would report only `MAJOR.MINOR.PATCH` version strings, not including any other designation like `-rc.N` or `-alpha.N`.  This meant that there were multiple different binary artifacts that each claimed to be the same version.  The version string now includes designations like `-rc.N` or `-alpha.N`, as well as identifying a GitHub commit hash and build date.  For instance:
+
+```shell
+% compact compile --version
+0.35.0-rc.0 (0e7a4b677 2026-09-28)
+```
+
+## Breaking changes
+
+### Signature verification rejects the identity point
+
+The signature verification circuits `jubjubSchnorrVerify` and `secp256k1EcdsaVerify` now reject the identity point as a public key.  Previously they would allow it, which would allow a user to sign any user to sign a message without knowing a real private key.
+
+### New runtime type checks on foreign curves
+
+The runtime type checks on curve points now bound the coordinates to be in range and the point to lie on the curve.  These type checks are applied to circuit and constructor arguments, and to witness return values.  Previously, they only checked the types, not the range.  Invalid points would fail to encode if they were written to the ledger or in some cases when a proof was constructed.  Now the failure occurs earlier and closer to the site of the problem, and will occur even for values that are not written to the ledger.  This is a breaking change.
+
+### Some ledger encodings are more strict
+
+Encoding `Uint`, `enum`, and `Bytes` types will now reject arguments that they cannot faithfully encode.  Previously, these did not validate their input but decoding these values would fail for invalid encodings, which meant that it was possible to write a value to the ledger that could not be read back.  This is a (minor) breaking change.
+
+### Deserialization of `Boolean` values is more strict
+
+The built-in `deserialize` circuit for `Booleans` now requires the serialized representation to be either a 0 or 1 byte.  It previously allowed other byte values, where 1 was deserialized as `true` and any other value was deserialized as `false`.
+
+## Known issues
+
+### The ZKIR v3 ledger version is printed incorrectly
+
+Invoking `compact compile --feature-zkir-v3 --ledger-version` will print the ZKIR version 3 version string, not the ledger version string.  `compact compile --ledger-version` prints the correct ledger version for both ZKIR version 2 and version 3.
+
+## Links and references
+
+## Fixed defect list
+
+The following defects are fixed by updating to Compact toolchain 0.35.
+
+- There was a `zkir` crash (key generation failure) when `default<Secp256k1Base>` and `default<Secp256k1Scalar>` was used in a circuit, due to a type error in the generated ZKIR code.  This is fixed.

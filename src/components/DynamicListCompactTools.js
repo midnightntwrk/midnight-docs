@@ -17,8 +17,26 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.5.2',
+    version: '0.5.3',
     status: 'LATEST',
+    date: '29 September 2026',
+    summary: 'Maintenance release: toolchain installs no longer need unzip, and running compact update again repairs a failed install.',
+    details: [
+      '`compact update` unpacks toolchain archives itself, so installing a toolchain no longer needs `unzip`.',
+      'Running `compact update <version>` again after a failed install now reinstalls that version instead of reporting `already installed` and failing.',
+      '`compact` no longer sets a missing compiler as the default, and commands that find a broken default now print the `compact update <version>` command that repairs it.',
+      '`compact update` deletes an unreadable toolchain archive and downloads it once more instead of failing on every retry.',
+      '`--help` output wraps to the width of your terminal.',
+      'Known issue: with toolchain 0.22.0 or 0.23.0 installed by 0.5.3, `include "std";` fails to compile. Use `import CompactStandardLibrary;` instead.',
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.5.3' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-5-3',
+  },
+  {
+    version: '0.5.2',
+    status: 'SUPPORTED',
     date: '18 August 2026',
     summary: 'Maintenance release: compact compile --help shows the full compiler help.',
     details: [
