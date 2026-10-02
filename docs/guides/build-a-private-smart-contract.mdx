@@ -43,9 +43,9 @@ A Midnight contract splits every interaction into a private part that runs on th
 - **`circuit` definitions encode the rules.** The compiler turns them into zero-knowledge circuits, so a transaction proves that the rules held without showing the private inputs.
 - **`witness` functions run off-chain on the user's machine** and provide private data to the circuit, such as a secret key kept in local private state.
 - **The compiler enforces the boundary.** It rejects any program where private data crosses into public state, an exported circuit's return value, or a contract call without `disclose()`.
-- **Some actions always need `disclose()`.** The compiler treats ledger writes, unshielded token transfers, contract-to-contract calls, and the return values of exported circuits as places where private data leaves the proof. Ledger writes and unshielded transfers are visible on-chain. A return value goes to the code that called the circuit.
+- **Some actions always need `disclose()`.** The compiler treats ledger writes, unshielded token transfers, contract-to-contract calls, and the return values of exported circuits as places where private data leaves the proof. Ledger writes and unshielded transfers are visible on-chain. A return value is not written to the ledger or readable in the transaction, which carries only a randomized commitment to the call's inputs and outputs. The compiler still requires `disclose()` because the value leaves the circuit, to your DApp or to a calling contract.
 
-`disclose()` does not publish a value by itself. It tells the compiler that you intend the value to cross into one of those positions. Contract-to-contract calls need ledger version 9 and Compact toolchain 0.33.0 or later, so the 0.31.1 toolchain in this guide rejects them. For the full model, read [Compact as a privacy-first language](../concepts/how-midnight-works/compact-privacy-first-language) and the public and private state overview in [What is Midnight?](../what-is-midnight).
+`disclose()` does not publish a value by itself. It tells the compiler that you intend the value to cross into one of those positions. For the full model, read [Compact as a privacy-first language](../concepts/how-midnight-works/compact-privacy-first-language) and the public and private state overview in [What is Midnight?](../what-is-midnight).
 
 The following diagram shows where each part runs. The witness, the private state, and proof generation stay on the user's device. The network receives the proof and the public values, verifies the proof, and updates the ledger.
 
@@ -223,6 +223,63 @@ Both keep data off-chain. The contract reads the secret key through a witness be
 
 :::
 
+<details>
+<summary>Full contract</summary>
+
+```compact title="contracts/private-bid.compact"
+pragma language_version 0.23;
+
+import CompactStandardLibrary;
+
+// Public state: every ledger field is stored on-chain.
+export sealed ledger minimumBid: Uint<64>;
+export ledger bidCommitments: Map<Bytes<32>, Bytes<32>>;
+export ledger revealedBids: Map<Bytes<32>, Uint<64>>;
+
+// Private input: the witness runs on the bidder's device.
+witness localSecretKey(): Bytes<32>;
+
+constructor(minimum: Uint<64>) {
+  // The minimum is a public rule, so the deployer discloses it.
+  minimumBid = disclose(minimum);
+}
+
+// Derives a value that is unique to the secret key, this deployed contract, and one purpose.
+circuit derive(purpose: Bytes<32>, secretKey: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([purpose, kernel.self().bytes, secretKey]);
+}
+
+export circuit placeBid(amount: Uint<64>): [] {
+  const secretKey = localSecretKey();
+
+  // The proof shows that the rule holds without revealing the amount.
+  assert(amount >= minimumBid, "Bid is below the minimum");
+
+  // The ledger needs a key for this bidder, so disclose the hash, not the secret.
+  const bidder = disclose(derive(pad(32, "private-bid:key:"), secretKey));
+  assert(!bidCommitments.member(bidder), "This bidder already placed a bid");
+
+  // Store a commitment to the amount. The amount itself stays on the device.
+  const salt = derive(pad(32, "private-bid:salt:"), secretKey);
+  bidCommitments.insert(bidder, persistentCommit<Uint<64>>(amount, salt));
+}
+
+export circuit revealBid(amount: Uint<64>): [] {
+  const secretKey = localSecretKey();
+  const bidder = disclose(derive(pad(32, "private-bid:key:"), secretKey));
+  const salt = derive(pad(32, "private-bid:salt:"), secretKey);
+
+  assert(bidCommitments.member(bidder), "This bidder has not placed a bid");
+  assert(bidCommitments.lookup(bidder) == persistentCommit<Uint<64>>(amount, salt),
+    "Amount does not match the committed bid");
+
+  // The bidder chooses to publish the amount, so disclose it.
+  revealedBids.insert(bidder, disclose(amount));
+}
+```
+
+</details>
+
 The [Private party tutorial](../tutorials/private-party/smart-contract) builds a larger contract from the same patterns, and adds token payments and access control.
 
 {/* _mod-docs-content-type: PROCEDURE */}
@@ -236,7 +293,11 @@ The compiler checks the privacy boundary, then turns each exported circuit into 
    compact compile contracts/private-bid.compact contracts/managed/private-bid
    ```
 
-   The first argument is the source file and the second is the output directory.
+   The first argument is the source file and the second is the output directory. The starter's `yarn compile` script still points at the Hello world contract, so update it in `package.json` to the same command:
+
+   ```json title="package.json"
+   "compile": "compact compile contracts/private-bid.compact contracts/managed/private-bid",
+   ```
 
 2. Review the output in `contracts/managed/private-bid`:
 
@@ -286,24 +347,20 @@ The starter repository runs a local devnet in Docker: a Midnight node, an indexe
 1. Implement the witness. Create `contracts/witnesses.ts`:
 
    ```typescript title="contracts/witnesses.ts"
-   import type { WitnessContext } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
-   import type { Ledger } from './managed/private-bid/contract/index.js';
+   import type { Witnesses } from './managed/private-bid/contract/index.js';
 
    // Private state lives on the bidder's device and never reaches the network.
    export type PrivateBidPrivateState = {
      readonly secretKey: Uint8Array;
    };
 
-   export const witnesses = {
+   export const witnesses: Witnesses<PrivateBidPrivateState> = {
      // Returns the unchanged private state and the value the circuit asked for.
-     localSecretKey: ({
-       privateState,
-     }: WitnessContext<Ledger, PrivateBidPrivateState>): [PrivateBidPrivateState, Uint8Array] => [
-       privateState,
-       privateState.secretKey,
-     ],
+     localSecretKey: ({ privateState }) => [privateState, privateState.secretKey],
    };
    ```
+
+   The generated `Witnesses` type checks that every witness the contract declares has an implementation with the right return type.
 
 2. Point the project at the new contract. Replace the contents of `contracts/index.ts`:
 
@@ -332,27 +389,9 @@ The starter repository runs a local devnet in Docker: a Midnight node, an indexe
    );
    ```
 
-3. Rename the test file, which keeps the wallet and provider setup from the starter:
+3. Replace the test file. Delete `src/test/hw.test.ts` and create `src/test/private-bid.test.ts` with the full file below. The wallet and provider setup is the starter's own; the parts specific to this contract are the import from `contracts/index.js`, the `call` helper, and the five tests:
 
-   ```bash
-   mv src/test/hw.test.ts src/test/private-bid.test.ts
-   ```
-
-4. In `src/test/private-bid.test.ts`, replace the six-line import statement for `'../../contracts/index.js'` with:
-
-   ```typescript title="src/test/private-bid.test.ts"
-   import { randomBytes } from 'node:crypto';
-   import {
-     CompiledPrivateBidContract,
-     ledger,
-     zkConfigPath,
-     type PrivateBidPrivateState,
-   } from '../../contracts/index.js';
-   ```
-
-5. In the same file, replace the two tests at the end, from `it('Deploys the contract', ...` through the closing `});` of the file, with:
-
-   ```typescript title="src/test/private-bid.test.ts"
+   ```typescript title="src/test/private-bid.test.ts (tests only)"
      const MINIMUM_BID = 100n;
      const BID = 250n;
 
@@ -419,13 +458,236 @@ The starter repository runs a local devnet in Docker: a Midnight node, an indexe
    });
    ```
 
-6. Start the local devnet, which includes the proof server:
+   <details>
+   <summary>Full test file</summary>
+
+   ```typescript title="src/test/private-bid.test.ts"
+   import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+   import { WebSocket } from 'ws';
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import {
+     deployContract,
+     submitCallTx,
+   } from '@midnight-ntwrk/midnight-js-contracts';
+   import type { ContractAddress } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+   import {
+     type EnvironmentConfiguration,
+     waitForFunds,
+   } from '@midnight-ntwrk/testkit-js';
+   import pino from 'pino';
+
+   import { getConfig } from '../config.js';
+   import {
+     MidnightWalletProvider,
+     syncWallet,
+     type WalletSecret,
+   } from '../wallet.js';
+   import { buildProviders, type HelloWorldProviders } from '../providers.js';
+   import { randomBytes } from 'node:crypto';
+   import {
+     CompiledPrivateBidContract,
+     ledger,
+     zkConfigPath,
+     type PrivateBidPrivateState,
+   } from '../../contracts/index.js';
+
+   // Required for GraphQL subscriptions in Node.js
+   // @ts-expect-error WebSocket global assignment for apollo
+   globalThis.WebSocket = WebSocket;
+
+   process.on('unhandledRejection', (reason, promise) => {
+     console.error('UNHANDLED REJECTION:', reason);
+     console.error('Promise:', promise);
+   });
+
+   process.on('uncaughtException', (err) => {
+     console.error('UNCAUGHT EXCEPTION:', err);
+   });
+
+   const ALICE_LOCAL_SEED =
+     '0000000000000000000000000000000000000000000000000000000000000001';
+   const PRIVATE_STATE_ID = 'AlicePrivateBidState';
+
+   const logger = pino({
+     level: process.env['LOG_LEVEL'] ?? 'info',
+     transport: { target: 'pino-pretty' },
+   });
+
+   const network = process.env['MIDNIGHT_NETWORK'] ?? 'local';
+
+   function resolveSecret(net: string): WalletSecret {
+     if (net === 'local') return { kind: 'seed', value: ALICE_LOCAL_SEED };
+
+     const upper = net.toUpperCase();
+     const mnemonicEnv = `MIDNIGHT_${upper}_MNEMONIC`;
+     const seedEnv = `MIDNIGHT_${upper}_SEED`;
+     const mnemonic = process.env[mnemonicEnv]?.trim().replace(/\s+/g, ' ');
+     const seedHex = process.env[seedEnv]?.trim();
+
+     if (mnemonic && seedHex) {
+       throw new Error(
+         `Set only one of ${mnemonicEnv} or ${seedEnv} (both are defined).`,
+       );
+     }
+     if (mnemonic) {
+       return { kind: 'mnemonic', value: mnemonic };
+     }
+     if (seedHex) {
+       if (!/^[0-9a-fA-F]+$/.test(seedHex) || seedHex.length % 2 !== 0) {
+         throw new Error(
+           `${seedEnv} must be a hex string of even length (no 0x prefix).`,
+         );
+       }
+       return { kind: 'seed', value: seedHex };
+     }
+     throw new Error(
+       `Either ${mnemonicEnv} or ${seedEnv} is required for network '${net}'. ` +
+         `Set one in .env.${net} or the shell.`,
+     );
+   }
+
+   describe(`Private Bid Contract (${network})`, () => {
+     let wallet: MidnightWalletProvider;
+     let providers: HelloWorldProviders;
+     let contractAddress: ContractAddress;
+
+     const config = getConfig();
+     const secret = resolveSecret(network);
+     const isRemote = network !== 'local';
+     const syncTimeoutMs = Number(
+       process.env['MIDNIGHT_SYNC_TIMEOUT_MS'] ??
+         (isRemote ? 60 * 60_000 : 10 * 60_000),
+     );
+
+     async function queryLedger(p: HelloWorldProviders) {
+       const state = await p.publicDataProvider.queryContractState(contractAddress);
+       expect(state).not.toBeNull();
+       return ledger(state!.data);
+     }
+
+     beforeAll(async () => {
+       setNetworkId(config.networkId);
+
+       const envConfig: EnvironmentConfiguration = {
+         walletNetworkId: config.networkId,
+         networkId: config.networkId,
+         indexer: config.indexer,
+         indexerWS: config.indexerWS,
+         node: config.node,
+         nodeWS: config.nodeWS,
+         faucet: config.faucet,
+         proofServer: config.proofServer,
+       };
+
+       wallet = await MidnightWalletProvider.build(logger, envConfig, secret);
+       await wallet.start();
+       await syncWallet(logger, wallet.wallet, syncTimeoutMs);
+
+       if (isRemote) {
+         // NIGHT→DUST registration. Seed is pre-funded via the faucet page; idempotent.
+         const nightBalance = await waitForFunds(
+           wallet.wallet,
+           envConfig,
+           false,
+           wallet.unshieldedKeystore,
+         );
+         logger.info(`Wallet NIGHT balance on '${network}': ${nightBalance}`);
+       }
+
+       providers = buildProviders(wallet, zkConfigPath, config);
+       logger.info(`Providers initialized on '${network}'. Ready to test!`);
+     });
+
+     afterAll(async () => {
+       if (wallet) {
+         logger.info('Stopping wallet...');
+         await wallet.stop();
+       }
+     });
+
+     const MINIMUM_BID = 100n;
+     const BID = 250n;
+
+     // Calls a circuit of the deployed contract with the local private state.
+     const call = (circuitId: 'placeBid' | 'revealBid', amount: bigint) =>
+       submitCallTx(providers, {
+         compiledContract: CompiledPrivateBidContract,
+         contractAddress,
+         privateStateId: PRIVATE_STATE_ID,
+         circuitId,
+         args: [amount],
+       });
+
+     it('Deploys the contract with a public minimum bid', async () => {
+       // The secret key is created on this machine and stays in private state.
+       const initialPrivateState: PrivateBidPrivateState = {
+         secretKey: randomBytes(32),
+       };
+
+       const deployed = await deployContract(providers, {
+         compiledContract: CompiledPrivateBidContract,
+         privateStateId: PRIVATE_STATE_ID,
+         initialPrivateState,
+         args: [MINIMUM_BID],
+       });
+       contractAddress = deployed.deployTxData.public.contractAddress;
+       logger.info(`Contract deployed at: ${contractAddress}`);
+
+       const state = await queryLedger(providers);
+       expect(state.minimumBid).toEqual(MINIMUM_BID);
+       expect(state.bidCommitments.isEmpty()).toBe(true);
+     });
+
+     it('Rejects a bid below the minimum', async () => {
+       await expect(call('placeBid', 50n)).rejects.toThrow(
+         'Bid is below the minimum',
+       );
+     });
+
+     it('Places a bid without putting the amount on the ledger', async () => {
+       await call('placeBid', BID);
+
+       const state = await queryLedger(providers);
+       const [[bidder, commitment]] = [...state.bidCommitments];
+       logger.info(`Bidder key:  ${Buffer.from(bidder).toString('hex')}`);
+       logger.info(`Commitment:  ${Buffer.from(commitment).toString('hex')}`);
+       expect(state.bidCommitments.size()).toEqual(1n);
+       expect(state.revealedBids.isEmpty()).toBe(true);
+     });
+
+     it('Rejects a reveal that does not match the commitment', async () => {
+       await expect(call('revealBid', 300n)).rejects.toThrow(
+         'Amount does not match the committed bid',
+       );
+     });
+
+     it('Reveals the bid when the bidder chooses to', async () => {
+       await call('revealBid', BID);
+
+       const state = await queryLedger(providers);
+       const [[, amount]] = [...state.revealedBids];
+       expect(amount).toEqual(BID);
+     });
+   });
+   ```
+
+   </details>
+
+4. Start the local devnet, which includes the proof server:
 
    ```bash
    yarn env:up
    ```
 
-7. Run the tests:
+5. Wait until the pre-funded wallet can pay fees. A fresh devnet needs a few seconds to generate DUST for it, and a deploy before then fails with `Wallet.InsufficientFunds`:
+
+   ```bash
+   yarn wait:dust
+   ```
+
+   If the command fails with `vite-node: not found`, run `yarn add -D vite-node` once and retry.
+
+6. Run the tests:
 
    ```bash
    yarn test:local
@@ -436,14 +698,14 @@ The starter repository runs a local devnet in Docker: a Midnight node, an indexe
 The run ends with all five tests passing:
 
 ```text
-[12:27:45.696] INFO (8428): Providers initialized on 'local'. Ready to test!
-[12:28:09.977] INFO (8428): Contract deployed at: eeadb8e70b4057b438924280a999669dde4d37d314aa4b3df66324f0cafd15db
-[12:28:39.056] INFO (8428): Bidder key:  01974ccaeff7e99d4b6cfa9a42cb7496cc86273b823d2c506c7900cfc9df851d
-[12:28:39.061] INFO (8428): Commitment:  c483cdf15845d7f89a828fc4a239e90457ffad45f8940e4704b78768fef4ecd0
- ✓ src/test/private-bid.test.ts (5 tests) 86613ms
-     ✓ Deploys the contract with a public minimum bid  24466ms
-     ✓ Places a bid without putting the amount on the ledger  28690ms
-     ✓ Reveals the bid when the bidder chooses to  31318ms
+[14:42:34.953] INFO (81529): Providers initialized on 'local'. Ready to test!
+[14:42:57.063] INFO (81529): Contract deployed at: f57d950b4ead7c06194fb09699ee173e31155d56efc0eb5fc43ffdebbde06cf3
+[14:43:21.080] INFO (81529): Bidder key:  0cb7214533e92fd1c358ea86176e3ac1048354d4314fb992f0498fba1313f432
+[14:43:21.080] INFO (81529): Commitment:  1cebbecc9f752886923cbcfef116a04703182ffa1337cb7ca6ed906e5a03e0b0
+ ✓ src/test/private-bid.test.ts (5 tests) 69514ms
+     ✓ Deploys the contract with a public minimum bid  22119ms
+     ✓ Places a bid without putting the amount on the ledger  23938ms
+     ✓ Reveals the bid when the bidder chooses to  22685ms
 
  Test Files  1 passed (1)
       Tests  5 passed (5)
@@ -451,9 +713,14 @@ The run ends with all five tests passing:
 
 Your contract address, keys, and timings differ. The test runner lists only the tests that take longer than 300 ms. The two rejected calls fail on your machine before the proof server generates a proof, so they usually finish faster than that.
 
-After `placeBid`, the ledger entry for the bid holds two 32-byte values: the bidder key and the commitment. The amount, 250, does not appear in the contract's public state until `revealBid` runs.
+What an observer of the chain learns at each step:
 
-Proof generation takes time. In this run, each transaction took between 24 and 32 seconds from the call to confirmation on the local devnet.
+- After the deploy: the minimum bid.
+- After `placeBid`: that a bid at or above the minimum exists, an opaque bidder key, and an opaque commitment. The amount, 250, is not in the contract's public state.
+- After `revealBid`: the amount, linked to that same bidder key, which is the point of a reveal.
+- Always: the number of bids, and which circuit each transaction called.
+
+Proof generation takes time. In this run, each transaction took between 22 and 24 seconds from the call to confirmation on the local devnet.
 
 When you finish, stop the devnet:
 
@@ -496,10 +763,9 @@ For the deployment code behind these scripts and how to confirm a deployment in 
 ## Common mistakes
 
 - **Disclosing more than needed.** `disclose()` silences the compiler for whatever you wrap in it. Disclose the narrowest value that works, such as a hash, a commitment, or the result of a check, not the raw input.
-- **Returning private values from exported circuits.** A return value leaves the proof and goes to the code that called the circuit, so the compiler requires `disclose()` for it. Keep private values inside the circuit, and return nothing or a commitment.
+- **Returning private values from exported circuits.** A return value leaves the proof and goes to the code that called the circuit, so the compiler treats it like a ledger write and requires `disclose()`. Keep private values inside the circuit, and return nothing or a commitment.
 - **Assuming unshielded transfers are private.** Unshielded tokens, including NIGHT, move in public. A contract that takes an unshielded payment reveals the payer and the amount.
 - **Storing raw personal data on the ledger instead of a commitment.** Every ledger field is public. Store a `persistentCommit` with a random value, and keep the data in private state. Anyone can reverse a plain hash of a guessable value by guessing.
-- **Forgetting that the compiler checks return values.** The compiler treats a value returned from an exported circuit like a ledger write. If it flags a return statement, that value is about to leave the circuit.
 
 ## Next steps
 
@@ -531,12 +797,12 @@ No. You do not write circuits or proofs by hand. Compact has a TypeScript-like s
 
 ### What does `disclose()` do in Compact?
 
-`disclose()` marks a value as safe to make public. It does not publish the value by itself. It tells the compiler that you intend this value to cross from private into public, for example into a ledger field. Without it, the compiler rejects the program.
+`disclose()` tells the compiler that you intend a private value to cross into a public position, such as a ledger field, and the compiler rejects the program without it. It does not publish the value by itself; see [How privacy works in a Midnight contract](#how-privacy-works-in-a-midnight-contract).
 
 ### Where is private data stored in a Midnight contract?
 
-Private data stays on the user's device. The contract receives it through witnesses and circuit arguments, and the DApp keeps it in local private state. The proof server receives the private inputs to build the proof, so run it on a machine you control. Only zero-knowledge proofs and the values the contract makes public go to the network.
+Private data stays on the user's device, in local private state that witnesses and circuit arguments feed into the circuit, and only proofs and deliberately public values reach the network. The proof server sees the private inputs while it builds a proof, so run it on a machine you control; see [Step 5](#step-5-test-on-a-local-devnet).
 
 ### Can I test a private smart contract locally?
 
-Yes. The local devnet comes with pre-funded wallets, and the proof server runs locally in Docker, so you can compile, deploy, and interact with your contract before you move to Preprod.
+Yes. The local devnet comes with pre-funded wallets and a proof server in Docker, so you can deploy and call your contract before you move to Preprod, as [Step 5](#step-5-test-on-a-local-devnet) shows.
