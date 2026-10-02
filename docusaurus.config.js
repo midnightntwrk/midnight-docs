@@ -280,9 +280,9 @@ const config = {
                   '/archive/**'
                 ],
         },
-        // Section order in llms.txt. Patterns match route paths, so they need a leading slash.
+        // Section order in llms.txt. Patterns match route paths: '/section/**' for a folder, '/page' for a single page.
         // The overview is the root page (slug: /), which the plugin always lists first.
-        // A top-level section that matches no pattern goes to the end, so add new sections here.
+        // A top-level section that matches no pattern goes to the end, after the API reference, so add new sections above it.
         includeOrder: [
               '/what-is-midnight',
               '/getting-started/**',
@@ -296,10 +296,11 @@ const config = {
               '/sdks/**',
               '/ai-integration/**',
               '/nodes/**',
-              '/api-reference/**',
               '/relnotes/**',
               '/glossary',
               '/troubleshoot/**',
+              // Keep the API reference last. It is most of the file, so a section listed after it starts past character 100,000.
+              '/api-reference/**',
           ],
       }
     ],
