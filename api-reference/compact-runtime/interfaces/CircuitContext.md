@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
 
 ***
 
@@ -22,11 +22,9 @@ The external information accessible from within a Compact circuit call
 optional activeContracts: Set<string>;
 ```
 
-The set of contract addresses currently executing on the cross-contract call
-stack: the entry contract plus every callee whose call has not yet returned.
-Maintained by [crossContractCall](../functions/crossContractCall.md) and shared by reference across the call
-tree (via [copyCircuitContext](../functions/copyCircuitContext.md)). Only consulted when [reentrancyGuard](#reentrancyguard)
-is set.
+The contract addresses currently executing: the entry contract, plus every callee whose call
+has not returned. Shared by reference across the call tree, so [crossContractCall](../functions/crossContractCall.md) can
+reject re-entry (`A -> A`, `A -> B -> A`) from any depth.
 
 ***
 
@@ -56,12 +54,11 @@ Sequence of calls made during the execution of the circuit (including the call f
 optional contractStates: Record<string, ContractState>;
 ```
 
-The deployed [ocrt.ContractState](../classes/ContractState.md) of every cross-contract callee resolved during the
-execution, keyed by address. Populated by [crossContractCall](../functions/crossContractCall.md) (via the state provider)
-the first time a callee is reached. Retained — unlike the cached query context, which keeps only
-ledger data — so the implementation-binding guard can read a callee's deployed verifier key for
-*any* of its circuits on *every* call, including later calls to a different circuit of an
-already-resolved callee. The entry contract is not recorded here; only fetched callees are.
+The deployed state of every cross-contract callee, keyed by address and filled on first
+resolution. The cached query context keeps only ledger data, so this is where a callee's
+verifier keys are read from, for any of its circuits and on every call. The entry contract is
+always on the call stack, so the re-entrancy guard keeps it out of callee position and it never
+appears here.
 
 ***
 
@@ -81,10 +78,8 @@ The cost model to use for the execution.
 events: LogEvent[];
 ```
 
-Events emitted by the on-chain VM during circuit execution from `log` operations,
-each tagged with the address of the emitting contract. A single global list shared
-across the whole call tree (threaded like [callProofDataTrace](#callproofdatatrace)); a per-contract
-view is a filter over the `address` tag. Surfaced via `CircuitResults.context.events`.
+Events the VM emitted from `log` operations, each tagged with the contract that emitted it.
+One list for the whole call tree, threaded like [callProofDataTrace](#callproofdatatrace).
 
 ***
 
@@ -108,6 +103,17 @@ The gas limit for this circuit.
 
 ***
 
+### moduleProvider?
+
+```ts
+optional moduleProvider: ContractModuleProvider;
+```
+
+The [ContractModuleProvider](ContractModuleProvider.md). Absent unless the execution can make cross-contract calls;
+reaching [crossContractCall](../functions/crossContractCall.md) without one is a `ModuleProviderAbsent` failure.
+
+***
+
 ### queryContexts
 
 ```ts
@@ -115,21 +121,6 @@ queryContexts: Record<ContractAddress, QueryContext>;
 ```
 
 The current query context of every contract in the call tree.
-
-***
-
-### reentrancyGuard?
-
-```ts
-optional reentrancyGuard: boolean;
-```
-
-When `true`, [crossContractCall](../functions/crossContractCall.md) refuses to enter a contract that is
-already executing on the current call stack — i.e. a re-entrant cross-contract
-call (`A -> A`, or `A -> B -> A`) — and throws instead. On by default (the
-upstream ledger can mis-apply transcripts on re-entry). Pass `false` to
-[createCircuitContext](../functions/createCircuitContext.md) to opt out, e.g. for tests that deliberately
-exercise recursion.
 
 ***
 
@@ -149,11 +140,6 @@ Can fetch the current state of a contract from the blockchain.
 zswapLocalStates: Record<ContractAddress, EncodedZswapLocalState>;
 ```
 
-The current Zswap local state of every contract in the call tree — the shielded-coin
-counterpart of [queryContexts](#querycontexts) and [gasCosts](#gascosts), and keyed the same way.
-
-Each contract keeps its own state, with its own `currentIndex`, `inputs` and `outputs`;
-only the transaction submitter's `coinPublicKey` is shared, since one wallet pays for the
-whole transaction. Threaded across cross-contract calls (see `restoreCircuitContext`) so a
-callee's coin operations survive its return, and mirrored onto each [CallProofData](CallProofData.md)
-so transaction assembly can attribute every input and output to the contract that made it.
+The current Zswap local state of every contract in the call tree, keyed like
+[queryContexts](#querycontexts). Each contract has its own `currentIndex`, `inputs` and `outputs`; only
+the submitter's `coinPublicKey` is shared, since one wallet pays for the transaction.
