@@ -27,6 +27,7 @@ const releases = [
       'Added a block timestamp (`tblock`) correction that applies only when replaying blocks produced before the runtime upgrade. There are no configuration settings for it.',
       'Toolkit v1.0.300 can fetch and process blocks produced by runtime 1.0.300. Earlier toolkit versions reject them.',
       'Removed `gdb` from the `midnight-node` and `midnight-node-toolkit` Docker images.',
+      'Known issue: a node that syncs Mainnet from genesis with v1.0.300 stops at block 1788979. The node team plans to fix this in v1.0.400.',
       'DApp developers do not need to take any action.',
     ],
     artifacts: [
