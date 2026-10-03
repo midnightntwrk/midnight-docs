@@ -15,12 +15,72 @@ For background on why the project moved to Kapa and how it fits alongside Midnig
 
 ## Install
 
+The server URL is `https://midnight.mcp.kapa.ai`. After you add it to a client, [sign in](#authentication) so your assistant can use the server.
+
 ### Claude Code
 
-Run one command:
+Run this command in your terminal, not inside a Claude Code session:
 
 ```bash
 claude mcp add --transport http midnight https://midnight.mcp.kapa.ai
+```
+
+Claude Code registers the server for the project where you run the command. Start Claude Code in the same folder, run `/mcp`, select `midnight`, and choose **Authenticate** to sign in.
+
+To use the server in every project, add it with the `--scope user` option instead:
+
+```bash
+claude mcp add --scope user --transport http midnight https://midnight.mcp.kapa.ai
+```
+
+### Claude on the web and desktop
+
+To use the server from claude.ai in your browser or from the Claude desktop app, add it as a custom connector:
+
+1. In Claude, open **Customize > Connectors** and select **Add custom connector**.
+2. Enter a name and the server URL `https://midnight.mcp.kapa.ai`, then select **Add**.
+3. Sign in when Claude prompts you. If the connector shows **Connect**, select it to start the sign-in.
+4. In a chat, select **+**, then **Connectors**, and check that the connector is on.
+
+On Team and Enterprise plans, an Owner adds the connector for the organization before members can connect. For the steps on each plan, see [Add a connector by URL](https://claude.com/docs/connectors/custom/add-unlisted#add-a-connector-by-url) in the Claude documentation.
+
+### Codex
+
+Run this command in your terminal:
+
+```bash
+codex mcp add midnight --url https://midnight.mcp.kapa.ai
+```
+
+Codex saves the server to `~/.codex/config.toml` and starts the sign-in in your browser. The saved entry looks like this:
+
+```toml
+[mcp_servers.midnight]
+url = "https://midnight.mcp.kapa.ai"
+```
+
+To sign in later, run `codex mcp login midnight`.
+
+### OpenCode
+
+Add the server to the `mcp` section of your `opencode.json` file. Use the file in your project root, or `~/.config/opencode/opencode.json` to make the server available in every project:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "midnight": {
+      "type": "remote",
+      "url": "https://midnight.mcp.kapa.ai"
+    }
+  }
+}
+```
+
+Then sign in from your terminal. If you added the server to a project file, run the command from that project folder:
+
+```bash
+opencode mcp auth midnight
 ```
 
 ### Cursor and VS Code
@@ -44,10 +104,42 @@ For any client that supports remote MCP servers in a JSON config, add the server
 
 Some clients label this a remote or HTTP server and ask for a transport field; the URL is the same in every case. You can also click "Copy MCP URL" from the "Use MCP" menu and paste it wherever your client expects it.
 
+Field names differ between clients. Antigravity, for example, reads `serverUrl` instead of `url`. Its config file is `~/.gemini/config/mcp_config.json`, or `.agents/mcp_config.json` in your project folder:
+
+```json
+{
+  "mcpServers": {
+    "midnight": {
+      "serverUrl": "https://midnight.mcp.kapa.ai"
+    }
+  }
+}
+```
+
+## Authentication
+
+The server requires you to sign in before it answers. Until you do, it rejects requests with an HTTP `401` response, and your client reports that the server needs authentication. That message means the install worked and the server is waiting for you to sign in.
+
+When you sign in, your client opens a Kapa page on `mcp.kapa.ai` in your browser, where you verify with a Google or GitHub account. The server doesn't use API keys. According to [Kapa's documentation](https://docs.kapa.ai/retrieval/hosted-mcp-server#public-oauth), the sign-in exists only to apply per-user rate limits and block abuse. The sign-in page states that Kapa links your session to an anonymous ID and doesn't receive your name or email address. Your client stores the resulting token and reuses it in later sessions.
+
+Each client reports the missing sign-in in its own way:
+
+| Client | What it reports | How to sign in |
+| --- | --- | --- |
+| Claude Code | `! Needs authentication` in `claude mcp list` | In a session, run `/mcp`, select `midnight`, and choose **Authenticate**. In a terminal, run `claude mcp login midnight` from the folder where you added the server. |
+| Codex | `Not logged in` in `codex mcp list` | Run `codex mcp login midnight`. |
+| OpenCode | `MCP Authentication Required`, followed by `Server "midnight" requires authentication. Run: opencode mcp auth midnight` | Run `opencode mcp auth midnight`. |
+
+If you gave the server a different name, use that name in place of `midnight`. The **Use MCP** menu on this site names it `midnight-docs`.
+
+Cursor, VS Code, and Antigravity also support this sign-in. Start it from the prompt the client shows or from its MCP settings.
+
 ## What it covers
 
 Kapa indexes a curated set of Midnight sources: the official documentation, hand-picked core repositories (the ledger, midnight.js, and the node), and standalone material such as the whitepaper. Ask how DUST generation works, how to structure a witness, or what a specific ledger type does, and you get an answer grounded in current documentation rather than stale training data.
 
 ## Midnight Expert
 
-For hands-on development tasks like writing and validating Compact contracts, running a local devnet, or decoding error codes, use [Midnight Expert](/ai-integration/midnight-expert) alongside Kapa. See the [Midnight agent skills](/sdks/community/ai-tools/midnight-agent-skills) page or the [migration blog post](/blog/migrating-to-kapa-and-midnight-expert) for setup instructions.
+For hands-on development tasks like writing and validating Compact contracts, running a local devnet, or decoding error codes, use [Midnight Expert](/ai-integration/midnight-expert) alongside Kapa. That page has the setup instructions, and the [migration blog post](/blog/migrating-to-kapa-and-midnight-expert) explains how the two tools fit together.
+
+Midnight Expert is a suite of Claude Code plugins. Its documentation has no setup for Codex, OpenCode, or other assistants, so connect the Kapa MCP server in those tools instead.
