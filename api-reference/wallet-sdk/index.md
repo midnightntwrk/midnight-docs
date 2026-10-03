@@ -84,7 +84,7 @@ Access the wallet state by waiting for initial sync or subscribing to updates.
 const syncedState = await wallet.waitForSyncedState();
 console.log('Shielded balance:', syncedState.shielded.balances);
 console.log('Unshielded balance:', syncedState.unshielded.balances);
-console.log('DUST balance:', syncedState.dust.totalCoins);
+console.log('DUST balance:', syncedState.dust.balance(new Date()));
 
 // Subscribe to state changes over time
 wallet.state().subscribe((state) => {
