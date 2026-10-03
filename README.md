@@ -98,6 +98,13 @@ Lint blog posts:
 vale blog/
 ```
 
+### Vale on pull requests
+
+When a PR changes Markdown or MDX files under `docs/` or `sdks/`, the **Vale Docs Lint** check reports findings on the lines the PR adds. The check is advisory and never blocks merging.
+
+- On a PR from a branch in this repository, the findings appear in one PR comment that the check keeps up to date.
+- On a PR from a fork, GitHub gives the workflow a read-only token, so there is no PR comment. Open the **Vale Docs Lint** run from the PR's checks to read the report on its summary page.
+
 ### Vale configuration
 
 Vale rules are defined in:

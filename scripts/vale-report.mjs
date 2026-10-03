@@ -10,6 +10,8 @@
 //                            the untruncated report is written to <path minus .md>.full.md
 //   env GITHUB_OUTPUT        optional; receives has_findings/errors/warnings/suggestions
 //   env GITHUB_SERVER_URL, GITHUB_REPOSITORY  optional; enable file/line links
+//   env FORK_PR              optional; "true" for a PR from a fork, where the workflow
+//                            skips the sticky comment; a full report with findings says so
 //
 // Exit code is 0 with or without findings; non-zero only on real failures.
 
@@ -228,8 +230,14 @@ const ranges = addedRanges(BASE_SHA, HEAD_SHA);
 const files = [...ranges.keys()];
 const findings = files.length ? filterToAdded(runVale(files), ranges) : [];
 
+// A fork PR's token is read-only, so the workflow skips the sticky comment and
+// the job summary is the only place the report appears.
+const forkPr = process.env.FORK_PR === "true";
+const forkNote =
+  "\n\n<sub>This PR comes from a fork. Fork PRs run with a read-only token, so this report is not posted as a PR comment and appears only in this job summary.</sub>";
+
 const clean = "## 📝 Vale style check\n\nNo issues on lines added in this PR.\n";
-const fullReport = findings.length ? render(findings) : clean;
+const fullReport = findings.length ? render(findings) + (forkPr ? forkNote : "") : clean;
 const commentReport = findings.length ? renderForComment(findings) : clean;
 
 fs.writeFileSync(outPath, commentReport);
@@ -248,3 +256,6 @@ if (process.env.GITHUB_OUTPUT) {
 console.log(
   `${findings.length} finding(s) on added lines across ${files.length} changed file(s) in scope`
 );
+if (forkPr) {
+  console.log("Fork PR: no PR comment (read-only token). The report is in the job summary.");
+}
