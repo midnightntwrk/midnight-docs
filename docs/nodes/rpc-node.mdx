@@ -27,24 +27,28 @@ Before setting up your Midnight RPC node, ensure you have the following:
 
 Use the following command to run Midnight node in RPC mode. Choose the configuration for your target network.
 
-By default, the node binds its RPC interface to `127.0.0.1` (localhost) and exposes only the `Safe` method set. This is the recommended starting point: the endpoint is reachable from the local machine only, so it is not directly exposed to the internet. To make it available to external clients, place a hardened reverse proxy in front of it rather than binding the node itself to a public interface. See [Exposing the RPC endpoint](#exposing-the-rpc-endpoint).
+Start the node from your home directory. On startup, the node reads its configuration from `res/cfg`, relative to the directory you start it from. The `CFG_PRESET` environment variable selects the network. `CARDANO_SECURITY_PARAMETER` is the security parameter of the matching Cardano network: `432` for Preview and `2160` for Preprod. The Preview chain specification lists no boot nodes, so the Preview command passes the [known Preview boot nodes](./boot-node#known-network-boot-nodes) with `--bootnodes`.
+
+By default, the node binds its RPC interface to localhost (`127.0.0.1` and `[::1]`). The commands also pass `--rpc-methods Safe`, so the node serves only the `Safe` method set. This is the recommended starting point: the endpoint is reachable from the local machine only, so it is not directly exposed to the internet. To make it available to external clients, place a hardened reverse proxy in front of it rather than binding the node itself to a public interface. See [Exposing the RPC endpoint](#exposing-the-rpc-endpoint).
 
 <Tabs>
 <TabItem value="preview" label="Preview">
 
 ```bash
-midnight-node \
+CFG_PRESET=preview CARDANO_SECURITY_PARAMETER=432 midnight-node \
   --chain /home/midnight/res/preview/chain-spec-raw.json \
   --base-path /home/midnight/data \
   --rpc-port 9944 \
-  --rpc-methods Safe
+  --rpc-methods Safe \
+  --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
+  --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym
 ```
 
 </TabItem>
 <TabItem value="preprod" label="Preprod">
 
 ```bash
-midnight-node \
+CFG_PRESET=preprod CARDANO_SECURITY_PARAMETER=2160 midnight-node \
   --chain /home/midnight/res/preprod/chain-spec-raw.json \
   --base-path /home/midnight/data \
   --rpc-port 9944 \
@@ -57,11 +61,13 @@ midnight-node \
 ### Configure RPC methods
 
 * `--rpc-port 9944`: The TCP port the RPC server listens on.
-* `--rpc-methods Safe`: Exposes only the safe RPC method set. Avoid `Unsafe`/`Auto` on any node that is reachable beyond localhost, as they expose methods that can control the node.
+* `--rpc-methods Safe`: Exposes only the safe RPC method set. Without this flag, the node uses `Auto`, which exposes every method when RPC listens on localhost, even through a reverse proxy. Avoid `Unsafe`/`Auto` on any node that is reachable beyond localhost, as they expose methods that can control the node.
 
 ## Exposing the RPC endpoint
 
 For a public RPC node, the recommended approach is to keep the node bound to localhost (the default above) and front it with a reverse proxy (for example, nginx or Caddy) that terminates TLS, restricts allowed origins, and applies rate limiting. Combine this with a firewall that only permits the P2P port and your proxy's port.
+
+The node accepts only requests whose `Host` header is `localhost:9944`, `127.0.0.1:9944`, or `[::1]:9944`, with your RPC port in place of `9944`. Configure the proxy to send `localhost:9944` as the `Host` header. Any other `Host` value gets a `403` response with the message `Provided Host header is not whitelisted`. This includes requests sent to the node's public address when it runs with `--rpc-external`. Running the node with `--rpc-cors all` turns this check off, but it also permits requests from any origin.
 
 The node can also expose RPC directly with the flags below. These bypass the localhost default, so only use them on a trusted, firewalled network and never point them at the open internet without a proxy in front.
 
@@ -73,7 +79,8 @@ Binding the RPC interface to a public address with permissive CORS exposes your 
 
 * `--rpc-external`: Binds the RPC server to all interfaces so it is reachable from external networks. Without this flag, RPC stays on `127.0.0.1`. The unified RPC server handles both HTTP and WebSocket connections on this interface.
 * `--rpc-cors <origins>`: Sets the allowed CORS origins. Prefer an explicit comma-separated list of trusted domains (for example, `--rpc-cors https://app.example.com`) over `all`, which permits requests from any origin.
-* `--no-private-ip`: Disables the safety check that refuses external binding on private IP ranges. Only relevant when intentionally exposing the node.
+
+The `--no-private-ip` flag does not affect the RPC endpoint. It stops the node from connecting to private IPv4 and IPv6 addresses that it discovers on the network. It is on by default for Preview and Preprod.
 
 ### Test connectivity
 
