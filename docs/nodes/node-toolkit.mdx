@@ -1,0 +1,1157 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Using the Midnight node toolkit
+sidebar_label: Node toolkit
+description: "Install the Midnight node toolkit and use it to inspect blocks, read ledger parameters, derive addresses, and send test transactions on a local network."
+sidebar_position: 55
+toc_max_heading_level: 2
+keywords: [midnight, node toolkit, midnight-node-toolkit, show-block, show-ledger-parameters, generate-txs, register-dust-address, local network, docker]
+tags: [node, developer-tools, testing, transactions, dust, night]
+---
+
+# Using the Midnight node toolkit
+
+The node toolkit, `midnight-node-toolkit`, is the command-line tool that ships with each Midnight node release. It reads blocks and ledger state from a node, and it derives addresses and keys from a seed. It also builds and submits transactions: NIGHT transfers, DUST registrations, and contract deployments and calls. Node operators use it to inspect blocks and smoke-test a node. DApp developers use it to fund test wallets and try out contracts on a local network. It is a tool for testing and operations: a DApp builds its transactions with [Midnight.js](/sdks/official/midnight-js) and the [wallet SDK](/sdks/official/wallet-developer-guide). This guide covers toolkit 1.0.300, the version that matches the runtime Preview, Preprod, and Mainnet run. Each task ends with a check that shows it worked.
+
+## Prerequisites
+
+These apply to every procedure in this guide:
+
+- Docker, to run the toolkit image and a local node. On a Linux server, the release binary runs most commands without Docker. See [Installing the toolkit binary on Linux](#installing-the-toolkit-binary-on-linux).
+- `curl` and `jq`, for the JSON-RPC and GraphQL calls and for reading JSON output.
+- Seeds that hold only test funds. The toolkit takes seeds as command-line arguments, so they can end up in your shell history and in process listings.
+- Node.js 22 or later, if you want to run the two checks that compare the toolkit's output with the wallet SDK. They run in a `toolkit-checks` folder with the SDK and ledger packages at the versions in the [support matrix](../relnotes/support-matrix):
+
+  ```bash
+  mkdir toolkit-checks && cd toolkit-checks
+  npm install @midnightntwrk/wallet-sdk@1.2.0 @midnight-ntwrk/midnight-js-protocol@4.1.1
+  ```
+
+  The wallet SDK's npm scope, `@midnightntwrk`, has no hyphen, unlike `@midnight-ntwrk/midnight-js-protocol`.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## How the node toolkit works
+
+The toolkit works on one chain at a time. It reads blocks from a node over WebSocket, or transactions from a file. It sends the transactions it builds to a node, or writes them to a file. What a command needs from the chain decides where you can run it in practice.
+
+**Commands that need wallet or ledger state replay the chain.** These include `show-wallet`, `dust-balance`, `contract-state`, `send-intent`, and every `generate-txs` builder that reads from a node. Each one downloads every block from genesis and replays it into a local copy of the ledger. On a new local chain that takes seconds. On a public network it takes hours. During this guide's test runs, Preview had more than 1.1 million blocks, and the toolkit fetched about 85 blocks per second in one measurement. So this guide runs read-only commands against Preview and Preprod, and every transaction against a local node. `show-block` fetches only the block you name, `show-ledger-parameters` reads only the current parameters, and commands such as `show-address` need no node at all. The [command reference](#command-reference) lists what each command needs.
+
+**Replays read state at every block.** A node that prunes old state answers `State already discarded` for older blocks, and the replay fails. If you point the toolkit at your own node for a replay, run that node as an [archive node](./full-node#full-node-vs-archive-node).
+
+**A cache keeps the work.** The toolkit stores the blocks it fetches and snapshots of the replayed ledger, so the next command fetches only new blocks. The toolkit keys the cache by the hash of block 1, so one cache holds Preview, Preprod, and successive local chains without mixing them. Replays stop at the latest finalized block.
+
+**Each toolkit reads only the runtimes it knows.** Toolkit 1.0.300 decodes blocks from runtime spec versions 21000, 22000, 1000000, and 1000300, and stops with `UnsupportedBlockVersion` on any other. When a network upgrades its runtime, switch to the toolkit from the node release that brings that runtime.
+
+**The toolkit proves transactions itself.** It generates, in its own process, the zero-knowledge proofs that transactions such as shielded transfers and contract calls need. To use a proof server instead, pass its URL with `-p`.
+
+**Results go to stdout and logs go to stderr.** Redirect a command's output to a file, or pipe it to `jq`, to get clean JSON while progress lines stay in the terminal.
+
+**Amounts are in base units.** NIGHT amounts are in STAR, and 1 NIGHT is 10^6 STAR. DUST amounts are in SPECK, and 1 DUST is 10^15 SPECK. See [NIGHT and DUST](../tokens/overview#night-and-dust).
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Toolkit versions and networks
+
+Check these values before you install the toolkit, and again after a network upgrade. The toolkit ships with the node, under the node's version number.
+
+- **Networks:** as of 3 October 2026, Preview, Preprod, and Mainnet all run runtime spec version 1000300. Use toolkit 1.0.300 with all three, and with a local node 1.0.300. The Preview and Preprod nodes report `system_version` `1.0.400-c338b9ac`, a build with no public release or toolkit image. Toolkit 1.0.300 reads the blocks they serve.
+- **Docker image:** `midnightntwrk/midnight-node-toolkit:1.0.300`, for `linux/amd64` and `linux/arm64`. The image has no `latest` tag. The node repository builds the `latest-main` tag from its main branch, not from a release, so pin `1.0.300`.
+- **Release binaries:** `midnight-node-toolkit-1.0.300-linux-amd64.tar.gz` and `midnight-node-toolkit-1.0.300-linux-arm64.tar.gz`, attached to the [node-1.0.300 release](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.300) with a `SHA256SUMS` file. The toolkit has no release page of its own.
+- **Older chains:** toolkit 1.0.300 also reads a development chain on node 1.0.0, which [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev) runs as of 3 October 2026. Toolkit 1.0.0 cannot read blocks from runtime 1000300.
+- **Contract compiler:** the image's `toolkit-js` bundles `compact-runtime` 0.15.0. Use Compact compiler 0.30.0 for contracts that you deploy with the toolkit, and write them for language version 0.22, which that compiler implements. Compiler 0.31.1, the version the support matrix lists, implements language version 0.23 and emits code for `compact-runtime` 0.16.0, which the toolkit rejects.
+- **The `version` command:** prints `Node: 1.0.300`, `Ledger: =7.0.3`, and `Compactc: 0.30.0`. The `Ledger` line names an older ledger library that the toolkit also contains. The networks run ledger 8.1.2, which their `midnight_ledgerVersion` RPC method reports, so go by the `Node` line.
+- **Tested:** every command on this page ran on 3 October 2026 with toolkit 1.0.300, against a local node 1.0.300 and the public Preview and Preprod endpoints. The Docker commands ran with Docker Desktop on macOS, and the binary steps ran in Ubuntu 24.04 containers on amd64 and arm64. Mainnet was not part of these runs.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Running the toolkit with Docker
+
+Run the toolkit image through a shell function, so every command on this page reads like a local command. The image runs anywhere Docker does, and it is the only form of the toolkit that can build intents for your own contracts.
+
+### Procedure
+
+1. Pull the image:
+
+   ```bash
+   docker pull midnightntwrk/midnight-node-toolkit:1.0.300
+   ```
+
+2. Create a folder for the files the toolkit writes, and a named volume for its cache:
+
+   ```bash
+   mkdir -p "$HOME/midnight-toolkit"
+   docker volume create midnight-toolkit-cache
+   ```
+
+   The volume keeps the blocks the toolkit fetches, its ledger snapshots, and the proving parameters it downloads for its first proof.
+
+3. Define a shell function that runs the image. It works in bash and zsh:
+
+   ```bash
+   midnight-node-toolkit() {
+     docker run --rm \
+       -e RESTORE_OWNER="$(id -u):$(id -g)" \
+       -v midnight-toolkit-cache:/.cache \
+       -v "$HOME/midnight-toolkit:/out" \
+       midnightntwrk/midnight-node-toolkit:1.0.300 "$@"
+   }
+   ```
+
+   Inside the container, `$HOME/midnight-toolkit` is `/out`, so pass paths under `/out` to the options that read or write files. Each time the image starts, it gives its own user ownership of everything under `/out`. `RESTORE_OWNER` gives the files back to you when the command exits. Mount a folder that holds only toolkit files. To keep the function in new terminals, add it to your shell profile, such as `~/.bashrc` or `~/.zshrc`.
+
+   :::caution[One command at a time]
+   A command that starts while another one has the cache volume open fails with `DatabaseAlreadyOpen`. When either command exits, the image also gives the volume back to your user. The other command can then fail to save its cache with `Permission denied`. To run commands in parallel, give each one its own cache volume.
+   :::
+
+### Verification
+
+The `version` command prints the toolkit's node version:
+
+```bash
+midnight-node-toolkit version
+```
+
+```text
+Node: 1.0.300
+Ledger: =7.0.3
+Compactc: 0.30.0
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Installing the toolkit binary on Linux
+
+Install the release binary to run the toolkit without Docker, for example on the server that runs your node. The release has binaries for Linux on x86-64 (`amd64`) and arm64, and they need glibc 2.34 or later. There are no macOS or Windows builds. The tarball holds only the `midnight-node-toolkit` binary. The `generate-intent` commands also need `toolkit-js` and Node.js, which ship only in the Docker image, so use the image to [deploy your own contract](#deploying-your-own-contract-with-the-toolkit).
+
+### Procedure
+
+1. Install `curl` and the CA certificates that the binary needs for `wss://` endpoints. On Ubuntu:
+
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y curl ca-certificates
+   ```
+
+2. Download the tarball for your architecture and the checksum file from the node-1.0.300 release:
+
+   ```bash
+   VERSION=1.0.300
+   ARCH=amd64   # or arm64
+   curl -fsSLO "https://github.com/midnightntwrk/midnight-node/releases/download/node-${VERSION}/midnight-node-toolkit-${VERSION}-linux-${ARCH}.tar.gz"
+   curl -fsSLO "https://github.com/midnightntwrk/midnight-node/releases/download/node-${VERSION}/SHA256SUMS"
+   ```
+
+3. Check the tarball against `SHA256SUMS`:
+
+   ```bash
+   sha256sum -c --ignore-missing SHA256SUMS
+   ```
+
+   ```text
+   midnight-node-toolkit-1.0.300-linux-amd64.tar.gz: OK
+   ```
+
+4. Extract the binary and install it:
+
+   ```bash
+   tar -xzf "midnight-node-toolkit-${VERSION}-linux-${ARCH}.tar.gz"
+   sudo install -m 0755 midnight-node-toolkit /usr/local/bin/
+   ```
+
+The arm64 binary also links OpenSSL 3 (`libssl.so.3` and `libcrypto.so.3`), which Ubuntu 24.04 includes. Without Docker, the toolkit keeps its cache in a `toolkit_cache` folder under the directory you run it from. The `--fetch-cache` and `--ledger-state-db` options move it.
+
+### Verification
+
+The binary prints its version and reads a Preview block over `wss://`:
+
+```bash
+midnight-node-toolkit version
+midnight-node-toolkit show-block -s wss://rpc.preview.midnight.network -b 1133548 --json
+```
+
+```text
+Node: 1.0.300
+Ledger: =7.0.3
+Compactc: 0.30.0
+```
+
+```json
+[
+  {
+    "number": 1133548,
+    "hash": "59744f9c5b96ad856c5d6ef3969cbef8645b850fef6f8fe9364b9568735c2380",
+    "parent_hash": "fa3df5e68c23bd95f37189aaf0362606b0b0c0626ce7af4c018f0f71fdd9cd43",
+    "ledger_version": "Ledger8",
+    "timestamp_secs": 1791020244,
+    "timestamp_utc": "2026-10-03T09:37:24Z",
+    "timestamp_err_secs": 30,
+    "last_block_time_secs": 1791020244,
+    "state_root": "6d69646e696768743a73746f726167652d6b6579286c65646765722d73746174655b7631335d293a00135dd1958b84ef41f76df20b552b24b123e80728a0a9804b373175fd6fad6182",
+    "transactions": []
+  }
+]
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Connection and cache options
+
+Consult these tables when you point the toolkit at a node or change where it keeps its cache. Commands that read from a node take `-s`, commands that send take `-d`, and both default to `ws://127.0.0.1:9944`. `show-ledger-parameters` reads from a node with `-r` (`--read-from-rpc-url`) instead, which has no default. Without `-r`, it prints the ledger's initial parameters, not a network's: for example, a `global_ttl` of 3600 seconds, where Preprod has 1209600.
+
+| Where the node is | URL to pass | Extra `docker run` option |
+|---|---|---|
+| Public Preview or Preprod endpoint | `wss://rpc.preview.midnight.network` or `wss://rpc.preprod.midnight.network` | None |
+| A node container on a user-defined Docker network | `ws://<container-name>:9944` | `--network <network-name>` |
+| A node container whose network you share | The default, `ws://127.0.0.1:9944`, so leave out `-s` and `-d` | `--network container:<container-name>` |
+| A node published on the host's `127.0.0.1`, with Docker Desktop | `ws://host.docker.internal:<port>` | None |
+| Mainnet, not tested for this guide | The Blockfrost WebSocket URL with your project token, from [Node endpoints](./node-endpoints) | None |
+
+| Option | Default | Environment variable | What it does |
+|---|---|---|---|
+| `-s`, `--src-url` | `ws://127.0.0.1:9944` | `MN_SRC_URL` | Node to read blocks from. |
+| `--src-file` | Not set | Not available | Reads blocks or transactions from a file instead of a node. |
+| `-d`, `--dest-url` | `ws://127.0.0.1:9944` | `MN_DEST_URL` | Node to send transactions to. Repeat it to send to several nodes. |
+| `--dest-file` | Not set | Not available | Writes the transaction to a file instead of sending it. You cannot combine it with `-d`, `-r`, or `--no-watch-progress`. |
+| `-r`, `--rate` | 1 | Not available | Transactions sent per second. |
+| `--no-watch-progress` | Off | `MN_DONT_WATCH_PROGRESS` | Returns without waiting for finalization. |
+| `-p`, `--proof-server` | Not set, so the toolkit proves in its own process | Not available | Proof server to use. |
+| `--dry-run` | Off | Not available | Prints the settings, with seeds redacted, and exits. |
+| `--fetch-cache` | Image: `redb:/.cache/toolkit_fetch_cache.db`. Binary: `redb:toolkit_cache/fetch_cache.db` | `MN_FETCH_CACHE` | Block cache: `inmemory`, `redb:<file>` for one process at a time, or a `postgres://` URL for several processes. |
+| `--ledger-state-db` | Image: `/.cache/toolkit_ledger_cache_db`. Binary: `toolkit_cache/ledger_cache_db` | `MN_LEDGER_CACHE_DB` | Folder for ledger snapshots and wallet state. An empty string turns it off. |
+| `--fetch-concurrency` | 20 | Not available | Blocks fetched in parallel. |
+| `--fetch-only-cached` | Off | Not available | Uses cached blocks only. The toolkit still connects to the node to identify the chain. |
+
+- Connection options can go before or after the `generate-txs` builder name.
+- When it cannot reach the node, the toolkit retries for up to 60 seconds before it exits.
+- To build a wallet's cache ahead of time, run `fetch` with one `--seeds` option for each wallet. A later `show-wallet` for those seeds then fetches only new blocks.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Inspecting a block
+
+Decode a block and its transactions, for example to see what a transaction carried or to check what your node serves. `show-block` fetches only the block you name, so it runs in seconds against a public endpoint.
+
+### Procedure
+
+1. Find a block number. The node's current best block is a good start:
+
+   ```bash
+   curl -s -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","id":1,"method":"chain_getHeader","params":[]}' \
+     https://rpc.preprod.midnight.network | jq -r '.result.number' | xargs printf '%d\n'
+   ```
+
+   ```text
+   2817120
+   ```
+
+2. Decode a block. The examples use Preprod block 2817111, which holds one transaction:
+
+   ```bash
+   midnight-node-toolkit show-block -s wss://rpc.preprod.midnight.network -b 2817111
+   ```
+
+   The output starts with the block header and then decodes each transaction:
+
+   ```text
+   Block #2817111
+     Hash:            0x5983961a09811310493419a8246478efb50a2e6c9e1c0c39dd746c9381587b32
+     Parent Hash:     0x5c6fe928045dbd79d9cb66ce594f40bcaaa16f16dad2f5ab22af61f64a472870
+     Ledger Version:  Ledger8
+     Timestamp:       1791020472 (1791020472, err: 2026-10-03T09:41:12Zs)
+     Parent Block Timestamp:       1791020472
+     State Root:      0x6d69646e696768743a73746f726167652d6b6579286c65646765722d73746174655b7631335d293a005e170a30ebf269bbf95ac57f149b0b1e4a42f42ceabc0cba98099514c594dcc0
+     Transactions:    1
+
+     [0] Midnight (9510 bytes) hash: 0x24d212027962baaa816ed98dbf79538a5ec0885ca226af99427a942e53bca1e0
+   ```
+
+   The `Timestamp` line prints the seconds twice and puts the UTC time where the error margin belongs. Read times from the JSON output instead.
+
+3. Write the block as JSON and pick out the fields you need. The JSON is an array, because a `--src-file` can hold several blocks, so start the `jq` filter with `.[0]`:
+
+   ```bash
+   midnight-node-toolkit show-block -s wss://rpc.preprod.midnight.network -b 2817111 --json > block.json
+   jq '.[0] | {number, hash, timestamp_utc, transactions: [.transactions[] | {index, tx_type, hash}]}' block.json
+   ```
+
+   ```json
+   {
+     "number": 2817111,
+     "hash": "5983961a09811310493419a8246478efb50a2e6c9e1c0c39dd746c9381587b32",
+     "timestamp_utc": "2026-10-03T09:41:12Z",
+     "transactions": [
+       {
+         "index": 0,
+         "tx_type": "Midnight",
+         "hash": "24d212027962baaa816ed98dbf79538a5ec0885ca226af99427a942e53bca1e0"
+       }
+     ]
+   }
+   ```
+
+   Each block also has `parent_hash`, `ledger_version`, `timestamp_secs`, `timestamp_err_secs`, `last_block_time_secs`, and `state_root`. Each transaction also has `size_bytes` and its decoded form in `debug_str`.
+
+### Verification
+
+The indexer reports the same block hash and transaction hash for that height:
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"query":"{ block(offset: {height: 2817111}) { height hash timestamp transactions { hash __typename } } }"}' \
+  https://indexer.preprod.midnight.network/api/v4/graphql | jq -c .
+```
+
+```json
+{"data":{"block":{"height":2817111,"hash":"5983961a09811310493419a8246478efb50a2e6c9e1c0c39dd746c9381587b32","timestamp":1791020472000,"transactions":[{"hash":"24d212027962baaa816ed98dbf79538a5ec0885ca226af99427a942e53bca1e0","__typename":"RegularTransaction"}]}}}
+```
+
+The indexer gives the timestamp in milliseconds. It is the same moment as `timestamp_secs` in the toolkit's JSON.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Reading a network's ledger parameters
+
+Read the parameters a network's ledger runs with: the DUST generation values, the fee prices, the transaction limits, and the global time-to-live. The toolkit prints them as Rust debug text, not JSON, so use `grep` to find a section, or `--serialize` for the encoded form.
+
+### Procedure
+
+1. Save the parameters of Preprod to a file:
+
+   ```bash
+   midnight-node-toolkit show-ledger-parameters -r wss://rpc.preprod.midnight.network > params.txt
+   ```
+
+2. Read the DUST parameters:
+
+   ```bash
+   grep -A 6 'dust: DustParameters' params.txt
+   ```
+
+   ```text
+           dust: DustParameters {
+               night_dust_ratio: 5000000000,
+               generation_decay_rate: 8267,
+               dust_grace_period: Duration(
+                   10800,
+               ),
+           },
+   ```
+
+   [DUST generation parameters](../guides/manage-dust#dust-generation-parameters) explains each field and its unit.
+
+3. Read the global time-to-live and the transaction size limit:
+
+   ```bash
+   grep -A 2 'global_ttl' params.txt
+   grep 'transaction_byte_limit' params.txt
+   ```
+
+   ```text
+           global_ttl: Duration(
+               1209600,
+           ),
+               transaction_byte_limit: 1048576,
+   ```
+
+   `global_ttl` is 1,209,600 seconds, which is 14 days, and `transaction_byte_limit` is 1,048,576 bytes, which is 1 MiB. The `fee_prices` values change over time, so read them when you need them instead of copying them.
+
+4. Print the parameters in encoded form, the format the indexer returns in a block's `ledgerParameters` field:
+
+   ```bash
+   midnight-node-toolkit show-ledger-parameters -r wss://rpc.preprod.midnight.network --serialize
+   ```
+
+   The output is one line of hex that starts with `6d69646e696768743a6c65646765722d706172616d65746572735b76355d3a`, the encoding of `midnight:ledger-parameters[v5]:`.
+
+### Verification
+
+The ledger package decodes the toolkit's parameters and the indexer's to the same DUST values. In your `toolkit-checks` folder, save this script as `check-parameters.mjs`:
+
+```javascript title="check-parameters.mjs"
+// Decode serialized ledger parameters and print the DUST values.
+// Usage: node check-parameters.mjs <file with hex> [<file with hex> ...]
+import { readFileSync } from 'node:fs';
+import { LedgerParameters } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+
+for (const file of process.argv.slice(2)) {
+  const hex = readFileSync(file, 'utf8').trim();
+  const { dust } = LedgerParameters.deserialize(Buffer.from(hex, 'hex'));
+  console.log(file, JSON.stringify({
+    nightDustRatio: dust.nightDustRatio.toString(),
+    generationDecayRate: dust.generationDecayRate.toString(),
+    dustGracePeriodSeconds: dust.dustGracePeriodSeconds.toString(),
+    timeToCapSeconds: dust.timeToCapSeconds.toString(),
+  }));
+}
+```
+
+Then save both encodings in that folder and decode them:
+
+```bash
+midnight-node-toolkit show-ledger-parameters -r wss://rpc.preprod.midnight.network --serialize > toolkit.hex
+curl -s -H 'Content-Type: application/json' \
+  -d '{"query":"{ block { height ledgerParameters } }"}' \
+  https://indexer.preprod.midnight.network/api/v4/graphql | jq -r .data.block.ledgerParameters > indexer.hex
+node check-parameters.mjs toolkit.hex indexer.hex
+```
+
+```text
+toolkit.hex {"nightDustRatio":"5000000000","generationDecayRate":"8267","dustGracePeriodSeconds":"10800","timeToCapSeconds":"604815"}
+indexer.hex {"nightDustRatio":"5000000000","generationDecayRate":"8267","dustGracePeriodSeconds":"10800","timeToCapSeconds":"604815"}
+```
+
+`timeToCapSeconds`, the time a DUST UTXO takes to fill, is about seven days. The two hex strings themselves can differ, because the fee prices move between the two reads.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Deriving addresses and keys from a seed
+
+Print the addresses and keys that belong to a seed. Use them to fund a test wallet, to register an address for DUST, or to check which wallet a seed opens. These commands work offline. The toolkit accepts a seed in three forms:
+
+- Hex of 16, 32, or 64 bytes.
+- Short hex with `..`, which the toolkit pads with zeros in the middle. `00..01` is 31 zero bytes followed by `01`.
+- A BIP-39 recovery phrase.
+
+### Procedure
+
+1. Create a test seed:
+
+   ```bash
+   SEED=$(openssl rand -hex 32)
+   ```
+
+2. Print every address and key of the seed for the network you use. The examples use `preprod`:
+
+   ```bash
+   midnight-node-toolkit show-address --network preprod --seed $SEED
+   ```
+
+   ```json
+   {
+     "shielded": "mn_shield-addr_preprod1a4aykv8z0ghss2fj7892ug7392g73dal4dz3v35yjzx5unz6mx8t5udpkknzg3rhy2wyxjtgws7qypft8sccwe4x72pm934guhshcxsyp2my7",
+     "unshielded": "mn_addr_preprod13qy0l5anhzkvzec4wcpv08cpgtn4c586zn7kc43gaes4chc4trrqt5r89m",
+     "dust": "mn_dust_preprod1wd4dyzvj26msk6c6hth9yen5jwmk8y0rjss5qtlz93723kpdrj7pvllw20q",
+     "dustPublic": "736ad2099256b70b6b1abaee52667493b76391e39421402fe22c7ca8d82d1cbc16",
+     "coinPublic": "ed7a4b30e27a2f082932f1caae23d12a91e8b7bfab45164684908d4e4c5ad98e",
+     "coinPublicTagged": "6d69646e696768743a7a737761702d636f696e2d7075626c69632d6b65795b76325d3aed7a4b30e27a2f082932f1caae23d12a91e8b7bfab45164684908d4e4c5ad98e",
+     "verifyingKey": "d43a7f08b3f875fc30c58da8581f3c3253cb43ffe57ce620d6519f168ffacd19",
+     "userAddress": "8808ffd3b3b8acc167157602c79f0142e75c50fa14fd6c5628ee615c5f1558c6",
+     "unshieldedUserAddressUntagged": "8808ffd3b3b8acc167157602c79f0142e75c50fa14fd6c5628ee615c5f1558c6"
+   }
+   ```
+
+   Your values differ, because they come from your seed. The `unshielded` address receives NIGHT, the `shielded` address receives shielded tokens, and `dust` is the address that NIGHT can generate DUST for. `generate-intent` asks for `coinPublic`.
+
+3. Print one value with a flag: `--unshielded`, `--shielded`, `--dust`, `--dust-public`, `--coin-public`, `--coin-public-tagged`, `--verifying-key`, or `--user-address`:
+
+   ```bash
+   midnight-node-toolkit show-address --network preprod --seed $SEED --unshielded
+   ```
+
+   ```text
+   mn_addr_preprod13qy0l5anhzkvzec4wcpv08cpgtn4c586zn7kc43gaes4chc4trrqt5r89m
+   ```
+
+4. Print the seed's [viewing key](../guides/security-best-practices#viewing-keys). Anyone who holds it can read the wallet's shielded transaction history, so keep it private:
+
+   ```bash
+   midnight-node-toolkit show-viewing-key --network preprod --seed $SEED
+   ```
+
+   ```text
+   mn_shield-esk_preprod1wwycjs08eklms3hn83c4jt5vsc2er3dkly5f03wx699c85z0ywaqwwg6fef
+   ```
+
+5. To use a recovery phrase, pass it in quotes. The toolkit turns the phrase into its 64-byte BIP-39 seed with an empty passphrase, and `show-seed` prints that seed. This example uses the public BIP-39 test phrase, which must never hold funds:
+
+   ```bash
+   midnight-node-toolkit show-seed --seed "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+   ```
+
+   ```text
+   408b285c123836004f4b8842c89324c1f01382450c0d439af345ba7fc49acf705489c6fc77dbd4e3dc1dd8cc6bc9f043db8ada1e243c4a0eafb290d399480840
+   ```
+
+   `show-address` gives the same output for the phrase and for that hex seed. If you import a phrase from a wallet app, compare the toolkit's unshielded address with the one the app shows before you rely on it.
+
+The toolkit does not check the `--network` value: `--network foo` prints an `mn_addr_foo1` address. Use `preview`, `preprod`, `undeployed` (for a local network), or `mainnet`, whose addresses have no network suffix, such as `mn_addr1...`.
+
+### Verification
+
+The wallet SDK derives the same addresses and viewing key from the seed. In your `toolkit-checks` folder, save this script as `check-addresses.mjs`:
+
+```javascript title="check-addresses.mjs"
+// Derive a seed's addresses and viewing key with the wallet SDK.
+// Usage: node check-addresses.mjs <network> <seed-hex>
+import {
+  HDWallet, Roles, createKeystore, ShieldedAddress, ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey, ShieldedEncryptionSecretKey, DustAddress,
+} from '@midnightntwrk/wallet-sdk';
+import { ZswapSecretKeys, DustSecretKey } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+
+const [network, seedHex] = process.argv.slice(2);
+const wallet = HDWallet.fromSeed(Buffer.from(seedHex, 'hex'));
+if (wallet.type !== 'seedOk') throw new Error('invalid seed');
+const derived = wallet.hdWallet
+  .selectAccount(0)
+  .selectRoles([Roles.NightExternal, Roles.Dust, Roles.Zswap])
+  .deriveKeysAt(0);
+if (derived.type !== 'keysDerived') throw new Error('key derivation failed');
+
+const zswap = ZswapSecretKeys.fromSeed(derived.keys[Roles.Zswap]);
+const dust = DustSecretKey.fromSeed(derived.keys[Roles.Dust]);
+const encode = (item) => item.constructor.codec.encode(network, item).asString();
+
+console.log(JSON.stringify({
+  unshielded: createKeystore(derived.keys[Roles.NightExternal], network).getBech32Address().asString(),
+  shielded: encode(new ShieldedAddress(
+    new ShieldedCoinPublicKey(Buffer.from(zswap.coinPublicKey, 'hex')),
+    new ShieldedEncryptionPublicKey(Buffer.from(zswap.encryptionPublicKey, 'hex')),
+  )),
+  dust: encode(new DustAddress(dust.publicKey)),
+  viewingKey: encode(new ShieldedEncryptionSecretKey(zswap.encryptionSecretKey)),
+}, null, 2));
+```
+
+Run it with the same network and seed:
+
+```bash
+node check-addresses.mjs preprod $SEED
+```
+
+```json
+{
+  "unshielded": "mn_addr_preprod13qy0l5anhzkvzec4wcpv08cpgtn4c586zn7kc43gaes4chc4trrqt5r89m",
+  "shielded": "mn_shield-addr_preprod1a4aykv8z0ghss2fj7892ug7392g73dal4dz3v35yjzx5unz6mx8t5udpkknzg3rhy2wyxjtgws7qypft8sccwe4x72pm934guhshcxsyp2my7",
+  "dust": "mn_dust_preprod1wd4dyzvj26msk6c6hth9yen5jwmk8y0rjss5qtlz93723kpdrj7pvllw20q",
+  "viewingKey": "mn_shield-esk_preprod1wwycjs08eklms3hn83c4jt5vsc2er3dkly5f03wx699c85z0ywaqwwg6fef"
+}
+```
+
+Each value equals the toolkit's output in steps 2 and 4.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Starting a local network for test transactions
+
+Start one Midnight node in development mode and connect the toolkit to it. Every transaction in the rest of this guide runs against this node: a replay takes seconds, and its genesis wallet funds your test wallets.
+
+### Procedure
+
+1. Create a Docker network for the node and the toolkit:
+
+   ```bash
+   docker network create midnight-local
+   ```
+
+2. Start the node:
+
+   ```bash
+   docker run -d --name midnight-dev-node --network midnight-local \
+     -p 127.0.0.1:9944:9944 -e CFG_PRESET=dev midnightntwrk/midnight-node:1.0.300
+   ```
+
+   The `dev` preset starts a one-node chain with a mocked Cardano connection, so it needs no Cardano node or db-sync. It keeps the state of every block, accepts RPC connections from other containers, and produces a block every 6 seconds. The `-p` option publishes the RPC port on `127.0.0.1` only. If [midnight-local-dev](../guides/networks-and-environments#running-a-local-network) runs on your machine, its node already holds port 9944, so stop it first.
+
+3. Redefine the toolkit function so that its containers join the same network:
+
+   ```bash
+   midnight-node-toolkit() {
+     docker run --rm \
+       --network midnight-local \
+       -e RESTORE_OWNER="$(id -u):$(id -g)" \
+       -v midnight-toolkit-cache:/.cache \
+       -v "$HOME/midnight-toolkit:/out" \
+       midnightntwrk/midnight-node-toolkit:1.0.300 "$@"
+   }
+   ```
+
+   For the toolkit, the node is now `ws://midnight-dev-node:9944`. The public `wss://` endpoints keep working with this function.
+
+4. Wait about 20 seconds, until the node has finalized block 1. A command that replays the chain before then fails with `Error: NodeClientError(OnlyGenesisFinalized)`. Run it again a few seconds later.
+
+Each new node container starts a new chain from the same genesis state. The genesis wallet is full again, and the wallets you funded are empty. When you finish, remove the node with `docker rm -f midnight-dev-node`, then remove its network with `docker network rm midnight-local`.
+
+### Verification
+
+The genesis wallet, seed `00..01`, holds the chain's starting funds. `show-wallet` lists its NIGHT UTXOs under `utxos`, its shielded coins under `coins`, and its DUST under `dust_utxos`:
+
+```bash
+midnight-node-toolkit show-wallet -s ws://midnight-dev-node:9944 --seed 00..01
+```
+
+The `utxos` list holds five NIGHT UTXOs, each of 50,000,000,000,000 STAR (50,000,000 NIGHT). This is the first one:
+
+```text
+    {
+      "id": "01c5ad3ff58d687dfe27fc779726188adfe777de5efa8f938a014d7fd7045c59#0",
+      "initial_nonce": "f5e761a22c22f362f1e62435c303c3f6210d93cde80f4ada80465002a172ecc9",
+      "value": 50000000000000,
+      "user_address": "bc610dd07c52f59012a88c2f9f1c5f34cbacc75b868202975d6f19beaf37284b",
+      "token_type": "0000000000000000000000000000000000000000000000000000000000000000",
+      "intent_hash": "01c5ad3ff58d687dfe27fc779726188adfe777de5efa8f938a014d7fd7045c59",
+      "output_number": 0
+    },
+```
+
+`dust-balance` shows that its DUST is full, because `total` equals `capacity`:
+
+```bash
+midnight-node-toolkit dust-balance -s ws://midnight-dev-node:9944 --seed 00..01
+```
+
+The output ends with these lines:
+
+```text
+  "total": 1250000000000000000000000,
+  "capacity": 1250000000000000000000000
+}
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Sending NIGHT to a test wallet
+
+Fund a new test wallet from the genesis wallet of your local node. The `single-tx` builder sends one transaction with one output for each `--destination-address`.
+
+### Prerequisites
+
+- A local node and the toolkit function from [Starting a local network for test transactions](#starting-a-local-network-for-test-transactions).
+
+### Procedure
+
+1. Create a seed for the new wallet, and keep it for the next procedures:
+
+   ```bash
+   WALLET_SEED=$(openssl rand -hex 32)
+   echo $WALLET_SEED
+   ```
+
+2. Get the wallet's unshielded address on the local network, whose network name is `undeployed`:
+
+   ```bash
+   ADDR=$(midnight-node-toolkit show-address --network undeployed --seed $WALLET_SEED --unshielded)
+   ```
+
+3. Send 10,000 NIGHT, which is 10,000,000,000 STAR, from the genesis wallet:
+
+   ```bash
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+     single-tx --source-seed 00..01 --unshielded-amount 10000000000 --destination-address $ADDR
+   ```
+
+   The command replays the chain, then builds the transaction, sends it, and waits until it is final. Its log ends with the transaction hash and the stages the transaction reached:
+
+   ```text
+   Sending batch 0...
+   SENDING url="ws://midnight-dev-node:9944" midnight_tx_hash="0x7ad9e3e3d4c097570040079b3d4d0b14da72902f8d88be0bd402886e54ff2a35"
+   SENT
+   BEST_BLOCK
+   FINALIZED
+   ```
+
+   DUST pays the fee, so the genesis wallet's NIGHT falls by exactly the amount you send. Repeat `--destination-address` to send one output of the same amount for each repetition.
+
+4. To send a shielded coin as well, get the wallet's shielded address and pass `--shielded-amount`:
+
+   ```bash
+   SHIELDED_ADDR=$(midnight-node-toolkit show-address --network undeployed --seed $WALLET_SEED --shielded)
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+     single-tx --source-seed 00..01 --shielded-amount 5000000 --destination-address $SHIELDED_ADDR
+   ```
+
+### Verification
+
+After step 3, the new wallet holds one NIGHT UTXO with the amount you sent:
+
+```bash
+midnight-node-toolkit show-wallet -s ws://midnight-dev-node:9944 --seed $WALLET_SEED
+```
+
+```json
+{
+  "coins": {},
+  "utxos": [
+    {
+      "id": "2a00abac2c5de456171a44917ccc46eff5d7f71e0f3cebbf8c819662ca814741#0",
+      "initial_nonce": "40411e8967ae1a81e0c39fbbe11a69af729eec10bf35f8721c4c91c0e725473a",
+      "value": 10000000000,
+      "user_address": "91143d09e50de76a6486af9c2b92483aaee5ef63bed33df403ec0864e88fb829",
+      "token_type": "0000000000000000000000000000000000000000000000000000000000000000",
+      "intent_hash": "2a00abac2c5de456171a44917ccc46eff5d7f71e0f3cebbf8c819662ca814741",
+      "output_number": 0
+    }
+  ],
+  "dust_utxos": []
+}
+```
+
+After step 4, the shielded coin appears under `coins`.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Registering NIGHT for DUST generation
+
+Register a wallet's NIGHT so it generates DUST, the resource that pays transaction fees. `register-dust-address` builds one transaction that spends every NIGHT UTXO of the wallet and recreates each one with the same value for the same owner. The same transaction registers a DUST address for those UTXOs. For what registration means for a wallet, see [Registration rules](../guides/manage-dust#registration-rules).
+
+### Prerequisites
+
+- A wallet with NIGHT on your local node, such as the one from [Sending NIGHT to a test wallet](#sending-night-to-a-test-wallet).
+
+### Procedure
+
+1. Count the wallet's NIGHT UTXOs, the entries under `utxos`:
+
+   ```bash
+   midnight-node-toolkit show-wallet -s ws://midnight-dev-node:9944 --seed $WALLET_SEED
+   ```
+
+2. If the wallet has one NIGHT UTXO, wait about 30 seconds after the funding transfer finalizes, then register it:
+
+   ```bash
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+     register-dust-address --wallet-seed $WALLET_SEED
+   ```
+
+   The log ends with `FINALIZED`. The registration pays its own fee from the DUST that the UTXO would have generated between its creation and the latest finalized block. Right after the transfer, that DUST is zero, and the command fails with `Insufficient DUST`. A UTXO smaller than the 10,000 NIGHT from [Sending NIGHT to a test wallet](#sending-night-to-a-test-wallet) needs a longer wait. A UTXO whose DUST cap is below the fee can never pay it.
+
+3. If the wallet has two or more NIGHT UTXOs, toolkit 1.0.300 cannot pay the fee that way. It fails with `InsufficientDustForRegistrationFee`, or with `Insufficient DUST` when the UTXOs are only seconds old. Pay the fee from a wallet that holds DUST instead, such as the genesis wallet:
+
+   ```bash
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+     register-dust-address --wallet-seed $WALLET_SEED --funding-seed 00..01
+   ```
+
+To have a wallet's NIGHT generate DUST for another wallet, register it with that wallet's DUST address, which starts with `mn_dust_`, in `--destination-dust`. Get the address with `show-address --dust` for the other wallet's seed. A wallet that is already registered, such as yours after step 2 or 3, also needs `--funding-seed` with a wallet that holds DUST:
+
+```bash
+midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+  register-dust-address --wallet-seed $WALLET_SEED \
+  --destination-dust <mn_dust_undeployed1...> --funding-seed 00..01
+```
+
+The wallet's own generation entries then get an end time, and the other wallet's `dust-balance` lists new ones. A wallet that you have never registered pays the fee as in steps 2 and 3.
+
+### Verification
+
+`dust-balance` shows a generation entry for each registered NIGHT UTXO:
+
+```bash
+midnight-node-toolkit dust-balance -s ws://midnight-dev-node:9944 --seed $WALLET_SEED
+```
+
+```json
+{
+  "generation_infos": [
+    {
+      "dust_output": {
+        "initial_value": 10392374052349955,
+        "dust_public": "73867cfa0586565ff9b4f6c573a51e4f3e4763aae093d3e088d76e90295e07f447",
+        "nonce": "734a0003d44d570fa389f87b7283de726c659406776acaeb73441fd2f28f4fa409",
+        "seq": 0,
+        "ctime": 1791021072,
+        "backing_night": "a041d323677a3121ef7f37e29fd28c4129598a5cbb8b5a7146dd6d96e4e596d6",
+        "mt_index": 90
+      },
+      "generation_info": {
+        "value": 10000000000,
+        "owner_dust_public_key": "73867cfa0586565ff9b4f6c573a51e4f3e4763aae093d3e088d76e90295e07f447",
+        "nonce": "a041d323677a3121ef7f37e29fd28c4129598a5cbb8b5a7146dd6d96e4e596d6",
+        "dtime": 18446744073709551615
+      }
+    }
+  ],
+  "source": {
+    "734a0003d44d570fa389f87b7283de726c659406776acaeb73441fd2f28f4fa409": 13037814052349955
+  },
+  "total": 13037814052349955,
+  "capacity": 50000000000000000000
+}
+```
+
+- `capacity` is the NIGHT amount in STAR times the `night_dust_ratio` of 5,000,000,000, so 10,000 NIGHT can hold 50,000 DUST.
+- `dtime` is 18446744073709551615, the largest 64-bit value, which means that generation has no end time.
+- `total` grows by 8,267 SPECK per STAR each second. Run the command again to see it rise: in this guide's run, `total` went from 13037814052349955 to 14112524052349955 SPECK in 13 seconds.
+
+These numbers are too large for a JavaScript number to hold exactly, so compare them as text or as `BigInt` values.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Stopping DUST generation
+
+Deregister a wallet's DUST address to stop its NIGHT from generating DUST. The DUST the wallet already holds then decays at the rate it grew.
+
+### Prerequisites
+
+- A wallet registered in [Registering NIGHT for DUST generation](#registering-night-for-dust-generation).
+
+### Procedure
+
+1. Deregister the wallet, and pay the fee from its own DUST:
+
+   ```bash
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+     deregister-dust-address --wallet-seed $WALLET_SEED --funding-seed $WALLET_SEED
+   ```
+
+   Without `--funding-seed`, the genesis wallet, `00..01`, pays the fee. Use that default if you registered the wallet for another wallet's DUST address, because the wallet's own DUST decays and runs out after that. In that case, the deregistration ends the other wallet's generation entries.
+
+### Verification
+
+The generation entry now has an end time:
+
+```bash
+midnight-node-toolkit dust-balance -s ws://midnight-dev-node:9944 --seed $WALLET_SEED
+```
+
+```text
+      "generation_info": {
+        "value": 10000000000,
+        "owner_dust_public_key": "73867cfa0586565ff9b4f6c573a51e4f3e4763aae093d3e088d76e90295e07f447",
+        "nonce": "a041d323677a3121ef7f37e29fd28c4129598a5cbb8b5a7146dd6d96e4e596d6",
+        "dtime": 1791021168
+      }
+```
+
+`dtime` is now a Unix timestamp, the moment generation stopped. Run the command again later, and `total` falls at the rate it grew. In this guide's run, it fell from 17070894763543442 to 9795934763543442 SPECK between two reads 88 seconds apart. If you registered the wallet for another wallet's DUST address, the end time appears in `dust-balance` for that wallet's seed.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Smoke-testing a node with the built-in contract
+
+Deploy and call the toolkit's built-in test contract to check that a node accepts contract deployments and calls. The contract ships inside the toolkit, so you need no compiler. Writing the deployment to a file first gives you the contract address before you send it.
+
+### Prerequisites
+
+- A local node and the toolkit function from [Starting a local network for test transactions](#starting-a-local-network-for-test-transactions).
+
+### Procedure
+
+1. Build a deployment transaction into a file. The genesis wallet pays the fee:
+
+   ```bash
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 \
+     --dest-file /out/simple_deploy.mn contract-simple deploy
+   ```
+
+   ```text
+   CONTRACT ADDRESS: ContractAddress(e77c1615d3ce847e32bf18da993df7dbd5c6af62e31290c455930ab44548c923)
+   ```
+
+2. Read the contract address from the file:
+
+   ```bash
+   CONTRACT=$(midnight-node-toolkit contract-address --src-file /out/simple_deploy.mn)
+   echo $CONTRACT
+   ```
+
+   ```text
+   e77c1615d3ce847e32bf18da993df7dbd5c6af62e31290c455930ab44548c923
+   ```
+
+   The address in your output differs, because each deployment gets a new one.
+
+3. Send the file. The log ends with `FINALIZED`:
+
+   ```bash
+   midnight-node-toolkit generate-txs --src-file /out/simple_deploy.mn -d ws://midnight-dev-node:9944 send
+   ```
+
+4. Call the contract's `store` operation. The log ends with `FINALIZED`:
+
+   ```bash
+   midnight-node-toolkit generate-txs -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+     contract-simple call --call-key store --contract-address $CONTRACT
+   ```
+
+5. Read the contract's state and save it to a file:
+
+   ```bash
+   midnight-node-toolkit contract-state -s ws://midnight-dev-node:9944 \
+     --contract-address $CONTRACT --dest-file /out/simple_state.bin
+   ```
+
+   The log lists the contract's operations and its maintenance authority, which is the genesis wallet's verifying key:
+
+   ```text
+   Contract address: e77c1615d3ce847e32bf18da993df7dbd5c6af62e31290c455930ab44548c923
+   Op: check (636865636b)
+   Op: store (73746f7265)
+   Authority VerifyingKey: 86f71b8a7a21bfe16a2bb2eab74475073fa5b773854f151ed548dba77a2c5815
+   Authority Threshold: 1
+   Authority Counter: 0
+   ```
+
+To see what the deployment file holds, decode it with `show-transaction --src-file /out/simple_deploy.mn`.
+
+### Verification
+
+The state file matches the state that the node returns from `midnight_contractState`. Hash both as hex:
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"midnight_contractState\",\"params\":[\"$CONTRACT\"]}" \
+  http://127.0.0.1:9944 | jq -r .result | tr -d '\n' | shasum -a 256
+xxd -p "$HOME/midnight-toolkit/simple_state.bin" | tr -d '\n' | shasum -a 256
+```
+
+```text
+39549201a8b4e2dca31c138c255ec209587b0376e49d9a299307e46d050304a6  -
+39549201a8b4e2dca31c138c255ec209587b0376e49d9a299307e46d050304a6  -
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Deploying your own contract with the toolkit
+
+Deploy a contract that you compiled, and call its circuits from the command line, without writing a DApp. The `generate-intent` commands run your compiled contract with `toolkit-js` inside the Docker image, and `send-intent` turns the result into a transaction.
+
+### Prerequisites
+
+- A local node and the toolkit function from [Starting a local network for test transactions](#starting-a-local-network-for-test-transactions).
+- Compact compiler 0.30.0. Install it next to your default compiler, without changing the default:
+
+  ```bash
+  compact update --no-set-default 0.30.0
+  ```
+
+### Procedure
+
+1. Create a contract folder inside the toolkit's output folder:
+
+   ```bash
+   mkdir -p "$HOME/midnight-toolkit/contract"
+   cd "$HOME/midnight-toolkit"
+   ```
+
+   Keep the contract under `$HOME/midnight-toolkit`. While a command runs, the image's user owns that folder, so `toolkit-js` can write a compiled copy of your configuration there.
+
+2. Save this counter contract as `contract/counter.compact`:
+
+   ```compact title="contract/counter.compact"
+   pragma language_version 0.22;
+
+   import CompactStandardLibrary;
+
+   export ledger round: Counter;
+
+   export circuit increment(): [] {
+     round.increment(1);
+   }
+
+   export circuit add(n: Uint<16>): [] {
+     round.increment(disclose(n));
+   }
+   ```
+
+3. Compile it with compiler 0.30.0:
+
+   ```bash
+   compact compile +0.30.0 contract/counter.compact contract/managed/counter
+   ```
+
+   The compiler writes the contract code, the proving and verifier keys, and the circuit files under `contract/managed/counter`. Compiler 0.31.1 implements language version 0.23, so it rejects this contract with `language version 0.23.0 mismatch`. A contract written for language version 0.23 compiles with 0.31.1, but `generate-intent` then fails with `Version mismatch: compiled code expects 0.16.0, runtime is 0.15.0`.
+
+4. Save this configuration as `contract/contract.config.ts`. It points `toolkit-js` at the compiled contract, declares that the contract has no witnesses, sets an empty initial private state, and selects the `undeployed` network:
+
+   ```typescript title="contract/contract.config.ts"
+   import { CompiledContract, ContractExecutable } from '@midnight-ntwrk/compact-js/effect';
+   import { Contract as C_ } from './managed/counter/contract/index.js';
+
+   type PrivateState = Record<string, never>;
+   type CounterContract = C_<PrivateState>;
+   const CounterContract = C_;
+
+   export default {
+     contractExecutable: CompiledContract.make<CounterContract>('CounterContract', CounterContract).pipe(
+       CompiledContract.withVacantWitnesses,
+       CompiledContract.withCompiledFileAssets('./managed/counter'),
+       ContractExecutable.make
+     ),
+     createInitialPrivateState: (): PrivateState => ({}),
+     config: {
+       network: 'undeployed'
+     }
+   };
+   ```
+
+5. Redefine the toolkit function to also mount the contract folder at `/toolkit-js/contract`, where `toolkit-js` looks for it:
+
+   ```bash
+   midnight-node-toolkit() {
+     docker run --rm \
+       --network midnight-local \
+       -e RESTORE_OWNER="$(id -u):$(id -g)" \
+       -v midnight-toolkit-cache:/.cache \
+       -v "$HOME/midnight-toolkit:/out" \
+       -v "$HOME/midnight-toolkit/contract:/toolkit-js/contract" \
+       midnightntwrk/midnight-node-toolkit:1.0.300 "$@"
+   }
+   ```
+
+6. Get the coin public key of the wallet that deploys the contract. This guide uses the genesis wallet, which also pays the fees:
+
+   ```bash
+   CP=$(midnight-node-toolkit show-address --network undeployed --seed 00..01 --coin-public)
+   ```
+
+7. Generate the deployment intent. `--authority-seed` makes that seed's key the contract's maintenance authority. Without it, the authority is a random key that nobody holds:
+
+   ```bash
+   midnight-node-toolkit generate-intent deploy -c /toolkit-js/contract/contract.config.ts \
+     --coin-public $CP --authority-seed 00..01 \
+     --output-intent /out/deploy.bin --output-private-state /out/ps0.json --output-zswap-state /out/zswap0.json
+   ```
+
+   ```text
+   written: /out/deploy.bin, /out/ps0.json, /out/zswap0.json
+   ```
+
+8. Build the deployment transaction into a file, read the contract address, and send the transaction:
+
+   ```bash
+   midnight-node-toolkit send-intent -s ws://midnight-dev-node:9944 --intent-file /out/deploy.bin \
+     --compiled-contract-dir /toolkit-js/contract/managed/counter --dest-file /out/deploy-tx.mn
+   CONTRACT=$(midnight-node-toolkit contract-address --src-file /out/deploy-tx.mn)
+   midnight-node-toolkit generate-txs --src-file /out/deploy-tx.mn -d ws://midnight-dev-node:9944 send
+   ```
+
+9. Read the contract's state. The log lists its circuits and its authority, the verifying key of seed `00..01`:
+
+   ```bash
+   midnight-node-toolkit contract-state -s ws://midnight-dev-node:9944 \
+     --contract-address $CONTRACT --dest-file /out/state0.bin
+   ```
+
+   ```text
+   Contract address: 8a5c277b7470660f868748451c281fbc7fc9e77e8a5270d46e8945e11e395aed
+   Op: increment (696e6372656d656e74)
+   Op: add (616464)
+   Authority VerifyingKey: 86f71b8a7a21bfe16a2bb2eab74475073fa5b773854f151ed548dba77a2c5815
+   Authority Threshold: 1
+   Authority Counter: 0
+   ```
+
+   Your contract address differs, as with the built-in contract.
+
+10. Call `increment`. `generate-intent circuit` runs the circuit against the state you read and writes the intent, the new private state, and the on-chain state it expects. `send-intent` then sends the call:
+
+    ```bash
+    midnight-node-toolkit generate-intent circuit -s ws://midnight-dev-node:9944 \
+      -c /toolkit-js/contract/contract.config.ts --coin-public $CP --contract-address $CONTRACT \
+      --input-onchain-state /out/state0.bin --input-private-state /out/ps0.json \
+      --output-intent /out/increment.bin --output-private-state /out/ps1.json --output-zswap-state /out/zswap1.json \
+      --output-onchain-state /out/state1-expected.bin --output-result /out/result1.json \
+      increment
+    midnight-node-toolkit send-intent -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+      --intent-file /out/increment.bin --compiled-contract-dir /toolkit-js/contract/managed/counter
+    ```
+
+    `--output-result` writes the circuit's return value. `increment` returns nothing, so the file holds `[]`.
+
+11. Read the new state, then call `add` with the argument `5`. Circuit arguments follow the circuit name:
+
+    ```bash
+    midnight-node-toolkit contract-state -s ws://midnight-dev-node:9944 \
+      --contract-address $CONTRACT --dest-file /out/state1.bin
+    midnight-node-toolkit generate-intent circuit -s ws://midnight-dev-node:9944 \
+      -c /toolkit-js/contract/contract.config.ts --coin-public $CP --contract-address $CONTRACT \
+      --input-onchain-state /out/state1.bin --input-private-state /out/ps1.json \
+      --output-intent /out/add.bin --output-private-state /out/ps2.json --output-zswap-state /out/zswap2.json \
+      --output-onchain-state /out/state2-expected.bin --output-result /out/result2.json \
+      add 5
+    midnight-node-toolkit send-intent -s ws://midnight-dev-node:9944 -d ws://midnight-dev-node:9944 \
+      --intent-file /out/add.bin --compiled-contract-dir /toolkit-js/contract/managed/counter
+    ```
+
+### Verification
+
+The state on chain after each call is the state that `generate-intent` predicted. Read the state after `add 5` and compare the two files:
+
+```bash
+midnight-node-toolkit contract-state -s ws://midnight-dev-node:9944 \
+  --contract-address $CONTRACT --dest-file /out/state2.bin
+cmp "$HOME/midnight-toolkit/state2-expected.bin" "$HOME/midnight-toolkit/state2.bin"
+```
+
+`cmp` prints nothing and exits with status 0 when the files are identical. The same check passes for `state1-expected.bin` and `state1.bin`. Decoded with the compiled contract's `ledger()` function, the counter reads 0 after the deployment, 1 after `increment`, and 6 after `add 5`.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Command reference
+
+Look up what each toolkit 1.0.300 command does and what it needs. Run any command with `--help` for its full list of options.
+
+| Command | What it does | Node access | Replays the chain |
+|---|---|---|---|
+| `version` | Prints the toolkit's node version, a ledger library version, and the matching Compact compiler version. | Not needed | No |
+| `show-address` | Prints the addresses and public keys of a seed for a network. | Not needed | No |
+| `show-seed` | Prints a seed as hex, including the 64-byte seed of a recovery phrase. | Not needed | No |
+| `show-viewing-key` | Prints the viewing key of a seed for a network. | Not needed | No |
+| `random-address` | Prints a random unshielded address for a network, or a shielded one with `--shielded`. | Not needed | No |
+| `show-token-type` | Prints the token type for a contract address and a domain separator. | Not needed | No |
+| `show-transaction` | Decodes a transaction file. | Not needed | No |
+| `contract-address` | Prints the contract address in a deployment transaction file. | Not needed | No |
+| `generate-genesis` | Generates the genesis transaction and state for a new chain. | Not needed | No |
+| `show-block` | Decodes one block and its transactions. `--json` prints JSON. | Fetches one block, unless it reads `--src-file` | No |
+| `show-ledger-parameters` | Prints ledger parameters, the current ones of a node when you pass `-r`. `--serialize` prints the encoded form. | With `-r` | No |
+| `show-wallet` | Shows a wallet's NIGHT UTXOs, shielded coins, and DUST UTXOs for `--seed`, or the public state for `--address`. | Yes | Yes |
+| `dust-balance` | Shows a wallet's DUST generation entries, `total`, and `capacity`. | Yes | Yes |
+| `contract-state` | Prints a contract's operations and authority, and saves its state with `--dest-file`. | Yes | Yes |
+| `fetch` | Fetches blocks into the cache. `--seeds` also builds those wallets' caches. | Yes | Yes |
+| `generate-txs` | Builds transactions with one of the builders in the next table, then sends them with `-d` or writes them with `--dest-file`. | Yes, unless it uses both `--src-file` and `--dest-file` | Yes, unless it reads `--src-file` |
+| `send-intent` | Builds a transaction from intent files, then sends it, or writes it with `--dest-file`. | Yes | Yes |
+| `generate-intent` | Builds contract intents with `toolkit-js`, through its subcommands `deploy`, `circuit`, `maintain-contract`, and `maintain-circuit`. Needs the Docker image. | `circuit` reads ledger parameters | `circuit`, with `--wallet-seed` |
+| `generate-sample-intent` | Writes sample intent files to `--dest-dir`, through its subcommands `deploy`, `call`, and `maintenance`. | Yes | Yes |
+| `update-ledger-parameters` | Changes the ledger parameters through governance. | Yes | No |
+| `runtime-upgrade` | Upgrades the runtime through governance. | Yes | No |
+| `root-call` | Runs a call with Root origin through governance. | Yes | No |
+
+Commands that read the chain take blocks from the node in `-s` by default, or from a file with `--src-file`. The three governance commands need the private keys of the chain's Council and Technical Committee members. You can use them only on a chain whose governance keys you hold, such as one you run yourself.
+
+| `generate-txs` builder | What it builds | Who pays the fee by default |
+|---|---|---|
+| `single-tx` | One transaction with one output for each `--destination-address`, of shielded or unshielded tokens. | The `--source-seed` wallet |
+| `batch-single-tx` | Several single-output transactions from a JSON transfer list in `--transfers-file` or `--transfers`. | Each transfer's `funding_seed`, or its `source_seed` when that is not set |
+| `batches` | Load-test traffic: one funding transaction, then `-b` batches of `-n` transactions. | `00..01` |
+| `register-dust-address` | A DUST registration for every NIGHT UTXO of `--wallet-seed`. | The registered NIGHT, when you leave out `--funding-seed` |
+| `deregister-dust-address` | A DUST deregistration for `--wallet-seed`. | `00..01` |
+| `contract-simple` | A deployment, call, or maintenance transaction for the built-in test contract, through its subcommands `deploy`, `call`, and `maintenance`. | `00..01` |
+| `contract-custom` | Transactions from the intent files of your own contract. | `00..01` |
+| `claim-rewards` | A rewards claim of `--amount`. | `00..01` |
+| `send` | Nothing new: it sends the transactions it reads with `--src-file`. | The wallet that funded each transaction when the toolkit built it |
+
+Every builder that has a `--funding-seed` option uses it to pay the fee. Where the option has a default, it is `00..01`, the genesis wallet of a local development chain. On a public network, pass a seed of your own that holds DUST. `single-tx` falls back to `--source-seed`, and `register-dust-address` to the registered NIGHT, as the table shows. `send-intent` also defaults to `00..01`.
+
+| Global option | Environment variable | Effect |
+|---|---|---|
+| `-q`, `--quiet` | `MN_QUIET` | Hides info logs. Warnings and errors still print. |
+| `-v`, `--verbose` | `MN_VERBOSE` | Prints debug logs. |
+| `--verbose-ledger` | `MN_VERBOSE_LEDGER` | Prints debug tracing from the ledger. |
+| `--verbose-fetch` | `MN_VERBOSE_FETCH` | Prints debug logs from the block fetcher. |
+| `--log-json` | `MN_LOG_JSON` | Prints each log line as a JSON object on stderr. |
+| `--replay-concurrency` | `MN_REPLAY_CONCURRENCY` | Sets the threads that replay wallets. The default is the number of CPU cores. |
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Toolkit troubleshooting
+
+Look up an error message to find its cause and fix. Each message comes from toolkit 1.0.300.
+
+| Message | Cause | Fix |
+|---|---|---|
+| `Error: ComputeTaskError(RuntimeVersionError(UnsupportedBlockVersion(1000300)))` | The toolkit is older than the chain's runtime, for example toolkit 1.0.0 on Preprod. | Use the toolkit from the node release the network runs. See [Toolkit versions and networks](#toolkit-versions-and-networks). |
+| `error creating client` and then `Error: NodeClientError(OnlyGenesisFinalized)` | A replaying command ran before the node finalized block 1, for example right after you started a local node. | Wait a few seconds, then run the command again. |
+| `rpc connection attempt failed, retrying: ...` for up to 60 seconds, then `Error: RpcClientError(...)`. A command that replays the chain prints `error creating client` and then `Error: NodeClientError(RpcClientError(...))` instead. | The URL or host name is wrong, the node is down, or the binary's system has no CA certificates. | Check the URL and that the node runs. From Docker, reach a node container by name on a shared network. See [Connection and cache options](#connection-and-cache-options). |
+| `No CA certificates were loaded from the system` | The release binary runs on a system without CA certificates. | Install the `ca-certificates` package. |
+| `failed to create database - is it already open?: DatabaseAlreadyOpen` | Two toolkit commands use one cache at the same time. | Run one command at a time, or give each command its own cache volume. |
+| `Failed to write ledger snapshot file: Permission denied (os error 13)` | Another command that used the same cache volume exited while this one ran, and the image gave the volume back to your user. | Run one command at a time, or give each command its own cache volume. |
+| `rpc fetch failed, retrying: ... State already discarded for 0x...`, then `Error: FetchTaskError(OnlineClientAtBlockError(CannotGetSpecVersion {...}))` | The node prunes old state, and the command needs an older block, as in a replay or in `show-block` of an old block. | Use an [archive node](./full-node#full-node-vs-archive-node). |
+| `Balancing TX failed: InsufficientDustForRegistrationFee` | `register-dust-address` without `--funding-seed`, for a wallet with two or more NIGHT UTXOs, or for a wallet that is already registered, for example to change its `--destination-dust`. | Add `--funding-seed` with a wallet that holds DUST. |
+| `Balancing TX failed: "Insufficient DUST (trying to spend ..., need ... more)"` | No DUST is available to pay the fee. This happens with `register-dust-address` without `--funding-seed` within seconds of the transaction that created the wallet's NIGHT UTXOs, such as the funding transfer or the wallet's previous registration. It also happens with a `--funding-seed` wallet whose DUST has run out, and with a transaction built from a genesis file without `--dust-warp`. | Use a `--funding-seed` wallet that holds DUST. For the first registration of a wallet with one NIGHT UTXO, you can instead wait about 30 seconds and run the command again. When you build from a genesis file, add `--dust-warp`. |
+| `failed to decode dust address: AddressNotDust` | The `--destination-dust` value is not a DUST address, for example an `mn_addr_` address, or an address with the `mn_dust-addr_` prefix. | Use the `dust` value from `show-address`, which starts with `mn_dust_`. |
+| `error: unexpected argument '--src-files' found` | The option's name is `--src-file`, without the final `s`. | Use `--src-file`. |
+| `error: the argument '--dest-url <DEST_URLS>' cannot be used with '--dest-file <DEST_FILE>'` | The command got both a node to send to and a file to write. | Pass `-d` or `--dest-file`, not both. |
+| `error: unrecognized subcommand 'get-tx-from-context'` or `'claim-mint'` | The toolkit README describes commands that toolkit 1.0.300 does not have. | Check `midnight-node-toolkit --help` and `midnight-node-toolkit generate-txs --help`. |
+| `Version mismatch: compiled code expects 0.16.0, runtime is 0.15.0` | Compiler 0.31.1 built the contract from source written for language version 0.23. | Write the contract for language version 0.22 and compile it with `compact compile +0.30.0`. |
+| `Exception: counter.compact line 1 char 1:` and then `language version 0.23.0 mismatch` | You compiled a contract that declares `pragma language_version 0.22;`, such as the counter on this page, with compiler 0.31.1, which implements language version 0.23. | Compile with `compact compile +0.30.0`. |
+| `error: invalid value '...' for '--seed <SEED>'` | The seed has the wrong length, or the recovery phrase has a bad checksum. | Pass hex of 16, 32, or 64 bytes, or a valid phrase. |
+
+## Additional resources
+
+- [Node endpoints](./node-endpoints): the public RPC endpoints, including the Blockfrost Mainnet RPC.
+- [Set up full node](./full-node): run your own node, including as an archive node.
+- [Networks and environments](../guides/networks-and-environments): network names, endpoints, and the midnight-local-dev local network.
+- [Managing DUST for transaction fees](../guides/manage-dust): DUST parameters, registration rules, and DUST errors in the wallet SDK.
+- [Funding a wallet](../guides/acquire-tokens): the faucet, and DUST registration with Lace or the wallet SDK.
+- [Node release notes](../relnotes/node): the changes in each node and toolkit release.
+- [Support matrix](../relnotes/support-matrix): the component versions for each network.
+- [Toolkit README at node-1.0.300](https://github.com/midnightntwrk/midnight-node/blob/node-1.0.300/util/toolkit/README.md): the upstream command guide. Some of its examples do not match the 1.0.300 commands, so check them against `--help`.
+- [Node toolkit image on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit): the published tags.
