@@ -23,13 +23,12 @@ yarn serve    # serves build/ on http://localhost:3000
 
 - You don't need a `.env` file to run or build the site. Without the real Algolia keys, search returns no results locally.
 - The build only warns about broken links and anchors, so a passing build can still have them. Read the warnings for the pages you changed.
-- If the build stops with `EMFILE: too many open files`, run `ulimit -n 65536` in the same shell and build again.
 - Every PR opened from a branch in this repository gets a preview at `https://pr-<number>-midnight-docs.vercel.app`.
 
 ## Where things live
 
 - The site serves `docs/` at `/`, `sdks/` at `/sdks`, `api-reference/` at `/api-reference`, and `blog/` at `/blog`.
-- The site skips files and folders whose names start with `_`.
+- The site doesn't publish pages or folders whose names start with `_`. A folder's `_category_.yaml` still sets its sidebar label and position.
 - `main_versioned_docs/` is an archived copy of the old v0 docs. Fix content in `docs/`.
 - When you move or rename a page, add a redirect to `vercel.json`. Vercel uses the first rule that matches, so put a specific path above any `:path*` rule that would catch it.
 
@@ -42,7 +41,7 @@ These come from other repositories, and the next sync overwrites any local edit.
 | `docs/compact/` | The Compact team owns this folder (see `CODEOWNERS`), and most of it comes from `doc/` in [LFDT-Minokawa/compact](https://github.com/LFDT-Minokawa/compact). Don't change anything in it. If a link on one of its pages breaks, add a redirect for the old path instead. |
 | `docs/tutorials/zk-loan/`, except `_category_.yaml` | `tutorials/` in [midnightntwrk/example-zkloan](https://github.com/midnightntwrk/example-zkloan) |
 | `docs/tutorials/leaderboard/`, except `index.mdx` and `_category_.yaml` | `tutorials/` in [midnightntwrk/midnight-leaderboard](https://github.com/midnightntwrk/midnight-leaderboard) |
-| `api-reference/`, except `overview/`, `error-reference/`, and `wallet-sdk/` | The component repositories, through the Copy API docs workflow (`.github/workflows/apis.yml`) and the Compact sync. The indexer pages under `midnight-indexer/operations/` and `types/` come from `static/midnight-indexer/schema-v4.graphql` through `yarn docusaurus graphql-to-doc`. |
+| The folders in `api-reference/`, except `overview/`, `error-reference/`, `wallet-sdk/`, and `dapp-connector/README.md` | The component repositories, through the Copy API docs workflow (`.github/workflows/apis.yml`) and the Compact sync. The indexer pages under `midnight-indexer/operations/` and `types/` come from `static/midnight-indexer/schema-v4.graphql` through `yarn docusaurus graphql-to-doc`, and the workflow copies that schema in from the indexer repository. |
 | The `COMPACT_SYNC` blocks in `src/css/custom.css` | LFDT-Minokawa/compact |
 
 Don't run `.license_headers.sh`. It rewrites every file that has no license header.
