@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -63,7 +63,20 @@ The name of the object store containing private states.
 > `readonly` **privateStoragePasswordProvider**: [`PrivateStoragePasswordProvider`](../type-aliases/PrivateStoragePasswordProvider.md)
 
 Provider function that returns the password used for encrypting private state.
-The password must be at least 16 characters long.
+
+The password must satisfy the strength policy enforced by `validatePassword`
+from `@midnight-ntwrk/midnight-js-utils`:
+- minimum 16 characters
+- at least 3 of: uppercase, lowercase, digits, special characters
+- no more than 3 consecutive identical characters
+- no sequential patterns of length 4+ (e.g. `1234`, `abcd`)
+
+The same policy is applied to custom passwords passed to
+PrivateStateProvider.exportPrivateStates / `exportSigningKeys` and
+their `importPrivateStates` / `importSigningKeys` counterparts. Violations
+surface as `PasswordValidationError` on storage paths, or wrapped as
+`PrivateStateExportError` / `SigningKeyExportError` (with `cause`) on
+export/import paths.
 
 SECURITY: Use a strong, secret password. Never use public key material
 or other non-secret values as the password source.
