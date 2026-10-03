@@ -17,6 +17,10 @@ They often occur when the node rejects a submitted transaction with `Custom(N)` 
 A pallet-level `DispatchError::Module` surfaces with index 5 (`pallet_midnight`) or 6 (`pallet_midnight_system`) and you need to decode the inner error. To learn how to decode the inner error, see the [Decode 1010 transaction rejection errors](/how-to/decode-1010-transaction-rejection-errors) troubleshooting guide.
 :::
 
+:::tip[Errors from the wallet or SDK]
+If your error came from a wallet or SDK call, such as `SubmissionError: Transaction submission error`, start with [Transaction submission errors](#transaction-submission-errors). That section shows how to find the node code inside the SDK error.
+:::
+
 ## Error tables by code range
 
 Below is a list of the Midnight node specific errors categorized by type and status code. The error tables group errors by code range to help you identify the error types.
@@ -297,3 +301,57 @@ The Midnight node uses standard JSON-RPC 2.0 error codes from the `jsonrpsee` cr
 |------|------|---------|-------------|
 | -32602 | `INVALID_PARAMS` | State RPC, Block RPC, Events, Peer Info | Bad contract address, account address, block hash, peer ID, or other invalid parameter |
 | -32603 | `INTERNAL_ERROR` | Peer Info RPC, System Parameters RPC | Failed to send/receive internal requests, runtime API failures |
+
+## Transaction submission errors
+
+When a DApp or wallet submits a transaction, the node's error passes through several software layers before it reaches your code. Each layer wraps the error from the layer below and adds its own message. The message you see first is usually the outermost wrapper, not the cause.
+
+### How the error layers fit together
+
+The node validates each submitted transaction against the ledger. If validation fails, the node converts the ledger error to one of the `u8` codes in the [error tables](#error-tables-by-code-range). The Substrate transaction pool then returns that code in JSON-RPC error `1010`:
+
+```json
+{ "code": 1010, "message": "Invalid Transaction", "data": "Custom error: 196" }
+```
+
+When you submit through the Midnight wallet SDK, the SDK layers wrap the error in this order:
+
+1. The Polkadot.js API client turns the response into an `RpcError` with the message `1010: Invalid Transaction: Custom error: 196`.
+2. The wallet SDK node client (`@midnight-ntwrk/wallet-sdk-node-client`) wraps the `RpcError` in a `SubmissionError` with the message `Transaction submission failed`.
+3. The wallet SDK submission service (`@midnight-ntwrk/wallet-sdk-capabilities`) wraps that error in another `SubmissionError` with the message `Transaction submission error`.
+4. The promise-based API rejects with an Effect `FiberFailure` whose name is `(FiberFailure) SubmissionError`. `WalletFacade.submitTransaction` reverts the transaction in the wallet's shielded, unshielded, and DUST state, then rethrows this error.
+5. Midnight.js `submitCallTx` wraps the error in a plain `Error` whose message starts with `Unexpected error submitting scoped transaction` and includes the text of the wrapped error.
+
+The `message` property of a `FiberFailure` holds only the outermost text, and `FiberFailure` doesn't set `error.cause`. To see the full chain, including `Custom error: N`, convert the error to a string with `String(error)`, or log it with `console.error(error)` in Node.js. Browser consoles show only the outer message, so use `String(error)` there. `JSON.stringify(error)` drops the node error text.
+
+If you run the node yourself, the node log also records the reason in a line that contains `Rejected transaction <hash> from mempool`.
+
+If your DApp submits through a browser wallet with the DApp Connector API, the wallet performs the submission and returns an error with `code` and `reason` fields. The API doesn't require the wallet to include the node's response. If the `reason` text includes `Custom error: N`, look up `N` in the [error tables](#error-tables-by-code-range).
+
+:::info[Codes above 255]
+Node ledger codes are `u8` values, so they're always between 0 and 255. If you see a larger number, such as a five-digit code, it didn't come from the node error tables on this page. Look for the `1010` response or the `Custom error: N` text elsewhere in the error chain, or check the node log.
+:::
+
+### Submission error messages
+
+The following table lists the messages you might see when a submission fails, the layer that produces each one, and what to do next.
+
+| Message or error | Origin | Description | How to fix |
+|------------------|--------|-------------|------------|
+| `1010: Invalid Transaction: Custom error: N` | Node (Substrate transaction pool) | The node's ledger rejected the transaction with code `N` | Look up `N` in the [error tables](#error-tables-by-code-range) |
+| `1010: Invalid Transaction` without `Custom error: N` | Node (Substrate transaction pool) | A Substrate check rejected the transaction before the ledger checked it | See [When 1010 has no inner u8](/how-to/decode-1010-transaction-rejection-errors#when-1010-has-no-inner-u8) |
+| `SubmissionError: Transaction submission failed` | Wallet SDK node client | The call that sends the transaction to the node failed. The node's response is in `cause` | Read `cause` for the `1010` response |
+| `SubmissionError: Transaction submission error` | Wallet SDK submission service | Any node client error during submission, including a node rejection, a lost connection, or a transaction the node reported as dropped or invalid | Print the full error chain and find the innermost error |
+| `(FiberFailure) SubmissionError` | Wallet SDK (Effect runtime) | The promise-based wallet SDK API rejected with the `SubmissionError` described in the previous row | Use `String(error)` to print the full cause chain |
+| `Unexpected error submitting scoped transaction '<name>': ...` | Midnight.js | `submitCallTx` failed before the transaction reached a block. The message includes the text of the underlying error | Find `Custom error: N` in the message and look up `N` |
+| `CallTxFailedError` | Midnight.js | The transaction reached a block, but its status isn't `SucceedEntirely` | Check `finalizedTxData.status` on the error to see which part of the transaction failed |
+| `Failed to decode ledger event payload` | Wallet SDK shielded wallet | During sync, the wallet couldn't deserialize a ledger event it received from the indexer. One possible cause is a mismatch between the ledger version bundled with the wallet SDK and the ledger version the network runs. The same message appears if the indexer returns any payload the wallet can't decode | Use wallet SDK and Midnight.js versions from the [compatibility matrix](../relnotes/support-matrix.mdx) for your network |
+
+### Common submission codes
+
+The following node codes often appear inside submission errors. The meanings apply to node version 1.0.x.
+
+| Code | Name | Description | How to fix |
+|------|------|-------------|------------|
+| 103 | `Zswap` | The shielded (Zswap) part of the transaction conflicts with ledger state. The node reports this when a coin's nullifier is already spent, a new coin commitment already exists, the proof refers to a coin tree root the node doesn't recognize, or a Merkle tree update fails. The node keeps past coin tree roots for about one hour, so the node rejects a transaction whose proof uses a root older than that | Let the wallet finish syncing, then rebuild and resubmit the transaction. Don't submit several transactions that spend the same shielded coins at the same time |
+| 196 | `DustDoubleSpend` | The DUST UTXO that pays the transaction fee has already been spent. Its nullifier is already in the ledger's DUST nullifier set | Let the wallet sync the earlier transaction, then rebuild and resubmit. Don't run more than one wallet instance from the same seed at the same time, and don't resubmit a transaction that might already be in a block |

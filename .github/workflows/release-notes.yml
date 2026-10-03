@@ -73,14 +73,51 @@ on:
         description: 'PR title'
         default: 'Copy release notes from product repository'
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   copy_release_notes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
+      - name: Validate inputs
+        env:
+          VERSION_RAW: ${{ github.event.inputs.version }}
+          LANG_RAW: ${{ github.event.inputs.compact_language_version }}
+          SRC_URL: ${{ github.event.inputs.source_url }}
+          SRC_REL: ${{ github.event.inputs.source_path }}
+          BRANCH_MERGE: ${{ github.event.inputs.branch_merge }}
+        run: |
+          set -euo pipefail
+          # Inputs reach sed, curl, gh api and (via the DynamicList entry) committed
+          # JavaScript. Anything that is not plainly a version, a relative path or an
+          # allowlisted URL is rejected here, before it can reach an interpreter.
+          SEMVER='^v?[0-9]+(\.[0-9]+){0,3}([-+][0-9A-Za-z.]+)?$'
+          RELPATH='^[A-Za-z0-9][A-Za-z0-9._/-]*$'
+          SRCURL='^https://(github\.com|raw\.githubusercontent\.com)/[A-Za-z0-9][A-Za-z0-9._/@~-]*$'
+
+          die() { echo "::error::$1"; exit 1; }
+
+          [[ "$VERSION_RAW" =~ $SEMVER ]] \
+            || die "version must look like 1.2.3 or v1.2.3, got: '$VERSION_RAW'"
+          [[ -z "$LANG_RAW" || "$LANG_RAW" =~ $SEMVER ]] \
+            || die "compact_language_version must look like 0.22.0, got: '$LANG_RAW'"
+          [[ -z "$BRANCH_MERGE" || "$BRANCH_MERGE" =~ $RELPATH ]] \
+            || die "branch_merge must be a plain branch name, got: '$BRANCH_MERGE'"
+          if [[ -n "$SRC_REL" ]]; then
+            [[ "$SRC_REL" =~ $RELPATH ]] \
+              || die "source_path must be a relative path of [A-Za-z0-9._/-], got: '$SRC_REL'"
+            [[ "$SRC_REL" != *..* ]] \
+              || die "source_path must not escape the cloned repo with '..': '$SRC_REL'"
+          fi
+          if [[ -n "$SRC_URL" ]]; then
+            [[ "$SRC_URL" =~ $SRCURL ]] \
+              || die "source_url must be a github.com or raw.githubusercontent.com URL with no query string, got: '$SRC_URL'"
+            [[ "$SRC_URL" != *..* ]] \
+              || die "source_url must not contain '..': '$SRC_URL'"
+          fi
+          echo "Inputs validated."
+
       - name: Checkout midnight-docs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -88,10 +125,14 @@ jobs:
           ref: ${{ github.event.inputs.branch_merge }}
 
       - name: Git config
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           git config --global user.email "midnight-ci@users.noreply.github.com"
           git config --global user.name "Midnight CI GitHub Action"
-          git config --global url.https://${{ secrets.GH_TOKEN }}@github.com/.insteadOf https://github.com/
+          # Credential helper reads GH_TOKEN from each step's env at fetch time;
+          # never persists the token to disk (gitconfig is readable by build steps).
+          gh auth setup-git
 
       - name: Clone wallet
         if: ${{ github.event.inputs.component == 'wallet' }}
@@ -100,6 +141,7 @@ jobs:
           git clone --branch "$WALLET_BRANCH" https://github.com/midnightntwrk/midnight-wallet.git
         env:
           WALLET_BRANCH: ${{ github.event.inputs.branch_wallet }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone ledger
         if: ${{ github.event.inputs.component == 'ledger' }}
@@ -108,6 +150,7 @@ jobs:
           git clone --branch "$LEDGER_BRANCH" https://github.com/midnightntwrk/midnight-ledger.git
         env:
           LEDGER_BRANCH: ${{ github.event.inputs.branch_ledger }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone compact
         if: ${{ github.event.inputs.component == 'compact' }}
@@ -116,6 +159,7 @@ jobs:
           git clone --branch "$COMPACT_BRANCH" https://github.com/LFDT-Minokawa/compact/
         env:
           COMPACT_BRANCH: ${{ github.event.inputs.branch_compact }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone midnight-js
         if: ${{ github.event.inputs.component == 'midnight-js' }}
@@ -124,6 +168,7 @@ jobs:
           git clone --branch "$MIDNIGHT_JS_BRANCH" https://github.com/midnightntwrk/midnight-js.git
         env:
           MIDNIGHT_JS_BRANCH: ${{ github.event.inputs.branch_midnight_js }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone node
         if: ${{ github.event.inputs.component == 'node' }}
@@ -132,6 +177,7 @@ jobs:
           git clone --branch "$NODE_BRANCH" https://github.com/midnightntwrk/midnight-node.git
         env:
           NODE_BRANCH: ${{ github.event.inputs.branch_node }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone midnight-indexer
         if: ${{ github.event.inputs.component == 'midnight-indexer' }}
@@ -140,6 +186,7 @@ jobs:
           git clone --branch "$MIDNIGHT_INDEXER_BRANCH" https://github.com/midnightntwrk/midnight-indexer.git
         env:
           MIDNIGHT_INDEXER_BRANCH: ${{ github.event.inputs.branch_midnight_indexer }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone dapp-connector-api
         if: ${{ github.event.inputs.component == 'dapp-connector-api' }}
@@ -148,6 +195,7 @@ jobs:
           git clone --branch "$DAPP_CONNECTOR_API_BRANCH" https://github.com/midnightntwrk/midnight-dapp-connector-api.git
         env:
           DAPP_CONNECTOR_API_BRANCH: ${{ github.event.inputs.branch_dapp_connector_api }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Clone compact-js
         if: ${{ github.event.inputs.component == 'compact-js' }}
@@ -156,14 +204,12 @@ jobs:
           git clone --branch "$COMPACT_JS_BRANCH" https://github.com/midnightntwrk/midnight-sdk.git
         env:
           COMPACT_JS_BRANCH: ${{ github.event.inputs.branch_compact_js }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Copy release notes into docs
         id: copy
         run: |
           set -euo pipefail
-          COMPONENT="$COMPONENT"
-          SRC_REL="$SRC_REL"
-          SRC_URL="$SRC_URL"
           SRC=""
 
           # Resolve source: URL (preferred) or clone path.
@@ -188,6 +234,11 @@ jobs:
                 # Used by compact-js style URLs. Build RELEASE_NOTES.md from repo/tree root.
                 TREE_RAW=$(echo "$SRC_URL" | sed -E 's|^https://github.com/([^/]+/[^/]+)/tree/([^/]+)/(.*)$|https://raw.githubusercontent.com/\1/\2/\3|')
                 RAW_URL="${TREE_RAW}/RELEASE_NOTES.md"
+                ;;
+              *)
+                echo "::error::unsupported source_url form: $SRC_URL"
+                echo "Supported: raw.githubusercontent.com, or a github.com releases/tag, blob or tree URL."
+                exit 1
                 ;;
             esac
             curl -fsSL "$RAW_URL" -o "$TMP_SOURCE"
@@ -255,11 +306,7 @@ jobs:
       - name: Update DynamicList component file
         run: |
           set -euo pipefail
-          COMPONENT="$COMPONENT"
-          VERSION_RAW="$VERSION_RAW"
           VERSION="${VERSION_RAW#v}"
-          SLUG="$SLUG"
-          SUBDIR="$SUBDIR"
           TODAY=$(date +'%d %B %Y')
 
           case "$COMPONENT" in
@@ -276,9 +323,14 @@ jobs:
 
           sed -i "s/status: 'LATEST'/status: 'UNSUPPORTED'/" "$DYNAMIC_LIST"
 
+          # SAFETY: sed's `a\` treats a newline in the appended text as the end of the
+          # append and the start of a new sed command (its `e` command shells out), and
+          # a quote here would break out of the JS string literal. Every value below is
+          # constrained to [A-Za-z0-9 ._/-] by the "Validate inputs" step - do not weaken
+          # that step, or relax this to an unvalidated input, without replacing sed here.
           if [ "$COMPONENT" = "compact" ]; then
             if [ -z "$LANG_RAW" ]; then
-              echo "compact_language_version is required when component is compact"
+              echo "::error::compact_language_version is required when component is compact"
               exit 1
             fi
             COMPACT_VER="${LANG_RAW#v}"

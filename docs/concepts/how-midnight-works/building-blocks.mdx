@@ -1,29 +1,57 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Building blocks
+description: Learn how Midnight transactions combine intents, Zswap offers, contract calls, and deployments, and how transaction merging and binding commitments work.
 ---
 
 # Building blocks
 
 Midnight's transaction structure is unique and may not be immediately
-intuitive. 
+intuitive.
 
 ## Transactions
 
-In Midnight, transactions consist of:
-- a 'guaranteed' [Zswap offer](./zswap.mdx#offers)
-- an optional 'fallible' Zswap
+A standard Midnight transaction consists of:
+- a network ID
+- a set of [intents](#intents), each keyed by a segment ID
+- an optional guaranteed [Zswap offer](./zswap.mdx#offers)
+- optional fallible Zswap offers, each keyed by a segment ID
+- a binding randomness (see [transaction integrity](#transaction-integrity))
+
+Segment ID `0` is reserved for the guaranteed section, so intents and fallible
+offers always use a nonzero segment ID. The parts of a transaction that share a
+segment ID apply atomically together. The guaranteed parts of every intent,
+such as guaranteed transcripts and guaranteed unshielded offers, run with the
+guaranteed section, not with their own segment.
+
+The guaranteed section always executes first. If it fails, or if any fallible
+Zswap offer can't be applied, the whole transaction fails. The remaining
+segments then execute in segment ID order. A segment that fails doesn't undo
+the guaranteed section or any other segment that succeeded, so the ledger records the transaction as a partial success.
+
+## Intents
+
+An intent groups the contract activity and unshielded token transfers that
+belong to one segment. Each intent contains:
+- an optional guaranteed unshielded offer and an optional fallible unshielded
   offer
-- an optional contract calls segment, consisting of:
-  - a sequence of [contract calls](#contract-calls) or [contract deploys](#contract-deployments)
-  - a cryptographic binding commitment (see: [transaction integrity](#transaction-integrity))
-- a binding randomness (see transaction integrity).
+- a sequence of contract actions: [contract deployments](#contract-deployments),
+  [contract calls](#contract-calls), and contract maintenance updates
+- optional DUST actions, which spend DUST to pay fees or set which DUST
+  address receives the DUST that a NIGHT address generates
+- a time-to-live (TTL) timestamp, which must not be in the past or too far in
+  the future
+- a binding commitment (see [transaction integrity](#transaction-integrity))
+
+The ledger records the hash of every intent it applies and rejects any intent
+it has already seen, which protects transactions against replay.
 
 ## Contract deployments
 
 A contract deployment creates a new contract if it does not already exist and
-fails otherwise. It is executed entirely as part of the
-'fallible' execution step.
+fails otherwise. The ledger applies it entirely in the
+fallible execution step.
 
 Contract deployment transaction parts consist of a [contract
 state](./semantics#contract-state) and a nonce, creating a new contract at the
@@ -32,20 +60,33 @@ address that is a hash of the deploy part.
 ## Contract calls
 
 A contract call invokes a specific contract address and entry point at this
-address. Entry points are keys into the contracts' [operation map](./semantics#contract-state).  Combined, the two select the verifier key that a
-contract call will be validated against.
+address. Entry points are keys into the contracts' [operation map](./semantics#contract-state).  Combined, the two select the verifier key that the
+ledger checks the call against.
 
 A contract call declares a guaranteed and
 fallible
 [*transcript*](./impact#transcripts), which declares the visible effects of
-this call. It further contains a *communication commitment*, which may be used
-for cross-contract interaction.
+this call. It further contains a *communication commitment*, which commits to
+the inputs and outputs of the circuit that the call targets.
 
-:::info
+Communication commitments are how one contract calls another. The calling
+contract's transcript declares each call it expects by contract address, entry
+point, and communication commitment. The transaction is well-formed only if
+each declared call matches exactly one call in the same segment.
 
-Cross-contract interaction is still under development and is not available for
-use at this time. The team is keen to hear what kinds of interactions you would like
-to be able to do.
+:::info[Cross-contract calls and ledger versions]
+
+Cross-contract calls require ledger version 9 and a Compact toolchain that
+targets it. Toolchains that target ledger version 8, such as 0.31.x, reject
+cross-contract calls at compile time. Preview, Preprod, and Mainnet currently
+run ledger version 8, so you can't deploy contracts that make cross-contract
+calls to those networks yet. Check the
+[compatibility matrix](../../relnotes/support-matrix.mdx) for the toolchain
+version each network supports, and the
+[Compact release notes](../../relnotes/compact.mdx) for toolchain releases that
+target ledger version 9. For the syntax, see
+[Cross-contract calls](../../compact/reference/compact-reference.mdx#cross-contract-calls)
+in the Compact language reference.
 
 :::
 
@@ -54,11 +95,21 @@ are valid for this contract and binding to other transaction elements.
 
 ## Merging
 
-Zswap permits atomic swaps by allowing transactions to be merged.
-Currently, contract call sections cannot be merged, but 
-two transactions can be merged if at least one of them has an empty contract call
-section. This outputs a new, composite transaction and has the effect of both
-input transactions combined.
+Merging transactions is how Zswap supports atomic swaps. Merging
+two transactions outputs a new, composite transaction that has the effect of
+both input transactions combined. You can merge two transactions if:
+- both are standard transactions, not reward-claim transactions
+- both use the same network ID
+- their intents use different segment IDs
+- their Zswap offers for the same segment don't share any inputs, outputs, or
+  transient coins
+
+Because contract calls live inside intents, you can merge transactions that
+contain contract calls as long as their intents don't share a segment ID. The
+merged transaction must still pass the usual well-formedness checks. For
+example, if intents in two segments call the same contract, either the call in
+the earlier segment has no fallible transcript, or the call in the later
+segment has no guaranteed transcript.
 
 ## Transaction integrity
 
@@ -72,7 +123,7 @@ randomnesses summed to decompose the transaction. This ensures a form of
 binding that guarantees that the user's funds are spent as they originally
 intended.
 
-This binding is extended to contract calls by the contract call section
-contributing to the overall Pedersen commitment. This contribution is further
-restricted to carry no value vector, by requiring knowledge of an exponent of
-the generator, in the form of a Fiat-Shamir transformed Schnorr proof.
+This binding extends to contract activity through the binding commitment in
+each intent, which contributes to the overall Pedersen commitment. This
+contribution is further restricted to carry no value vector, by requiring
+knowledge of an exponent of the generator, in the form of a Fiat-Shamir transformed Schnorr proof.
