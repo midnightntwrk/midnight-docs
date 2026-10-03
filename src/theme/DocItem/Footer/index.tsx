@@ -5,6 +5,7 @@ import { useDoc } from "@docusaurus/plugin-content-docs/client";
 import LastUpdated from "@theme/LastUpdated";
 import EditThisPage from "@theme/EditThisPage";
 import TagsListInline from "@theme/TagsListInline";
+import PageFeedback, { usePageFeedbackAvailable } from "./PageFeedback";
 import styles from "./styles.module.css";
 
 function TagsRow(props) {
@@ -52,9 +53,11 @@ export default function DocItemFooter() {
     lastUpdatedBy,
     tags
   } = metadata;
+  const canDisplayFeedback = usePageFeedbackAvailable();
   const canDisplayTagsRow = tags.length > 0;
   const canDisplayEditMetaRow = !!(editUrl || lastUpdatedAt || lastUpdatedBy);
-  const canDisplayFooter = canDisplayTagsRow || canDisplayEditMetaRow;
+  const canDisplayFooter =
+    canDisplayFeedback || canDisplayTagsRow || canDisplayEditMetaRow;
   if (!canDisplayFooter) {
     return null;
   }
@@ -62,6 +65,7 @@ export default function DocItemFooter() {
     <footer
       className={clsx(ThemeClassNames.docs.docFooter, "docusaurus-mt-lg")}
     >
+      {canDisplayFeedback && <PageFeedback key={metadata.permalink} />}
       {canDisplayTagsRow && <TagsRow tags={tags} />}
       {canDisplayEditMetaRow && (
         <EditMetaRow
