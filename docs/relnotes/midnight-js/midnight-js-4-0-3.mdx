@@ -1,0 +1,142 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight.js v4.0.3 release notes
+description: Midnight.js is a client library designed to facilitate the development of decentralized applications on the Midnight blockchain.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v4.0.3  
+* **Date**: March 27, 2026  
+* **Node.js requirement**: >=22  
+
+---
+
+## High-level summary
+
+This release introduces two new packages. A barrel package gives you a single import surface for the core Midnight.js modules. A proof provider delegates proving to a connected wallet instead of a standalone proof server. The release also lands a broad reliability pass on `testkit-js`.
+
+The v4.0.3 publish did not complete. The maintainers recorded in the v4.0.4 notes that v4.0.3 "was not published due to release pipeline issues", and that v4.0.4 carries all of the v4.0.3 changes. On npm, only the two new packages carry a 4.0.3 version, and each one pins its internal dependencies to 4.0.3 versions that the pipeline never published. Neither package installs. Use [v4.0.4](/relnotes/midnight-js/midnight-js-4-0-4) or later to pick up everything described here.
+
+## Audience
+
+This release note is most relevant for developers who:
+
+- Want a single import point for the core Midnight.js packages instead of importing each one separately.
+- Build browser DApps and want the connected wallet to generate proofs rather than running a proof server.
+- Write integration tests with `testkit-js` and depend on its assertions, error propagation, and environment variable handling.
+- Are tracing the Midnight.js version history and need to know why the npm registry skips from 4.0.2 to 4.0.4.
+
+## Summary of updates
+
+- Added the `@midnight-ntwrk/midnight-js` barrel package.
+- Added the `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider` package.
+- Fixed 15 bugs in `testkit-js` covering missing assertions, swallowed errors, and stale environment variables.
+- Added tests that reproduce the `sendUnshielded` failure reported in issue 720.
+- Consolidated development dependency updates.
+- Refreshed the generated API documentation.
+
+---
+
+## New features
+
+### `@midnight-ntwrk/midnight-js` barrel package
+
+This package re-exports the core Midnight.js packages under namespaces, so you can pull them in from one dependency. The barrel deliberately omits the provider packages and the Compact CLI tool. That keeps it light and avoids pulling in environment-specific HTTP and filesystem dependencies.
+
+Namespace imports:
+
+```typescript
+import { contracts, networkId, types, utils } from '@midnight-ntwrk/midnight-js';
+
+networkId.setNetworkId('preprod');
+const deployed = await contracts.deployContract(/* ... */);
+```
+
+Subpath imports:
+
+```typescript
+import { deployContract } from '@midnight-ntwrk/midnight-js/contracts';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js/network-id';
+```
+
+Re-export namespaces:
+
+- `contracts` from `@midnight-ntwrk/midnight-js-contracts`
+- `networkId` from `@midnight-ntwrk/midnight-js-network-id`
+- `types` from `@midnight-ntwrk/midnight-js-types`
+- `utils` from `@midnight-ntwrk/midnight-js-utils`
+
+To free the package name, the repository root workspace took the name `@midnight-ntwrk/midnight-js-monorepo`. This affects contributors working in the repository, not consumers of the published packages.
+
+### `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider` package
+
+This package wraps the DApp Connector `getProvingProvider` API in the Midnight.js `ProofProvider` interface. A connected wallet then generates the proofs, so your DApp does not need its own proof server.
+
+```typescript
+import { dappConnectorProofProvider } from '@midnight-ntwrk/midnight-js-dapp-connector-proof-provider';
+
+const proofProvider = await dappConnectorProofProvider(
+  walletConnectedAPI,
+  zkConfigProvider,
+  costModel
+);
+```
+
+Exports:
+
+- `dappConnectorProofProvider` builds a full `ProofProvider` from a DApp Connector wallet API.
+- `dappConnectorProvingProvider` builds the lower-level `ProvingProvider` only.
+- `DAppConnectorProvingAPI` is a type alias for `Pick<WalletConnectedAPI, 'getProvingProvider'>`. It builds on the `WalletConnectedAPI` type from `@midnight-ntwrk/dapp-connector-api`, so it tracks changes to that type.
+
+---
+
+## Breaking changes
+
+No breaking API changes are introduced in v4.0.3.
+
+---
+
+## Bug fixes and quality improvements
+
+### Testkit-js reliability fixes
+
+This release fixes 15 bugs and design issues in `testkit-js`:
+
+- `expectSuccessfulDeployTx` and `expectSuccessfulCallTx` called `expect()` with no matcher, so they asserted nothing.
+- `ledgerStateBlob` and `ledgerVersion` ignored the `blockHash` parameter in their RPC calls.
+- `waitForFunds` returned either a `bigint` or a wallet state object. It now always returns a `bigint`.
+- `BigInt.prototype.toJSON` used `Number(this)`, which loses precision on large values. It now uses `toString()`.
+- `FaucetClient.requestTokens`, `ProofServerClient.proveTx`, every `health()` method, and `WalletSaveStateProvider.save` caught and logged errors instead of propagating them. They now propagate.
+- `health()` methods hardcoded `https://` or `http://` instead of deriving the protocol from the configured URL. A `buildUrlWithPath` helper now handles this.
+- Module-level constants such as `MN_TEST_INDEXER` captured environment variables at import time. Getter functions replace them, so the code now reads a value you set after import.
+- Tests mutated `process.env` without restoring it. An `afterEach` cleanup now resets it.
+- `WalletSaveStateProvider.save` used `.replaceAll('.gz', '')`, which could corrupt a path containing that string elsewhere. It now checks `.endsWith('.gz')` and slices.
+- `FluentWalletBuilder.build()` mutated the builder's internal `seeds` state. It now uses a local constant.
+- `TestEnvironment` no longer carries the unused `envConfiguration` field.
+- `deleteDirectory` becomes `tryDeleteDirectory`, a name that makes its error-swallowing behavior explicit.
+
+### Additional test coverage
+
+This release adds unit tests that reproduce [issue 720](https://github.com/midnightntwrk/midnight-js/issues/720), where `sendUnshielded` fails when the target user address differs from the wallet's own address. The tests capture the behavior. They do not change it.
+
+### Development dependency updates
+
+A single change consolidates eight outstanding dependency update PRs covering ESLint, jsdom, Turbo, TypeDoc, Allure, and two GitHub Actions. All are development dependencies, so published package behavior does not change.
+
+---
+
+## Known issues
+
+The v4.0.3 npm publish is incomplete. npm carries a 4.0.3 version only for `@midnight-ntwrk/midnight-js` and `@midnight-ntwrk/midnight-js-dapp-connector-proof-provider`. Every package that already existed at 4.0.2 went straight to 4.0.4. Both 4.0.3 packages declare exact dependencies on 4.0.3 versions that the registry does not hold, so installing either one fails to resolve.
+
+Install v4.0.4 or later instead. It contains every change listed on this page.
+
+---
+
+## Links and references
+
+- **GitHub**: [Midnight.js repository](https://github.com/midnightntwrk/midnight-js)
+- **Release**: [v4.0.3 on GitHub](https://github.com/midnightntwrk/midnight-js/releases/tag/v4.0.3)
+- **API reference**: [Midnight.js API documentation](/api-reference/midnight-js/packages)
+- **Next release**: [Midnight.js v4.0.4 release notes](/relnotes/midnight-js/midnight-js-4-0-4)

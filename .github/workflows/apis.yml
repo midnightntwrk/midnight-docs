@@ -46,15 +46,24 @@ on:
         description: 'Indexer schema version'
         default: 'v4'
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   copy_api_docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
 
     steps:
+      - name: Validate inputs
+        env:
+          INDEXER_SCHEMA_VERSION: ${{ github.event.inputs.indexer_schema_version }}
+        run: |
+          set -euo pipefail
+          # Reaches a path and a sed script in "Update midnight-indexer".
+          [[ "$INDEXER_SCHEMA_VERSION" =~ ^v[0-9]+$ ]] \
+            || { echo "::error::indexer_schema_version must look like v4, got: '$INDEXER_SCHEMA_VERSION'"; exit 1; }
+          echo "Inputs validated."
+
       - name: Checkout docs repository specific branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -167,16 +176,21 @@ jobs:
           cd temp
           git clone --branch "$BRANCH_INDEXER" https://github.com/midnightntwrk/midnight-indexer.git
           cd ..
-          INDEXER_SCHEMA_VERSION="$INDEXER_SCHEMA_VERSION"
           DEST_DIR=api-reference/midnight-indexer
-          SRC_DIR=temp/midnight-indexer/docs/api/${INDEXER_SCHEMA_VERSION}
+          SRC_DIR="temp/midnight-indexer/docs/api/${INDEXER_SCHEMA_VERSION}"
           STATIC_DIR=static/midnight-indexer
-          rm -rf ${DEST_DIR} || true
-          mkdir ${DEST_DIR}
-          cp -r ${SRC_DIR}/* ${DEST_DIR}
-          mv ${DEST_DIR}/api-documentation.md ${DEST_DIR}/README.md
-          sed -E -i 's|\[\`indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}\.graphql\`\]\(.*\)|[midnight-indexer-api-schema](pathname:///midnight-indexer/schema-${INDEXER_SCHEMA_VERSION}.graphql)|g' ${DEST_DIR}/README.md
-          cp temp/midnight-indexer/indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}.graphql ${STATIC_DIR}
+          rm -rf "${DEST_DIR}" || true
+          mkdir "${DEST_DIR}"
+          cp -r "${SRC_DIR}"/* "${DEST_DIR}"
+          mv "${DEST_DIR}/api-documentation.md" "${DEST_DIR}/README.md"
+          # Double-quoted so ${INDEXER_SCHEMA_VERSION} expands. Under single quotes it
+          # stayed literal, and ERE then read `${INDEX...}` as an interval expression
+          # after `$`: GNU sed exited 1 with "Invalid preceding regular expression",
+          # which under `bash -e` failed the whole step - the midnight-indexer path of
+          # this workflow could not complete. Safe to expand because "Validate inputs"
+          # pins the value to ^v[0-9]+$ before it reaches sed.
+          sed -E -i "s|\[\`indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}\.graphql\`\]\(.*\)|[midnight-indexer-api-schema](pathname:///midnight-indexer/schema-${INDEXER_SCHEMA_VERSION}.graphql)|g" "${DEST_DIR}/README.md"
+          cp "temp/midnight-indexer/indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}.graphql" "${STATIC_DIR}"
         env:
           BRANCH_INDEXER: ${{ github.event.inputs.branch_indexer }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -202,7 +216,9 @@ jobs:
         if: ${{ github.event.inputs.component == 'midnight-js' }}
         run: |
           DEST_DIR=api-reference/midnight-js/@midnight-ntwrk
-          for d in ${DEST_DIR}/*/; do echo -e "# $(basename $d)\n\n$(cat $d/README.md)" > $d/README.md; done
+          for d in "${DEST_DIR}"/*/; do
+            printf '# %s\n\n%s\n' "$(basename "$d")" "$(cat "$d/README.md")" > "$d/README.md"
+          done
 
       - name: Update zswap
         if: ${{ github.event.inputs.component == 'ledger' }}
@@ -262,15 +278,15 @@ jobs:
       - name: Add changes
         id: prep
         run: |
-          BRANCH=api-docs/merge-prs/`date +'%Y-%m-%dT%H%M%S'`
+          BRANCH="api-docs/merge-prs/$(date +'%Y-%m-%dT%H%M%S')"
           rm -rf ./temp
-          git checkout -b $BRANCH
+          git checkout -b "$BRANCH"
           if git diff-index HEAD; then
             echo "NEW_BRANCH=$BRANCH" >> "$GITHUB_OUTPUT"
             echo "UPDATE=true" >> "$GITHUB_OUTPUT"
             echo "Adding new..."
             git add -A
-            git push -u origin $BRANCH
+            git push -u origin "$BRANCH"
           else
             echo "Nothing to update"
           fi

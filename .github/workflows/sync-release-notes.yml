@@ -64,14 +64,48 @@ on:
         default: ''
         type: string
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   copy_release_notes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
+      - name: Validate inputs
+        env:
+          VERSION_RAW: ${{ github.event.inputs.version }}
+          LANG_RAW: ${{ github.event.inputs.compact_language_version }}
+          SRC_URL: ${{ github.event.inputs.source_url }}
+          SRC_REL: ${{ github.event.inputs.source_path }}
+        run: |
+          set -euo pipefail
+          # Inputs reach sed, curl, gh api and (via the DynamicList entry) committed
+          # JavaScript. Anything that is not plainly a version, a relative path or an
+          # allowlisted URL is rejected here, before it can reach an interpreter.
+          SEMVER='^v?[0-9]+(\.[0-9]+){0,3}([-+][0-9A-Za-z.]+)?$'
+          RELPATH='^[A-Za-z0-9][A-Za-z0-9._/-]*$'
+          SRCURL='^https://(github\.com|raw\.githubusercontent\.com)/[A-Za-z0-9][A-Za-z0-9._/@~-]*$'
+
+          die() { echo "::error::$1"; exit 1; }
+
+          [[ "$VERSION_RAW" =~ $SEMVER ]] \
+            || die "version must look like 1.2.3 or v1.2.3, got: '$VERSION_RAW'"
+          [[ -z "$LANG_RAW" || "$LANG_RAW" =~ $SEMVER ]] \
+            || die "compact_language_version must look like 0.22.0, got: '$LANG_RAW'"
+          if [[ -n "$SRC_REL" ]]; then
+            [[ "$SRC_REL" =~ $RELPATH ]] \
+              || die "source_path must be a relative path of [A-Za-z0-9._/-], got: '$SRC_REL'"
+            [[ "$SRC_REL" != *..* ]] \
+              || die "source_path must not escape the cloned repo with '..': '$SRC_REL'"
+          fi
+          if [[ -n "$SRC_URL" ]]; then
+            [[ "$SRC_URL" =~ $SRCURL ]] \
+              || die "source_url must be a github.com or raw.githubusercontent.com URL with no query string, got: '$SRC_URL'"
+            [[ "$SRC_URL" != *..* ]] \
+              || die "source_url must not contain '..': '$SRC_URL'"
+          fi
+          echo "Inputs validated."
+
       - name: Checkout midnight-docs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,7 +115,9 @@ jobs:
         run: |
           git config --global user.email "midnight-ci@users.noreply.github.com"
           git config --global user.name "Midnight CI GitHub Action"
-          git config --global url.https://${{ secrets.GH_TOKEN }}@github.com/.insteadOf https://github.com/
+          # Credential helper reads GH_TOKEN from each step's env at fetch time;
+          # never persists the token to disk (gitconfig is readable by build steps).
+          gh auth setup-git
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -182,9 +218,11 @@ jobs:
           echo "Copied release notes to $DEST_FILE ($(wc -l < "$DEST_FILE") lines)"
 
           # --- Export outputs ---
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
-          echo "dest_file=$DEST_FILE" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$VERSION"
+            echo "slug=$SLUG"
+            echo "dest_file=$DEST_FILE"
+          } >> "$GITHUB_OUTPUT"
 
         env:
           COMPONENT: ${{ github.event.inputs.component }}
@@ -223,6 +261,11 @@ jobs:
           # --- Demote current LATEST to SUPPORTED ---
           sed -i "s/status: 'LATEST'/status: 'SUPPORTED'/" "$DYNAMIC_LIST"
 
+          # SAFETY: sed's `a\` treats a newline in the appended text as the end of the
+          # append and the start of a new sed command (its `e` command shells out), and
+          # a quote here would break out of the JS string literal. Every value below is
+          # constrained to [A-Za-z0-9 ._/-] by the "Validate inputs" step - do not weaken
+          # that step, or relax this to an unvalidated input, without replacing sed here.
           # --- Build new entry (single line to avoid YAML block scalar issues) ---
           if [[ "$COMPONENT" == "compact" && -n "$COMPACT_LANG_VER" ]]; then
             COMPACT_VER="${COMPACT_LANG_VER#v}"

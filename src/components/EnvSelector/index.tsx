@@ -3,7 +3,7 @@ import React from 'react';
 import {useLocation, useHistory} from '@docusaurus/router';
 import styles from './styles.module.css';
 
-type EnvId = 'testnet-02';
+type EnvId = 'preview';
 
 type EnvConfig = {
   id: EnvId;
@@ -14,7 +14,7 @@ type EnvConfig = {
 const STORAGE_KEY = 'midnight-docs-env';
 
 const ENVIRONMENTS: EnvConfig[] = [
-  { id: 'testnet-02', label: 'Testnet-02', prefix: '/docs' },
+  { id: 'preview', label: 'Preview', prefix: '/docs' },
 ];
 
 function getEnvFromPath(pathname: string): EnvId {

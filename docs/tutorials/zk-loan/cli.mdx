@@ -879,46 +879,32 @@ export const waitForFunds = (wallet: WalletFacade) =>
     wallet.state().pipe(
       Rx.throttleTime(10_000),
       Rx.tap((state) => {
-        const unshielded =
+        const night =
           state.unshielded?.balances[ledger.nativeToken().raw] ?? 0n;
-        const shielded =
-          state.shielded?.balances[ledger.nativeToken().raw] ?? 0n;
         logger.info(
-          `Waiting for NIGHT funds. Synced: ${state.isSynced}, Unshielded: ${unshielded}, Shielded: ${shielded}`,
+          `Waiting for NIGHT funds. Synced: ${state.isSynced}, NIGHT: ${night}`,
         );
       }),
       Rx.filter((state) => state.isSynced),
-      Rx.map(
-        (s) =>
-          (s.unshielded?.balances[ledger.nativeToken().raw] ?? 0n) +
-          (s.shielded?.balances[ledger.nativeToken().raw] ?? 0n),
-      ),
+      // NIGHT is unshielded-only — the shielded slot for the native token
+      // type is structurally always zero, so only the unshielded balance counts.
+      Rx.map((s) => s.unshielded?.balances[ledger.nativeToken().raw] ?? 0n),
       Rx.filter((balance) => balance > 0n),
     ),
   );
 
 export const displayWalletBalances = async (
   wallet: WalletFacade,
-): Promise<{
-  unshielded: bigint;
-  shielded: bigint;
-  total: bigint;
-  dust: bigint;
-}> => {
+): Promise<{ night: bigint; dust: bigint }> => {
   const state = await Rx.firstValueFrom(wallet.state());
-  const unshielded =
+  const night =
     state.unshielded?.balances[ledger.nativeToken().raw] ?? 0n;
-  const shielded =
-    state.shielded?.balances[ledger.nativeToken().raw] ?? 0n;
-  const total = unshielded + shielded;
   const dust = state.dust?.balance(new Date()) ?? 0n;
 
-  logger.info(`Unshielded NIGHT balance: ${unshielded}`);
-  logger.info(`Shielded NIGHT balance: ${shielded}`);
-  logger.info(`Total NIGHT balance: ${total}`);
+  logger.info(`Unshielded NIGHT balance: ${night}`);
   logger.info(`DUST balance (for fees): ${dust}`);
 
-  return { unshielded, shielded, total, dust };
+  return { night, dust };
 };
 
 export const registerNightForDust = async (
@@ -992,7 +978,7 @@ The wallet infrastructure handles three concerns:
 
 *   **Syncing**: `waitForSync` polls the wallet state every 5 seconds until it is synchronized with the indexer.
 
-*   **Funding**: `waitForFunds` polls every 10 seconds until the wallet has a non-zero balance (shielded + unshielded).
+*   **Funding**: `waitForFunds` polls every 10 seconds until the wallet has a non-zero NIGHT balance. NIGHT is unshielded-only — the shielded slot for the native token type is structurally always zero, so only the unshielded balance is read.
 
 *   **Dust registration**: `registerNightForDust` registers unshielded tNIGHT UTXOs for tDUST generation. On Midnight, **NIGHT is the user-facing token** and **DUST is the fee resource generated from registered NIGHT UTXOs** (testnet variants are tNIGHT and tDUST). DUST tokens are required to pay [transaction fees](/concepts/how-midnight-works/midnight-combined-model) on Midnight Network. Without DUST, no transactions can be submitted.
 
@@ -1135,9 +1121,9 @@ export const buildWalletAndWaitForFunds = async (
   logger.info('Waiting for wallet to sync...');
   await waitForSync(walletContext.wallet);
 
-  const { total } = await displayWalletBalances(walletContext.wallet);
+  const { night } = await displayWalletBalances(walletContext.wallet);
 
-  if (total === 0n) {
+  if (night === 0n) {
     logger.info('Waiting to receive tokens...');
     await waitForFunds(walletContext.wallet);
     await displayWalletBalances(walletContext.wallet);
@@ -1173,9 +1159,9 @@ export const buildWalletFromHexSeed = async (
   logger.info('Waiting for wallet to sync...');
   await waitForSync(walletContext.wallet);
 
-  const { total } = await displayWalletBalances(walletContext.wallet);
+  const { night } = await displayWalletBalances(walletContext.wallet);
 
-  if (total === 0n) {
+  if (night === 0n) {
     logger.info('Waiting to receive tokens...');
     await waitForFunds(walletContext.wallet);
     await displayWalletBalances(walletContext.wallet);
