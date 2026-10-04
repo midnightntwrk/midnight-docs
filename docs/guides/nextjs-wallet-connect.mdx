@@ -75,14 +75,29 @@ import { useState } from "react";
 import "@midnight-ntwrk/dapp-connector-api";
 import type { InitialAPI } from "@midnight-ntwrk/dapp-connector-api";
 
+const listWallets = (): InitialAPI[] => {
+  const injected = window.midnight;
+  return injected ? Object.values(injected) : [];
+};
+
+const selectWallet = (): InitialAPI => {
+  const wallets = listWallets();
+
+  if (wallets.length === 0) {
+    throw new Error("No Midnight wallet found. Please install a Midnight wallet extension.");
+  }
+
+  return wallets[0];
+};
+
 export default function ConnectWalletButton() {
   const [connected, setConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
 
   const handleConnect = async () => {
     try {
-      // Access the Midnight Lace wallet through the window object
-      const wallet: InitialAPI = await window.midnight!.mnLace;
+      // Select a wallet from those injected under window.midnight
+      const wallet = selectWallet();
       
       // Connect to the specified network (use 'undeployed' for local development)
       const connectedApi = await wallet.connect('preprod');
@@ -134,8 +149,12 @@ This component manages the wallet connection flow:
 
 1. **Client-side rendering**: The `"use client"` directive ensures this component runs in the browser where wallet APIs are available.
 2. **State management**: Uses React's `useState` hook to track connection status and wallet address.
-3. **Connection logic**: The `handleConnect` function accesses the wallet through `window.midnight.mnLace`, connects to the specified network, and retrieves the wallet's shielded address.
+3. **Connection logic**: The `handleConnect` function selects a wallet with the `selectWallet` helper, connects to the specified network, and retrieves the wallet's shielded address.
 4. **User feedback**: Displays the wallet address (truncated) and provides connect/disconnect actions.
+
+Wallets inject their Initial API instances under the global `window.midnight` object, each keyed by a freshly generated UUID rather than a fixed name. A single browser may also have more than one wallet available at once. Because of this, the component reads the entries on `window.midnight` and chooses one, rather than reaching for a hardcoded key.
+
+The `selectWallet` function reads the installed wallets and returns the first one, which keeps this example focused on the connection flow. When more than one wallet is available, the DApp Connector API specification expects you to let the user choose rather than picking for them. Use `listWallets` to render the options, and when displaying each wallet, render its `name` and `icon` safely to prevent XSS.
 
 </Step>
 <Step>
@@ -267,12 +286,13 @@ This error occurs because Next.js tries to render components on the server by de
 
 ### Wallet not detected
 
-This error means the browser cannot access `window.midnight`, which indicates the Midnight Lace wallet extension is not available.
+This error means the browser cannot access `window.midnight`, or `selectWallet` throws `No Midnight wallet found`, which indicates that no Midnight wallet extension is available.
 
 **How to fix it**:
 
 - Verify the Midnight Lace wallet extension is installed and enabled.
 - Refresh the page after installing the extension.
+- Confirm you are reading the wallet from `window.midnight` by enumeration (`Object.values(window.midnight)`) and not from a fixed key such as `window.midnight.mnLace`. Wallets inject their Initial API under a UUID key, so a hardcoded name resolves to `undefined`.
 - Check the browser console for extension-related errors.
 - Ensure you're testing in a browser, not during server-side rendering.
 
