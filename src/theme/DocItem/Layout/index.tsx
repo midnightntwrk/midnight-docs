@@ -13,6 +13,7 @@ import DocBreadcrumbs from "@theme/DocBreadcrumbs";
 import EditThisPage from "@theme/EditThisPage";
 import styles from "./styles.module.css";
 import DocTools from "@site/src/components/DocTools";
+import { useCopyPageAsMarkdown } from "@site/src/components/CopyPageAsMarkdown";
 
 function useDocTOC() {
   const { frontMatter, toc } = useDoc();
@@ -29,6 +30,7 @@ function useDocTOC() {
 
 export default function DocItemLayout({ children }) {
   const docTOC = useDocTOC();
+  const copyPage = useCopyPageAsMarkdown();
   const { metadata, frontMatter } = useDoc();
   const { editUrl, unversionedId } = metadata as any;
   const showTools =
@@ -83,7 +85,9 @@ export default function DocItemLayout({ children }) {
               <div className={styles.breadcrumbsRight}>
                 <DocVersionBadge />
                 {showTools && <DocTools />}
+                {copyPage.button}
               </div>
+              {copyPage.status}
             </div>
             {editUrl && <div className={styles.topMeta}></div>}
             {docTOC.mobile}
