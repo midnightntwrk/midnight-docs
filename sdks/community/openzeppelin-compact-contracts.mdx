@@ -21,7 +21,7 @@ The library is modular: instead of inheriting a base contract, you import indivi
 
 The library is currently at version `0.2.0`. The project's own README calls the code highly experimental, and the maintainers explicitly state: **DO NOT USE IT IN PRODUCTION.** The repository's [audits folder](https://github.com/OpenZeppelin/compact-contracts/tree/main/audits) holds OpenZeppelin's audit report for version `0.1.0`. Version `0.2.0` includes changes made after that audit.
 
-Use these contracts for prototyping, learning, and Testnet development only.
+Use these contracts for prototyping, learning, and development on Preview and Preprod only.
 
 :::
 
@@ -121,7 +121,7 @@ The imports in your contract point to files in `node_modules`. Yarn 2 and later 
 
 Import individual modules into your `.compact` source with a prefix, then call their circuits as building blocks. Note the `prefix Pausable_;` convention: the prefix itself ends in `_`. Calling the internally underscored `_pause` circuit becomes `Pausable__pause()` - the double underscore is intentional.
 
-```compact
+```compact nocompile
 pragma language_version >= 0.21.0;
 
 import CompactStandardLibrary;
@@ -208,7 +208,7 @@ These patterns apply across the library and affect how you structure your contra
 
 - **Safe circuits reject contract-address recipients**: Version `0.2.0` targets compiler `0.29.0`, which predates [cross-contract calls](/compact/reference/compact-reference#cross-contract-calls) (they arrived with ledger version 9). Every module's safe path (e.g., `Ownable.transferOwnership`, `AccessControl.grantRole`, `FungibleToken.transfer`) therefore rejects `ContractAddress` recipients. Each module pairs the safe variant with `_unsafe*` circuits explicitly named to make the risk visible. The maintainers plan to deprecate the unsafe variants once the library supports cross-contract calls.
 
-- **Caller authorization comes in two flavors**: `Ownable`, `AccessControl`, and the token modules identify the caller by an account identifier. It is a `persistentHash` of a secret key that each module reads from its own witness, such as `wit_OwnableSK`. They do not rely on `ownPublicKey()`, in line with the [derived-identity pattern](/guides/security-best-practices#authenticating-a-caller-with-a-derived-identity). Unlike the example in that guide, the hash has no domain separator or per-contract salt. The identifier is therefore the same in every contract that uses the same key. Use a different key for each contract if the identities must not be linkable. `ZOwnablePK` and `ShieldedAccessControl` use a witness-derived secret combined with hashing and instance salts to verify the caller via commitments - never exposing the public key on-chain. `ZOwnablePK` still hashes `ownPublicKey()` into its owner identifier, so the secret nonce from its `wit_secretNonce` witness is what authenticates the caller. The privacy-preserving variants are the recommended choice when the contract should not reveal who its owners or role-holders are.
+- **Caller authorization comes in two flavors**: `Ownable`, `AccessControl`, and the token modules identify the caller by an account identifier. It is a `persistentHash` of a secret key that each module reads from its own witness, such as `wit_OwnableSK`. They do not rely on `ownPublicKey()`, in line with the [derived-identity pattern](/guides/security-best-practices#authenticating-a-caller-with-a-derived-identity). Unlike the example in that guide, the hash has no domain separator. Neither uses a per-contract salt, so the identifier is the same in every contract that uses the same key. Use a different key for each contract if the identities must not be linkable. `ZOwnablePK` and `ShieldedAccessControl` use a witness-derived secret combined with hashing and instance salts to verify the caller via commitments - never exposing the public key on-chain. `ZOwnablePK` still hashes `ownPublicKey()` into its owner identifier, so the secret nonce from its `wit_secretNonce` witness is what authenticates the caller. The privacy-preserving variants are the recommended choice when the contract should not reveal who its owners or role-holders are.
 
 - **`Either<Bytes<32>, ContractAddress>` is the canonical address type**: The `Utils.canonicalize` helper zeroes out the unused side of an `Either` to prevent crafted-input attacks where both sides carry data.
 
