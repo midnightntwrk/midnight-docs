@@ -23,10 +23,10 @@ on:
         default: 'main'
       branch_dapp_connector:
         description: 'DApp Connector branch'
-        default: 'main'
+        default: 'v4.0.1'
       branch_midnight_js:
         description: 'Midnight JS branch'
-        default: 'main'
+        default: 'v4.1.1'
       branch_ledger:
         description: 'Ledger branch'
         default: 'ledger-8.1.2'
@@ -38,7 +38,7 @@ on:
         default: 'main'
       branch_testkit_js:
         description: 'Testkit JS branch'
-        default: 'main'
+        default: 'v4.1.1'
       branch_onchain_runtime:
         description: 'Onchain Runtime branch'
         default: 'onchain-runtime-3.1.1'
@@ -59,7 +59,7 @@ jobs:
           INDEXER_SCHEMA_VERSION: ${{ github.event.inputs.indexer_schema_version }}
         run: |
           set -euo pipefail
-          # Reaches a path and a sed script in "Update midnight-indexer".
+          # Reaches a path in "Update midnight-indexer".
           [[ "$INDEXER_SCHEMA_VERSION" =~ ^v[0-9]+$ ]] \
             || { echo "::error::indexer_schema_version must look like v4, got: '$INDEXER_SCHEMA_VERSION'"; exit 1; }
           echo "Inputs validated."
@@ -176,21 +176,13 @@ jobs:
           cd temp
           git clone --branch "$BRANCH_INDEXER" https://github.com/midnightntwrk/midnight-indexer.git
           cd ..
-          DEST_DIR=api-reference/midnight-indexer
-          SRC_DIR="temp/midnight-indexer/docs/api/${INDEXER_SCHEMA_VERSION}"
           STATIC_DIR=static/midnight-indexer
-          rm -rf "${DEST_DIR}" || true
-          mkdir "${DEST_DIR}"
-          cp -r "${SRC_DIR}"/* "${DEST_DIR}"
-          mv "${DEST_DIR}/api-documentation.md" "${DEST_DIR}/README.md"
-          # Double-quoted so ${INDEXER_SCHEMA_VERSION} expands. Under single quotes it
-          # stayed literal, and ERE then read `${INDEX...}` as an interval expression
-          # after `$`: GNU sed exited 1 with "Invalid preceding regular expression",
-          # which under `bash -e` failed the whole step - the midnight-indexer path of
-          # this workflow could not complete. Safe to expand because "Validate inputs"
-          # pins the value to ^v[0-9]+$ before it reaches sed.
-          sed -E -i "s|\[\`indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}\.graphql\`\]\(.*\)|[midnight-indexer-api-schema](pathname:///midnight-indexer/schema-${INDEXER_SCHEMA_VERSION}.graphql)|g" "${DEST_DIR}/README.md"
+          # Copy only the schema. api-reference/midnight-indexer holds a curated
+          # README.md and pages generated from this schema by
+          # `yarn docusaurus graphql-to-doc`, which no build step runs. Replacing the
+          # folder with upstream's docs/api deleted the generated pages and the README.
           cp "temp/midnight-indexer/indexer-api/graphql/schema-${INDEXER_SCHEMA_VERSION}.graphql" "${STATIC_DIR}"
+          echo "::warning::Schema copied only. On the new branch, run 'yarn docusaurus graphql-to-doc' to regenerate api-reference/midnight-indexer, and review README.md by hand."
         env:
           BRANCH_INDEXER: ${{ github.event.inputs.branch_indexer }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
