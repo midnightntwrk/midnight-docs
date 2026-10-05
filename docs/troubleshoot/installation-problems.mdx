@@ -1,0 +1,130 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Troubleshoot installation problems
+description: Fix Midnight toolchain installation problems, such as a compact command that your shell cannot find, Docker not running, and port 6300 in use.
+sidebar_position: 13
+tags: [troubleshooting, installation, compact, docker, proof-server, errors]
+---
+
+# Troubleshoot installation problems
+
+Use this page when a step in [Install the toolchain](../getting-started/installation) fails. It covers three problems: your shell can't find the `compact` command, Docker isn't running, and port 6300 is already in use.
+
+## Compact command not found
+
+After you run the installer, your shell can't find the `compact` command. In zsh, the error looks like this:
+
+```text
+zsh: command not found: compact
+```
+
+In bash, the error reads `bash: compact: command not found`. On Ubuntu, including under WSL, it can read `compact: command not found` instead.
+
+**Cause**: By default, the installer puts the `compact` binary in `$HOME/.local/bin`. It also adds a line to your shell profile that puts that directory on your `PATH`. A terminal that was already open doesn't load the change.
+
+**Fix**: Open a new terminal, or load the change into the current one:
+
+```bash
+source $HOME/.local/bin/env
+```
+
+If a new terminal still can't find the command, then add the directory to your `PATH` yourself. Add this line to your shell profile, such as `~/.zshrc` or `~/.bashrc`, and open a new terminal:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+The installer prints the directory that it used on the line that starts with `installing to`. Use that directory if yours differs from `$HOME/.local/bin`.
+
+**Check**: Print the version of the Compact command-line tool:
+
+```bash
+compact --version
+```
+
+The command prints a version, such as `compact 0.5.3`.
+
+## Docker is not running
+
+When you start the proof server, `docker run` stops with an error such as one of these. The socket path in the message depends on your platform:
+
+```text
+docker: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
+
+```text
+docker: failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/run/docker.sock: connect: no such file or directory
+```
+
+**Cause**: The `docker` command can't reach the Docker engine, because Docker Desktop isn't running or is still starting.
+
+**Fix**: Start Docker Desktop and wait for the engine to start. Then check that the engine answers:
+
+```bash
+docker info
+```
+
+When the engine is ready, the `Server` section of the output lists the engine details, such as `Server Version`. If that section shows an error instead, then give Docker more time and run the command again.
+
+**Check**: Run the proof server command from [Set up the proof server](../getting-started/installation#set-up-the-proof-server) again. The proof server starts and logs that it listens on port 6300.
+
+## Port 6300 already in use
+
+When you start the proof server, Docker stops because something else already uses port 6300 on your machine. If another container holds the port, then the error ends with `port is already allocated`:
+
+```text
+docker: Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint confident_nobel (de6d18e2ae79b3089bb30e225669e63cf9cf336bec3bca83da0e0582e332a736): Bind for 0.0.0.0:6300 failed: port is already allocated
+```
+
+If a program outside Docker holds the port, then the error can end with `address already in use` instead:
+
+```text
+docker: Error response from daemon: ports are not available: exposing port TCP 0.0.0.0:6300 -> 127.0.0.1:0: listen tcp 0.0.0.0:6300: bind: address already in use
+```
+
+**Cause**: Another container or program already listens on port 6300. A proof server that you started earlier, on its own or as part of a local network, holds the port until you stop it. Starting a local network that includes a proof server fails with the same error while another proof server holds the port.
+
+**Fix**: Find what holds the port, then free it.
+
+1. List the containers that publish port 6300:
+
+   ```bash
+   docker ps --filter publish=6300
+   ```
+
+2. If the list is empty, then list the programs that listen on the port:
+
+   ```bash
+   lsof -nP -iTCP:6300 -sTCP:LISTEN
+   ```
+
+   On Linux, `ss -ltnp 'sport = :6300'` shows the same information. If the output is empty or names no program, then run the command again with `sudo`. Without it, a program that another user started doesn't appear.
+
+3. Stop the container with `docker stop <container-id>`, or quit the program that listens on the port. If the container is a proof server that you still need, then keep it and don't start a second one.
+
+4. Run the proof server command again.
+
+If you can't free port 6300, then publish the proof server on a different port of your machine. In `-p 6301:6300`, the first number is the port on your machine. The second number is the port inside the container, which stays 6300:
+
+```bash
+docker run -p 6301:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+```
+
+The proof server then answers at `http://localhost:6301`. Change the proof server address to match in every DApp, script, or tool that connects to it. [Proving transactions locally](../guides/local-proving) shows where a DApp sets that address. If you use the Lace wallet, then free port 6300 instead, because Lace connects to a local proof server only at `http://localhost:6300`.
+
+**Check**: Ask the proof server for its version. Use port 6301 if you changed the port:
+
+```bash
+curl http://127.0.0.1:6300/version
+```
+
+The command prints the version of the running proof server, such as `8.1.0`. If a different response comes back, then another program still answers on that port. Run the command in step 2 to find it.
+
+## Get help
+
+If these fixes don't solve your problem, then try one of these pages:
+
+- [Fix package repository access failures](../how-to/fix-package-repository-access-failures) covers `403 Forbidden` errors when you install `@midnight-ntwrk` packages.
+- [Troubleshoot Compact toolchain installation issue on NixOS](./troubleshoot-compact-nixos) covers Compact compiler 0.26 and earlier on NixOS.
+- [Support](./getting-help) explains how to ask for help on Discord or by email.
