@@ -42,8 +42,8 @@ A Midnight contract splits every interaction into a private part that runs on th
 - **`ledger` fields are public, on-chain contract state.** Anyone can read them.
 - **`circuit` definitions encode the rules.** The compiler turns them into zero-knowledge circuits, so a transaction proves that the rules held without showing the private inputs.
 - **`witness` functions run off-chain on the user's machine** and provide private data to the circuit, such as a secret key kept in local private state.
-- **The compiler enforces the boundary.** It rejects any program where private data crosses into public state, an exported circuit's return value, or a contract call without `disclose()`.
-- **Some actions always need `disclose()`.** The compiler treats ledger writes, unshielded token transfers, contract-to-contract calls, and the return values of exported circuits as places where private data leaves the proof. Ledger writes and unshielded transfers are visible on-chain. A return value is not written to the ledger or readable in the transaction, which carries only a randomized commitment to the call's inputs and outputs. The compiler still requires `disclose()` because the value leaves the circuit, to your DApp or to a calling contract.
+- **The compiler enforces the boundary.** It rejects any program where witness data, or a value derived from it, reaches public state, an exported circuit's return value, or a contract call without `disclose()`.
+- **Some actions always need `disclose()`.** The compiler treats ledger writes, unshielded token transfers, contract-to-contract calls (Compact toolchain 0.33.0 and later), and the return values of exported circuits as places where private data leaves the proof. Ledger writes and unshielded transfers are visible on-chain. A return value is not written to the ledger or readable in the transaction, which carries only a randomized commitment to the call's inputs and outputs. The compiler still requires `disclose()` when the returned value comes from a witness, because the value leaves the circuit, to your DApp or to a calling contract.
 
 `disclose()` does not publish a value by itself. It tells the compiler that you intend the value to cross into one of those positions. For the full model, read [Compact as a privacy-first language](../concepts/how-midnight-works/compact-privacy-first-language) and the public and private state overview in [What is Midnight?](../what-is-midnight).
 
@@ -685,8 +685,6 @@ The starter repository runs a local devnet in Docker: a Midnight node, an indexe
    yarn wait:dust
    ```
 
-   If the command fails with `vite-node: not found`, run `yarn add -D vite-node` once and retry.
-
 6. Run the tests:
 
    ```bash
@@ -763,7 +761,7 @@ For the deployment code behind these scripts and how to confirm a deployment in 
 ## Common mistakes
 
 - **Disclosing more than needed.** `disclose()` silences the compiler for whatever you wrap in it. Disclose the narrowest value that works, such as a hash, a commitment, or the result of a check, not the raw input.
-- **Returning private values from exported circuits.** A return value leaves the proof and goes to the code that called the circuit, so the compiler treats it like a ledger write and requires `disclose()`. Keep private values inside the circuit, and return nothing or a commitment.
+- **Returning private values from exported circuits.** A return value leaves the proof and goes to the code that called the circuit, so the compiler requires `disclose()` on any returned value derived from a witness. Keep private values inside the circuit, and return nothing or a commitment.
 - **Assuming unshielded transfers are private.** Unshielded tokens, including NIGHT, move in public. A contract that takes an unshielded payment reveals the payer and the amount.
 - **Storing raw personal data on the ledger instead of a commitment.** Every ledger field is public. Store a `persistentCommit` with a random value, and keep the data in private state. Anyone can reverse a plain hash of a guessable value by guessing.
 
