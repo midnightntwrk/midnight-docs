@@ -33,15 +33,15 @@ wallet-sdk-facade          Unified entry point
 
 | Package | Purpose |
 |---------|---------|
-| `@midnight-ntwrk/wallet-sdk-facade` | Unified API for all wallet operations |
-| `@midnight-ntwrk/wallet-sdk-unshielded-wallet` | Manages NIGHT and unshielded tokens |
-| `@midnight-ntwrk/wallet-sdk-shielded` | Manages shielded tokens with ZK proofs |
-| `@midnight-ntwrk/wallet-sdk-dust-wallet` | Manages DUST for transaction fees |
-| `@midnight-ntwrk/wallet-sdk-hd` | Hierarchical deterministic key derivation |
-| `@midnight-ntwrk/wallet-sdk-address-format` | Bech32m address encoding and decoding |
-| `@midnight-ntwrk/wallet-sdk-node-client` | Communicates with Midnight nodes |
-| `@midnight-ntwrk/wallet-sdk-indexer-client` | Queries the Midnight indexer |
-| `@midnight-ntwrk/wallet-sdk-prover-client` | Interfaces with the proving server |
+| `@midnightntwrk/wallet-sdk-facade` | Unified API for all wallet operations |
+| `@midnightntwrk/wallet-sdk-unshielded-wallet` | Manages NIGHT and unshielded tokens |
+| `@midnightntwrk/wallet-sdk-shielded` | Manages shielded tokens with ZK proofs |
+| `@midnightntwrk/wallet-sdk-dust-wallet` | Manages DUST for transaction fees |
+| `@midnightntwrk/wallet-sdk-hd` | Hierarchical deterministic key derivation |
+| `@midnightntwrk/wallet-sdk-address-format` | Bech32m address encoding and decoding |
+| `@midnightntwrk/wallet-sdk-node-client` | Communicates with Midnight nodes |
+| `@midnightntwrk/wallet-sdk-indexer-client` | Queries the Midnight indexer |
+| `@midnightntwrk/wallet-sdk-prover-client` | Interfaces with the proving server |
 
 ## Wallet Facade
 
@@ -50,8 +50,8 @@ The facade coordinates all three wallet types and provides a unified interface f
 ### Initialize
 
 ```typescript
-import { type DefaultConfiguration } from '@midnight-ntwrk/wallet-sdk-facade';
-import { InMemoryTransactionHistoryStorage } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet';
+import { type DefaultConfiguration, WalletEntrySchema, mergeWalletEntries } from '@midnightntwrk/wallet-sdk-facade';
+import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-abstractions';
 
 const configuration: DefaultConfiguration = {
   networkId: 'preprod',
@@ -64,7 +64,7 @@ const configuration: DefaultConfiguration = {
     indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
     indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
   },
-  txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
 };
 
 const wallet = await WalletFacade.init({
@@ -166,7 +166,7 @@ Derives all three key types from a single seed using BIP 32 / BIP 44 / CIP 1852 
 
 ```typescript
 import * as ledger from '@midnight-ntwrk/ledger-v8';
-import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd';
+import { HDWallet, Roles } from '@midnightntwrk/wallet-sdk-hd';
 
 function deriveRoleKey(accountKey, role, addressIndex = 0) {
   const result = accountKey.selectRole(role).deriveKeyAt(addressIndex);
@@ -196,7 +196,7 @@ import {
   DustAddress,
   ShieldedCoinPublicKey,
   ShieldedEncryptionPublicKey,
-} from '@midnight-ntwrk/wallet-sdk-address-format';
+} from '@midnightntwrk/wallet-sdk-address-format';
 import * as ledger from '@midnight-ntwrk/ledger-v8';
 
 const networkId = 'preprod';
@@ -315,7 +315,7 @@ await bobWallet
 Use WASM-based proving when HTTP access to a proving server is not available.
 
 ```typescript
-import { makeWasmProvingService } from '@midnight-ntwrk/wallet-sdk-capabilities';
+import { makeWasmProvingService } from '@midnightntwrk/wallet-sdk-capabilities';
 
 const wallet = await WalletFacade.init({
   configuration,
