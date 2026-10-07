@@ -23,9 +23,25 @@ type Block {
 	"""
 	author: HexEncoded
 	"""
+	The hex-encoded serialized zswap state Merkle tree root.
+	"""
+	zswapMerkleTreeRoot: HexEncoded!
+	"""
 	The hex-encoded ledger parameters for this block.
 	"""
 	ledgerParameters: HexEncoded!
+	"""
+	The zswap commitment tree end index at this block; exclusive, i.e. the next free index.
+	"""
+	zswapEndIndex: Int!
+	"""
+	The dust commitment tree end index at this block; exclusive, i.e. the next free index.
+	"""
+	dustCommitmentEndIndex: Int! @beta
+	"""
+	The dust generation tree end index at this block; exclusive, i.e. the next free index.
+	"""
+	dustGenerationEndIndex: Int! @beta
 	"""
 	The parent of this block.
 	"""
@@ -38,6 +54,14 @@ type Block {
 	The system parameters (governance) at this block height.
 	"""
 	systemParameters: SystemParameters!
+	"""
+	The hex-encoded dust commitment Merkle tree root at the latest indexed state.
+	"""
+	dustCommitmentMerkleTreeRoot: HexEncoded
+	"""
+	The hex-encoded dust generation Merkle tree root at the latest indexed state.
+	"""
+	dustGenerationMerkleTreeRoot: HexEncoded
 }
 
 """
@@ -56,13 +80,16 @@ input BlockOffset @oneOf {
 
 scalar CardanoRewardAddress
 
+"""
+A Merkle tree collapsed update between two indices.
+"""
 type CollapsedMerkleTree {
 	"""
-	The zswap state start index.
+	The start index.
 	"""
 	startIndex: Int!
 	"""
-	The zswap state end index.
+	The end index.
 	"""
 	endIndex: Int!
 	"""
@@ -86,6 +113,16 @@ type CommitteeMember {
 	auraPubkeyHex: String
 	poolIdHex: String
 	spoSkHex: String
+}
+
+"""
+Options for the connect mutation.
+"""
+input ConnectOptions {
+	"""
+	Transaction index to start searching for relevant transactions (inclusive).
+	"""
+	startIndex: Int
 }
 
 """
@@ -277,6 +314,43 @@ type DustGenerationDtimeUpdate implements DustLedgerEvent {
 }
 
 """
+A dust generation dtime update emitted when the backing Night UTXO is
+spent and the entry's decay time is set.
+"""
+type DustGenerationDtimeUpdateItem @beta {
+	"""
+	Generation-tree index of the entry whose dtime changed.
+	"""
+	generationMtIndex: Int!
+	"""
+	The hex-encoded owner (dust address).
+	"""
+	owner: HexEncoded!
+	"""
+	Hex-encoded hash of the NIGHT UTXO that backs this dust output.
+	"""
+	nightUtxoHash: HexEncoded!
+	"""
+	The decay time as observed in this ledger event.
+	"""
+	newDtime: Int!
+	"""
+	The originating transaction ID (indexer-internal BIGSERIAL).
+	"""
+	transactionId: Int!
+	"""
+	The hex-encoded originating transaction hash (32-byte chain identifier).
+	"""
+	transactionHash: HexEncoded!
+	"""
+	Hex-encoded tagged-serialised `TreeInsertionPath<DustGenerationInfo>`
+	from the originating ledger event. Wallets deserialise this and hand
+	it to `generating_tree.update_from_evidence(...)`.
+	"""
+	treeInsertionPath: HexEncoded!
+}
+
+"""
 DUST generation status for a specific Cardano reward address.
 """
 type DustGenerationStatus {
@@ -318,6 +392,85 @@ type DustGenerationStatus {
 	utxoOutputIndex: Int
 }
 
+"""
+Dust generations for a Cardano reward address.
+"""
+type DustGenerations {
+	"""
+	The Bech32-encoded Cardano reward address.
+	"""
+	cardanoRewardAddress: CardanoRewardAddress!
+	"""
+	All active registrations with aggregated generation stats.
+	"""
+	registrations: [DustRegistration!]!
+}
+
+"""
+An event of the dust generations subscription.
+"""
+union DustGenerationsEvent = DustGenerationsItem | DustGenerationsProgress | DustGenerationDtimeUpdateItem
+
+"""
+A dust generations item with optional collapsed Merkle tree update.
+"""
+type DustGenerationsItem @beta {
+	"""
+	Index of this output in the dust commitment Merkle tree.
+	"""
+	commitmentMtIndex: Int!
+	"""
+	Index of this output in the dust generation Merkle tree.
+	"""
+	generationMtIndex: Int!
+	"""
+	The hex-encoded owner (dust address).
+	"""
+	owner: HexEncoded!
+	"""
+	The NIGHT value backing this output, in STAR.
+	"""
+	value: String!
+	"""
+	The DUST value at creation, in SPECK.
+	"""
+	initialValue: String!
+	"""
+	Hex-encoded hash of the NIGHT UTXO that backs this dust output.
+	"""
+	backingNight: HexEncoded!
+	"""
+	The creation timestamp.
+	"""
+	ctime: Int!
+	"""
+	The originating transaction ID (indexer-internal BIGSERIAL).
+	"""
+	transactionId: Int!
+	"""
+	The hex-encoded originating transaction hash (32-byte chain identifier).
+	"""
+	transactionHash: HexEncoded!
+	"""
+	Collapsed Merkle tree update filling the gap before this entry.
+	"""
+	collapsedMerkleTree: MerkleTreeCollapsedUpdate
+}
+
+"""
+Progress indicator for dust generations subscription (includes final collapsed update).
+"""
+type DustGenerationsProgress @beta {
+	"""
+	The highest index processed so far.
+	"""
+	highestIndex: Int!
+	"""
+	Final collapsed Merkle tree update covering remaining range.
+	"""
+	collapsedMerkleTree: MerkleTreeCollapsedUpdate
+}
+
 type DustInitialUtxo implements DustLedgerEvent {
 	"""
 	The ID of this dust ledger event.
@@ -352,6 +505,40 @@ interface DustLedgerEvent {
 }
 
 """
+A transaction containing a dust nullifier match with block context.
+"""
+type DustNullifierTransaction {
+	"""
+	The hex-encoded matched nullifier, in 32-byte little-endian form.
+	"""
+	nullifierLeBytes: HexEncoded! @beta
+	"""
+	The hex-encoded commitment, in 32-byte little-endian form.
+	"""
+	commitmentLeBytes: HexEncoded! @beta
+	"""
+	The transaction ID (indexer-internal BIGSERIAL, use as resumption cursor).
+	"""
+	transactionId: Int!
+	"""
+	The hex-encoded transaction hash (32-byte chain identifier).
+	"""
+	transactionHash: HexEncoded!
+	"""
+	The block height containing this transaction.
+	"""
+	blockHeight: Int!
+	"""
+	The hex-encoded block hash (use to query block with ledger parameters).
+	"""
+	blockHash: HexEncoded!
+	"""
+	The transaction containing this nullifier match.
+	"""
+	transaction: Transaction! @beta
+}
+
+"""
 A dust output.
 """
 type DustOutput {
@@ -359,6 +546,44 @@ type DustOutput {
 	The hex-encoded 32-byte nonce.
 	"""
 	nonce: HexEncoded!
+}
+
+"""
+A single dust registration with aggregated generation stats.
+"""
+type DustRegistration {
+	"""
+	The Bech32m-encoded DUST address.
+	"""
+	dustAddress: DustAddress!
+	"""
+	Whether this registration is valid.
+	"""
+	valid: Boolean!
+	"""
+	NIGHT balance backing generation in STAR.
+	"""
+	nightBalance: String!
+	"""
+	DUST generation rate in SPECK per second.
+	"""
+	generationRate: String!
+	"""
+	Maximum DUST capacity in SPECK.
+	"""
+	maxCapacity: String!
+	"""
+	Current generated DUST capacity in SPECK.
+	"""
+	currentCapacity: String!
+	"""
+	Cardano UTXO transaction hash.
+	"""
+	utxoTxHash: HexEncoded
+	"""
+	Cardano UTXO output index.
+	"""
+	utxoOutputIndex: Int
 }
 
 type DustSpendProcessed implements DustLedgerEvent {
@@ -413,11 +638,33 @@ type FirstValidEpoch {
 
 scalar HexEncoded
 
+"""
+A Merkle tree collapsed update between two indices.
+"""
+type MerkleTreeCollapsedUpdate {
+	"""
+	The start index.
+	"""
+	startIndex: Int!
+	"""
+	The end index.
+	"""
+	endIndex: Int!
+	"""
+	The hex-encoded value.
+	"""
+	update: HexEncoded!
+	"""
+	The protocol version.
+	"""
+	protocolVersion: Int!
+}
+
 type Mutation {
 	"""
 	Connect the wallet with the given viewing key and return a session ID.
 	"""
-	connect(viewingKey: ViewingKey!): HexEncoded!
+	connect(viewingKey: ViewingKey!, options: ConnectOptions): HexEncoded!
 	"""
 	Disconnect the wallet with the given session ID.
 	"""
@@ -471,6 +718,10 @@ type Query {
 	"""
 	block(offset: BlockOffset): Block
 	"""
+	Get a Merkle tree collapsed update for the given zswap state index range.
+	"""
+	zswapMerkleTreeCollapsedUpdate(startIndex: Int!, endIndex: Int!): MerkleTreeCollapsedUpdate!
+	"""
 	Find transactions for the given offset.
 	"""
 	transactions(offset: TransactionOffset!): [Transaction!]!
@@ -482,6 +733,19 @@ type Query {
 	Get DUST generation status for specific Cardano reward addresses.
 	"""
 	dustGenerationStatus(cardanoRewardAddresses: [CardanoRewardAddress!]!): [DustGenerationStatus!]!
+	"""
+	Get all active DUST registrations and aggregated generation stats for Cardano reward
+	addresses.
+	"""
+	dustGenerations(cardanoRewardAddresses: [CardanoRewardAddress!]!): [DustGenerations!]!
+	"""
+	Get a collapsed Merkle tree update for the dust commitment tree.
+	"""
+	dustCommitmentMerkleTreeUpdate(startIndex: Int!, endIndex: Int!): MerkleTreeCollapsedUpdate! @beta
+	"""
+	Get a collapsed Merkle tree update for the dust generation tree.
+	"""
+	dustGenerationMerkleTreeUpdate(startIndex: Int!, endIndex: Int!): MerkleTreeCollapsedUpdate! @beta
 	"""
 	Get the full history of D-parameter changes for governance auditability.
 	"""
@@ -622,21 +886,53 @@ type RegularTransaction implements Transaction {
 	"""
 	identifiers: [HexEncoded!]!
 	"""
-	The hex-encoded serialized merkle-tree root.
+	The hex-encoded serialized zswap state Merkle tree root.
 	"""
-	merkleTreeRoot: HexEncoded!
+	zswapMerkleTreeRoot: HexEncoded!
 	"""
-	The zswap state start index.
+	The hex-encoded serialized zswap state Merkle tree root.
 	"""
-	startIndex: Int!
+	merkleTreeRoot: HexEncoded! @deprecated(reason: "Use zswapMerkleTreeRoot instead")
 	"""
-	The zswap state end index.
+	The start index into the zswap state.
 	"""
-	endIndex: Int!
+	zswapStartIndex: Int!
+	"""
+	The start index into the zswap state.
+	"""
+	startIndex: Int! @deprecated(reason: "Use zswapStartIndex instead")
+	"""
+	The end index into the zswap state; exclusive, i.e. the next free index.
+	"""
+	zswapEndIndex: Int!
+	"""
+	The end index into the zswap state; exclusive, i.e. the next free index.
+	"""
+	endIndex: Int! @deprecated(reason: "Use zswapEndIndex instead")
+	"""
+	The dust commitment tree start index.
+	"""
+	dustCommitmentStartIndex: Int! @beta
+	"""
+	The dust commitment tree end index.
+	"""
+	dustCommitmentEndIndex: Int! @beta
+	"""
+	The dust generation tree start index.
+	"""
+	dustGenerationStartIndex: Int! @beta
+	"""
+	The dust generation tree end index.
+	"""
+	dustGenerationEndIndex: Int! @beta
+	"""
+	The fee for this transaction in SPECK (atomic unit of DUST).
+	"""
+	fee: String!
 	"""
 	Fee information for this transaction.
 	"""
-	fees: TransactionFees!
+	fees: TransactionFees! @deprecated(reason: "Use fee instead")
 	"""
 	The block for this transaction.
 	"""
@@ -664,7 +960,8 @@ type RegularTransaction implements Transaction {
 }
 
 """
-A transaction relevant for the subscribing wallet and an optional collapsed merkle tree.
+A transaction relevant for the subscribing wallet and an optional zswap state Merkle tree
+collapsed update.
 """
 type RelevantTransaction {
 	"""
@@ -672,9 +969,15 @@ type RelevantTransaction {
 	"""
 	transaction: RegularTransaction!
 	"""
-	An optional collapsed merkle tree.
+	Only include a zswap state Merkle tree collapsed update if there is a gap between the
+	current zswap index "driving" the subscription and the zswap start index of the
+	transaction.
 	"""
-	collapsedMerkleTree: CollapsedMerkleTree
+	zswapCollapsedUpdate: MerkleTreeCollapsedUpdate
+	"""
+	An optional collapsed Merkle tree.
+	"""
+	collapsedMerkleTree: CollapsedMerkleTree @deprecated(reason: "Use zswapCollapsedUpdate instead")
 }
 
 """
@@ -693,6 +996,36 @@ type Segment {
 }
 
 """
+A transaction containing a shielded (zswap) nullifier match with block context.
+"""
+type ShieldedNullifierTransaction {
+	"""
+	The transaction ID (indexer-internal BIGSERIAL, use as resumption cursor).
+	"""
+	transactionId: Int!
+	"""
+	The hex-encoded transaction hash (32-byte chain identifier).
+	"""
+	transactionHash: HexEncoded!
+	"""
+	The hex-encoded block hash (use to query block with ledger parameters).
+	"""
+	blockHash: HexEncoded!
+	"""
+	The block height containing this transaction.
+	"""
+	blockHeight: Int!
+	"""
+	The hex-encoded matched nullifier.
+	"""
+	nullifier: HexEncoded!
+	"""
+	The transaction containing this nullifier match.
+	"""
+	transaction: Transaction! @beta
+}
+
+"""
 An event of the shielded transactions subscription.
 """
 union ShieldedTransactionsEvent = RelevantTransaction | ShieldedTransactionsProgress
@@ -702,25 +1035,45 @@ Information about the shielded transactions indexing progress.
 """
 type ShieldedTransactionsProgress {
 	"""
-	The highest zswap state end index (see `endIndex` of `Transaction`) of all transactions. It
-	represents the known state of the blockchain. A value of zero (completely unlikely) means
-	that no shielded transactions have been indexed yet.
+	The highest end index into the zswap state for all transactions. It represents the known
+	state of the blockchain. A value of zero (completely unlikely) means that no shielded
+	transactions have been indexed yet.
 	"""
-	highestEndIndex: Int!
+	highestZswapEndIndex: Int!
 	"""
-	The highest zswap state end index (see `endIndex` of `Transaction`) of all transactions
-	checked for relevance. Initially less than and eventually (when some wallet has been fully
-	indexed) equal to `highest_end_index`. A value of zero (very unlikely) means that no wallet
+	The highest end index into the zswap state for all transactions. It represents the known
+	state of the blockchain. A value of zero (completely unlikely) means that no shielded
+	transactions have been indexed yet.
+	"""
+	highestEndIndex: Int! @deprecated(reason: "Use highestZswapEndIndex instead")
+	"""
+	The highest highest end index into the zswap state for all transactions checked for
+	relevance. Initially less than and eventually (when some wallet has been fully indexed)
+	equal to `highest_end_index`. A value of zero (very unlikely) means that no wallet
 	has subscribed before and indexing for the subscribing wallet has not yet started.
 	"""
-	highestCheckedEndIndex: Int!
+	highestCheckedZswapEndIndex: Int!
 	"""
-	The highest zswap state end index (see `endIndex` of `Transaction`) of all relevant
-	transactions for the subscribing wallet. Usually less than `highest_checked_end_index`
-	unless the latest checked transaction is relevant for the subscribing wallet. A value of
-	zero means that no relevant transactions have been indexed for the subscribing wallet.
+	The highest highest end index into the zswap state for all transactions checked for
+	relevance. Initially less than and eventually (when some wallet has been fully indexed)
+	equal to `highest_end_index`. A value of zero (very unlikely) means that no wallet
+	has subscribed before and indexing for the subscribing wallet has not yet started.
 	"""
-	highestRelevantEndIndex: Int!
+	highestCheckedEndIndex: Int! @deprecated(reason: "Use highestCheckedZswapEndIndex instead")
+	"""
+	The highest highest end index into the zswap state for all relevant transactions for the
+	subscribing wallet. Usually less than `highest_checked_end_index` unless the latest
+	checked transaction is relevant for the subscribing wallet. A value of zero means that
+	no relevant transactions have been indexed for the subscribing wallet.
+	"""
+	highestRelevantZswapEndIndex: Int!
+	"""
+	The highest highest end index into the zswap state for all relevant transactions for the
+	subscribing wallet. Usually less than `highest_checked_end_index` unless the latest
+	checked transaction is relevant for the subscribing wallet. A value of zero means that
+	no relevant transactions have been indexed for the subscribing wallet.
+	"""
+	highestRelevantEndIndex: Int! @deprecated(reason: "Use highestRelevantZswapEndIndex instead")
 }
 
 """
@@ -825,9 +1178,28 @@ type Subscription {
 	"""
 	contractActions(address: HexEncoded!, offset: BlockOffset): ContractAction!
 	"""
+	Subscribe to dust generation entries for a dust address in `[start_index, end_index]`
+	inclusive. `dustGenerationEndIndex` is exclusive, pass `dustGenerationEndIndex - 1`.
+	Entries interleaved with collapsed Merkle tree updates and owned-entry dtime updates.
+	"""
+	dustGenerations(dustAddress: DustAddress!, startIndex: Int!, endIndex: Int!): DustGenerationsEvent! @beta
+	"""
 	Subscribe to dust ledger events starting at the given ID or at the very start if omitted.
 	"""
 	dustLedgerEvents(id: Int): DustLedgerEvent!
+	"""
+	Subscribe to transactions containing dust nullifiers whose 32-byte little-endian form
+	starts with one of the provided prefixes. Returns transaction and block references for
+	the wallet to fetch full data. If `toBlock` is specified, the subscription finishes
+	after reaching that block.
+	"""
+	dustNullifierTransactions(nullifierLeBytesPrefixes: [HexEncoded!]!, fromBlock: Int, toBlock: Int): DustNullifierTransaction!
+	"""
+	Subscribe to transactions containing shielded (zswap) nullifiers matching the provided
+	prefixes. Returns transaction and block references for wallet to fetch full data.
+	If `toBlock` is specified, the subscription finishes after reaching that block.
+	"""
+	shieldedNullifierTransactions(nullifierPrefixes: [HexEncoded!]!, fromBlock: Int, toBlock: Int): ShieldedNullifierTransaction!
 	"""
 	Subscribe to shielded transaction events for the given session ID starting at the given
 	index or at zero if omitted.
@@ -961,17 +1333,17 @@ interface Transaction {
 }
 
 """
-Fees information for a transaction, including both paid and estimated fees.
+Fees information for a transaction.
 """
 type TransactionFees {
 	"""
-	The actual fees paid for this transaction in DUST.
+	The fees for this transaction in SPECK (atomic unit of DUST).
 	"""
 	paidFees: String!
 	"""
-	The estimated fees that was calculated for this transaction in DUST.
+	The fees for this transaction in SPECK (atomic unit of DUST).
 	"""
-	estimatedFees: String!
+	estimatedFees: String! @deprecated(reason: "Use paidFees instead")
 }
 
 """
@@ -1113,6 +1485,19 @@ type ZswapLedgerEvent {
 	protocolVersion: Int!
 }
 
+"""
+Marks a schema field or type as in-flight / unstable. Consumers should
+expect the marked surface to change without notice; stability is signalled
+by removal of the directive.
+
+Currently used for the dust-generation API surface that's in mid-redesign
+pending #1181. See #1173.
+"""
+directive @beta on FIELD_DEFINITION | OBJECT
+"""
+Marks an element of a GraphQL schema as no longer supported.
+"""
+directive @deprecated(reason: String = "No longer supported") on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | ENUM_VALUE
 """
 Directs the executor to include this field or fragment only when the `if` argument is true.
 """

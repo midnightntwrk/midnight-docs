@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -28,7 +28,7 @@ new VmStack(): VmStack;
 ### get()
 
 ```ts
-get(idx): undefined | StateValue;
+get(idx): StateValue | undefined;
 ```
 
 #### Parameters
@@ -39,14 +39,14 @@ get(idx): undefined | StateValue;
 
 #### Returns
 
-`undefined` \| [`StateValue`](StateValue.md)
+[`StateValue`](StateValue.md) \| `undefined`
 
 ***
 
 ### isStrong()
 
 ```ts
-isStrong(idx): undefined | boolean;
+isStrong(idx): boolean | undefined;
 ```
 
 #### Parameters
@@ -57,7 +57,7 @@ isStrong(idx): undefined | boolean;
 
 #### Returns
 
-`undefined` \| `boolean`
+`boolean` \| `undefined`
 
 ***
 
