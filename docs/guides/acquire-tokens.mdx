@@ -20,7 +20,7 @@ One term matters throughout. You **register** NIGHT for DUST generation, the on-
 
 These apply to every procedure in this guide:
 
-- A [Lace wallet](../getting-started/installation) set up on the target test network, for the faucet and Lace procedures.
+- A [Lace wallet](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) set up on the target test network, for the faucet and Lace procedures.
 - Node.js version 22 or higher, for the wallet SDK procedure. macOS, Linux, and Windows through WSL all work.
 - A local [proof server](./run-proof-server) on port 6300, for the wallet SDK procedure.
 - [Vitest](https://vitest.dev/) alongside the packages listed below, if you want to run the verification tests.
@@ -204,7 +204,7 @@ Turn a seed into a running wallet. Midnight wallets are three sub-wallets, shiel
    const keys = deriveKeys(seed);
    ```
 
-2. Build the three sub-wallets and unify them behind the `WalletFacade`. The DUST wallet requires `costParameters`: `feeBlocksMargin` sets how many blocks of finalization the fee estimate allows for, and `additionalFeeOverhead` is an optional buffer added on top of the computed fee, which defaults to `0n` if you omit it:
+2. Build the three sub-wallets and unify them behind the `WalletFacade`. The DUST wallet requires `costParameters`: `feeBlocksMargin` sets how many blocks of finalization the fee estimate allows for, and `additionalFeeOverhead` is an optional amount that the wallet adds to every fee it declares, which defaults to `0n` if you omit it. A DUST spend has no refund, so the wallet spends the whole declared fee, overhead included:
 
    ```typescript
    const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
@@ -231,7 +231,7 @@ Turn a seed into a running wallet. Midnight wallets are three sub-wallets, shiel
    const dustConfig = {
      ...shieldedConfig,
      costParameters: {
-       // Optional buffer added on top of the computed fee. Defaults to 0n.
+       // Optional amount added to every fee the wallet declares. A DUST spend does not return it. Defaults to 0n.
        additionalFeeOverhead: 300_000_000_000_000n, // 0.3 DUST
        // Blocks to allow for finalization when estimating the fee.
        feeBlocksMargin: 5,
@@ -418,7 +418,7 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
    console.log(`tNIGHT received: ${formatNight(nightBalance)}`);
    ```
 
-2. Wait for the wallet to sync, then register the unregistered NIGHT UTXOs for DUST generation. Registration needs a fully synced wallet, so `waitForSyncedState` gates this step; keep the process running, because a restarted script syncs again from the beginning. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
+2. Wait for the wallet to sync, then register the unregistered NIGHT UTXOs for DUST generation. Registration needs a fully synced wallet, so `waitForSyncedState` gates this step; keep the process running, because a restarted script syncs again from the beginning. A first registration pays its own fee from the DUST that the NIGHT would have generated since it arrived. `estimateRegistration` returns the amount to reach, and `waitForGeneratedDust` waits until a UTXO has generated it. Without the wait, a registration built too soon after the funds arrive throws before the wallet signs anything. [Registration rules](./manage-dust#registration-rules) covers a UTXO that is too small or too new. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
 
    ```typescript
    const state = await wallet.waitForSyncedState();
@@ -433,6 +433,10 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
      // Send the DUST elsewhere by replacing this with another wallet's address.
      const target = String(DustAddress.encodePublicKey(getNetworkId(), state.dust.publicKey));
      const dustReceiver = MidnightBech32m.parse(target).decode(DustAddress, getNetworkId());
+
+     // Wait until the NIGHT has generated enough DUST to pay the registration's own fee.
+     const { fee } = await wallet.estimateRegistration(unregistered);
+     await wallet.waitForGeneratedDust(unregistered, fee);
 
      const recipe = await wallet.registerNightUtxosForDustGeneration(
        unregistered,
@@ -529,6 +533,7 @@ The failure modes readers hit most often on the funding path, and their fixes.
 
 ## Additional resources
 
+- [Managing DUST for transaction fees](./manage-dust): reading DUST parameters and balances, estimating fees, and sending several transactions once the wallet has DUST.
 - [Funding and transaction cost](./networks-and-environments#funding-and-transaction-cost): why NIGHT generates DUST and what transactions consume.
 - [Environment reference](./networks-and-environments#environment-reference): faucets and endpoints per network.
 - [Run the proof server](./run-proof-server): the local proof server the SDK path depends on.
