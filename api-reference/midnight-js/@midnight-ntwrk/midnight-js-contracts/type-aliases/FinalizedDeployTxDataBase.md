@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -23,3 +23,11 @@ The data of this transaction that is visible on the blockchain.
 ### C
 
 `C` *extends* `Contract.Any`
+
+## Remarks
+
+**Privacy-sensitive type.** Inherits [UnsubmittedDeployTxDataBase](UnsubmittedDeployTxDataBase.md)'s
+`private` field (signing key, initial private state). Treat as confidential
+when logging, serializing, or transmitting: destructure only the
+non-sensitive fields (`public.txId`, `public.blockHeight`, etc.) rather
+than spreading or stringifying the whole object.

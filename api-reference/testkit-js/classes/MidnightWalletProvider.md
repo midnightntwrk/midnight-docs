@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/testkit-js v4.0.4**](../README.md)
+[**@midnight-ntwrk/testkit-js v4.1.0**](../README.md)
 
 ***
 
@@ -106,17 +106,13 @@ The transaction to balance.
 
 ### start()
 
-> **start**(`waitForFundsInWallet?`, `tokenType?`): `Promise`\<`void`\>
+> **start**(`waitForFundsInWallet?`): `Promise`\<`void`\>
 
 #### Parameters
 
 ##### waitForFundsInWallet?
 
 `boolean` = `true`
-
-##### tokenType?
-
-`TokenType` = `...`
 
 #### Returns
 
