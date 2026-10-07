@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -43,6 +43,13 @@ Configuration.
 
 When transaction fails in either guaranteed or fallible phase.
         The error contains the finalized transaction data for debugging.
+
+## Remarks
+
+The returned [FinalizedDeployTxData](../type-aliases/FinalizedDeployTxData.md) is privacy-sensitive and carries
+the unproven transaction, signing key, and initial private state. See that
+type for handling guidance before logging, serializing, or transmitting the
+result.
 
 ## Call Signature
 

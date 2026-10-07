@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 ```ts
 type ProvingProvider = {
-  check: Promise<(undefined | bigint)[]>;
+  check: Promise<(bigint | undefined)[]>;
   prove: Promise<Uint8Array<ArrayBufferLike>>;
 };
 ```
@@ -18,7 +18,7 @@ type ProvingProvider = {
 ### check()
 
 ```ts
-check(serializedPreimage, keyLocation): Promise<(undefined | bigint)[]>;
+check(serializedPreimage, keyLocation): Promise<(bigint | undefined)[]>;
 ```
 
 #### Parameters
@@ -33,7 +33,7 @@ check(serializedPreimage, keyLocation): Promise<(undefined | bigint)[]>;
 
 #### Returns
 
-`Promise`\<(`undefined` \| `bigint`)[]\>
+`Promise`\<(`bigint` \| `undefined`)[]\>
 
 ***
 
