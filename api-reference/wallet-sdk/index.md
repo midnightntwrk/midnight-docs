@@ -53,16 +53,21 @@ The facade coordinates all three wallet types and provides a unified interface f
 import { type DefaultConfiguration, WalletEntrySchema, mergeWalletEntries } from '@midnightntwrk/wallet-sdk-facade';
 import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-abstractions';
 
+// The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
 const configuration: DefaultConfiguration = {
   networkId: 'preprod',
   costParameters: {
     feeBlocksMargin: 5,
   },
-  relayURL: new URL('wss://rpc.preprod.midnight.network'),
+  relayURL: new URL(withBlockfrostKey('wss://rpc.midnight-preprod.blockfrost.io')),
   provingServerUrl: new URL('http://localhost:6300'),
   indexerClientConnection: {
-    indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-    indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+    indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+    indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
   },
   txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
 };
