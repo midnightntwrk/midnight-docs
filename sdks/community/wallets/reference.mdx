@@ -46,7 +46,7 @@ These are the granular tie-breakers, for once the [matrix](./wallets-overview.md
 
 | Wallet | In-browser / on-device proving | Local prover needed | `getProvingProvider` | Gas sponsorship |
 |---|---|---|---|---|
-| Lace | No | Yes | No | No |
+| Lace | No | Yes | Yes (2.1.0 and later, through the local proof server) | No |
 | 1AM | Yes (WASM; Halo2/BLS12-381) | No | Yes | Not documented |
 | Kuira | Yes (on-device, mobile) | No | n/a | Not documented |
 | urble | Not documented | Not documented | Not documented | Not documented |
@@ -58,8 +58,8 @@ These are the granular tie-breakers, for once the [matrix](./wallets-overview.md
 
 | Wallet | DApp Connector | `signData` | Dedicated SDK | DApp browser | Hardware wallet | Cardano / multi-chain | Staking |
 |---|---|---|---|---|---|---|---|
-| Lace | Yes (`mnLace`) | No | No | n/a | Yes (Cardano) | Yes | Yes (Cardano) |
-| 1AM | Yes (`'1am'`) | Yes | Announced / Not documented | Yes | Not documented | Yes (Cardano, CIP-30) | Not documented |
+| Lace | Yes (UUID key, `rdns` `io.lace.wallet`) | Yes | No | n/a | Yes (Cardano) | Yes | Yes (Cardano) |
+| 1AM | Yes (key `1am`, `rdns` `com.midnight.1am`) | Yes | Announced / Not documented | Yes | Not documented | Yes (Cardano, CIP-30) | Not documented |
 | Kuira | Not documented | Not documented | Yes (Android, public docs) | n/a | Not documented | No | Not documented |
 | urble | No | Not documented | No | No | Not documented | No | No |
 | Dynamic | No | Not documented | Yes (non-Midnight) | n/a | No | No (other chains) | No |
@@ -103,8 +103,9 @@ Symptom, then cause, then fix. The ledger and connector errors come first, then 
 | `BalanceCheckOverspend` (138) | Not enough DUST for fees | Wait for DUST (about 12 hours on a fresh Lace; about 5 minutes locally) or designate more NIGHT; read `getDustBalance()` first |
 | Authorize pop-up never appears, or connect hangs | `connect()` not called synchronously on click | Call `connect()` directly in the click handler; do not `await` or `setTimeout` before it |
 | `window.midnight` is `undefined` | Extension not installed or enabled, or injected after load | Prompt to install, then refresh; for auto-reconnect, poll before connecting |
-| `getProvingProvider is not a function` (Lace) | Lace does not implement it | Feature-detect and use a local proof server ([forum](https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213)) |
-| `signData` "Method not implemented" (Lace) | Unimplemented on Lace | Avoid signature-based auth on Lace; feature-detect first ([Lace issues](https://github.com/input-output-hk/lace/issues)) |
+| `getProvingProvider is not a function` (Lace) | The Lace build is older than 2.1.0, the first release to expose the method | Update Lace, and keep the feature check with a local proof server as the fallback ([forum](https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213)) |
+| `hintUsage is not a function` (Lace) | Lace 2.4.2 leaves `hintUsage` undefined on the connected API | Feature-detect with `typeof api.hintUsage === "function"` before calling |
+| `getTxHistory()` rejects with `Method not implemented.` (Lace) | Lace 2.4.2 exposes the method but does not implement it | Catch the rejection, and do not rely on wallet-side history on Lace |
 | Proof generation fails, or prover unreachable | Local proof server down, or Brave Shields blocking it | Start it on `localhost:6300`; disable Brave Shields for the origin |
 | Network mismatch | DApp and wallet on different networks | Reconcile to `getConnectionStatus().networkId` via `setNetworkId(...)` |
 | 1AM first proof very slow | A few MB of WASM cold-start | Pre-warm, or show a "loading prover" state |
@@ -150,14 +151,14 @@ Wallet-relevant terms.
 - **MPC / threshold (TSS):** the protocol splits the key into shares, and an *m*-of-*n* quorum signs without reconstructing a full key. The basis of institutional custody (Fireblocks for NIGHT).
 - **Interface:** how you reach the wallet; the matrix columns (browser, mobile, CLI, and MCP).
 - **MCP (Model Context Protocol):** a standard by which AI agents call tools, either wallet tools (move funds) or developer tools (help you build).
-- **Midnight Passport:** an announced first-party seedless, QR-onboarded consumer wallet (browser and mobile) from Input Output, with per-device hardware-resident keys and trusted-helper recovery. Input Output has not yet publicly detailed the exact scheme (MPC versus secure-enclave) (see [Midnight Passport](./wallets-overview.mdx#midnight-passport-announced)).
-- **Sigil:** [Kuira](./wallets-overview.mdx#kuira)'s identity primitive, a passkey-derived DID minted by one biometric, with no seed phrase. The SDK exposes it as a swappable `SigilIdentityProvider`, and Kuira names [Midnight Passport](./wallets-overview.mdx#midnight-passport-announced) as a planned future backend.
+- **Midnight Passport:** Input Output's passkey-based identity and account layer for Midnight, in development as of 3 October 2026. Its design keeps assets in a Compact contract that checks a device-key signature before releasing them (MIP-0012 and MIP-0013; see [Midnight Passport](./wallets-overview.mdx#midnight-passport)).
+- **Sigil:** [Kuira](./wallets-overview.mdx#kuira)'s identity primitive, a passkey-derived DID minted by one biometric, with no seed phrase. The SDK exposes it as a swappable `SigilIdentityProvider`, and Kuira names [Midnight Passport](./wallets-overview.mdx#midnight-passport) as a planned future backend.
 - **On-device proving:** generating a transaction's ZK proof on your phone (Kuira, Android) in seconds. No local proof server runs, and nothing leaves the device. The mobile counterpart to 1AM's in-browser WASM proving.
 - **NIGHT / DUST:** the native value token (public, and the source of DUST) versus a shielded, non-transferable, decaying fee resource with a `balance` and a `cap`.
 - **Shielded vs unshielded:** Midnight's dual ledger, private versus public state. 1AM and urble default to shielded; Lace is opt-in.
 - **Selective disclosure / viewing key:** reveal specific facts without exposing full data; a read-only key for auditors.
 - **DApp Connector / CAIP-372:** the standard by which a wallet injects an API under `window.midnight`.
-- **rdns:** the reverse-DNS wallet id used for discovery (`mnLace`, `com.midnight.1am`).
+- **rdns:** the reverse-DNS wallet id used for discovery (`io.lace.wallet`, `com.midnight.1am`).
 - **Intent:** an often unbalanced set of inputs and outputs; the building block for transfers and swaps.
 - **Sealed vs unsealed tx:** ready-to-submit (proofs plus binding) versus pre-binding.
 - **Relayer:** submits a transaction and pays its fees on your behalf; the basis of "gas sponsorship".
@@ -184,7 +185,12 @@ Wallet-relevant terms.
 - [Fireblocks: What is MPC](https://www.fireblocks.com/report/what-is-mpc)
 - [Dynamic embedded wallets (TSS-MPC)](https://www.dynamic.xyz/blog/introducing-dynamic-embedded-wallets-with-tss-mpc)
 
-**Midnight Passport:** announced by Input Output; follow Midnight's official channels for updates.
+**Midnight Passport**
+- [Midnight Passport plan and status site](https://midnightntwrk.github.io/passport/)
+- [Passport development status](https://github.com/midnightntwrk/passport/blob/main/docs/plans/STATUS.md)
+- [Midnight Passport docs (demo and app bridge)](https://docs.midnightpassport.com/)
+- [MIP-0012: Contract Custody of Midnight-Native Assets](https://github.com/midnightntwrk/midnight-improvement-proposals/blob/main/mips/mip-0012-native-asset-custody.md)
+- [MIP-0013: Multi-key Account Authorisation for Custody Contracts](https://github.com/midnightntwrk/midnight-improvement-proposals/blob/main/mips/mip-0013-account-authorisation.md)
 
 **Developer, AI, and agent tooling (MCP)**
 - [Wallet CLI on npm (commands, `midnight serve`, MCP server)](https://www.npmjs.com/package/midnight-wallet-cli)
@@ -198,7 +204,7 @@ Wallet-relevant terms.
 **Lace**
 - [Lace Midnight page](https://www.lace.io/midnight); [Lace setup in the installation guide](/getting-started/installation)
 - [Lace GitHub repo and issue tracker](https://github.com/input-output-hk/lace)
-- [Forum: Lace doesn't implement getProvingProvider](https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213)
+- [Forum: Lace doesn't implement getProvingProvider (Lace 2.0.x, May 2026)](https://forum.midnight.network/t/lace-wallet-doesnt-implement-getprovingprovider-expected-behavior-or-version-gap/1213)
 - [Forum: Unable to get wallet address from Lace](https://forum.midnight.network/t/unable-to-get-wallet-address-from-lace-wallet/922)
 
 **1AM**
