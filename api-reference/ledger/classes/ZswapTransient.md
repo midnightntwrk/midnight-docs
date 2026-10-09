@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -30,7 +30,7 @@ The commitment of the transient
 ### contractAddress
 
 ```ts
-readonly contractAddress: undefined | string;
+readonly contractAddress: string | undefined;
 ```
 
 The contract address creating the transient, if applicable
@@ -146,7 +146,7 @@ The [QualifiedShieldedCoinInfo](../type-aliases/QualifiedShieldedCoinInfo.md) sh
 
 ##### segment
 
-`undefined` | `number`
+`number` | `undefined`
 
 ##### output
 
