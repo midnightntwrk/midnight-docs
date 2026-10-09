@@ -78,7 +78,7 @@ This section installs the toolchain, starts a local Midnight network, and lays o
 
 Before you begin, make sure you have:
 
-- The **Compact toolchain** installed. Follow [Install the toolchain](/getting-started/installation). This tutorial targets compiler version 0.31.1. If you have an older toolchain, run `compact update`: version 0.31.0 could drop a range-check constraint from generated ZK circuits for certain casts, which 0.31.1 fixes.
+- The **Compact toolchain** installed. Follow [Install the toolchain](/getting-started/installation). This tutorial targets compiler version 0.31.1. If you have a different toolchain version, run `compact update 0.31.1`. Version 0.31.0 could drop a range-check constraint from generated ZK circuits for certain casts, which 0.31.1 fixes.
 - Docker and Docker Compose v2 (for the local network and the proof server).
 - Node.js 22 or later.
 
@@ -139,7 +139,7 @@ npm install \
   @midnight-ntwrk/midnight-js-utils@4.1.1
 ```
 
-The steps below use the **local** network by default. To run against **Preprod** instead, set `MIDNIGHT_NETWORK=preprod` when you run the script. Nothing else changes.
+The steps below use the **local** network by default. To run against **Preprod** instead, set `MIDNIGHT_NETWORK=preprod` when you run the script, and set `BLOCKFROST_PROJECT_ID` to a Blockfrost **Midnight Preprod** project token, because Blockfrost serves the Preprod indexer and node RPC. See [Getting a Blockfrost project token](../guides/networks-and-environments#getting-a-blockfrost-project-token). Nothing else changes.
 
 ## Build an unshielded token
 
@@ -270,7 +270,7 @@ The compiler generates the contract's TypeScript interface, its prover and verif
 
 Now you run the contract on a live network. You add the wallet packages, create four small support files that connect your code to the network, then write a deploy script that creates the token, reads it back, and transfers it to a wallet.
 
-The steps below use the **local** network by default. To run against **Preprod** instead, set `MIDNIGHT_NETWORK=preprod` when you run the script. Nothing else changes.
+The steps below use the **local** network by default. To run against **Preprod** instead, set `MIDNIGHT_NETWORK=preprod` when you run the script, and set `BLOCKFROST_PROJECT_ID` to a Blockfrost **Midnight Preprod** project token, because Blockfrost serves the Preprod indexer and node RPC. See [Getting a Blockfrost project token](../guides/networks-and-environments#getting-a-blockfrost-project-token). Nothing else changes.
 
 :::info
 
@@ -365,23 +365,30 @@ export const PREVIEW_CONFIG: NetworkConfig = {
   faucet: '',
 };
 
-export const PREPROD_CONFIG: NetworkConfig = {
-  networkId: 'preprod',
-  indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-  indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-  node: 'https://rpc.preprod.midnight.network',
-  nodeWS: 'wss://rpc.preprod.midnight.network',
-  proofServer: process.env['MIDNIGHT_PROOF_SERVER'] ?? 'http://127.0.0.1:6300',
-  // Fund wallets by hand at https://midnight-tmnight-preprod.nethermind.dev/ —
-  // this field is for a machine API endpoint, so leave it empty.
-  faucet: '',
-};
+// The Preprod indexer and node RPC are served by Blockfrost and need a project
+// token, so build this configuration only when Preprod is selected.
+export function preprodConfig(): NetworkConfig {
+  const projectId = process.env['BLOCKFROST_PROJECT_ID']?.trim();
+  if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+  const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+  return {
+    networkId: 'preprod',
+    indexer: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+    indexerWS: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+    node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
+    nodeWS: withBlockfrostKey('wss://rpc.midnight-preprod.blockfrost.io'),
+    proofServer: process.env['MIDNIGHT_PROOF_SERVER'] ?? 'http://127.0.0.1:6300',
+    // Fund wallets by hand at https://midnight-tmnight-preprod.nethermind.dev/.
+    // This field is for a machine API endpoint, so leave it empty.
+    faucet: '',
+  };
+}
 
 export function getConfig(): NetworkConfig {
   const network = process.env['MIDNIGHT_NETWORK'] ?? 'local';
   if (network === 'local') return LOCAL_CONFIG;
   if (network === 'preview') return PREVIEW_CONFIG;
-  if (network === 'preprod') return PREPROD_CONFIG;
+  if (network === 'preprod') return preprodConfig();
   throw new Error(
     `Unknown network: ${network}. Supported: 'local', 'preview', 'preprod'.`,
   );
@@ -907,7 +914,7 @@ That seed is the local network's genesis wallet, which midnight-local-dev alread
 
 #### Run against Preprod instead
 
-The same script runs against Preprod with two differences: you provide your own funded wallet, and you keep a standalone proof server running (see [Start the local network](#start-the-local-network)).
+The same script runs against Preprod with three differences: you provide your own funded wallet, you keep a standalone proof server running (see [Start the local network](#start-the-local-network)), and you set `BLOCKFROST_PROJECT_ID` to a Blockfrost **Midnight Preprod** project token.
 
 First, generate a throwaway wallet seed, a 32-byte value written as a hex string:
 
@@ -920,6 +927,7 @@ Treat it as a throwaway test wallet: it only ever holds test funds, and you shou
 ```bash
 NODE_OPTIONS="--max-old-space-size=8192" \
 MIDNIGHT_NETWORK=preprod \
+BLOCKFROST_PROJECT_ID=<your Midnight Preprod project ID> \
 MIDNIGHT_SEED=<your-seed-hex> \
 npx tsx src/deploy.ts
 ```
