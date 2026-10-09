@@ -56,9 +56,20 @@ jobs:
         with:
           node-version: 22
 
+      # On a pull request this workflow file comes from the merge with main,
+      # but the checkout above is the PR head. A branch that is older than the
+      # checker has no script to run, so the job says so and passes. Updating
+      # the branch from main runs the check.
       - name: Find the samples to compile
         id: plan
-        run: node scripts/compile-doc-samples.mjs --list
+        run: |
+          if [ ! -f scripts/compile-doc-samples.mjs ]; then
+            echo "::notice title=Compact samples not checked::This branch is older than the samples check. Update it from main to run the check."
+            echo "checker=missing" >> "$GITHUB_OUTPUT"
+            echo "samples=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node scripts/compile-doc-samples.mjs --list
 
       - name: Install the Compact CLI
         if: steps.plan.outputs.samples != '0'
@@ -88,4 +99,5 @@ jobs:
           compact compile --version
 
       - name: Compile the samples
+        if: steps.plan.outputs.checker != 'missing'
         run: node scripts/compile-doc-samples.mjs
