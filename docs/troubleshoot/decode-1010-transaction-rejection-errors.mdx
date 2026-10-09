@@ -50,13 +50,13 @@ Capture the complete error response, not just the message string. Many wallet li
 
 ```javascript
 try {
-  await api.tx.someCall().signAndSend(account);
+  await wallet.submitTransaction(tx);
 } catch (err) {
   console.error(String(err));
 }
 ```
 
-`String(err)` prints the error text, which includes the `data` value, for example `RpcError: 1010: Invalid Transaction: Custom error: 155`. `JSON.stringify(err)` prints `{}` for this error and loses the code.
+`wallet` is a `WalletFacade` and `tx` is the finalized transaction. `String(err)` prints the whole error chain, which ends with the node's response, for example `RpcError: 1010: Invalid Transaction: Custom error: 155`. `err.message` holds only the outer `Transaction submission error`, and `JSON.stringify(err)` drops the node's text. For the list of wrappers between your code and the node, see [Transaction submission errors](../nodes/error-codes.mdx#transaction-submission-errors).
 
 </TabItem>
 <TabItem value="curl" label="cURL">
@@ -153,17 +153,21 @@ The wallet attempted to spend more than the available coin set permits, or chang
 
 ## When 1010 has no inner u8
 
-If the response contains `code: 1010` but no `Custom error: N` substring, the rejection happened in upstream Substrate validation rather than Midnight ledger logic. The most common causes are:
+If the response contains `code: 1010` but no `Custom error: N` substring, a Substrate check rejected the transaction rather than the Midnight ledger. Midnight transactions reach the node as the unsigned `send_mn_transaction` call, which the node checks in `validate_unsigned`. There is no signer, nonce, or mortal era to get wrong. The case you are likely to see is a transaction that is too heavy for one block:
 
-- **Bad signature**: the signing key does not match the sender, or the payload was altered after signing.
-- **Stale era**: the mortal era window has passed. Re-fetch the current block hash and rebuild the transaction.
-- **Wrong nonce**: the account nonce on the node does not match the value used when signing. Query the current nonce and resubmit.
+```text
+1010: Invalid Transaction: Transaction would exhaust the block limits
+```
 
-These rejections are not in the [error tables](../nodes/error-codes.mdx#error-tables-by-code-range) because they never reach the ledger.
+Substrate's weight check returns this when the transaction passes the ledger's checks but needs more of a block than the node allows for a single transaction. The usual cause is a contract deploy with many exported circuits, because the deploy carries one verifier key per circuit. Deploy the contract with the circuits that fit, then add the remaining verifier keys with signed maintenance updates. The [batched deploy runbook](https://github.com/midnightntwrk/servicedesk/blob/main/runbooks/contract-batched-deploy-runbook/contract-batched-deploy-runbook.md) walks through this.
+
+This rejection is not in the [error tables](../nodes/error-codes.mdx#error-tables-by-code-range) because it never reaches the ledger.
+
+Sometimes there is no `1010` at all, only `TransactionInvalidError: Transaction is invalid and was rejected by the node`. In that case the node accepted the transaction into its pool and then dropped it later, for example while building a block. See [Submission error messages](../nodes/error-codes.mdx#submission-error-messages).
 
 ## Verify the fix
 
-After identifying and addressing the variant, resubmit the transaction and confirm it is accepted:
+After identifying and addressing the variant, resubmit the transaction and confirm that the node accepts it:
 
 ```bash
 # Re-submit and observe the response
