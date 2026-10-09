@@ -17,8 +17,50 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '1.0.1',
+    version: '1.0.300',
     status: 'LATEST',
+    date: '22 September 2026',
+    summary: 'Required node upgrade for runtime 1.0.300, now live on Preview, Preprod, and Mainnet, with a block timestamp correction for historical blocks.',
+    details: [
+      'Runtime 1.0.300 (`spec_version` `1_000_300`, `system_version` `3`) runs on Preview, Preprod, and Mainnet. `transaction_version` stays at `3`.',
+      'Node v1.0.2 and earlier cannot load the new runtime and stop importing blocks after the upgrade, so upgrade every full, RPC, boot, and validator node.',
+      'Added a block timestamp (`tblock`) correction that applies only when replaying blocks produced before the runtime upgrade. There are no configuration settings for it.',
+      'Toolkit v1.0.300 can fetch and process blocks produced by runtime 1.0.300. Earlier toolkit versions reject them.',
+      'Removed `gdb` from the `midnight-node` and `midnight-node-toolkit` Docker images.',
+      'Known issue: a node that syncs Mainnet from genesis with v1.0.300 stops at block 1788979. The node team plans to fix this in v1.0.400.',
+      'DApp developers do not need to take any action.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'Node toolkit', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.300' },
+    ],
+    link: '/relnotes/node/node-1-0-300',
+  },
+  {
+    version: '1.0.2',
+    status: 'UNSUPPORTED',
+    date: '18 September 2026',
+    summary: 'Binary-only security patch on the 1.0.x line that picks up ledger 8.1.2, clears toolkit npm advisories, and fixes a toolkit-js stack overflow on Node.js 24.15 and later.',
+    details: [
+      'Superseded on Preview, Preprod, and Mainnet: runtime 1.0.300 imports host functions that node 1.0.2 lacks, and toolkit 1.0.0 fails on its blocks, so run node and toolkit 1.0.300 there.',
+      'Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that rejects non-canonical encodings and values that violate their type invariants.',
+      'Picked up the ledger 8.1.2 crate set, including the direct dependencies `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-storage-core` 1.2.1, and `midnight-serialize` 1.1.1.',
+      'Cleared `npm audit` findings in the toolkit image JavaScript dependencies: `toml` 4.3.0 through an override, `nanoid` 3.3.19, `turbo` 2.9.14, and `vitest` 4.1.11.',
+      'Rebuilt the `midnight-node-toolkit:1.0.0` image from this release. The toolkit version number is unchanged.',
+      'Fixed a `toolkit-js` stack overflow on Node.js 24.15 and later, where the module resolve hook re-entered itself.',
+      'No pallet or runtime code changes. Runtime stays at 1.0.0, so no runtime upgrade is required.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'Node toolkit', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.2' },
+    ],
+    link: '/relnotes/node/node-1-0-2',
+  },
+  {
+    version: '1.0.1',
+    status: 'UNSUPPORTED',
     date: '14 July 2026',
     summary: 'Patch release on the 1.0.0 GA line with a default for unsafe_allow_symlinks and regenerated Preview network configuration.',
     details: [
@@ -36,7 +78,7 @@ const releases = [
   },
   {
     version: '1.0.0',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '20 May 2026',
     summary: 'Mainnet GA release: runtime 1.0.0 with TransactionExtension, throttle limits, bridge handler plumbing, rpc.discover, and ledger 8.1.0.',
     details: [
@@ -55,7 +97,7 @@ const releases = [
   },
   {
     version: '0.22.5',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '24 April 2026',
     summary: 'Summary of Release 0.22.5',
     details: [
@@ -71,7 +113,7 @@ const releases = [
   },
   {
     version: '0.22.3',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '25 March 2026',
     summary: 'Summary of Release 0.22.3',
     details: [
@@ -86,7 +128,7 @@ const releases = [
   },
   {
     version: '0.22.2',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: 'March 2026',
     summary: 'Summary of Release 0.22.2',
     details: [
@@ -99,7 +141,7 @@ const releases = [
   },
   {
     version: '0.22.1',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '19 March 2026',
     summary: 'Summary of Release 0.22.1',
     details: [
@@ -115,7 +157,7 @@ const releases = [
   },
   {
     version: '0.22.0',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '16 March 2026',
     summary: 'Summary of Release 0.22.0',
     details: [
