@@ -271,7 +271,7 @@ Network selection is the second most common stumbling block, and the answer is s
 | Preprod | `preprod` | Live pre-production network for final testing before Mainnet | You are validating close-to-production behavior. |
 | Mainnet | `mainnet` | Production | You are shipping. |
 
-Start on Undeployed. tDUST generates in minutes rather than hours, there is no faucet queue, and you can reset the whole chain by restarting containers. Move to Preview or Preprod when you need to test against infrastructure you do not control.
+Start on Undeployed. Its genesis wallet already holds tNIGHT and tDUST, there is no faucet queue, and you can reset the whole chain by restarting containers. Move to Preview or Preprod when you need to test against infrastructure you do not control.
 
 Whichever you choose, set it explicitly.
 
@@ -297,13 +297,20 @@ import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
 setNetworkId('preprod');
 
+// The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
 export const CONFIG = {
-  indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-  indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-  node: 'https://rpc.preprod.midnight.network',
+  indexer: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+  indexerWS: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+  node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
   proofServer: 'http://127.0.0.1:6300',
 };
 ```
+
+The Preprod indexer and node RPC need a Blockfrost **Midnight Preprod** project token in `BLOCKFROST_PROJECT_ID`. See [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
 
 **Preview:**
 
@@ -335,14 +342,16 @@ The mechanism, briefly:
 
 - NIGHT and DUST use different keys, so a registration table links a NIGHT public key to a DUST address. This step is called *designation*.
 - A NIGHT UTXO generates DUST toward a cap proportional to the NIGHT it holds. Under the initial parameters that is 5 DUST per NIGHT, reaching the full cap in roughly a week.
-- Generation is linear from zero, so you have usable DUST long before the cap. Expect roughly 12 hours on a fresh wallet on a live network, and about 5 minutes on a local network.
+- Generation is linear from zero, so you have usable DUST long before the cap. tNIGHT that you register on Midnight starts generating when the registration transaction confirms. How soon the DUST covers a fee depends on the NIGHT amount and on the fee. DUST from NIGHT held on Cardano starts later, because Midnight acts on a Cardano registration only after its Cardano block is stable. See [DUST from NIGHT held on Cardano](./manage-dust#dust-from-night-held-on-cardano).
 - Spend DUST and it regenerates. Spend the backing NIGHT and the DUST decays to zero.
 
 ### Why tDUST looks stuck at zero
 
 This is the most common report from newly created wallets, and it is usually not stuck. It never started.
 
-A DUST UTXO is created only when a NIGHT UTXO is created **and** that key already has a registration table entry. Designation is not retroactive, so tNIGHT that arrived before you designated a DUST address generates nothing.
+The ledger creates a DUST UTXO only when a transaction creates a NIGHT UTXO **and** that UTXO's key has a registration table entry. Holding tNIGHT does not write that entry, so a wallet that has not designated a DUST address generates nothing.
+
+The registration transaction writes the entry. A registration built with the wallet SDK, which Lace also uses, spends the NIGHT UTXOs passed to it and creates them again. As a result, tNIGHT that you received before registering starts generating when the registration confirms. A first registration also counts what one of those UTXOs would have generated since it arrived, up to its cap. The ledger takes the registration fee from that amount, and the rest becomes the starting value of the new DUST UTXO.
 
 Order matters:
 
@@ -350,11 +359,11 @@ Order matters:
 2. Request tNIGHT from the faucet.
 3. Designate a DUST address.
 
-If you funded the wallet first and are now watching a zero balance, you do not need a new wallet. Designate the DUST address, then create a fresh tNIGHT UTXO by sending tNIGHT to yourself. The new UTXO generates normally.
+If you funded the wallet and are now watching a zero balance, you do not need a new wallet. Designate the DUST address, as in [Funding a wallet](./acquire-tokens). tNIGHT that you receive after registering generates DUST with no further step. A tNIGHT UTXO that the registration did not include stays unregistered until you register it. Sending tNIGHT to yourself does not replace that step, because the transfer spends the unregistered UTXO only if the wallet selects it.
 
 Beyond ordering, check these:
 
-- **You are waiting less time than you think.** On a live network, allow hours rather than minutes.
+- **You are waiting less time than you think.** DUST from NIGHT held on Cardano appears only after the Cardano registration is stable, so on a live network allow hours rather than minutes for it.
 - **You are looking at a wallet on a different network.** Preview and Preprod are separate chains with separate faucets and separate balances.
 - **The transaction sat too long.** DUST spends carry a timestamp and a grace period of about 3 hours. A transaction built and left overnight is rejected.
 
@@ -368,7 +377,7 @@ The proof server is not incidental tooling. It is where Midnight's core tradeoff
 - It ships in Docker because that is the cleanest way to distribute a native cryptographic service across three operating systems with versions pinned.
 - Pin the tag, keep it running, and point everything at `localhost:6300`.
 
-Start on Undeployed, designate your DUST address before you fund the wallet, and the first ten minutes stop being the hard part.
+Start on Undeployed, fund the wallet and then designate your DUST address, and the first ten minutes stop being the hard part.
 
 ## Additional resources
 

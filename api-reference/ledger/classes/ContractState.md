@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -61,7 +61,7 @@ The maintenance authority associated with this contract
 ### operation()
 
 ```ts
-operation(operation): undefined | ContractOperation;
+operation(operation): ContractOperation | undefined;
 ```
 
 Get the operation at a specific entry point name
@@ -74,7 +74,7 @@ Get the operation at a specific entry point name
 
 #### Returns
 
-`undefined` \| [`ContractOperation`](ContractOperation.md)
+[`ContractOperation`](ContractOperation.md) \| `undefined`
 
 ***
 

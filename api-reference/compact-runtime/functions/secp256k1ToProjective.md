@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
 
 ***
 
@@ -10,9 +10,11 @@
 function secp256k1ToProjective(p): WeierstrassPoint<bigint>;
 ```
 
+**`Internal`**
+
 Lift the simple affine `Secp256k1Point` representation into a noble-curves
-projective point. Identity maps to `Point.ZERO`; every other input is validated
-to lie on the curve by `fromAffine`.
+projective point. The point is assumed to be valid, points passed from
+compiler-generated code are always valid ones.
 
 ## Parameters
 
