@@ -1,0 +1,88 @@
+# This file is part of midnight-docs.
+# Copyright (C) Midnight Foundation
+# SPDX-License-Identifier: Apache-2.0
+#
+# Compiles the Compact code samples that a pull request adds or changes, with
+# the toolchain version pinned in docs/relnotes/support-matrix.json. When a PR
+# changes that pin or the checker itself, every sample is compiled. Run it by
+# hand (workflow_dispatch) to compile every sample in the docs.
+# The extraction and compile logic lives in scripts/compile-doc-samples.mjs.
+
+name: Compact samples
+
+on:
+  pull_request:
+    paths:
+      - "docs/**"
+      - "!docs/compact/**"
+      - "sdks/**"
+      - "blog/**"
+      - "scripts/compile-doc-samples.mjs"
+      - ".github/workflows/compile-doc-samples.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compact-samples-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # The Compact CLI release used to install the toolchain, installed the
+      # way docs/getting-started/installation.mdx does it but pinned. Bump both
+      # lines together: the hash is the SHA-256 of that release's
+      # compact-installer.sh, which in turn checks the hash of the binary.
+      COMPACT_CLI_VERSION: "0.5.1"
+      COMPACT_INSTALLER_SHA256: "85e74a53ae4a67b31fa4d854f3b6ffb4c29f7c53e3372c5008b6a4729a8b4a73"
+      # Empty on workflow_dispatch, which compiles every sample.
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # 7.0.0
+        with:
+          node-version: 22
+
+      - name: Find the samples to compile
+        id: plan
+        run: node scripts/compile-doc-samples.mjs --list
+
+      - name: Install the Compact CLI
+        if: steps.plan.outputs.samples != '0'
+        run: |
+          installer="$RUNNER_TEMP/compact-installer.sh"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$installer" \
+            "https://github.com/midnightntwrk/compact/releases/download/compact-v${COMPACT_CLI_VERSION}/compact-installer.sh"
+          echo "${COMPACT_INSTALLER_SHA256}  $installer" | sha256sum --check --strict
+          COMPACT_INSTALL_DIR="$HOME/.local/bin" COMPACT_NO_MODIFY_PATH=1 sh "$installer"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install the pinned toolchain
+        if: steps.plan.outputs.samples != '0'
+        env:
+          TOOLCHAIN: ${{ steps.plan.outputs.toolchain }}
+          # compact update looks the release up through the GitHub API and
+          # sends GITHUB_TOKEN when it is set. The job's read-only token keeps
+          # it clear of the unauthenticated rate limit on shared runner IPs.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in 1 2 3; do
+            if compact update "$TOOLCHAIN"; then break; fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep $((attempt * 15))
+          done
+          compact --version
+          compact compile --version
+
+      - name: Compile the samples
+        run: node scripts/compile-doc-samples.mjs
