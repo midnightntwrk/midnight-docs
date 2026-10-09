@@ -17,11 +17,36 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '8.1.2',
+    version: '8.1.3',
     status: 'LATEST',
+    date: '2 October 2026',
+    summary: 'Security patch for critical advisory GHSA-wr7g-rr4v-jmj8: stricter validity rules for contract call transcripts',
+    details: [
+      'Before this release, an attacker could get past the one-time checks of a smart contract, for example to claim the same payout more than once.',
+      'Contract call transcripts must use canonical field values in `push`, `pushs`, and `idx`-style path keys. A Merkle tree in `push` or `pushs` must be empty, and transcripts cannot contain `noop` with a count of 0.',
+      'A node on 8.1.3 rejects some contract calls that a node on 8.1.2 accepts, so every block producer should run 8.1.3. Node 1.0.400 includes it.',
+      'For transactions built with the Compact compiler and Midnight.js, nothing changes: the wire format, stored state, and TypeScript declarations match 8.1.2.',
+      'Ledger 8.1.3 does not rewrite existing contract state. If your smart contract uses a `Set` or `Map` as a one-time guard with keys that contain a `Field`, such as `Set<Field>` or a struct key with a `Field` member, read the advisory and check the state of your contract.',
+      'The proof server image `midnightntwrk/proof-server:8.1.3` is on Docker Hub, with a signed build manifest on the `proof-server-8.1.3` GitHub release. Docker Hub has no image for ledger 8.1.1 or 8.1.2.',
+      'Rust API: in `onchain-vm`, `Key::Value` holds `AlignedValueChecked` and `Op::Push` holds `StateValue<D, AlignedValueChecked>`. Convert with `AlignedValueChecked::try_from` or `StateValue::try_into_checked`.',
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnightntwrk/ledger-v8' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v3' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server' },
+      { name: 'Proof server GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-8.1.3' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-8.1.3' },
+      { name: 'Security advisory', url: 'https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8' },
+    ],
+    link: '/relnotes/ledger/ledger-8-1-3',
+  },
+  {
+    version: '8.1.2',
+    status: 'UNSUPPORTED',
     date: '24 August 2026',
     summary: 'Security patch hardening deserialization: non-canonical encodings and invariant-violating values are rejected',
     details: [
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
       'Hardens low-level deserialization across `serialize`, `base-crypto`, `storage`, `onchain-state`, `onchain-vm`, and `transient-crypto`: non-canonical encodings and values violating type invariants no longer decode.',
       'An 8.1.2 node rejects data an 8.1.1 node accepts; the change is breaking only for environments containing maliciously formed transactions.',
       'Delivered to mainnet nodes prior to the public release.',
@@ -36,10 +61,11 @@ const releases = [
   },
   {
     version: '8.1.1',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '31 July 2026',
     summary: 'Patch release with array-handling test coverage and an npm scope change to `@midnightntwrk`',
     details: [
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
       'No protocol, serialization, or API behavior changes for well-formed transactions.',
       'Added test coverage for array handling.',
       'Clippy 1.97 lint cleanups across the workspace.',
@@ -53,10 +79,11 @@ const releases = [
   },
   {
     version: '8.1.0',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '13 May 2026',
     summary: 'Storage layer improvements, deadlock fixes, and enhanced wallet WASM bindings',
     details: [
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
       'Added incremental garbage collector in `storage-core` with time-bounded execution',
       'Allowed ParityDB to use existing instance and share backends through generic `Deref`',
       'Fixed race condition in `force_as_arc` that could cause deadlocks',
@@ -74,10 +101,11 @@ const releases = [
   },
   {
     version: '8.0.3',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '20 March 2026',
     summary: 'Summary of v8.0.3',
     details: [
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
       'Fixed transcript partitioning issues in transaction construction.',
       'Corrected accounting of unshielded inputs and outputs so they are not incorrectly treated as gas usage.',
       'Accounted for proof verification time in processing budget calculations.',
@@ -94,10 +122,11 @@ const releases = [
   },
   {
     version: '8.0.2',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '12 March 2026',
     summary: 'Summary of v8.0.2',
     details: [
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
       'Fixed DUST change computation for DUST spent during registration.',
       'Fixed Merkle tree canonicity behavior.',
       'Added last block time context variable.',
