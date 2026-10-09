@@ -114,7 +114,9 @@ Handle these differences between connectors:
 
 ## React: the production pattern
 
-The Edda Labs midnight-starter-template (demo at `counter.nebula.builders`) wires Lace and 1AM through a copy-pasteable wallet widget. Use it rather than re-deriving the logic:
+The Edda Labs midnight-starter-template (demo at `counter.nebula.builders`) wires Lace and 1AM through a copy-pasteable wallet widget. Use it rather than re-deriving the logic.
+
+Pass the wallet's `rdns` to the widget's `connectWallet`, not its `window.midnight` key. Current Lace builds install their connector under a new UUID key on every page load and do not set `mnLace`, while 1AM keeps the fixed key `1am`. The widget saves the value you pass and reuses it to reconnect after a reload, so a saved UUID key stops matching. For the discovery rules, see the [React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect). This button lists each compatible wallet so your users can choose one:
 
 ```tsx
 import { useWallet } from "@/modules/midnight/wallet-widget/hooks/useWallet";
@@ -123,7 +125,22 @@ function ConnectButton() {
   const { connectWallet, disconnect, status, dustBalance } = useWallet();
   if (status?.status === "connected")
     return <button onClick={() => disconnect()}>Connected · DUST {String(dustBalance?.balance)}</button>;
-  return <button onClick={() => connectWallet("mnLace", "preprod")}>Connect Lace</button>;
+
+  // List compatible wallets instead of hardcoding a key, and connect by rdns.
+  // The widget saves that value, so auto-reconnect still works after a reload.
+  const wallets = Object.values(window.midnight ?? {}).filter(
+    (w) => w?.rdns && w?.apiVersion?.startsWith("4."),
+  );
+  if (wallets.length === 0) return <button disabled>No Midnight wallet</button>;
+  return (
+    <>
+      {wallets.map((w) => (
+        <button key={w.rdns} onClick={() => connectWallet(w.rdns, "preprod")}>
+          Connect {w.name}
+        </button>
+      ))}
+    </>
+  );
 }
 ```
 
