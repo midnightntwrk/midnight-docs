@@ -5,11 +5,13 @@
 // Detects upstream component releases that have no release notes in the docs.
 //
 // For each component, the script fetches the GitHub releases of the product
-// repo and classifies them by tag shape alone: a clean x.y.z tag is a stable
-// release, anything with an rc/beta/alpha suffix is a prerelease. The GitHub
-// prerelease flag is ignored because the product repos do not set it
-// consistently (node-1.0.2 shipped flagged as a prerelease while running on
-// mainnet, and node-2.1.0-rc.1 shipped flagged as stable). Drafts are skipped.
+// repo and classifies them: a release is a prerelease when its tag has an
+// rc/beta/alpha suffix or GitHub flags it as a prerelease, and stable
+// otherwise. Both checks are needed. The tag suffix catches prereleases the
+// product repos forget to flag (node-2.1.0-rc.1 shipped flagged as stable),
+// and the flag catches releases that are not public yet even though the tag
+// looks final (node-1.0.2 runs on the networks but the node team has not
+// released it publicly, so the docs wait). Drafts are skipped.
 //
 // A stable release is a gap when it has no entry in the component's
 // DynamicList file and it is newer than the oldest entry the list still marks
@@ -113,7 +115,7 @@ const supportedFloor = (entries) => {
 };
 
 // All non-draft releases matching the component's tag shape, split into
-// stable (clean x.y.z) and prerelease (suffixed) by the tag alone.
+// stable and prerelease by the tag suffix and the GitHub prerelease flag.
 const upstreamReleases = async (component) => {
   // Two pages cover repos whose recent history is dominated by prereleases.
   const releases = [
@@ -127,7 +129,7 @@ const upstreamReleases = async (component) => {
     const m = r.tag_name.match(component.tag);
     if (!m) continue;
     const entry = { version: m[1], url: r.html_url, publishedAt: r.published_at };
-    (PRERELEASE.test(m[1]) ? prerelease : stable).push(entry);
+    (r.prerelease || PRERELEASE.test(m[1]) ? prerelease : stable).push(entry);
   }
   const newest = (list) =>
     list.reduce((best, e) => (!best || cmpVersion(e.version, best.version) > 0 ? e : best), null);

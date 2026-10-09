@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -22,6 +22,13 @@ The Zswap coin public key of the current user.
 Configuration.
 
 ## Param
+
+## Remarks
+
+The returned [UnsubmittedDeployTxData](../type-aliases/UnsubmittedDeployTxData.md) is privacy-sensitive and
+carries the unproven transaction, signing key, initial private state, and
+initial Zswap state. See that type for handling guidance before logging,
+serializing, or transmitting the result.
 
 ## Call Signature
 
