@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -16,13 +16,17 @@ An error thrown when exporting signing keys fails.
 
 ### Constructor
 
-> **new SigningKeyExportError**(`message`): `SigningKeyExportError`
+> **new SigningKeyExportError**(`message`, `options?`): `SigningKeyExportError`
 
 #### Parameters
 
 ##### message
 
 `string`
+
+##### options?
+
+`ErrorOptions`
 
 #### Returns
 

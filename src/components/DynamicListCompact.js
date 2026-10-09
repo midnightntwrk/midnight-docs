@@ -19,9 +19,29 @@ import { useLocation } from '@docusaurus/router';
 // elements is used to assign a numeric `id`.
 const releases = [
   {
+  version: '0.35.0',
+  compactVersion: '0.27.0',
+  status: 'LATEST',
+  date: '29 September 2026',
+  summary: 'Release for ledger 9: P256, Curve25519, Ed25519, and SHA-512 support, `kernel.caller()`, run-time resolution of cross-contract calls; not for the current public networks',
+  details: [
+    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`), which is not yet deployed on the public networks; use `compact update 0.31` for contracts deployed today',
+    'Language version 0.27.0 and Compact runtime 0.20.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.20.x',
+    'With `--feature-zkir-v3`: secp256r1 (P256) and Curve25519 types, `secp256r1EcdsaVerify`, `ed25519Verify`, and `sha512`',
+    'New `kernel.caller()` ledger operation and `PublicAddress` type; read the caller only where the call is known to come from a contract',
+    'Cross-contract calls resolve the callee module at run time through a `ContractModuleProvider`; breaking changes to `createCircuitContext` and `crossContractCall`',
+    '`jubjubSchnorrVerify` and `secp256k1EcdsaVerify` fail an assertion when the public key is the identity point',
+    '`compactc --version` prints the commit and date after the version; `contract-info.json` gains a `compiler-commit` field',
+  ],
+  artifacts: [
+    { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.35.0' },
+  ],
+  link: '/relnotes/compact/toolchain-0.35.0',
+},
+  {
   version: '0.34.0',
   compactVersion: '0.26.0',
-  status: 'LATEST',
+  status: 'UNSUPPORTED',
   date: '25 August 2026',
   summary: 'Major release for ledger 9: cross-contract calls, events, Compact value serialization, ZKIR v3; not for the current public networks',
   details: [
@@ -267,8 +287,9 @@ const versions = ['All', ...sortedVersions];
 // Extract unique statuses and keep "All" at the top
 const sortedStatuses = ['All', ...new Set(releases.map(release => release.status))];
 
-// Set latest version as default if releases exist
-const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
+// Open on the release marked LATEST. Without one, open on the highest version.
+const latestRelease = releases.find(release => release.status === 'LATEST');
+const latestVersion = latestRelease?.version ?? (sortedVersions.length > 0 ? sortedVersions[0] : 'All');
 
 // Helper to determine version prefix from pathname
 function getVersionPrefix(pathname) {
@@ -400,6 +421,28 @@ const DynamicListWithDropdownFilters = () => {
 
           {/* Summary */}
           <h4 style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>Summary</h4>
+          {/* One-line summary. Placeholders such as "Summary of Release 1.0.0" stay hidden. */}
+          {release.summary && !/^Summary of (Release |v)?\d/.test(release.summary) && (
+            <p>
+              {release.summary.split(/(`[^`]+`)/g).map((part, i) =>
+                part.startsWith('`') && part.endsWith('`') ? (
+                  <code
+                    key={i}
+                    style={{
+                      background: 'var(--ifm-code-background)',
+                      color: 'var(--ifm-code-color)',
+                      padding: '0.2rem 0.4rem',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {part.slice(1, -1)}
+                  </code>
+                ) : (
+                  part
+                )
+              )}
+            </p>
+          )}
           <ul>
             {release.details.map((detail, index) => {
               const parts = detail.split(/(`[^`]+`)/g);

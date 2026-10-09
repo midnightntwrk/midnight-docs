@@ -17,8 +17,26 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '0.5.2',
+    version: '0.5.3',
     status: 'LATEST',
+    date: '29 September 2026',
+    summary: 'Maintenance release: toolchain installs no longer need unzip, and running compact update again repairs a failed install.',
+    details: [
+      '`compact update` unpacks toolchain archives itself, so installing a toolchain no longer needs `unzip`.',
+      'Running `compact update <version>` again after a failed install now reinstalls that version instead of reporting `already installed` and failing.',
+      '`compact` no longer sets a missing compiler as the default, and commands that find a broken default now print the `compact update <version>` command that repairs it.',
+      '`compact update` deletes an unreadable toolchain archive and downloads it once more instead of failing on every retry.',
+      '`--help` output wraps to the width of your terminal.',
+      'Known issue: with toolchain 0.22.0 or 0.23.0 installed by 0.5.3, `include "std";` fails to compile. Use `import CompactStandardLibrary;` instead.',
+    ],
+    artifacts: [
+      { name: 'Compact developer tools', url: 'https://github.com/midnightntwrk/compact/releases/tag/compact-v0.5.3' }
+    ],
+    link: '/relnotes/compact-tools/compact-tools-0-5-3',
+  },
+  {
+    version: '0.5.2',
+    status: 'SUPPORTED',
     date: '18 August 2026',
     summary: 'Maintenance release: compact compile --help shows the full compiler help.',
     details: [
@@ -132,8 +150,9 @@ const versions = ['All', ...sortedVersions];
 // Extract unique statuses and keep "All" at the top
 const sortedStatuses = ['All', ...new Set(releases.map(release => release.status))];
 
-// Set latest version as default if releases exist
-const latestVersion = sortedVersions.length > 0 ? sortedVersions[0] : 'All';
+// Open on the release marked LATEST. Without one, open on the highest version.
+const latestRelease = releases.find(release => release.status === 'LATEST');
+const latestVersion = latestRelease?.version ?? (sortedVersions.length > 0 ? sortedVersions[0] : 'All');
 
 // Helper to determine version prefix from pathname
 function getVersionPrefix(pathname) {
@@ -260,6 +279,28 @@ const DynamicListWithDropdownFilters = () => {
 
           {/* Summary */}
           <h4 style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>Summary</h4>
+          {/* One-line summary. Placeholders such as "Summary of Release 1.0.0" stay hidden. */}
+          {release.summary && !/^Summary of (Release |v)?\d/.test(release.summary) && (
+            <p>
+              {release.summary.split(/(`[^`]+`)/g).map((part, i) =>
+                part.startsWith('`') && part.endsWith('`') ? (
+                  <code
+                    key={i}
+                    style={{
+                      background: 'var(--ifm-code-background)',
+                      color: 'var(--ifm-code-color)',
+                      padding: '0.2rem 0.4rem',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {part.slice(1, -1)}
+                  </code>
+                ) : (
+                  part
+                )
+              )}
+            </p>
+          )}
           <ul>
             {release.details.map((detail, index) => {
               const parts = detail.split(/(`[^`]+`)/g);

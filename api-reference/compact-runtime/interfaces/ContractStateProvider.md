@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
 
 ***
 
@@ -6,12 +6,9 @@
 
 # Interface: ContractStateProvider
 
-A user-provided interface for fetching the public state of a contract
-at a given block hash. Used exclusively to retrieve the state of cross-contract
-call targets at runtime. Assumes state returned is the post-block evaluation
-contract state.
-
-The `parentBlockHash` value in [CircuitContext](CircuitContext.md) is used for as the `blockHash` argument.
+A user-provided fetch of a contract's public state at a block hash, used only for cross-contract
+call targets. The state returned must be post-block-evaluation; `blockHash` is the
+`parentBlockHash` from the circuit context.
 
 ## Methods
 
