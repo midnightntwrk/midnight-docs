@@ -1,72 +1,44 @@
 ---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of Midnight Docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Create your first Midnight contract
-description: Learn how to create and compile a Hello World smart contract on Midnight's Preprod network.
+description: "Check that your environment is ready for Midnight: write a Hello World Compact contract, compile it, and test it on a local network."
 sidebar_position: 20
 sidebar_label: Hello world
-tags: [compact, smart contract]
 toc_max_heading_level: 2
+keywords: [midnight, hello world, quick start, compact, local network]
+tags: [compact, smart contract, quick start, hello world, getting-started, local network]
 ---
-
-import Tabs from "@theme/Tabs";
-import TabItem from "@theme/TabItem";
-import Step, { StepsProvider } from "@site/src/components/Step/Step";
 
 # Create your first Midnight contract
 
-In this tutorial, you'll write your first Compact smart contract, deploy it to a local test network and write a Hello World message to the blockchain using privacy-preserving logic.
-
-By the end of this tutorial, you'll:
-
-- Create a Compact smart contract with state storage
-- Compile the contract into zero-knowledge circuits
-- Deploy your contract to a local test network
-- Write a Hello World message to the blockchain
+This quick start checks that your environment can compile and test a Compact contract, and shows you what Compact looks like. You write a contract that stores a message, compile it, and run the tests from the [example-hello-world](https://github.com/midnightntwrk/example-hello-world) repository against a local network. You don't need test tokens or a public network.
 
 ## Prerequisites
 
-Before you begin, ensure you have:
-- Completed the [install the toolchain](./installation) guide
-- Node.js v22+
+- The Compact toolchain, version 0.31.1. Follow [Install the toolchain](./installation), then confirm with `compact compile --version`. The [support matrix](../relnotes/support-matrix) lists the versions that each network supports.
+- [Node.js](https://nodejs.org/) 22 or 24. The project's dependencies don't install on Node.js 23.
+- Yarn. Run `corepack enable` once and the project uses the Yarn version it pins.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/), or another Docker engine with Compose v2, running.
+- Git.
 
-<StepsProvider>
-<Step>
+## Set up the project
 
-## Set up project
-
-Clone the starter repo:
+Clone the repository and install its dependencies:
 
 ```bash
 git clone https://github.com/midnightntwrk/example-hello-world.git
-```
-
-Install dependencies:
-
-```bash
+cd example-hello-world
 yarn install
 ```
 
-</Step>
-<Step>
+Run every later command from the `example-hello-world` directory.
 
-## Create the contract file
+## Write the contract
 
-Create a new file named `hello-world.compact` in the `contracts` directory:
+Create `contracts/hello-world.compact` with this content:
 
-```bash
-touch contracts/hello-world.compact
-```
-
-Open this file in VS Code:
-```bash
-code .
-```
-
-</Step>
-<Step>
-
-## Create the Compact Smart Contract
-
-```compact
+```compact title="contracts/hello-world.compact"
 pragma language_version 0.23;
 
 export ledger message: Opaque<"string">;
@@ -75,100 +47,106 @@ export circuit storeMessage(newMessage: Opaque<"string">): [] {
   message = disclose(newMessage);
 }
 ```
-- `pragma language_version` specifies which version of Compact your contract uses.
-- `ledger message` creates a state variable named `message` that stores a string value in the on-chain state. On-chain state is public and persistent on the blockchain.
-- `circuit storeMessage` is a Compact circuit (function) that defines the logic to modify on-chain state.
-- `newMessage: Opaque<"string">` is the input parameter. *Circuit parameters are always private by default.* The `disclose()` function marks the private value as safe to store publicly. Without it, trying to assign `newMessage` directly to the ledger returns a compiler error.
 
-</Step>
-
-<Step>
+- `pragma language_version 0.23;` declares the Compact language version. The compiler rejects the file if it doesn't support that version.
+- `export ledger message` declares public, on-chain state: a field named `message` that holds a string.
+- `export circuit storeMessage` declares a circuit, the Compact equivalent of a function that a transaction calls.
+- `newMessage` is private, because circuit arguments are private by default. `disclose()` tells the compiler that you intend to make it public by storing it on the ledger. Without it, compiling fails with `potential witness-value disclosure must be declared but is not`.
 
 ## Compile the contract
 
-Compiling transforms your Compact code into zero-knowledge circuits, generates cryptographic keys, 
-and creates TypeScript APIs and a JavaScript implementation for the contract to be used by DApps. 
-
-Run the compiler from the contracts folder:
+Run the compile script:
 
 ```bash
-cd contracts
-compact compile hello-world.compact managed/hello-world
+yarn compile
 ```
 
-You should see the following output:
+The script runs `compact compile contracts/hello-world.compact contracts/managed/hello-world`. The compiler turns the contract into a zero-knowledge circuit, generates its proving and verifying keys, and writes the JavaScript and TypeScript that DApp code imports. It reports one circuit:
 
-```
+```text
 Compiling 1 circuits:
   circuit "storeMessage" (k=6, rows=26)
+Overall progress [====================] 1/1
 ```
 
-The compilation process will:
-1. Parse and validate your Compact code.
-2. Generate zero-knowledge circuits from your logic.
-3. Create proving and verifying keys for the circuits.
-4. Generate the TypeScript API and JavaScript implementation for the contract.
+If you run the command from a script or a coding agent, you see only the first line. The files below are the check that counts.
 
-When compilation completes, you'll see a new directory structure:
+The output lands in `contracts/managed/hello-world`:
 
-```
-contracts/
-├── managed/
-|   └── hello-world/
-|        ├── compiler/
-|        ├── contract/
-|        ├── keys/
-|        └── zkir/
-└── hello-world.compact
-└── index.ts
+```text
+contracts/managed/hello-world/
+├── compiler/   contract-info.json, a description of the contract for other tools
+├── contract/   index.js and index.d.ts, the contract implementation
+├── keys/       storeMessage.prover and storeMessage.verifier
+└── zkir/       storeMessage.zkir and storeMessage.bzkir, the circuit in ZKIR
 ```
 
-Here's what each directory contains:
+## Test the contract on a local network
 
-- **contract/**: The compiled contract artifacts, which includes the JavaScript implementation and type definitions.
-- **keys/**: Cryptographic proving and verifying keys that enable zero-knowledge proofs.
-- **zkir/**: Zero-Knowledge Intermediate Representation—the bridge between Compact and the ZK backend.
-- **compiler/**: Compiler-generated JSON output that other tools can use to understand the contract structure.
+The repository's tests deploy your compiled contract, call `storeMessage` with `Hello World!`, and read the message back from the ledger. They run against a local network in Docker, with a wallet that the network funds when it starts.
 
-</Step>
+1. Start the local network:
 
-<Step>
+   ```bash
+   yarn env:up
+   ```
 
-## Deploy Contract to Local Devnet
-Now that your contract is compiled, it needs to be deployed to the blockchain so that you can interact with it.
+   This starts a Midnight node, an indexer, and a proof server, and returns once all three are healthy.
 
-Be sure the Docker engine is running and in a *separate terminal* start the proof server from the project root:
-```bash
-yarn env:up
-```
+2. Wait for the wallet's DUST to become spendable:
 
-Leave the proof server running for the following steps.
+   ```bash
+   yarn wait:dust
+   ```
 
-To deploy the contract, you'll need a wallet. The local devnet package comes with 3 pre-funded wallets.
+   A fresh network needs a few seconds before the wallet can pay fees. The script prints `DUST ready` and exits.
 
-Run the Hello World test script:
-```bash
-yarn test:local
-```
+3. Run the tests:
 
-The test script will begin to show output from your local devnet and will progress the contract deployment and interaction programatically:
+   ```bash
+   yarn test:local
+   ```
 
-```
-[12:46:12.694] INFO (22064): Wallet sync complete after 23 emissions
-[12:46:12.703] INFO (22064): Providers initialized. Ready to test
-[12:46:12.707] INFO (22064): Creating private state...
-[12:46:32.347] INFO (22064): Setting the contract address...
-[12:46:32.347] INFO (22064): Contract deployed at: bba6579743ae23b44301d4a9f8df30dbd5244d63a59d8fbc2c9fc7ea521a04f8
- ✓ src/test/hw.test.ts (2 tests) 39112ms
-   ✓ Hello World Contract > Deploys the contract  19649ms
-   ✓ Hello World Contract > Stores Hello World!  18184ms
-```
+   The run ends with both tests passing:
 
-</Step>
-</StepsProvider>
+   ```text
+   [11:53:49.163] INFO (63955): Wallet sync complete after 23 emissions
+   [11:53:49.174] INFO (63955): Providers initialized on 'local'. Ready to test!
+   [11:53:49.177] INFO (63955): Creating private state...
+   [11:54:09.014] INFO (63955): Setting the contract address...
+   [11:54:09.014] INFO (63955): Contract deployed at: 2e5b69411fcabd3e803fd2971fdae2ffe4482e7f3d0174d50b8a4f0f3abb29fb
+    ✓ src/test/hw.test.ts (2 tests) 37897ms
+        ✓ Deploys the contract  19846ms
+        ✓ Stores Hello World!  17347ms
+
+    Test Files  1 passed (1)
+         Tests  2 passed (2)
+   ```
+
+   Your contract address and timings differ. If both tests pass, your environment is ready.
+
+4. Stop the local network:
+
+   ```bash
+   yarn env:down
+   ```
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `language version X.Y.Z mismatch` (X.Y.Z is your compiler's language version, for example `0.22.0`) | Your compiler doesn't support the contract's language version. Install toolchain 0.31.1 with `compact update 0.31.1`. |
+| `Cannot find module './managed/hello-world/contract/index.js'` | The contract isn't compiled. Run `yarn compile` before the tests. |
+| `Cannot connect to the Docker daemon` | Docker isn't running. Start Docker Desktop, wait for the engine to come up, then rerun `yarn env:up`. |
+| `yarn env:up` fails with `container ...-indexer-1 exited (1)` on the first start | The indexer sometimes exits during a fresh network's first start. Run `yarn env:up` again. |
+| `Wallet.InsufficientFunds` during the tests | The tests ran before the wallet's DUST was spendable. Run `yarn wait:dust`, then rerun `yarn test:local`. |
+| `RPC-CORE: subscribeRuntimeVersion(): RuntimeVersion:: disconnected ... 1000:: Normal Closure` | Not an error. A connection closes normally during wallet setup, and the run continues. |
 
 ## Next steps
 
-[Make your contract private](../guides/build-a-private-smart-contract): this contract stores its message in public. The next guide keeps a contract's inputs off the ledger with witnesses and commitments.
-
-Explore the [Tutorials](../category/tutorials) for detailed explanations on building Midnight DApps. For less detailed walkthroughs of DApps that provide additional content see [Examples](../category/examples).
+- [Make your contract private](../guides/build-a-private-smart-contract): this contract stores its message in public. Keep a contract's inputs off the ledger with witnesses and commitments.
+- [Bulletin board tutorial](../tutorials/bboard): build a complete DApp, from a contract with private state to a CLI.
+- [Deploying and operating a contract](../guides/deploy-and-operate): write the TypeScript that deploys and calls a contract.
+- [Networks and environments](../guides/networks-and-environments): move from the local network to Preprod.
+- [Compact language reference](../compact/reference/compact-reference): the full language.
+- [Examples](../examples): complete DApps to read and run.
