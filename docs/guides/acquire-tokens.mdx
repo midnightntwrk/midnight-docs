@@ -23,6 +23,7 @@ These apply to every procedure in this guide:
 - A [Lace wallet](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) set up on the target test network, for the faucet and Lace procedures.
 - Node.js version 22 or higher, for the wallet SDK procedure. macOS, Linux, and Windows through WSL all work.
 - A local [proof server](./run-proof-server) on port 6300, for the wallet SDK procedure.
+- A Blockfrost **Midnight Preprod** project token in the `BLOCKFROST_PROJECT_ID` environment variable, for the wallet SDK procedure. Blockfrost serves the Preprod indexer and node RPC; see [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
 - [Vitest](https://vitest.dev/) alongside the packages listed below, if you want to run the verification tests.
 
 {/* _mod-docs-content-type: PROCEDURE */}
@@ -117,7 +118,7 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
    curl http://localhost:6300/health
    ```
 
-3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, which keeps WebSocket behavior consistent across Node versions. The endpoints come from the [Environment reference](./networks-and-environments#environment-reference):
+3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, which keeps WebSocket behavior consistent across Node versions. The endpoints come from the [Environment reference](./networks-and-environments#environment-reference), and the script reads your Blockfrost token from `BLOCKFROST_PROJECT_ID` and appends it to each one:
 
    ```typescript
    import { WebSocket } from 'ws';
@@ -146,10 +147,15 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
 
    setNetworkId('preprod');
 
+   // The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+   const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+   if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+   const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
    const CONFIG = {
-     indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-     indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-     node: 'https://rpc.preprod.midnight.network',
+     indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+     indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+     node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
      proofServer: 'http://localhost:6300',
    };
    ```
@@ -278,10 +284,15 @@ import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-
 
 setNetworkId('preprod');
 
+// The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
 const CONFIG = {
-  indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-  indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-  node: 'https://rpc.preprod.midnight.network',
+  indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+  indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+  node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
   proofServer: 'http://localhost:6300',
 };
 
@@ -526,6 +537,7 @@ The failure modes readers hit most often on the funding path, and their fixes.
 | Faucet says `Provided address is invalid` | Use the **unshielded** address (`mn_addr_...`) with no surrounding whitespace. The faucet rejects shielded and DUST addresses. |
 | Faucet says `rate_limit_error` or `Reached maximum number of requests` | Wait a few hours and retry. If it persists, open a ticket at the [Midnight Service Desk](https://midnightntwrk.github.io/servicedesk/) or ask in [Discord](https://discord.gg/midnightnetwork). |
 | `Cannot find module` when running the script | Run `npm install` first. If it persists, delete `node_modules` and `package-lock.json`, then reinstall. |
+| `BLOCKFROST_PROJECT_ID is not set.`, or HTTP `403` errors while the wallet syncs | Set `BLOCKFROST_PROJECT_ID` to the project ID of a **Midnight Preprod** project on Blockfrost. A Mainnet project's token gets `403` on Preprod. See [Migrating from the Midnight-hosted endpoints](./networks-and-environments#migrating-from-the-midnight-hosted-mainnet-endpoints) for each `403` message. |
 | Connection refused on port 6300 | The proof server is not running; see [Run the proof server](./run-proof-server). |
 | Balance stays zero after the faucet confirms | Give it a couple of minutes; the wallet detects funds after its next sync. Confirm the address you pasted matches the printed one exactly. |
 | DUST stays zero after registration | Give the registration time to land on-chain, then confirm the proof server answers on `http://localhost:6300/health`. |
