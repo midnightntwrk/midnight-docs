@@ -39,7 +39,7 @@ const releases = [
   },
   {
     version: '1.0.300',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '22 September 2026',
     summary: 'Required node upgrade for runtime 1.0.300, now live on Preview, Preprod, and Mainnet, with a block timestamp correction for historical blocks.',
     details: [
