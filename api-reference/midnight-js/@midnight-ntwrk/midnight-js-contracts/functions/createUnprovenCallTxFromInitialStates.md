@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -16,6 +16,13 @@ unproven, unsubmitted, call transaction.
 Configuration.
 
 ## Param
+
+## Remarks
+
+The returned [UnsubmittedCallTxData](../type-aliases/UnsubmittedCallTxData.md) is privacy-sensitive and carries
+the unproven transaction, ZK inputs/outputs, and next private state. See
+that type for handling guidance before logging, serializing, or
+transmitting the result.
 
 ## Call Signature
 
