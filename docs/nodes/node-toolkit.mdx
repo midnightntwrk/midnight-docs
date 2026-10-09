@@ -20,6 +20,7 @@ These apply to every procedure in this guide:
 
 - Docker, to run the toolkit image and a local node. On a Linux server, the release binary runs most commands without Docker. See [Installing the toolkit binary on Linux](#installing-the-toolkit-binary-on-linux).
 - `curl` and `jq`, for the JSON-RPC and GraphQL calls and for reading JSON output.
+- A Blockfrost **Midnight Preprod** project token in the `BLOCKFROST_PROJECT_ID` environment variable, for the procedures that read from Preprod. Blockfrost serves the Preprod node RPC and indexer. See [Getting a Blockfrost project token](../guides/networks-and-environments#getting-a-blockfrost-project-token).
 - Seeds that hold only test funds. The toolkit takes seeds as command-line arguments, so they can end up in your shell history and in process listings.
 - Node.js 22 or later, if you want to run the two checks that compare the toolkit's output with the wallet SDK. They run in a `toolkit-checks` folder with the SDK and ledger packages at the versions in the [support matrix](../relnotes/support-matrix):
 
@@ -60,7 +61,7 @@ Check these values before you install the toolkit, and again after a network upg
 - **Older chains:** toolkit 1.0.300 also reads a development chain on node 1.0.0, which [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev) runs as of 3 October 2026. Toolkit 1.0.0 cannot read blocks from runtime 1000300.
 - **Contract compiler:** the image's `toolkit-js` bundles `compact-runtime` 0.15.0. Use Compact compiler 0.30.0 for contracts that you deploy with the toolkit, and write them for language version 0.22, which that compiler implements. Compiler 0.31.1, the version the support matrix lists, implements language version 0.23 and emits code for `compact-runtime` 0.16.0, which the toolkit rejects.
 - **The `version` command:** prints `Node: 1.0.300`, `Ledger: =7.0.3`, and `Compactc: 0.30.0`. The `Ledger` line names an older ledger library that the toolkit also contains. The networks run ledger 8.1.2, which their `midnight_ledgerVersion` RPC method reports, so go by the `Node` line.
-- **Tested:** every command on this page ran on 3 October 2026 with toolkit 1.0.300, against a local node 1.0.300 and the public Preview and Preprod endpoints. The Docker commands ran with Docker Desktop on macOS, and the binary steps ran in Ubuntu 24.04 containers on amd64 and arm64. Mainnet was not part of these runs.
+- **Tested:** every command on this page ran on 3 October 2026 with toolkit 1.0.300, against a local node 1.0.300 and the public Preview and Preprod endpoints. The Docker commands ran with Docker Desktop on macOS, and the binary steps ran in Ubuntu 24.04 containers on amd64 and arm64. Mainnet was not part of these runs. On 8 October 2026, the Preprod examples in [Inspecting a block](#inspecting-a-block) and [Reading a network's ledger parameters](#reading-a-networks-ledger-parameters) ran again against the Blockfrost Preprod endpoints, with the same results.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Running the toolkit with Docker
@@ -197,7 +198,8 @@ Consult these tables when you point the toolkit at a node or change where it kee
 
 | Where the node is | URL to pass | Extra `docker run` option |
 |---|---|---|
-| Public Preview or Preprod endpoint | `wss://rpc.preview.midnight.network` or `wss://rpc.preprod.midnight.network` | None |
+| Public Preview endpoint | `wss://rpc.preview.midnight.network` | None |
+| Public Preprod endpoint | `wss://rpc.midnight-preprod.blockfrost.io?project_id=<token>`, with a Blockfrost **Midnight Preprod** project token. See [Node endpoints](./node-endpoints). | None |
 | A node container on a user-defined Docker network | `ws://<container-name>:9944` | `--network <network-name>` |
 | A node container whose network you share | The default, `ws://127.0.0.1:9944`, so leave out `-s` and `-d` | `--network container:<container-name>` |
 | A node published on the host's `127.0.0.1`, with Docker Desktop | `ws://host.docker.internal:<port>` | None |
@@ -234,7 +236,7 @@ Decode a block and its transactions, for example to see what a transaction carri
    ```bash
    curl -s -H 'Content-Type: application/json' \
      -d '{"jsonrpc":"2.0","id":1,"method":"chain_getHeader","params":[]}' \
-     https://rpc.preprod.midnight.network | jq -r '.result.number' | xargs printf '%d\n'
+     "https://rpc.midnight-preprod.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID" | jq -r '.result.number' | xargs printf '%d\n'
    ```
 
    ```text
@@ -244,7 +246,7 @@ Decode a block and its transactions, for example to see what a transaction carri
 2. Decode a block. The examples use Preprod block 2817111, which holds one transaction:
 
    ```bash
-   midnight-node-toolkit show-block -s wss://rpc.preprod.midnight.network -b 2817111
+   midnight-node-toolkit show-block -s "wss://rpc.midnight-preprod.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID" -b 2817111
    ```
 
    The output starts with the block header and then decodes each transaction:
@@ -267,7 +269,7 @@ Decode a block and its transactions, for example to see what a transaction carri
 3. Write the block as JSON and pick out the fields you need. The JSON is an array, because a `--src-file` can hold several blocks, so start the `jq` filter with `.[0]`:
 
    ```bash
-   midnight-node-toolkit show-block -s wss://rpc.preprod.midnight.network -b 2817111 --json > block.json
+   midnight-node-toolkit show-block -s "wss://rpc.midnight-preprod.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID" -b 2817111 --json > block.json
    jq '.[0] | {number, hash, timestamp_utc, transactions: [.transactions[] | {index, tx_type, hash}]}' block.json
    ```
 
@@ -295,7 +297,7 @@ The indexer reports the same block hash and transaction hash for that height:
 ```bash
 curl -s -H 'Content-Type: application/json' \
   -d '{"query":"{ block(offset: {height: 2817111}) { height hash timestamp transactions { hash __typename } } }"}' \
-  https://indexer.preprod.midnight.network/api/v4/graphql | jq -c .
+  "https://midnight-preprod.blockfrost.io/api/v0?project_id=$BLOCKFROST_PROJECT_ID" | jq -c .
 ```
 
 ```json
@@ -314,7 +316,7 @@ Read the parameters a network's ledger runs with: the DUST generation values, th
 1. Save the parameters of Preprod to a file:
 
    ```bash
-   midnight-node-toolkit show-ledger-parameters -r wss://rpc.preprod.midnight.network > params.txt
+   midnight-node-toolkit show-ledger-parameters -r "wss://rpc.midnight-preprod.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID" > params.txt
    ```
 
 2. Read the DUST parameters:
@@ -354,7 +356,7 @@ Read the parameters a network's ledger runs with: the DUST generation values, th
 4. Print the parameters in encoded form, the format the indexer returns in a block's `ledgerParameters` field:
 
    ```bash
-   midnight-node-toolkit show-ledger-parameters -r wss://rpc.preprod.midnight.network --serialize
+   midnight-node-toolkit show-ledger-parameters -r "wss://rpc.midnight-preprod.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID" --serialize
    ```
 
    The output is one line of hex that starts with `6d69646e696768743a6c65646765722d706172616d65746572735b76355d3a`, the encoding of `midnight:ledger-parameters[v5]:`.
@@ -384,10 +386,10 @@ for (const file of process.argv.slice(2)) {
 Then save both encodings in that folder and decode them:
 
 ```bash
-midnight-node-toolkit show-ledger-parameters -r wss://rpc.preprod.midnight.network --serialize > toolkit.hex
+midnight-node-toolkit show-ledger-parameters -r "wss://rpc.midnight-preprod.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID" --serialize > toolkit.hex
 curl -s -H 'Content-Type: application/json' \
   -d '{"query":"{ block { height ledgerParameters } }"}' \
-  https://indexer.preprod.midnight.network/api/v4/graphql | jq -r .data.block.ledgerParameters > indexer.hex
+  "https://midnight-preprod.blockfrost.io/api/v0?project_id=$BLOCKFROST_PROJECT_ID" | jq -r .data.block.ledgerParameters > indexer.hex
 node check-parameters.mjs toolkit.hex indexer.hex
 ```
 
