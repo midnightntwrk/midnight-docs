@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -72,7 +72,26 @@ A JSON-serializable export structure that can be saved or transmitted.
 
 #### Throws
 
-If no states exist to export or limit exceeded.
+If no states exist to export, the state
+  limit is exceeded, or a caller-supplied `options.password` does not
+  satisfy the minimum-length policy.
+
+#### Throws
+
+If implementations require a scoped operating context (for
+  example, an account or contract address) and that context is not set.
+
+#### Throws
+
+If the password returned by the configured password provider
+  does not satisfy the minimum strength policy (validation runs on
+  every invocation).
+
+#### Throws
+
+If reading existing entries fails for any of the reasons listed
+  on [PrivateStateProvider.get](#get) (decryption failure, rotation
+  lock timeout, store I/O).
 
 ***
 
@@ -98,7 +117,20 @@ A JSON-serializable export structure that can be saved or transmitted.
 
 #### Throws
 
-If no keys exist to export or limit exceeded.
+If no keys exist to export, the key limit
+  is exceeded, or a caller-supplied `options.password` does not satisfy
+  the minimum-length policy.
+
+#### Throws
+
+If the password returned by the configured password provider
+  does not satisfy the minimum strength policy (validation runs on
+  every invocation).
+
+#### Throws
+
+If reading existing entries fails for any of the reasons listed
+  on [PrivateStateProvider.getSigningKey](#getsigningkey).
 
 ***
 
@@ -120,6 +152,56 @@ The private state identifier.
 
 `Promise`\<`PS` \| `null`\>
 
+The stored private state, or `null` if either:
+  - the key is absent from the underlying store, or
+  - the stored value deserializes to `undefined`.
+
+  Callers should treat both `null` outcomes equivalently as "no usable
+  value". The provider does not distinguish between an absent key and an
+  explicitly-undefined stored value; if the distinction matters for your
+  application, store a sentinel value instead.
+
+#### Throws
+
+If `setContractAddress` has not been called prior to invocation.
+
+#### Throws
+
+If the password returned by the configured password provider does
+  not satisfy the minimum strength policy. Validation runs on every
+  invocation against the password returned by the provider. It is not
+  cached.
+
+#### Throws
+
+If decryption of the stored value fails (wrong password, salt
+  mismatch, unsupported encryption version, or authentication tag
+  mismatch). Decryption errors are propagated to the caller and do **not**
+  collapse to `null`.
+
+#### Throws
+
+If a concurrent password rotation does not release its lock
+  within the internal default timeout (5 minutes on the read path; the
+  read path does not expose a configuration knob).
+
+#### Throws
+
+Underlying store I/O errors are propagated; callers should not
+  include them in user-facing messages without redacting paths and
+  OS-level metadata.
+
+#### Remarks
+
+Implementations may lazily migrate legacy or unencrypted entries on
+read, which means a successful logical read can trigger a write to the
+underlying store. In read-only environments (mounted-read-only file
+systems, quota-exhausted backends), `get` may reject with an I/O error
+even when the value is present and decryptable. The list of decryption
+failure modes above is illustrative, not exhaustive: payload
+encoding/parse errors, crypto-backend availability errors, and other
+corruption modes are also surfaced as throws rather than `null`.
+
 ***
 
 ### getSigningKey()
@@ -139,6 +221,54 @@ The address of the contract for which to get the signing key.
 #### Returns
 
 `Promise`\<`string` \| `null`\>
+
+The stored signing key, or `null` if either:
+  - no signing key is stored for the given address, or
+  - the stored value deserializes to `undefined`.
+
+  Callers should treat both `null` outcomes equivalently as "no usable
+  value".
+
+#### Throws
+
+If the password returned by the configured password provider does
+  not satisfy the minimum strength policy. Validation runs on every
+  invocation against the password returned by the provider. It is not
+  cached.
+
+#### Throws
+
+If decryption of the stored value fails (wrong password, salt
+  mismatch, unsupported encryption version, or authentication tag
+  mismatch). Decryption errors are propagated to the caller and do **not**
+  collapse to `null`.
+
+#### Throws
+
+If a concurrent password rotation does not release its lock
+  within the internal default timeout (5 minutes on the read path; the
+  read path does not expose a configuration knob).
+
+#### Throws
+
+Underlying store I/O errors are propagated; callers should not
+  include them in user-facing messages without redacting paths and
+  OS-level metadata.
+
+#### Remarks
+
+Unlike [PrivateStateProvider.get](#get), this method does **not** require
+[PrivateStateProvider.setContractAddress](#setcontractaddress) to have been called first:
+the contract address is supplied as an argument.
+
+Implementations may lazily migrate legacy or unencrypted entries on
+read, which means a successful logical read can trigger a write to the
+underlying store. In read-only environments, `getSigningKey` may reject
+with an I/O error even when the value is present and decryptable. The
+list of decryption failure modes above is illustrative, not exhaustive:
+payload encoding/parse errors, crypto-backend availability errors,
+and other corruption modes are also surfaced as throws rather than
+`null`.
 
 ***
 
@@ -180,6 +310,22 @@ If the export format is invalid or unsupported.
 
 If conflictStrategy is 'error' and conflicts exist.
 
+#### Throws
+
+If a caller-supplied `options.password`
+  does not satisfy the minimum-length policy.
+
+#### Throws
+
+If implementations require a scoped operating context (for
+  example, an account or contract address) and that context is not set.
+
+#### Throws
+
+If reading or writing the underlying store fails for any of the
+  reasons listed on [PrivateStateProvider.get](#get) or
+  [PrivateStateProvider.set](#set).
+
 ***
 
 ### importSigningKeys()
@@ -219,6 +365,17 @@ If the export format is invalid or unsupported.
 #### Throws
 
 If conflictStrategy is 'error' and conflicts exist.
+
+#### Throws
+
+If a caller-supplied `options.password`
+  does not satisfy the minimum-length policy.
+
+#### Throws
+
+If reading or writing the underlying store fails for any of the
+  reasons listed on [PrivateStateProvider.getSigningKey](#getsigningkey) or
+  [PrivateStateProvider.setSigningKey](#setsigningkey).
 
 ***
 

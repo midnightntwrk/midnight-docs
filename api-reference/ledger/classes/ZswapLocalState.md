@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -52,10 +52,20 @@ This may be used to identify which merkle tree updates are necessary.
 
 ***
 
+### merkleTreeRoot
+
+```ts
+readonly merkleTreeRoot: bigint | undefined;
+```
+
+The root of the commitment Merkle tree.
+
+***
+
 ### pendingOutputs
 
 ```ts
-readonly pendingOutputs: Map<string, [ShieldedCoinInfo, undefined | Date]>;
+readonly pendingOutputs: Map<string, [ShieldedCoinInfo, Date | undefined]>;
 ```
 
 The outputs that this wallet is expecting to receive in the future, with
@@ -66,7 +76,7 @@ an optional TTL attached.
 ### pendingSpends
 
 ```ts
-readonly pendingSpends: Map<string, [QualifiedShieldedCoinInfo, undefined | Date]>;
+readonly pendingSpends: Map<string, [QualifiedShieldedCoinInfo, Date | undefined]>;
 ```
 
 The spends that this wallet is expecting to be finalized on-chain in the
@@ -164,6 +174,36 @@ or which has been discarded.
 
 ***
 
+### applyWithChanges()
+
+```ts
+applyWithChanges<P>(secretKeys, offer): ZswapLocalStateWithChanges;
+```
+
+Locally applies an offer to the current state, returning both the updated state and the state changes.
+
+#### Type Parameters
+
+##### P
+
+`P` *extends* [`Proofish`](../type-aliases/Proofish.md)
+
+#### Parameters
+
+##### secretKeys
+
+[`ZswapSecretKeys`](ZswapSecretKeys.md)
+
+##### offer
+
+[`ZswapOffer`](ZswapOffer.md)\<`P`\>
+
+#### Returns
+
+[`ZswapLocalStateWithChanges`](ZswapLocalStateWithChanges.md)
+
+***
+
 ### clearPending()
 
 ```ts
@@ -184,6 +224,53 @@ NOTE: This API endpoint is currently non-functional and works as a no-op.
 ##### time
 
 `Date`
+
+#### Returns
+
+`ZswapLocalState`
+
+***
+
+### insertCoin()
+
+```ts
+insertCoin(secretKeys, coin): ZswapLocalState;
+```
+
+Directly inserts a coin owned by this wallet into the state at `this.first_free`.
+
+This function requires secret keys as coins are indexed by nullifier, and
+secret keys are required to compute this.
+
+#### Parameters
+
+##### secretKeys
+
+[`ZswapSecretKeys`](ZswapSecretKeys.md)
+
+##### coin
+
+[`ShieldedCoinInfo`](../type-aliases/ShieldedCoinInfo.md)
+
+#### Returns
+
+`ZswapLocalState`
+
+***
+
+### removeCoinByNullifier()
+
+```ts
+removeCoinByNullifier(nullifier): ZswapLocalState;
+```
+
+Removes a given coin from the tracked coins by its nullifier.
+
+#### Parameters
+
+##### nullifier
+
+`string`
 
 #### Returns
 
@@ -234,6 +321,30 @@ and the state changes. These *must* be replayed in the same order as emitted by 
 ##### events
 
 [`Event`](Event.md)[]
+
+#### Returns
+
+[`ZswapLocalStateWithChanges`](ZswapLocalStateWithChanges.md)
+
+***
+
+### replayRawEvents()
+
+```ts
+replayRawEvents(sk, rawEvents): ZswapLocalStateWithChanges;
+```
+
+Replays a direct concatenation of serialized ledger events. Otherwise acts as `replayEventsWithChanges`.
+
+#### Parameters
+
+##### sk
+
+[`ZswapSecretKeys`](ZswapSecretKeys.md)
+
+##### rawEvents
+
+`Uint8Array`
 
 #### Returns
 
@@ -315,7 +426,7 @@ in-flight.
 
 ##### segment
 
-`undefined` | `number`
+`number` | `undefined`
 
 ##### ttl?
 
@@ -354,7 +465,7 @@ this coin as in-flight.
 
 ##### segment
 
-`undefined` | `number`
+`number` | `undefined`
 
 ##### output
 
