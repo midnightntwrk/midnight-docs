@@ -1,0 +1,117 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Ledger v8.1.3 release notes
+description: The Midnight Ledger is the core library for transaction construction, ZKP proving, and on-chain state management on the Midnight Network.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v8.1.3
+* **Date**: October 2, 2026
+
+---
+
+## High-level summary
+
+Ledger 8.1.3 is a security patch. It fixes the critical advisory [GHSA-wr7g-rr4v-jmj8](https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8). Before this release, two encodings of the same field value gave the same proof inputs, but the ledger compared and stored them as different values. An attacker could use this to get past a smart contract's one-time checks, for example to claim the same payout more than once. Ledger 8.1.3 requires the canonical encoding for field values embedded in a contract call transcript. It also rejects two related forms in transcripts: a pushed Merkle tree that isn't empty, and `noop` with a count of 0.
+
+Node operators should run node 1.0.400, which includes ledger 8.1.3. DApps built with the Compact compiler and Midnight.js don't need changes. The matching proof server image, `midnightntwrk/proof-server:8.1.3`, is the first 8.x proof server image on Docker Hub since 8.1.0.
+
+## Audience
+
+This release note is most relevant for:
+
+- Node operators and validators.
+- Smart contract developers whose contracts use a `Set` or `Map` as a one-time guard with keys that contain a `Field`, such as `Set<Field>` or `Map<Field, V>`.
+- DApp developers who depend on the `ledger-v8` or `onchain-runtime-v3` npm packages directly, under either the `@midnightntwrk` or the `@midnight-ntwrk` scope.
+- Developers who run the proof server.
+- Developers who use the ledger Rust crates or build transactions with their own tooling.
+
+## Summary of updates
+
+- Security: contract call transcripts must use canonical field values, which fixes [GHSA-wr7g-rr4v-jmj8](https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8).
+- Security: a Merkle tree inside a `push` or `pushs` operation must be empty.
+- Security: contract call transcripts can't contain `noop` with a count of 0.
+- Compatibility: valid transactions and stored state serialize to the same bytes as in 8.1.2, and the TypeScript declarations don't change. A node on 8.1.3 rejects some contract calls that a node on 8.1.2 accepts.
+- Rust API: in `onchain-vm`, `Key::Value` now holds an `AlignedValueChecked` instead of an `AlignedValue`, and `Op::Push` holds a `StateValue<D, AlignedValueChecked>`.
+- Proof server: `midnightntwrk/proof-server:8.1.3` is on Docker Hub, and its signed build manifest is on the `proof-server-8.1.3` GitHub release.
+- Packages: `@midnightntwrk/ledger-v8` 8.1.3 and `@midnightntwrk/onchain-runtime-v3` 3.1.2 are on npm, also under the older `@midnight-ntwrk` scope. ZKIR stays at 2.1.1.
+
+---
+
+## New features
+
+### Proof server image with a signed build manifest
+
+The proof server image `midnightntwrk/proof-server:8.1.3` is on Docker Hub for `linux/amd64` and `linux/arm64`, and the `latest` tag points to it. Docker Hub has no proof server image for ledger 8.1.1 or 8.1.2, so this image also includes their changes. The API, port 6300, and command-line options don't change, and `GET /version` returns `8.1.3`.
+
+The [`proof-server-8.1.3` GitHub release](https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-8.1.3) includes a signed `build-manifest.json` that records the image digest and the source commit. To verify the manifest, download the three files attached to the release and run:
+
+```bash
+gpg --import midnight-proof-server-public.asc
+gpg --verify build-manifest.json.asc build-manifest.json
+```
+
+Check that `gpg` reports a good signature from the key with fingerprint `2D55 ACA7 93E9 495E 4288 9A35 4523 91B0 57AD D8C7`. `gpg` also warns that the key isn't certified with a trusted signature. That's expected for a key that you just imported, and the fingerprint is what identifies the key.
+
+Then check that the `image_digest` in the manifest matches the digest that `docker pull midnightntwrk/proof-server:8.1.3` prints. The manifest's `image` field names a copy of the image in the GitHub Container Registry. The release lists one digest for both copies, so compare it with the digest from your Docker Hub pull.
+
+## New features requiring configuration updates
+
+None in this release.
+
+## Deprecations
+
+None in this release.
+
+---
+
+## Breaking changes or required actions
+
+For transactions that you build with the Compact compiler and Midnight.js, nothing changes. Valid transactions serialize to the same bytes as with 8.1.2, and 8.1.3 reads state that 8.1.2 wrote. The validity rules are narrower. A node on 8.1.3 rejects some contract calls that a node on 8.1.2 accepts, so every block producer should run 8.1.3.
+
+- **Node operators and validators**: run node 1.0.400, which includes ledger 8.1.3, and move all block producers to it together. The upgrade replaces only the node binary and needs no resync.
+- **Proof server users**: `midnightntwrk/proof-server:8.1.3` is available, and your configuration doesn't change. The [compatibility matrix](/relnotes/support-matrix) lists the proof server version tested on each network.
+- **DApp developers**: you don't need to change your code or your dependencies, because nodes on 8.1.3 apply the new rules whatever ledger version your project uses. If you use `ledger-v8` or `onchain-runtime-v3` without Midnight.js, under either the `@midnightntwrk` or the `@midnight-ntwrk` scope, you can update to 8.1.3 and 3.1.2 so that local checks such as `Transaction.wellFormed` apply the same rules as a node on 8.1.3. In a Midnight.js 4.1.1 project, use `@midnight-ntwrk/ledger-v8` 8.1.0, the copy that Midnight.js uses (see [Known issues](#known-issues)).
+- **Smart contract developers**: if your smart contract uses a `Set` or `Map` as a one-time guard for payouts, withdrawals, or mints, and its keys contain a `Field`, read the [advisory](https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8) and check the state of your contract. This applies to `Set<Field>` and `Map<Field, V>`, and also to keys of a tuple or struct type with a `Field` member, `MerkleTreeDigest` keys, and `JubjubPoint` keys. Ledger 8.1.3 doesn't rewrite keys that your contract already stores.
+- **Custom transaction builders**: if you build transactions with your own tooling, make sure they follow the new rules in the [on-chain runtime specification](https://github.com/midnightntwrk/midnight-ledger/blob/ledger-8.1.3/spec/onchain-runtime.md#programs).
+
+### Rust API changes
+
+If you use the Rust crates directly, two enum variants in `onchain-vm` change: `Key::Value` now holds an `AlignedValueChecked` instead of an `AlignedValue`, and `Op::Push` holds a `StateValue<D, AlignedValueChecked>`. `StateValue` now takes a second type parameter, which defaults to `AlignedValue`. Rust code that constructs these values directly must convert them to compile against 8.1.3, even though 8.1.3 is a patch release. Convert a value with `AlignedValueChecked::try_from`, or convert a `StateValue` with `StateValue::try_into_checked`. The crate documents `try_into_checked` as unsuitable for the critical path, because it walks the value as a tree, so a value with shared children can take time exponential in its serialized size.
+
+The crate versions are 8.1.3 for `midnight-ledger` and `midnight-zswap`, 3.1.2 for `midnight-onchain-runtime` and `midnight-onchain-vm`, 3.0.2 for `midnight-onchain-state`, and 1.0.2 for `midnight-base-crypto`.
+
+---
+
+## Bug fixes and quality improvements
+
+| Component | Description |
+|-----------|-------------|
+| onchain-runtime | Every field value embedded in a contract call transcript must be canonical, meaning strictly below the field modulus. This covers the values in `push` and `pushs` operations, including cells and map keys, and the literal keys in `idx`, `idxc`, `idxp`, and `idxpc` paths. A node on 8.1.3 rejects a non-canonical value when it decodes the transaction. Fixes [GHSA-wr7g-rr4v-jmj8](https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8). |
+| onchain-runtime | A Merkle tree inside a `push` or `pushs` operation must be the empty tree of its height. The proof doesn't cover the tree's root, and the ledger doesn't recompute the root when it decodes the transaction. Contracts compiled with Compact push only empty trees, for example when they reset a `MerkleTree` ledger field. |
+| ledger | Rejects a contract call whose transcript contains `noop` with a count of 0, and reports that the transaction isn't in normal form. That operation added nothing to the proof's public inputs but still moved the targets of `branch` and `jmp`. |
+| base-crypto | Adds `Alignment::fits_field_check`, `Alignment::consume_field_check`, and `AlignmentAtom::fits_field_check`, which apply an extra caller-supplied check to atoms with `Field` alignment. Existing functions behave as before. |
+
+---
+
+## Known issues
+
+- Ledger 8.1.3 doesn't repair existing contract state, so a non-canonical key that a contract stored before the upgrade stays in place. The caveat in the [advisory](https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8) explains what to check.
+- Midnight.js 4.1.1 depends on exact versions `@midnight-ntwrk/ledger-v8` 8.1.0 and `@midnight-ntwrk/onchain-runtime-v3` 3.0.0, so the copies that Midnight.js uses stay at those versions. If you add `@midnight-ntwrk/ledger-v8` 8.1.3 as a direct dependency of a Midnight.js 4.1.1 project, npm installs it beside the 8.1.0 copy, and ledger objects passed between the two copies can fail with `expected instance of` errors.
+- Dependabot, `npm audit`, and `cargo audit` don't flag ledger packages or crates at 8.1.2 or earlier, because this advisory isn't in their advisory databases. Check your versions yourself.
+
+---
+
+## Links and references
+
+- [GitHub release: ledger-8.1.3](https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-8.1.3)
+- [Security advisory GHSA-wr7g-rr4v-jmj8](https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8)
+- [GitHub release: proof-server-8.1.3](https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-8.1.3)
+- [`midnightntwrk/proof-server` on Docker Hub](https://hub.docker.com/r/midnightntwrk/proof-server)
+- [`@midnightntwrk/ledger-v8` on npm](https://www.npmjs.com/package/@midnightntwrk/ledger-v8)
+- [`@midnightntwrk/onchain-runtime-v3` on npm](https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v3)
+- [Field-aligned binary specification: canonical field values](https://github.com/midnightntwrk/midnight-ledger/blob/ledger-8.1.3/spec/field-aligned-binary.md#canonical-field-values)
+- [On-chain runtime specification: programs](https://github.com/midnightntwrk/midnight-ledger/blob/ledger-8.1.3/spec/onchain-runtime.md#programs)
+- [GitHub release: node-1.0.400](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.400)
+- [Ledger v8.1.2 release notes](/relnotes/ledger/ledger-8-1-2)
