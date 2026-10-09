@@ -30,7 +30,7 @@ These apply to every procedure in this guide:
 
 Every security control in a Compact contract defends against one of three adversaries. Knowing which one a given circuit faces tells you which control it needs.
 
-A **chain observer** reads the public ledger. Zero-knowledge proofs hide your witness data, but a transaction still reveals which circuit and contract you called, the arguments to ledger operations, any values you disclose, and the timing. The [On-chain visibility](#on-chain-visibility) reference lists exactly what is and is not exposed.
+A **chain observer** reads the public ledger. Zero-knowledge proofs hide your witness data, but a transaction still reveals which circuit and contract you called, the arguments to ledger operations, any values you disclose and write to the ledger, and the timing. The [On-chain visibility](#on-chain-visibility) reference lists exactly what is and is not exposed.
 
 A **malicious prover** controls their own frontend and supplies every witness value, including the result of `ownPublicKey()`. The protocol does not check those values against the wallet that signed the transaction, so the only thing constraining a lying prover is the set of `assert` statements in your circuit. Anything you do not constrain, the prover chooses.
 
@@ -46,13 +46,14 @@ What a chain observer can and cannot see for any transaction. Consult it when de
 | Which exported circuit you called | Yes, the entry point is part of the transaction |
 | Which contract you called | Yes, the contract address is public |
 | Arguments to ledger operations (`Set` and `Map` keys and values, `Counter` amounts) | Yes |
-| Values you disclose into a public position (a ledger write, an exported-circuit return, or a contract-to-contract call) | Yes |
+| Values you disclose and write to the ledger | Yes |
+| The return value of an exported circuit | No, the transaction carries only a randomized commitment to the call's inputs and outputs. A value the circuit read from or wrote to the ledger is still visible through that ledger operation. |
 | When the transaction landed on-chain | Yes, block timing is observable |
-| Witness function return values | No, unless you disclose them into a public position |
+| Witness function return values | No, unless you disclose them and they reach the ledger, as a ledger operation argument or through a branch that decides which ledger operations run |
 | Internal circuit computation | No |
 | The leaf inserted into a `MerkleTree` or `HistoricMerkleTree` | No, this is the one ledger operation that hides its argument |
 
-Wrapping a value in `disclose()` does not publish it. `disclose()` clears the compiler's private-data check so the value may cross a public boundary; the value becomes visible only when it crosses one, through a ledger write, a return from an exported circuit, or a contract-to-contract call.
+Wrapping a value in `disclose()` does not publish it. `disclose()` clears the compiler's private-data check so the value may leave the circuit through a ledger write, a return from an exported circuit, or a contract-to-contract call. A ledger write is visible on-chain. A return value is not written to the ledger or readable in the transaction; only a randomized commitment to the call's inputs and outputs is. The compiler still requires `disclose()` to return a value that comes from a witness function, because the value leaves the circuit, to your DApp or to a calling contract.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Authenticating a caller with a derived identity
@@ -173,7 +174,7 @@ describe('access control', () => {
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Restricting a circuit to a group
 
-Let any member of a group run a circuit without revealing which member, by verifying a Merkle membership proof and binding it to the caller so no one else can replay it.
+Let any member of a group run a circuit without revealing which member, by verifying a Merkle membership proof and binding it to the caller so no one else can use it.
 
 ### Prerequisites
 
@@ -201,7 +202,7 @@ Let any member of a group run a circuit without revealing which member, by verif
    }
    ```
 
-2. Verify a membership proof and bind it to the caller. The binding assert is the security-critical line: without it, anyone who observed a valid path in a public transaction could replay it:
+2. Verify a membership proof and bind it to the caller. The binding assert is the security-critical line. The caller supplies `path`, and anyone who knows a member's public key can compute that member's path from the ledger state. Without the assert, a non-member could pass the membership check with a member's path:
 
    ```compact
    export circuit act(path: MerkleTreePath<10, Bytes<32>>): [] {
@@ -216,7 +217,7 @@ A membership proof hides you only among the other members, so a tree with three 
 
 ### Verification
 
-A member acts with their own path; the binding assert rejects a non-member who replays that path.
+A member acts with their own path; the binding assert rejects a non-member who submits that path.
 
 ```typescript title="group-access.test.ts"
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -243,7 +244,7 @@ describe('group membership', () => {
     expect(() => contract.impureCircuits.act(ctx, alicePath)).not.toThrow();
   });
 
-  it("rejects a non-member replaying a member's path", () => {
+  it("rejects a non-member using a member's path", () => {
     const malloryCtx = { ...ctx, currentPrivateState: { sk: MALLORY } };
     expect(() => contract.impureCircuits.act(malloryCtx, alicePath)).toThrow('path not bound to caller');
   });
@@ -252,7 +253,7 @@ describe('group membership', () => {
 
 ```text
  ✓ group-access.test.ts > group membership > lets a member act with their own path
- ✓ group-access.test.ts > group membership > rejects a non-member replaying a member's path
+ ✓ group-access.test.ts > group membership > rejects a non-member using a member's path
 
  Test Files  1 passed (1)
       Tests  2 passed (2)
