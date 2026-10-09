@@ -17,8 +17,8 @@ This quick start checks that your environment can compile and test a Compact con
 ## Prerequisites
 
 - The Compact toolchain, version 0.31.1. Follow [Install the toolchain](./installation), then confirm with `compact compile --version`. The [support matrix](../relnotes/support-matrix) lists the versions that each network supports.
-- [Node.js](https://nodejs.org/) version 22 or higher.
-- Yarn. With Node.js 22 or 24, run `corepack enable` once and the project uses the Yarn version it pins.
+- [Node.js](https://nodejs.org/) 22 or 24. The project's dependencies don't install on Node.js 23.
+- Yarn. Run `corepack enable` once and the project uses the Yarn version it pins.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/), or another Docker engine with Compose v2, running.
 - Git.
 
@@ -48,7 +48,7 @@ export circuit storeMessage(newMessage: Opaque<"string">): [] {
 }
 ```
 
-- `pragma language_version 0.23;` declares the Compact language version. The compiler rejects the file if it doesn't compile that version.
+- `pragma language_version 0.23;` declares the Compact language version. The compiler rejects the file if it doesn't support that version.
 - `export ledger message` declares public, on-chain state: a field named `message` that holds a string.
 - `export circuit storeMessage` declares a circuit, the Compact equivalent of a function that a transaction calls.
 - `newMessage` is private, because circuit arguments are private by default. `disclose()` tells the compiler that you intend to make it public by storing it on the ledger. Without it, compiling fails with `potential witness-value disclosure must be declared but is not`.
@@ -68,6 +68,8 @@ Compiling 1 circuits:
   circuit "storeMessage" (k=6, rows=26)
 Overall progress [====================] 1/1
 ```
+
+If you run the command from a script or a coding agent, you see only the first line. The files below are the check that counts.
 
 The output lands in `contracts/managed/hello-world`:
 
@@ -91,7 +93,15 @@ The repository's tests deploy your compiled contract, call `storeMessage` with `
 
    This starts a Midnight node, an indexer, and a proof server, and returns once all three are healthy.
 
-2. Run the tests:
+2. Wait for the wallet's DUST to become spendable:
+
+   ```bash
+   yarn wait:dust
+   ```
+
+   A fresh network needs a few seconds before the wallet can pay fees. The script prints `DUST ready` and exits.
+
+3. Run the tests:
 
    ```bash
    yarn test:local
@@ -115,7 +125,7 @@ The repository's tests deploy your compiled contract, call `storeMessage` with `
 
    Your contract address and timings differ. If both tests pass, your environment is ready.
 
-3. Stop the local network:
+4. Stop the local network:
 
    ```bash
    yarn env:down
@@ -128,8 +138,8 @@ The repository's tests deploy your compiled contract, call `storeMessage` with `
 | `language version X.Y.Z mismatch` (X.Y.Z is your compiler's language version, for example `0.22.0`) | Your compiler doesn't support the contract's language version. Install toolchain 0.31.1 with `compact update 0.31.1`. |
 | `Cannot find module './managed/hello-world/contract/index.js'` | The contract isn't compiled. Run `yarn compile` before the tests. |
 | `Cannot connect to the Docker daemon` | Docker isn't running. Start Docker Desktop, wait for the engine to come up, then rerun `yarn env:up`. |
-| `yarn env:up` fails with `container ...-indexer-1 exited (1)` on the first start | The indexer started before the node produced its first block. Run `yarn env:up` again. |
-| `Wallet.InsufficientFunds` on the first run after `yarn env:up` | The wallet synced before its DUST became spendable. Run `yarn wait:dust`, then rerun the tests. |
+| `yarn env:up` fails with `container ...-indexer-1 exited (1)` on the first start | The indexer sometimes exits during a fresh network's first start. Run `yarn env:up` again. |
+| `Wallet.InsufficientFunds` during the tests | The tests ran before the wallet's DUST was spendable. Run `yarn wait:dust`, then rerun `yarn test:local`. |
 | `RPC-CORE: subscribeRuntimeVersion(): RuntimeVersion:: disconnected ... 1000:: Normal Closure` | Not an error. A connection closes normally during wallet setup, and the run continues. |
 
 ## Next steps
