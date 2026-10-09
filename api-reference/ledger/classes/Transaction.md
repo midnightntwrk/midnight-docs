@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -41,7 +41,7 @@ The binding randomness associated with this transaction
 ### fallibleOffer
 
 ```ts
-fallibleOffer: undefined | Map<number, ZswapOffer<P>>;
+fallibleOffer: Map<number, ZswapOffer<P>> | undefined;
 ```
 
 The fallible Zswap offer
@@ -61,7 +61,7 @@ transaction
 ### guaranteedOffer
 
 ```ts
-guaranteedOffer: undefined | ZswapOffer<P>;
+guaranteedOffer: ZswapOffer<P> | undefined;
 ```
 
 The guaranteed Zswap offer
@@ -81,7 +81,7 @@ transaction
 ### intents
 
 ```ts
-intents: undefined | Map<number, Intent<S, P, B>>;
+intents: Map<number, Intent<S, P, B>> | undefined;
 ```
 
 The intents contained in this transaction
@@ -102,8 +102,8 @@ transaction
 
 ```ts
 readonly rewards: 
-  | undefined
-| ClaimRewardsTransaction<S>;
+  | ClaimRewardsTransaction<S>
+  | undefined;
 ```
 
 The rewards this transaction represents, if applicable
@@ -167,6 +167,62 @@ placed in the same section as contract interactions with them.
 #### Throws
 
 If called on bound, proven, or proof-erased transactions.
+
+***
+
+### addIntent()
+
+```ts
+addIntent(segment, intent): Transaction<S, P, B>;
+```
+
+Adds provided intent to the segment specified.
+
+#### Parameters
+
+##### segment
+
+[`SegmentSpecifier`](../type-aliases/SegmentSpecifier.md)
+
+##### intent
+
+[`Intent`](Intent.md)\<`S`, `P`, `B`\> | `undefined`
+
+#### Returns
+
+`Transaction`\<`S`, `P`, `B`\>
+
+#### Throws
+
+If called on bound transactions.
+
+***
+
+### addZswapOffer()
+
+```ts
+addZswapOffer(segment, offer): Transaction<S, P, B>;
+```
+
+Adds Zswap offer to the segment specified.
+
+#### Parameters
+
+##### segment
+
+[`SegmentSpecifier`](../type-aliases/SegmentSpecifier.md)
+
+##### offer
+
+[`UnprovenOffer`](../type-aliases/UnprovenOffer.md) | `undefined`
+
+#### Returns
+
+`Transaction`\<`S`, `P`, `B`\>
+
+#### Throws
+
+If called on bound transactions.
 
 ***
 

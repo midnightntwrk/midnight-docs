@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -42,24 +42,24 @@ arrayPush(value): StateValue;
 ### asArray()
 
 ```ts
-asArray(): undefined | StateValue[];
+asArray(): StateValue[] | undefined;
 ```
 
 #### Returns
 
-`undefined` \| `StateValue`[]
+`StateValue`[] \| `undefined`
 
 ***
 
 ### asBoundedMerkleTree()
 
 ```ts
-asBoundedMerkleTree(): undefined | StateBoundedMerkleTree;
+asBoundedMerkleTree(): StateBoundedMerkleTree | undefined;
 ```
 
 #### Returns
 
-`undefined` \| [`StateBoundedMerkleTree`](StateBoundedMerkleTree.md)
+[`StateBoundedMerkleTree`](StateBoundedMerkleTree.md) \| `undefined`
 
 ***
 
@@ -78,12 +78,12 @@ asCell(): AlignedValue;
 ### asMap()
 
 ```ts
-asMap(): undefined | StateMap;
+asMap(): StateMap | undefined;
 ```
 
 #### Returns
 
-`undefined` \| [`StateMap`](StateMap.md)
+[`StateMap`](StateMap.md) \| `undefined`
 
 ***
 

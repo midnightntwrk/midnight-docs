@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -9,6 +9,14 @@
 > **CallResult**\<`C`, `PCK`\> = `object`
 
 Contains all information resulting from circuit execution.
+
+## Remarks
+
+**Privacy-sensitive type.** The `private` field is a
+[CallResultPrivate](CallResultPrivate.md) carrying ZK-confidential data. Treat the whole
+object as confidential when logging, serializing, or transmitting: read
+only the `public` field or destructure specific non-sensitive fields rather
+than spreading or stringifying the whole object.
 
 ## Type Parameters
 

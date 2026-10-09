@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -27,3 +27,13 @@ Private data relevant to this call transaction.
 ### PCK
 
 `PCK` *extends* `Contract.ProvableCircuitId`\<`C`\>
+
+## Remarks
+
+**Privacy-sensitive type.** Intersects [CallResult](CallResult.md) (whose `private`
+field exposes ZK inputs/outputs, the private transcript outputs, and the
+next private state) with an additional [UnsubmittedTxData](UnsubmittedTxData.md) under
+`private` (carrying the `UnprovenTransaction` and new shielded
+coins). Treat as confidential when logging, serializing, or transmitting:
+destructure specific non-sensitive fields rather than spreading or
+stringifying the whole object.

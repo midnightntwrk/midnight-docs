@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -7,6 +7,22 @@
 # Class: Event
 
 An event emitted by the ledger
+
+## Properties
+
+### content
+
+```ts
+readonly content: EventDetails;
+```
+
+***
+
+### source
+
+```ts
+readonly source: EventSource;
+```
 
 ## Methods
 
