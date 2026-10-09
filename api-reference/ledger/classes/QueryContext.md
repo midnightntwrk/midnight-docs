@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -118,7 +118,7 @@ index to later spend them
 ### qualify()
 
 ```ts
-qualify(coin): undefined | Value;
+qualify(coin): Value | undefined;
 ```
 
 **`Internal`**
@@ -135,7 +135,7 @@ inserted commitments
 
 #### Returns
 
-`undefined` \| [`Value`](../type-aliases/Value.md)
+[`Value`](../type-aliases/Value.md) \| `undefined`
 
 ***
 

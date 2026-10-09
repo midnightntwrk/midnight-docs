@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -37,7 +37,7 @@ signature?): DustRegistration<S>;
 
 ##### dustAddress
 
-`undefined` | `bigint`
+`bigint` | `undefined`
 
 ##### allowFeePayment
 
@@ -64,7 +64,7 @@ allowFeePayment: bigint;
 ### dustAddress
 
 ```ts
-dustAddress: undefined | bigint;
+dustAddress: bigint | undefined;
 ```
 
 ***

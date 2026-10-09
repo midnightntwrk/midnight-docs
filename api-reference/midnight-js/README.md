@@ -1,6 +1,6 @@
 # Midnight JS API
 
-**Midnight.js API Reference v4.0.4**
+**Midnight.js API Reference v4.1.0**
 
 ***
 

@@ -20,7 +20,7 @@ imports Midnight's standard libraries,
 and declares an `enum` for the state it may currently be in:
 
 ```compact title=lock.compact
-pragma language_version 0.16;
+pragma language_version 0.26;
 
 import CompactStandardLibrary;
 
@@ -138,7 +138,7 @@ results cannot be trusted inherently by the contract.
 All put together, the full example is:
 
 ```compact title=lock.compact
-pragma language_version 0.16;
+pragma language_version 0.26;
 
 import CompactStandardLibrary;
 
@@ -192,21 +192,51 @@ export circuit clear(): [] {
 }
 ```
 
-## Basic confidentiality
+## Confidentiality
 
-It may not be immediately apparent what is held confidential in this example
-and what is enforced in the contract. Thankfully, both are well-defined:
-- all data that is not a ledger field and is not an argument or return value of a ledger operation is kept confidential
-- all computation that is not done in a `witness` function is enforced to be
-  correct.
+It may not be immediately apparent what data is private, which private data
+remains confidential, and which private data, conversely, is disclosed.
+Fortunately, this is well-defined.
+Private data is defined to be the data contained within or derived from
+circuit arguments and witness return values.
+Private data is considered disclosed only when it is passed to a ledger operation,
+when it is returned from an exported circuit, when it is passed to another contract
+via a cross-contract call, when it is used to compute the boolean value of an
+`assert` subexpression, and when it is used to determine the flow of control
+that leads to a conditionally executed ledger operation, cross-contract call,
+or exported circuit return.
+One exception is that data contained within the arguments to an exported
+circuit is not considered disclosed when it is returned from that circuit,
+because it is necessarily already known to the caller.
+In most cases,
+[disclosure of private data must be explicitly declared](explicit-disclosure)
+via a `disclose()` wrapper; the only exception here is that the use of private
+data to compute the value of an assert subexpression is allowed to be implicitly
+disclosed, since it is so often used to assert properties of private data.
+The contract often has considerable leeway regarding placement of `disclose()`
+wrappers; often, but not always, the best place is as close to the point of
+disclosure as possible.
+It is generally not a good idea to disclose data too early where it might be marked
+for disclosure on some paths where it should not be disclosed.
 
-In particular, observe that this keeps the `secretKey` output confidential,
-while enforcing that *its hash* is the correct value in the case of `clear`.
+In the example above, the value of the `v` parameter is considered to contain
+private data, and where it is stored in the ledger `value` field, this disclosure
+must be and is explicitly declared via `disclose(v)`.
+The value of the `secretKey` witness is also considered to contain private data,
+and its disclusure is also explicitly declared at the point where the persistent
+hash of a struct containing it is stored in the ledger `authority` field.
+The value of `secretKey()` is also implicitly disclosed via the `assert` in `clear`.
 
-This is also the reason for the `round` parameter: The `pk` "public key"
-*isn't* confidential, and would allow linkability between the same user
-publishing data in multiple rounds. By adding a round parameter into the public
-key computation, this linkability is broken.
+While the secret key returned by `secretKey()` is not kept entirely confidential,
+partial confidentially is maintained because only the hash of a value containing
+the secret key is disclosed.
+
+This is also the reason why `round` parameter is included with the secret key in
+the disclosed value.
+Exposing a hash of the secret key by itself would allow linkability between the
+same user publishing data in multiple rounds.
+By adding a round parameter into the public key computation, this linkability
+is broken.
 
 Despite the terms "secret key" and "public key", these two keys are *not*
 public key cryptography: they are simply a binary string and its hash. This is
@@ -225,7 +255,7 @@ contract can simply prove (`assert`) that it *has* the correct value and nonce,
 without ever revealing them.
 
 The `CompactStandardLibrary` module provides the following circuits for such uses:
-```compact title=standard-library.compact
+```compact
 circuit transientHash<T>(value: T): Field;
 circuit transientCommit<T>(value: T, rand: Field): Field;
 circuit persistentHash<T>(value: T): Bytes<32>;
@@ -237,9 +267,19 @@ commitment function to arbitrary data. The `transient*` functions should only
 be used when the values are *not* kept in state, while `persistent*` outputs
 being suitable for storage in a contract's `ledger` state.
 
+## Proof of in-circuit computations
+
+Computation that is not done **in circuit** is proven be "correct" in the sense
+that any attempt by an application to employ a modified computation will result
+in a proof that fails verification against the verifier key stored at contract
+deployment time.
+All code appearing textually within a Compact circuit is **in circuit**; code run
+outside of the circuit, including within a witness function called from a circuit,
+is not considered **in circuit**.
+
 ## Next steps
 
-[Compact reference](compact-reference) provides a compelete and detailed overview
+The [Compact reference](compact-reference) provides a compelete and detailed overview
 of the Compact language.
 Alternatively, you may wish to jump to a [more detailed example](../../examples/dapps/bboard.mdx)
 that showcases some more interesting things you can do with a DApp on Midnight.
