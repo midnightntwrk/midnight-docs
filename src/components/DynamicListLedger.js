@@ -42,7 +42,7 @@ const releases = [
   },
   {
     version: '8.1.2',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '24 August 2026',
     summary: 'Security patch hardening deserialization: non-canonical encodings and invariant-violating values are rejected',
     details: [
@@ -61,7 +61,7 @@ const releases = [
   },
   {
     version: '8.1.1',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '31 July 2026',
     summary: 'Patch release with array-handling test coverage and an npm scope change to `@midnightntwrk`',
     details: [
@@ -79,7 +79,7 @@ const releases = [
   },
   {
     version: '8.1.0',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '13 May 2026',
     summary: 'Storage layer improvements, deadlock fixes, and enhanced wallet WASM bindings',
     details: [
@@ -101,7 +101,7 @@ const releases = [
   },
   {
     version: '8.0.3',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '20 March 2026',
     summary: 'Summary of v8.0.3',
     details: [
@@ -122,7 +122,7 @@ const releases = [
   },
   {
     version: '8.0.2',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '12 March 2026',
     summary: 'Summary of v8.0.2',
     details: [
