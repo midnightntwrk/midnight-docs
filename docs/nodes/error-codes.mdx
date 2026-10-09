@@ -25,6 +25,8 @@ If your error came from a wallet or SDK call, such as `SubmissionError: Transact
 
 Below is a list of the Midnight node specific errors categorized by type and status code. The error tables group errors by code range to help you identify the error types.
 
+The tables list the codes that node version 1.0.x returns. Code numbers can change between node releases. To find the node version that your network runs, see the [compatibility matrix](../relnotes/support-matrix.mdx).
+
 ### Deserialization errors (0–11)
 
 Errors that occur when the node fails to deserialize data from the wire format.
@@ -132,10 +134,10 @@ Errors that occur when the node rejects a transaction that is structurally inval
 | 167 | `IllegallyDeclaredGuaranteed`  | Guaranteed segment (0) used where forbidden | Don't use `segment_id` 0 for intents |
 | 168 | `FeeCalculation` | Fee calculation error | Transaction size or timing parameters are invalid |
 | 169 | `InvalidDustRegistrationSignature` | DUST registration signature verification failed | Regenerate DUST registration with correct keys |
-| 170 | `InvalidDustSpendProof` | DUST spend proof verification failed | Regenerate DUST spend proof |
-| 171 | `OutOfDustValidityWindow` | DUST outside its validity time window | DUST creation time is outside the allowed window; use fresher DUST |
+| 170 | `InvalidDustSpendProof` | DUST spend proof failed to verify against the node's DUST state at the transaction's declared time | A wallet that builds the transaction before it has synced every DUST event produces this error. Wait for the wallet to sync, then build, prove, and submit a new transaction. See [DUST troubleshooting](../guides/manage-dust.mdx#dust-troubleshooting) |
+| 171 | `OutOfDustValidityWindow` | The time that the transaction declares for its DUST actions is later than the block time, or older than the DUST grace period allows | The wallet SDK declares the system clock's time for a registration and the indexer's latest block time for a fee payment. Check that the clock isn't ahead of the chain and that the indexer has caught up with it, then build the transaction again |
 | 172 | `MultipleDustRegistrationsForKey` | Multiple DUST registrations for same key in one intent | Only one DUST registration per key per intent |
-| 173 | `InsufficientDustForRegistrationFee` | Not enough DUST to pay registration fee | Acquire more DUST before registering |
+| 173 | `InsufficientDustForRegistrationFee` | The registration allows a fee payment larger than the DUST that its NIGHT UTXOs would have generated since their creation | Wait for the NIGHT to generate the fee, then build the registration again. DUST that the wallet already holds doesn't count toward this check. See [Registration rules](../guides/manage-dust.mdx#registration-rules) |
 | 174 | `MalformedContractDeploy` | Contract deployment is structurally invalid | Check for non-zero balance or incorrect charged state in deploy |
 | 175 | `IntentSignatureVerificationFailure` | Intent signature verification failed | Regenerate intent signatures |
 | 176 | `IntentSignatureKeyMismatch` | Signing key doesn't match verifying key | Use the correct signing key for the intent |
@@ -144,7 +146,7 @@ Errors that occur when the node rejects a transaction that is structurally inval
 | 179 | `UnsupportedProofVersion` | Proof version not supported | Update SDK/proof server to a compatible version |
 | 180 | `GuaranteedTranscriptVersion` | Guaranteed transcript version not supported | Update to a compatible ledger/SDK version |
 | 181 | `FallibleTranscriptVersion` | Fallible transcript version not supported | Update to a compatible ledger/SDK version |
-| 182 | `TransactionApplicationError` | Intent TTL expired, too far in future, or duplicate | Check intent timing; avoid resubmitting same intent |
+| 182 | `TransactionApplicationError` | Intent TTL has expired or is too far in the future | Rebuild the transaction with a new TTL and submit it before the TTL passes |
 | 183 | `BalanceCheckOutOfBounds` | Balance overflow/underflow in a segment | Token amounts in a segment exceed representable range |
 | 184 | `BalanceCheckConversionFailure` | Failed to convert balance to i128 | Token amount too large for internal representation |
 | 185 | `PedersenCheckFailure` | Binding commitment mismatch | Internal cryptographic error — rebuild the transaction |
@@ -170,7 +172,7 @@ Errors that occur when the node encounters infrastructure errors not directly re
 | 155 | `FeeCalculationError` | Fee calculation failed | Internal fee model error |
 | 165 | `GetTransactionContextError` | Failed to retrieve transaction context | Internal node error |
 
-### System transaction errors (201–210)
+### System transaction errors (201–211)
 
 Errors that occur when the node encounters errors from governance and bridge system transactions. These are special transactions submitted by the network's governance mechanisms.
 
@@ -186,6 +188,7 @@ Errors that occur when the node encounters errors from governance and bridge sys
 | 208 | `InvalidBasisPoints` | Bridge fee basis points >= 10,000 | Basis points must be between 0 and 9,999 |
 | 209 | `InvariantViolation` | Protocol-level invariant violated | Transaction would break fundamental protocol rules |
 | 210 | `TreasuryDisabled` | Attempted to access disabled treasury | Treasury feature is not enabled |
+| 211 | `MerkleTreeError` | Merkle tree update failed while applying a system transaction | Internal ledger error; check node logs |
 
 ### Host API error (255)
 
@@ -225,7 +228,7 @@ Errors from the core pallet managing the ledger state and transactions.
 | 0 | `NewStateOutOfBounds` | New ledger state is out of acceptable bounds |
 | 1 | `Deserialization` | Wraps DeserializationError (codes 0–11) |
 | 2 | `Serialization` | Wraps SerializationError (codes 50–63) |
-| 3 | `Transaction` | Wraps TransactionError (codes 100–210) |
+| 3 | `Transaction` | Wraps TransactionError (codes 100–211) |
 | 4 | `LedgerCacheError` | Ledger cache poisoned (code 150) |
 | 5 | `NoLedgerState` | No ledger state (code 151) |
 | 6 | `LedgerStateScaleDecodingError` | SCALE decode failure (code 152) |
@@ -317,8 +320,8 @@ The node validates each submitted transaction against the ledger. If validation 
 When you submit through the Midnight wallet SDK, the SDK layers wrap the error in this order:
 
 1. The Polkadot.js API client turns the response into an `RpcError` with the message `1010: Invalid Transaction: Custom error: 196`.
-2. The wallet SDK node client (`@midnight-ntwrk/wallet-sdk-node-client`) wraps the `RpcError` in a `SubmissionError` with the message `Transaction submission failed`.
-3. The wallet SDK submission service (`@midnight-ntwrk/wallet-sdk-capabilities`) wraps that error in another `SubmissionError` with the message `Transaction submission error`.
+2. The wallet SDK node client (`@midnightntwrk/wallet-sdk-node-client`) wraps the `RpcError` in a `SubmissionError` with the message `Transaction submission failed`.
+3. The wallet SDK submission service (`@midnightntwrk/wallet-sdk-capabilities`) wraps that error in another `SubmissionError` with the message `Transaction submission error`.
 4. The promise-based API rejects with an Effect `FiberFailure` whose name is `(FiberFailure) SubmissionError`. `WalletFacade.submitTransaction` reverts the transaction in the wallet's shielded, unshielded, and DUST state, then rethrows this error.
 5. Midnight.js `submitCallTx` wraps the error in a plain `Error` whose message starts with `Unexpected error submitting scoped transaction` and includes the text of the wrapped error.
 
