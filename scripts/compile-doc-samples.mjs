@@ -35,6 +35,15 @@
 //                             The group compiles the file that has the pragma.
 //                             The file is a relative path ending in .compact.
 //
+// Known failures: scripts/compile-doc-samples.known-failures.json lists the
+// samples that are known not to compile, each with the reason. It is for a
+// bug whose fix is on its way, and for a page that cannot take a fence word,
+// such as one synced from another repo. A failure is known when its page is
+// listed and the compiler error contains the entry's `error` text. A known
+// failure is reported but does not fail the run. Once a listed failure stops
+// happening the run fails until the entry is removed, so the list stays
+// short and true.
+//
 // The pin is the Compact toolchain row of the matrix, using the Mainnet column
 // when the networks differ. Every compile runs
 // `compact compile +VERSION --skip-zk`, so that toolchain must already be
@@ -49,8 +58,9 @@
 // Options:
 //   --base <ref>       Only compile samples that are new or changed since the
 //                      merge base with <ref>. Also read from env BASE_SHA.
-//                      When the pinned toolchain or this checker changes,
-//                      every sample counts as changed.
+//                      When the pinned toolchain, this checker, or the list
+//                      of known failures changes, every sample counts as
+//                      changed.
 //   --toolchain <ver>  Compiler version to use instead of the matrix pin.
 //   --list             Print what would be compiled, without compiling.
 //   --json <file>      Write the results as JSON.
@@ -58,11 +68,12 @@
 //   --keep <dir>       Keep the extracted sources and compiler output in <dir>.
 //
 // Outputs: a table on stdout, GitHub annotations and a job summary when run
-// in GitHub Actions, and `samples`, `failed`, and `toolchain` in
+// in GitHub Actions, and `samples`, `failed`, `known`, and `toolchain` in
 // $GITHUB_OUTPUT when that is set.
 //
-// Exit codes: 0 when every compiled sample passes or there is nothing to
-// compile, 1 when at least one sample fails, 2 on a usage or setup error.
+// Exit codes: 0 when every compiled sample passes or is a known failure, or
+// there is nothing to compile, 1 when a sample fails or a known failure is
+// out of date, 2 on a usage or setup error.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -75,8 +86,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCAN_ROOTS = ["docs", "sdks", "blog"];
 const EXCLUDED = ["docs/compact/"];
 const MATRIX = "docs/relnotes/support-matrix.json";
+const KNOWN_FAILURES = "scripts/compile-doc-samples.known-failures.json";
 const CHECKER_FILES = [
   "scripts/compile-doc-samples.mjs",
+  KNOWN_FAILURES,
   ".github/workflows/compile-doc-samples.yml"
 ];
 const PRAGMA = /^\s*pragma\s+language_version\b/m;
@@ -175,6 +188,56 @@ function toolchainFromMatrix(text) {
     if (version) return version;
   }
   throw new SetupError(`no Compact toolchain version found in ${MATRIX}`);
+}
+
+// ------------------------------------------------------------ known failures
+
+function loadKnownFailures() {
+  const file = path.join(ROOT, KNOWN_FAILURES);
+  if (!fs.existsSync(file)) return [];
+  let list;
+  try {
+    list = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (e) {
+    throw new SetupError(`${KNOWN_FAILURES} is not valid JSON: ${e.message}`);
+  }
+  if (!Array.isArray(list))
+    throw new SetupError(`${KNOWN_FAILURES} must be a list of entries`);
+  list.forEach((entry, i) => {
+    for (const field of ["page", "error", "reason"]) {
+      if (typeof entry?.[field] !== "string" || !entry[field].trim())
+        throw new SetupError(
+          `${KNOWN_FAILURES}: entry ${i + 1} needs "${field}" as text`
+        );
+    }
+  });
+  return list;
+}
+
+// A failure is known when its page is listed and the compiler error contains
+// the listed text.
+function markKnown(results, known) {
+  const squash = (s) => s.replace(/\s+/g, " ").trim();
+  for (const r of results) {
+    if (r.ok) continue;
+    r.known = known.find(
+      (k) => k.page === r.unit.page && r.summary.includes(squash(k.error))
+    );
+  }
+}
+
+// A listed failure is out of date when it did not happen although this run
+// compiled every sample on its page. On a run that compiles everything, that
+// is every entry without a match, including one for a page that is gone.
+function staleEntries(p, results, known, opts) {
+  const everything = p.mode === "all" && !opts.paths.length;
+  return known.filter((k) => {
+    if (results.some((r) => r.known === k)) return false;
+    if (everything) return true;
+    if (!p.pages.has(k.page)) return false;
+    const onPage = p.scans.find((s) => s.page === k.page).units.length;
+    return results.filter((r) => r.unit.page === k.page).length === onPage;
+  });
 }
 
 // ---------------------------------------------------------------- extraction
@@ -637,9 +700,22 @@ const HOW_TO_FIX =
   "`compact group=NAME` on several blocks that make one contract. The header of " +
   "scripts/compile-doc-samples.mjs explains each marker.";
 
-function markdownSummary(p, results, opts) {
+const STALE_FIX = `The listed error no longer happens on this page. Remove its entry from ${KNOWN_FAILURES}.`;
+
+function totals(results) {
+  const failed = results.filter((r) => !r.ok && !r.known);
+  const known = results.filter((r) => r.known);
+  const passed = results.length - failed.length - known.length;
+  const tally =
+    `${passed} of ${results.length} compiled samples passed` +
+    (known.length ? `, ${plural(known.length, "known failure")}.` : ".");
+  return { failed, known, tally };
+}
+
+function markdownSummary(p, results, stale, opts) {
   const { unpinned } = overview(p);
-  const failed = results.filter((r) => !r.ok);
+  const { failed, known, tally } = totals(results);
+  const cell = (s) => s.replace(/\|/g, "\\|").replace(/`/g, "'");
   const out = [
     `## Compact samples`,
     "",
@@ -648,25 +724,35 @@ function markdownSummary(p, results, opts) {
   ];
   if (!results.length) out.push("No Compact samples to compile.", "");
   else {
-    out.push(
-      `**${results.length - failed.length} of ${results.length} compiled samples passed.**`,
-      ""
-    );
+    out.push(`**${tally}**`, "");
     out.push(
       "| Result | Sample | What | Compiler error |",
       "|---|---|---|---|"
     );
-    for (const r of [...failed, ...results.filter((x) => x.ok)]) {
-      const err = r.ok
-        ? ""
-        : `\`${shorten(r.summary, 140).replace(/\|/g, "\\|").replace(/`/g, "'")}\``;
-      out.push(
-        `| ${r.ok ? "pass" : "**fail**"} | \`${where(r)}\` | ${label(r.unit)} | ${err} |`
-      );
+    for (const r of [...failed, ...known, ...results.filter((x) => x.ok)]) {
+      const err = r.ok ? "" : `\`${cell(shorten(r.summary, 140))}\``;
+      const result = r.ok ? "pass" : r.known ? "known" : "**fail**";
+      out.push(`| ${result} | \`${where(r)}\` | ${label(r.unit)} | ${err} |`);
     }
     out.push("");
   }
   if (failed.length) out.push(HOW_TO_FIX, "");
+  if (known.length) {
+    out.push(
+      `Known failures, listed in \`${KNOWN_FAILURES}\`. They do not fail this check:`,
+      "",
+      ...known.map((r) => `- \`${where(r)}\`: ${r.known.reason}`),
+      ""
+    );
+  }
+  if (stale.length) {
+    out.push(
+      `**Out of date in \`${KNOWN_FAILURES}\`.** The listed error no longer happens on these pages, so remove their entries:`,
+      "",
+      ...stale.map((k) => `- \`${k.page}\` (\`${cell(k.error)}\`)`),
+      ""
+    );
+  }
   if (unpinned.length) {
     out.push(
       "These blocks read like whole contracts but have no `pragma language_version` line, so they are not compiled. " +
@@ -679,16 +765,26 @@ function markdownSummary(p, results, opts) {
   return out.join("\n");
 }
 
-function report(p, results, opts) {
+// Prints the results and returns the exit code.
+function report(p, results, knownFailures, opts) {
   const { c, unpinned } = overview(p);
-  const failed = results.filter((r) => !r.ok);
+  markKnown(results, knownFailures);
+  const stale = staleEntries(p, results, knownFailures, opts);
+  const { failed, known, tally } = totals(results);
+  const annotate = (level, file, at, title, text) => {
+    if (!process.env.GITHUB_ACTIONS) return;
+    const pos = at ? `,line=${at}` : "";
+    console.log(
+      `::${level} file=${escapeProp(file)}${pos},title=${escapeProp(title)}::${escapeData(text)}`
+    );
+  };
   for (const line of headerLines(p, opts)) console.log(line);
   console.log("");
   if (results.length) {
     const rows = [["RESULT", "SAMPLE", "WHAT", "TIME", "COMPILER ERROR"]];
     for (const r of results) {
       rows.push([
-        r.ok ? "pass" : "FAIL",
+        r.ok ? "pass" : r.known ? "known" : "FAIL",
         where(r),
         label(r.unit),
         `${(r.ms / 1000).toFixed(1)}s`,
@@ -704,14 +800,39 @@ function report(p, results, opts) {
     );
     console.log(r.message.replace(/^/gm, "    "));
     console.log("");
-    if (process.env.GITHUB_ACTIONS) {
-      const title = `Compact sample does not compile with toolchain ${p.toolchain}`;
-      console.log(
-        `::error file=${escapeProp(r.where.page)},line=${r.where.line},title=${escapeProp(title)}::${escapeData(r.message)}`
-      );
-    }
+    annotate(
+      "error",
+      r.where.page,
+      r.where.line,
+      `Compact sample does not compile with toolchain ${p.toolchain}`,
+      r.message
+    );
   }
   if (failed.length) console.log(`${HOW_TO_FIX}\n`);
+  if (known.length) {
+    console.log(`Known failures, listed in ${KNOWN_FAILURES}:`);
+    for (const r of known) {
+      console.log(`  ${where(r)}\n      ${r.known.reason}`);
+      annotate(
+        "warning",
+        r.where.page,
+        r.where.line,
+        "Known failure: this Compact sample does not compile",
+        `${r.known.reason}\n\n${r.message}`
+      );
+    }
+    console.log("");
+  }
+  for (const k of stale) {
+    console.log(`OUT OF DATE ${k.page} (${k.error})\n    ${STALE_FIX}\n`);
+    annotate(
+      "error",
+      KNOWN_FAILURES,
+      null,
+      "Known failure is out of date",
+      `${k.page} (${k.error}): ${STALE_FIX}`
+    );
+  }
   if (unpinned.length) {
     console.log(
       "Not compiled because there is no pragma, but these read like whole contracts:"
@@ -719,16 +840,12 @@ function report(p, results, opts) {
     for (const u of unpinned) console.log(`  ${u}`);
     console.log("");
   }
-  console.log(
-    results.length
-      ? `${results.length - failed.length} of ${results.length} compiled samples passed.`
-      : "No Compact samples to compile."
-  );
+  console.log(results.length ? tally : "No Compact samples to compile.");
 
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(
       process.env.GITHUB_STEP_SUMMARY,
-      `${markdownSummary(p, results, opts)}\n`
+      `${markdownSummary(p, results, stale, opts)}\n`
     );
   }
   if (opts.json) {
@@ -737,18 +854,21 @@ function report(p, results, opts) {
       mode: p.mode,
       base: p.base ?? null,
       counts: c,
-      passed: results.length - failed.length,
+      passed: results.length - failed.length - known.length,
       failed: failed.length,
+      known: known.length,
       results: results.map((r) => ({
         page: r.unit.page,
         line: r.unit.line,
         group: r.unit.group ?? null,
         blocks: r.unit.blocks.map((b) => b.line),
         ok: r.ok,
+        known: r.known?.reason ?? null,
         ms: r.ms,
         errorLine: r.ok ? null : r.where.line,
         error: r.ok ? null : r.message
       })),
+      outOfDate: stale.map((k) => ({ page: k.page, error: k.error })),
       unpinned
     };
     fs.writeFileSync(opts.json, `${JSON.stringify(json, null, 2)}\n`);
@@ -756,8 +876,10 @@ function report(p, results, opts) {
   writeOutputs({
     toolchain: p.toolchain,
     samples: results.length,
-    failed: failed.length
+    failed: failed.length,
+    known: known.length
   });
+  return failed.length || stale.length ? 1 : 0;
 }
 
 // --------------------------------------------------------------------- main
@@ -772,6 +894,7 @@ async function main() {
     return 0;
   }
   const p = plan(opts);
+  const knownFailures = loadKnownFailures();
 
   if (opts.list) {
     for (const line of headerLines(p, opts)) console.log(line);
@@ -788,10 +911,7 @@ async function main() {
     return 0;
   }
 
-  if (!p.units.length) {
-    report(p, [], opts);
-    return 0;
-  }
+  if (!p.units.length) return report(p, [], knownFailures, opts);
   await checkToolchain(p.toolchain);
   const workDir = opts.keep
     ? path.resolve(opts.keep)
@@ -799,8 +919,7 @@ async function main() {
   fs.mkdirSync(workDir, { recursive: true });
   try {
     const results = await compileAll(p.units, p.toolchain, opts.jobs, workDir);
-    report(p, results, opts);
-    return results.every((r) => r.ok) ? 0 : 1;
+    return report(p, results, knownFailures, opts);
   } finally {
     if (!opts.keep) fs.rmSync(workDir, { recursive: true, force: true });
   }
