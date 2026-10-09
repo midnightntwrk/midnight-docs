@@ -187,7 +187,7 @@ The `WalletFacade` provides a unified interface for all wallet operations. Initi
 
 ### Configuration
 
-Before initializing the wallet, create a configuration object that specifies network endpoints, cost parameters, and transaction history storage. The configuration differs depending on whether you connect to the hosted Preprod testnet or a local undeployed development network.
+Before initializing the wallet, create a configuration object that specifies network endpoints, cost parameters, and transaction history storage. The configuration differs depending on whether you connect to the Preprod testnet or a local undeployed development network. Blockfrost serves the Preprod indexer and node RPC, so the Preprod configuration reads a **Midnight Preprod** project token from `BLOCKFROST_PROJECT_ID`; see [Getting a Blockfrost project token](/guides/networks-and-environments#getting-a-blockfrost-project-token).
 
 <Tabs>
   <TabItem value="preprod" label="Preprod">
@@ -195,16 +195,21 @@ Before initializing the wallet, create a configuration object that specifies net
 import { type DefaultConfiguration, WalletEntrySchema, mergeWalletEntries } from '@midnightntwrk/wallet-sdk-facade';
 import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-abstractions';
 
+// The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
 const configuration: DefaultConfiguration = {
   networkId: 'preprod',
   costParameters: {
     feeBlocksMargin: 5,
   },
-  relayURL: new URL('wss://rpc.preprod.midnight.network'),
+  relayURL: new URL(withBlockfrostKey('wss://rpc.midnight-preprod.blockfrost.io')),
   provingServerUrl: new URL('http://localhost:6300'),
   indexerClientConnection: {
-    indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-    indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+    indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+    indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
   },
   txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
 };
