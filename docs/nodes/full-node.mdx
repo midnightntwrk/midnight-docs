@@ -46,17 +46,17 @@ mkdir -p ~/tmp && cd ~/tmp
 Download the Midnight node binary:
 
 ```bash
-curl -L -O https://github.com/midnightntwrk/midnight-node/releases/download/node-0.22.5/midnight-node-0.22.5-linux-amd64.tar.gz
+curl -L -O https://github.com/midnightntwrk/midnight-node/releases/download/node-1.0.300/midnight-node-1.0.300-linux-amd64.tar.gz
 ```
 
 :::note
-Always verify the latest release version from the [compatibility matrix](../../relnotes/support-matrix) before downloading the binary.
+The public networks run node 1.0.400, which doesn't have a public release yet. Download 1.0.300, the newest [node release](https://github.com/midnightntwrk/midnight-node/releases), which runs the networks' current runtime. When a newer release appears, check its release notes for the runtime it supports before you upgrade. An older binary can't run a newer runtime and stops importing blocks at the runtime upgrade.
 :::
 
 Extract the binary:
 
 ```bash
-tar -xvzf midnight-node-0.22.5-linux-amd64.tar.gz
+tar -xvzf midnight-node-1.0.300-linux-amd64.tar.gz
 ```
 
 Move the binary to the local bin directory:
@@ -68,7 +68,7 @@ mv ~/tmp/midnight-node ~/.local/bin/
 Move the chain config files to the res directory:
 
 ```bash
-mv ~/tmp/res ~/res
+mv ~/tmp/res/* ~/res/
 ```
 
 Reload the shell environment:
@@ -109,17 +109,25 @@ echo $DB_SYNC_POSTGRES_CONNECTION_STRING
 
 ## Run a full node
 
+Start the node from your home directory. On startup, the node reads its configuration from `res/cfg`, relative to the directory you start it from.
+
+```bash
+cd ~
+```
+
 Once the environment variables are set, run the Midnight node using the following command:
 
 <Tabs>
 <TabItem value="preview" label="Preview">
 
 ```bash
-midnight-node \
+CFG_PRESET=preview CARDANO_SECURITY_PARAMETER=432 midnight-node \
   --chain /home/midnight/res/preview/chain-spec-raw.json \
   --base-path /home/midnight/data \
   --pool-limit 35 \
   --name $NODE_NAME \
+  --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
+  --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym \
   --no-private-ip
 ```
 
@@ -127,7 +135,7 @@ midnight-node \
 <TabItem value="preprod" label="Preprod">
 
 ```bash
-midnight-node \
+CFG_PRESET=preprod CARDANO_SECURITY_PARAMETER=2160 midnight-node \
   --chain /home/midnight/res/preprod/chain-spec-raw.json \
   --base-path /home/midnight/data \
   --pool-limit 35 \
@@ -140,21 +148,28 @@ midnight-node \
 
 ### Available networks
 
-The `--chain` flag lets you specify the network to run the node on. The available networks are:
+The `CFG_PRESET` environment variable selects the network. The node loads the settings for that network from `res/cfg`. The presets for the public networks are:
 
-- `local`: For local testing. This is the default network if you do not specify a network.
 - `preview`: For the Preview network.
 - `preprod`: For the Preprod network.
 - `mainnet`: For the Mainnet network.
+
+The node also reads `CARDANO_SECURITY_PARAMETER` from the environment. Set it to the security parameter of the matching Cardano network: `432` for Preview, and `2160` for Preprod and Mainnet.
+
+The `--chain` flag takes the path to the network's chain specification file, not a network name. The Preview chain specification lists no boot nodes, so the Preview command passes the [known Preview boot nodes](./boot-node#known-network-boot-nodes) with `--bootnodes`.
+
+:::warning Mainnet sync with node 1.0.300
+A Mainnet node that syncs from genesis with node 1.0.300 stops at block 1788979. For the status of the fix, see [midnight-node issue 2229](https://github.com/midnightntwrk/midnight-node/issues/2229).
+:::
 
 
 ## Verify the node
 
 Monitor the node's logs to ensure it syncs with the network. What to look for in the output:
 
-- **Cardano db connection**: If you see `Postgres connection established`, then your DB settings are correct.
-- **Peers**: Look for `IDLE (0 peers)`. If it stays at 0, then check your firewall (port 30333) or the `-bootnodes` address.
-- **Syncing**: You should see `Best: #0 ...` start to increment as it pulls blocks from the network.
+- **Cardano db connection**: If you see `Using candidate data source configuration`, then the node has connected to the Cardano-db-sync database. If the node exits with `Could not connect to database`, then check the connection string in your `.env` file.
+- **Peers**: The status line shows the peer count, for example `(4 peers)`. If it stays at `Idle (0 peers)`, then check your firewall (port 30333) or the `--bootnodes` address.
+- **Syncing**: You should see `best: #0 ...` start to increment as it pulls blocks from the network. If it stays at `#0` and the log repeats `Verification failed for block`, then check that [Cardano-db-sync](./cardano-db-sync#run-cardano-db-sync) has finished syncing. The node verifies each Midnight block against the Cardano data in the Cardano-db-sync database.
 
 ## Full node vs. archive node
 A full node syncs with the blockchain, validates transactions, and provides real-time state queries. It prunes historical states older than a configurable number (defaulting to 256 blocks). This makes it suitable for most DApp development and real-time interactions with the network. 
@@ -163,13 +178,16 @@ Its key advantage lies in its efficient use of disk space, requiring significant
 An archive node maintains the entire history of the blockchain, including all blocks and states. 
 This comprehensive storage consumes substantial disk space. However, it is essential for use cases requiring access to historical data, such as building block explorers, conducting in-depth debugging, or querying past events. 
 
-To run the Midnight node in archive mode, use the `--pruning archive` flag.
+To run the Midnight node in archive mode, use the `--state-pruning archive` and `--blocks-pruning archive` flags. The node stores the state pruning mode when it first creates its database. To switch a full node to archive mode, start it with an empty base path directory.
 
 ```bash
-midnight-node \
+CFG_PRESET=preview CARDANO_SECURITY_PARAMETER=432 midnight-node \
   --chain /home/midnight/res/preview/chain-spec-raw.json \
   --base-path /home/midnight/data \
-  --pruning archive \
+  --state-pruning archive \
+  --blocks-pruning archive \
+  --bootnodes /dns/bootnode-1.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWK66i7dtGVNSwDh9tTeqov1q6LSdWsRLJvTyzTCaywYgK \
+  --bootnodes /dns/bootnode-2.preview.midnight.network/tcp/30333/ws/p2p/12D3KooWHqFfXFwb7WW4jwR8pr4BEf562v5M6c8K3CXAJq4Wx6ym \
   --no-private-ip \
   --name $NODE_NAME
 ```

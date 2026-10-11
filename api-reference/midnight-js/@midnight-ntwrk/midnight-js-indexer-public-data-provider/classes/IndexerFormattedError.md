@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -6,26 +6,34 @@
 
 # Class: IndexerFormattedError
 
-An error describing the causes of error that occurred during server-side execution of
-a query against the Indexer.
+Raised when a GraphQL response includes one or more `GraphQLFormattedError`
+entries. Aggregates all server-side errors into a single numbered message
+and exposes the original array via [errors](#errors).
+
+The field is named `errors` (not `cause`) because the standard ES2022
+`Error.cause` slot is contractually a single underlying error, not a
+peer collection. Reusing `cause` would confuse Node's `util.inspect`
+causal chain, Sentry, and other structured loggers.
+
+Transport-level and other Apollo failures are reported via [IndexerQueryError](IndexerQueryError.md).
 
 ## Extends
 
-- `Error`
+- [`IndexerError`](IndexerError.md)
 
 ## Constructors
 
 ### Constructor
 
-> **new IndexerFormattedError**(`cause`): `IndexerFormattedError`
+> **new IndexerFormattedError**(`errors`): `IndexerFormattedError`
 
 #### Parameters
 
-##### cause
+##### errors
 
 readonly `GraphQLFormattedError`[]
 
-An array of GraphQL errors that occurred during the server-side execution.
+The GraphQL errors reported by the server.
 
 #### Returns
 
@@ -33,16 +41,12 @@ An array of GraphQL errors that occurred during the server-side execution.
 
 #### Overrides
 
-`Error.constructor`
+[`IndexerError`](IndexerError.md).[`constructor`](IndexerError.md#constructor)
 
 ## Properties
 
-### cause
+### errors
 
-> `readonly` **cause**: readonly `GraphQLFormattedError`[]
+> `readonly` **errors**: readonly `GraphQLFormattedError`[]
 
-An array of GraphQL errors that occurred during the server-side execution.
-
-#### Inherited from
-
-`Error.cause`
+The GraphQL errors reported by the server.
