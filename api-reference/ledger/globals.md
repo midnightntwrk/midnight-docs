@@ -1,8 +1,8 @@
-[**@midnight/ledger v8.0.3**](README.md)
+[**@midnight/ledger v8.1.2**](README.md)
 
 ***
 
-# @midnight/ledger v8.0.3
+# @midnight/ledger v8.1.2
 
 ## Classes
 
@@ -29,6 +29,7 @@
 - [DustSpend](classes/DustSpend.md)
 - [DustState](classes/DustState.md)
 - [DustStateChanges](classes/DustStateChanges.md)
+- [DustStateMerkleTreeCollapsedUpdate](classes/DustStateMerkleTreeCollapsedUpdate.md)
 - [DustUtxoState](classes/DustUtxoState.md)
 - [EncryptionSecretKey](classes/EncryptionSecretKey.md)
 - [Event](classes/Event.md)
@@ -106,6 +107,8 @@
 - [EncodedStateValue](type-aliases/EncodedStateValue.md)
 - [EncPublicKey](type-aliases/EncPublicKey.md)
 - [ErasedTransactionResult](type-aliases/ErasedTransactionResult.md)
+- [EventDetails](type-aliases/EventDetails.md)
+- [EventSource](type-aliases/EventSource.md)
 - [FeePrices](type-aliases/FeePrices.md)
 - [FinalizedTransaction](type-aliases/FinalizedTransaction.md)
 - [Fr](type-aliases/Fr.md)
@@ -139,6 +142,8 @@
 - [TransactionHash](type-aliases/TransactionHash.md)
 - [TransactionId](type-aliases/TransactionId.md)
 - [Transcript](type-aliases/Transcript.md)
+- [TreeInsertionPath](type-aliases/TreeInsertionPath.md)
+- [TreeInsertionPathEntry](type-aliases/TreeInsertionPathEntry.md)
 - [UnprovenInput](type-aliases/UnprovenInput.md)
 - [UnprovenIntent](type-aliases/UnprovenIntent.md)
 - [UnprovenOffer](type-aliases/UnprovenOffer.md)
@@ -174,6 +179,10 @@
 - [degradeToTransient](functions/degradeToTransient.md)
 - [dummyContractAddress](functions/dummyContractAddress.md)
 - [dummyUserAddress](functions/dummyUserAddress.md)
+- [dustCommitment](functions/dustCommitment.md)
+- [dustInitialNonce](functions/dustInitialNonce.md)
+- [dustNonce](functions/dustNonce.md)
+- [dustNullifier](functions/dustNullifier.md)
 - [ecAdd](functions/ecAdd.md)
 - [ecMul](functions/ecMul.md)
 - [ecMulGenerator](functions/ecMulGenerator.md)

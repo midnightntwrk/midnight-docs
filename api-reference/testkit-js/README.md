@@ -1,6 +1,6 @@
 # Testkit JS API
 
-**@midnight-ntwrk/testkit-js v4.0.4**
+**@midnight-ntwrk/testkit-js v4.1.0**
 
 ***
 
