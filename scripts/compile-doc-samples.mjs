@@ -37,8 +37,9 @@
 //
 // Known failures: scripts/compile-doc-samples.known-failures.json lists the
 // samples that are known not to compile, each with the reason. It is for a
-// bug whose fix is on its way, and for a page that cannot take a fence word,
-// such as one synced from another repo. A failure is known when its page is
+// bug whose fix is on its way, for a sample that a page writes for an older
+// compiler on purpose, and for a page that cannot take a fence word, such as
+// one synced from another repo. A failure is known when its page is
 // listed and the compiler error contains the entry's `error` text. A known
 // failure is reported but does not fail the run. Once a listed failure stops
 // happening the run fails until the entry is removed, so the list stays
