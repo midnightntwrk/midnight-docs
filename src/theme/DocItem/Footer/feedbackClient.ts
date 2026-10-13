@@ -21,13 +21,17 @@ export interface FeedbackConfig {
 }
 
 /**
- * Reads the PostHog settings that docusaurus.config.js passes through
- * customFields. Returns null when either one is missing, and then the
- * feedback control never renders.
+ * Reads the settings that docusaurus.config.js passes through customFields.
+ * Returns null unless pageFeedbackEnabled is true (PAGE_FEEDBACK_ENABLED=true
+ * at build time) and both PostHog settings are present. When it returns null
+ * the feedback control never renders and posthog-js is never requested.
  */
 export function getFeedbackConfig(
   customFields: Record<string, unknown> | undefined
 ): FeedbackConfig | null {
+  if (customFields?.pageFeedbackEnabled !== true) {
+    return null;
+  }
   const apiKey = customFields?.posthogApiKey;
   const apiHost = customFields?.posthogApiHost;
   if (typeof apiKey !== "string" || typeof apiHost !== "string") {

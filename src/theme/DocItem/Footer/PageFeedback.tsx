@@ -49,8 +49,9 @@ function newFeedbackId(): string {
 }
 
 /**
- * Whether this page can have the control at all: PostHog is configured and
- * this is the current docs version. The server and the browser agree on it.
+ * Whether this page can have the control at all: page feedback is switched
+ * on, PostHog is configured, and this is the current docs version. The server
+ * and the browser agree on it.
  */
 export function usePageFeedbackAvailable(): boolean {
   const { siteConfig } = useDocusaurusContext();
