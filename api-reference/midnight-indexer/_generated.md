@@ -9,13 +9,4 @@ pagination_prev: null
 sidebar_class_name: navbar__toggle
 ---
 
-This documentation has been automatically generated from the GraphQL schema.
-
-Use the docs in the sidebar to find out how to use the schema:
-
-- **Allowed operations**: queries and mutations.
-- **Schema-defined types**: scalars, objects, enums, interfaces, unions, and input objects.
-
-<small>
-  <i>Generated on 3/26/2026, 7:39:44 PM.</i>
-</small>
+This documentation has been automatically generated from the GraphQL schema with [GraphQL-Markdown](https://graphql-markdown.dev/).
