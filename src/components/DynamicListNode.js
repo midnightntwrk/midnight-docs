@@ -17,17 +17,39 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '1.0.300',
+    version: '1.0.400',
     status: 'LATEST',
+    date: '6 October 2026',
+    summary: 'Security patch that moves the node to ledger 8.1.3 for the critical advisory GHSA-wr7g-rr4v-jmj8 and lets a node that syncs Mainnet from genesis get past block 1788979. The runtime stays at 1.0.300.',
+    details: [
+      'Security fix: moved the ledger 8 dependency from 8.1.2 to 8.1.3, which fixes the critical advisory GHSA-wr7g-rr4v-jmj8. A v1.0.400 node rejects contract calls whose transcripts contain non-canonical values or operations.',
+      'Upgrade every node, starting with block producers. A v1.0.300 node accepts some contract calls that a v1.0.400 node rejects, so block producers on different versions can disagree about which blocks are valid.',
+      'Binary-only upgrade: the runtime stays at 1.0.300 (`spec_version` `1_000_300`), so there is no runtime upgrade, governance action, reset, or resync. No RPC methods, configuration settings, or chain specifications change.',
+      'A node that syncs Mainnet from genesis now gets past block 1788979, where v1.0.300 stopped with `Intent TTL has expired`.',
+      'Toolkit 1.0.400 ships with the node on the same ledger 8.1.3 crates. The toolkit image no longer includes the `shx` and `shelljs` npm packages.',
+      'DApp developers do not need to change how they build transactions. If you maintain a smart contract that guards payouts, withdrawals, or mints with sets or maps whose keys contain a `Field`, read the advisory GHSA-wr7g-rr4v-jmj8 and inspect the contract state.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'Node toolkit', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.400' },
+      { name: 'Security advisory', url: 'https://github.com/midnightntwrk/midnight-ledger/security/advisories/GHSA-wr7g-rr4v-jmj8' },
+    ],
+    link: '/relnotes/node/node-1-0-400',
+  },
+  {
+    version: '1.0.300',
+    status: 'UNSUPPORTED',
     date: '22 September 2026',
     summary: 'Required node upgrade for runtime 1.0.300, now live on Preview, Preprod, and Mainnet, with a block timestamp correction for historical blocks.',
     details: [
+      'Superseded by v1.0.400. Node v1.0.300 runs ledger 8.1.2, which the critical advisory GHSA-wr7g-rr4v-jmj8 affects, so upgrade every node to v1.0.400, starting with block producers.',
       'Runtime 1.0.300 (`spec_version` `1_000_300`, `system_version` `3`) runs on Preview, Preprod, and Mainnet. `transaction_version` stays at `3`.',
       'Node v1.0.2 and earlier cannot load the new runtime and stop importing blocks after the upgrade, so upgrade every full, RPC, boot, and validator node.',
       'Added a block timestamp (`tblock`) correction that applies only when replaying blocks produced before the runtime upgrade. There are no configuration settings for it.',
       'Toolkit v1.0.300 can fetch and process blocks produced by runtime 1.0.300. Earlier toolkit versions reject them.',
       'Removed `gdb` from the `midnight-node` and `midnight-node-toolkit` Docker images.',
-      'Known issue: a node that syncs Mainnet from genesis with v1.0.300 stops at block 1788979. The node team plans to fix this in v1.0.400.',
+      'Known issue: a node that syncs Mainnet from genesis with v1.0.300 stops at block 1788979. Node v1.0.400 includes a fix.',
       'DApp developers do not need to take any action.',
     ],
     artifacts: [
@@ -43,7 +65,7 @@ const releases = [
     date: '18 September 2026',
     summary: 'Binary-only security patch on the 1.0.x line that picks up ledger 8.1.2, clears toolkit npm advisories, and fixes a toolkit-js stack overflow on Node.js 24.15 and later.',
     details: [
-      'Superseded on Preview, Preprod, and Mainnet: runtime 1.0.300 imports host functions that node 1.0.2 lacks, and toolkit 1.0.0 fails on its blocks, so run node and toolkit 1.0.300 there.',
+      'Superseded on Preview, Preprod, and Mainnet: runtime 1.0.300 imports host functions that node 1.0.2 lacks, and toolkit 1.0.0 fails on its blocks, so run node and toolkit 1.0.300 or later there. The latest is 1.0.400.',
       'Moved the ledger 8 dependency from 8.1.1 to 8.1.2, a security release that rejects non-canonical encodings and values that violate their type invariants.',
       'Picked up the ledger 8.1.2 crate set, including the direct dependencies `midnight-zswap` 8.1.2, `midnight-onchain-runtime` 3.1.1, `midnight-storage` 2.0.3, `midnight-storage-core` 1.2.1, and `midnight-serialize` 1.1.1.',
       'Cleared `npm audit` findings in the toolkit image JavaScript dependencies: `toml` 4.3.0 through an override, `nanoid` 3.3.19, `turbo` 2.9.14, and `vitest` 4.1.11.',
