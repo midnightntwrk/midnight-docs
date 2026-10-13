@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -84,7 +84,7 @@ Filters out the UTXOs owned by a specific user address
 ### lookupMeta()
 
 ```ts
-lookupMeta(utxo): undefined | UtxoMeta;
+lookupMeta(utxo): UtxoMeta | undefined;
 ```
 
 Lookup the metadata for a specific UTXO.
@@ -97,7 +97,7 @@ Lookup the metadata for a specific UTXO.
 
 #### Returns
 
-`undefined` \| [`UtxoMeta`](UtxoMeta.md)
+[`UtxoMeta`](UtxoMeta.md) \| `undefined`
 
 ***
 

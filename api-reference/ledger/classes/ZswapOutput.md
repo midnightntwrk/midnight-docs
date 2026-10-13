@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -29,7 +29,7 @@ The commitment of the output
 ### contractAddress
 
 ```ts
-readonly contractAddress: undefined | string;
+readonly contractAddress: string | undefined;
 ```
 
 The contract address receiving the output, if the recipient is a contract
@@ -128,7 +128,7 @@ is transferred to the recipient another way
 
 ##### segment
 
-`undefined` | `number`
+`number` | `undefined`
 
 ##### target\_cpk
 
@@ -166,7 +166,7 @@ the output to be valid
 
 ##### segment
 
-`undefined` | `number`
+`number` | `undefined`
 
 ##### contract
 

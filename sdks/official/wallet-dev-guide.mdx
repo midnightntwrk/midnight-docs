@@ -64,6 +64,12 @@ Replace `VERSION` with the wallet SDK version in the [release compatibility matr
 The matrix lists the version of the barrel package. The sub-packages have their own version lines, so do not install a sub-package at the barrel version. Install a sub-package individually only if you need to pin it, and take its version from the [wallet SDK release notes](../../relnotes/wallet/).
 :::
 
+:::note npm scopes
+The wallet SDK packages resolve under two npm scopes: `@midnightntwrk` (no hyphen) is the current one, and `@midnight-ntwrk` is deprecated for these packages. Keep `@midnight-ntwrk/ledger-v8` and the Midnight.js packages on the hyphenated scope. The wallet SDK version in the matrix depends on the ledger under that name, and Midnight.js ships only under `@midnight-ntwrk`.
+
+Use `@midnight-ntwrk` for the wallet SDK only in a project that uses testkit-js 4.x, which depends on that scope. Adding `@midnightntwrk/wallet-sdk` next to it installs the wallet SDK twice. Pin exact versions there, because `latest` on that scope still points at an older release.
+:::
+
 ## Wallet architecture
 
 The Wallet SDK uses a three-wallet architecture corresponding to Midnight's token model:
@@ -181,33 +187,38 @@ The `WalletFacade` provides a unified interface for all wallet operations. Initi
 
 ### Configuration
 
-Before initializing the wallet, create a configuration object that specifies network endpoints, cost parameters, and transaction history storage. The configuration differs depending on whether you connect to the hosted Preprod testnet or a local undeployed development network.
+Before initializing the wallet, create a configuration object that specifies network endpoints, cost parameters, and transaction history storage. The configuration differs depending on whether you connect to the Preprod testnet or a local undeployed development network. Blockfrost serves the Preprod indexer and node RPC, so the Preprod configuration reads a **Midnight Preprod** project token from `BLOCKFROST_PROJECT_ID`; see [Getting a Blockfrost project token](/guides/networks-and-environments#getting-a-blockfrost-project-token).
 
 <Tabs>
   <TabItem value="preprod" label="Preprod">
 ```typescript
-import { type DefaultConfiguration } from '@midnightntwrk/wallet-sdk-facade';
-import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-unshielded-wallet';
+import { type DefaultConfiguration, WalletEntrySchema, mergeWalletEntries } from '@midnightntwrk/wallet-sdk-facade';
+import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-abstractions';
+
+// The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
 
 const configuration: DefaultConfiguration = {
   networkId: 'preprod',
   costParameters: {
     feeBlocksMargin: 5,
   },
-  relayURL: new URL('wss://rpc.preprod.midnight.network'),
+  relayURL: new URL(withBlockfrostKey('wss://rpc.midnight-preprod.blockfrost.io')),
   provingServerUrl: new URL('http://localhost:6300'),
   indexerClientConnection: {
-    indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-    indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
+    indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+    indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
   },
-  txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
 };
 ```
   </TabItem>
   <TabItem value="undeployed" label="Undeployed">
 ```typescript
-import { type DefaultConfiguration } from '@midnightntwrk/wallet-sdk-facade';
-import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-unshielded-wallet';
+import { type DefaultConfiguration, WalletEntrySchema, mergeWalletEntries } from '@midnightntwrk/wallet-sdk-facade';
+import { InMemoryTransactionHistoryStorage } from '@midnightntwrk/wallet-sdk-abstractions';
 
 const INDEXER_PORT = Number.parseInt(process.env['INDEXER_PORT'] ?? '8088', 10);
 const NODE_PORT = Number.parseInt(process.env['NODE_PORT'] ?? '9944', 10);
@@ -226,7 +237,7 @@ const configuration: DefaultConfiguration = {
     indexerHttpUrl: INDEXER_HTTP_URL,
     indexerWsUrl: INDEXER_WS_URL,
   },
-  txHistoryStorage: new InMemoryTransactionHistoryStorage(),
+  txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
 };
 
 ```
@@ -297,7 +308,7 @@ const syncedState = await wallet.waitForSyncedState();
 
 console.log('Shielded balance:', syncedState.shielded.balances);
 console.log('Unshielded balance:', syncedState.unshielded.balances);
-console.log('DUST balance:', syncedState.dust.totalCoins);
+console.log('DUST balance:', syncedState.dust.balance(new Date()));
 
 // Subscribe to state changes
 wallet.state().subscribe((state) => {
