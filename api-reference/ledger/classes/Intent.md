@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -50,7 +50,7 @@ readonly binding: B;
 ### dustActions
 
 ```ts
-dustActions: undefined | DustActions<S, P>;
+dustActions: DustActions<S, P> | undefined;
 ```
 
 The DUST interactions made by this intent
@@ -64,7 +64,7 @@ Writing throws if `B` is [Binding](Binding.md).
 ### fallibleUnshieldedOffer
 
 ```ts
-fallibleUnshieldedOffer: undefined | UnshieldedOffer<S>;
+fallibleUnshieldedOffer: UnshieldedOffer<S> | undefined;
 ```
 
 The UTXO inputs and outputs in the fallible section of this intent.
@@ -79,7 +79,7 @@ is in the signature set.
 ### guaranteedUnshieldedOffer
 
 ```ts
-guaranteedUnshieldedOffer: undefined | UnshieldedOffer<S>;
+guaranteedUnshieldedOffer: UnshieldedOffer<S> | undefined;
 ```
 
 The UTXO inputs and outputs in the guaranteed section of this intent.

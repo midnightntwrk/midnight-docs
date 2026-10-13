@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.19.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
 
 ***
 
@@ -36,7 +36,7 @@ caller?): CallContext<PS>;
 
 ### coinPublicKeyOrZswapState
 
-`string` | [`EncodedZswapLocalState`](../interfaces/EncodedZswapLocalState.md) | [`EncodedCoinPublicKey`](../interfaces/EncodedCoinPublicKey.md) | [`ZswapLocalState`](../interfaces/ZswapLocalState.md)
+`string` | [`ZswapLocalState`](../interfaces/ZswapLocalState.md) | [`EncodedCoinPublicKey`](../interfaces/EncodedCoinPublicKey.md) | [`EncodedZswapLocalState`](../interfaces/EncodedZswapLocalState.md)
 
 ### contractState
 

@@ -4,14 +4,17 @@ The Midnight Indexer API exposes a GraphQL API that enables clients to query and
 
 ## Version information
 - **Current API version**: v4.
+- **Documented schema**: [Midnight Indexer 4.3.3](/relnotes/midnight-indexer/midnight-indexer-4-3-3). The Preprod indexer serves this schema.
+
+An indexer that runs a newer release can serve a different schema. For example, the Preview indexer adds bridge and contract event operations and changes the arguments of the `dustGenerations` subscription.
 
 :::warning Disclaimer
-The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v4.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/v4.0.1/indexer-api/graphql/schema-v4.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
+The examples provided here are illustrative and might need updating if the API changes. Always consider [`indexer-api/graphql/schema-v4.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.3/indexer-api/graphql/schema-v4.graphql) as the primary source of truth. Adjust queries as necessary to match the latest schema.
 :::
 
 ## GraphQL schema
 
-The GraphQL schema is defined in [`indexer-api/graphql/schema-v4.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/v4.0.1/indexer-api/graphql/schema-v4.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
+The GraphQL schema is defined in [`indexer-api/graphql/schema-v4.graphql`](https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.3/indexer-api/graphql/schema-v4.graphql). It specifies all queries, mutations, subscriptions, and their types, including arguments and return structures.
 
 ## Overview of operations
 
@@ -24,16 +27,29 @@ The GraphQL schema is defined in [`indexer-api/graphql/schema-v4.graphql`](https
     - Query DUST generation status for Cardano stake keys.
 
 - **Mutations**: Manage wallet sessions.
-    - `connect(viewingKey: ViewingKey!)`: Creates a session associated with a viewing key.
+    - `connect(viewingKey: ViewingKey!, options: ConnectOptions)`: Creates a session associated with a viewing key.
     - `disconnect(sessionId: HexEncoded!)`: Ends a previously established session.
 
 - **Subscriptions**: Receive real-time updates.
     - `blocks`: Stream newly indexed blocks.
     - `contractActions(address, offset)`: Stream contract actions.
-    - `shieldedTransactions(sessionId, ...)`: Stream shielded transaction updates, including relevant transactions and optional progress updates.
+    - `shieldedTransactions(sessionId, ...)`: Stream shielded transaction updates, including relevant transactions and progress updates.
     - `unshieldedTransactions(address)`: Stream unshielded transaction events for a specific address.
     - `dustLedgerEvents(id)`: Stream DUST ledger events.
     - `zswapLedgerEvents(id)`: Stream Zswap ledger events.
+    - `shieldedNullifierTransactions(nullifierPrefixes, ...)`: Stream transactions that contain shielded nullifiers matching the given prefixes.
+    - `dustNullifierTransactions(nullifierLeBytesPrefixes, ...)`: Stream transactions that contain DUST nullifiers whose 32-byte little-endian form starts with one of the given prefixes.
+    - `dustGenerations(dustAddress, startIndex, endIndex)`: Stream DUST generation entries for a DUST address. The schema marks this subscription `@beta`, so it can change without notice.
+
+:::warning[Beta API]
+The schema marks these elements `@beta`, which means they can change without notice:
+- The `dustGenerations` subscription.
+- The `dustCommitmentMerkleTreeUpdate` and `dustGenerationMerkleTreeUpdate` queries.
+- The `DustGenerationsItem`, `DustGenerationsProgress`, and `DustGenerationDtimeUpdateItem` types.
+- The DUST commitment and generation tree index fields of `Block` and `RegularTransaction`.
+- The `nullifierLeBytes`, `commitmentLeBytes`, and `transaction` fields of `DustNullifierTransaction`.
+- The `transaction` field of `ShieldedNullifierTransaction`.
+:::
 
 ## API endpoints
 
@@ -62,7 +78,7 @@ Sec-WebSocket-Protocol: graphql-transport-ws
 The API uses custom scalar types to represent blockchain-specific data formats. Understanding these types is important for creating queries and interpreting responses.
 
 - `HexEncoded`: Hex-encoded bytes used for hashes, addresses, and session IDs.
-- `ViewingKey`: A viewing key in hex or Bech32 format for wallet sessions.
+- `ViewingKey`: A Bech32m-encoded viewing key for wallet sessions.
 - `Unit`: An empty return type for mutations that do not return data.
 - `UnshieldedAddress`: An unshielded address in Bech32m format, such as `mn_addr_test1...`. Used for unshielded token operations.
 
@@ -94,7 +110,7 @@ Used to specify a contract action location:
 ## Example queries and mutations
 
 :::note
-These are examples only. To confirm the exact field names and structure, refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/release/3.0.0/indexer-api/graphql/schema-v3.graphql).
+These are examples only. To confirm the exact field names and structure, refer to the [schema file](https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.3/indexer-api/graphql/schema-v4.graphql).
 :::
 
 ### block(offset: BlockOffset): Block
@@ -117,11 +133,13 @@ query {
     transactions {
       id
       hash
-      transactionResult {
-        status
-        segments {
-          id
-          success
+      ... on RegularTransaction {
+        transactionResult {
+          status
+          segments {
+            id
+            success
+          }
         }
       }
     }
@@ -133,8 +151,8 @@ query {
 
 Fetch transactions by hash or by identifier. Returns an array of transactions matching the criteria.
 
-:::note
-The `fees` field is now available on transactions, providing both `paidFees` and `estimatedFees` information.
+:::note[Transaction fees]
+Only `RegularTransaction` has fee fields. Its `fee` field returns the fee paid in Specks, the atomic unit of DUST. The schema deprecates the older `fees` object, with `paidFees` and `estimatedFees`, in favor of `fee`.
 :::
 
 #### Example: Query transactions by hash
@@ -147,12 +165,10 @@ query {
     id
     hash
     protocolVersion
-    merkleTreeRoot
     block {
       height
       hash
     }
-    identifiers
     raw
     contractActions {
       __typename
@@ -185,15 +201,16 @@ query {
         }
       }
     }
-    fees {
-      paidFees
-      estimatedFees
-    }
-    transactionResult {
-      status
-      segments {
-        id
-        success
+    ... on RegularTransaction {
+      zswapMerkleTreeRoot
+      identifiers
+      fee
+      transactionResult {
+        status
+        segments {
+          id
+          success
+        }
       }
     }
     unshieldedCreatedOutputs {
@@ -422,19 +439,23 @@ The Block type represents a blockchain block:
 
 ## Transaction type
 
-The Transaction type represents a blockchain transaction with its associated data:
+`Transaction` is an interface that `RegularTransaction` and `SystemTransaction` implement. Every transaction has these fields:
 - `id`: The transaction ID (Int!)
 - `hash`: The transaction hash (HexEncoded)
 - `protocolVersion`: The protocol version (Int!)
-- `transactionResult`: The result of applying the transaction to the ledger state
-- `fees`: Fee information including both paid and estimated fees
-- `identifiers`: Transaction identifiers array ([HexEncoded!]!)
 - `raw`: The raw transaction content (HexEncoded)
-- `merkleTreeRoot`: The merkle-tree root (HexEncoded)
 - `block`: Reference to the block containing this transaction
 - `contractActions`: Array of contract actions within this transaction
 - `unshieldedCreatedOutputs`: UTXOs created by this transaction
 - `unshieldedSpentOutputs`: UTXOs spent by this transaction
+- `zswapLedgerEvents`: Zswap ledger events of this transaction
+- `dustLedgerEvents`: DUST ledger events of this transaction
+
+`RegularTransaction` has more fields, which you select with an inline fragment such as `... on RegularTransaction { fee }`. They include:
+- `transactionResult`: The result of applying the transaction to the ledger state
+- `fee`: The fee paid for this transaction in Specks (String!)
+- `identifiers`: Transaction identifiers array ([HexEncoded!]!)
+- `zswapMerkleTreeRoot`: The Zswap state Merkle tree root (HexEncoded!)
 
 ### TransactionResult type
 
@@ -444,9 +465,9 @@ The result of applying a transaction to the ledger state:
 
 ### TransactionFees type
 
-Fee information for a transaction:
-- `paidFees`: The actual fees paid for this transaction in DUST (String)
-- `estimatedFees`: The estimated fees that were calculated for this transaction in DUST (String)
+The deprecated `RegularTransaction.fees` field returns this type. Use `fee` instead.
+- `paidFees`: The fees paid for this transaction in Specks (String!)
+- `estimatedFees`: Deprecated in favor of `paidFees` (String!)
 
 ## Unshielded token types
 
@@ -471,7 +492,7 @@ The following types provide information about DUST generation status, capacity, 
 
 DUST generation status for a Cardano stake key:
 - `cardanoRewardAddress`: The Bech32-encoded Cardano stake address, such as `stake_test1...` or `stake1...`
-- `dustAddress`: Associated DUST address if registered (HexEncoded, optional)
+- `dustAddress`: Associated DUST address if registered (Bech32m-encoded `DustAddress`, optional)
 - `registered`: Whether this stake key is registered (Boolean!)
 - `nightBalance`: NIGHT balance backing generation (String)
 - `generationRate`: Generation rate in Specks per second (String)
@@ -496,15 +517,15 @@ All DUST ledger event types share common fields:
 
 Mutations allow the client to connect a wallet (establishing a session) and disconnect it.
 
-### connect(viewingKey: ViewingKey!): HexEncoded!
+### connect(viewingKey: ViewingKey!, options: ConnectOptions): HexEncoded!
 
 Establishes a session for a given wallet viewing key. Returns the session ID that can be used for shielded transaction subscriptions.
 
-#### Viewing key format support
+The optional `options.startIndex` sets the transaction `id` where the indexer starts searching for relevant transactions.
 
-The viewing key can be provided in either of two formats:
-- **Bech32m** (preferred): A base-32 encoded format with a human-readable prefix, for example, `mn_shield-esk_dev1...`.
-- **Hex** (fallback): A hex-encoded string representing the key bytes.
+#### Viewing key format
+
+The viewing key must be Bech32m-encoded, and the indexer rejects hex-encoded keys. On Mainnet, the prefix is `mn_shield-esk`. On other networks, it's `mn_shield-esk_` followed by the network ID, such as `mn_shield-esk_preprod1...` on Preprod.
 
 #### Example: Connect with viewing key
 
@@ -591,11 +612,9 @@ This example demonstrates how to subscribe to contract actions for a specific ad
 
 ### Shielded transactions subscription
 
-`shieldedTransactions(sessionId: HexEncoded!, index: Int, sendProgressUpdates: Boolean): ShieldedTransactionsEvent!`
+`shieldedTransactions(sessionId: HexEncoded!, index: Int): ShieldedTransactionsEvent!`
 
-Subscribes to shielded transaction updates. This includes relevant transactions and possibly Merkle tree updates, as well as `ShieldedTransactionsProgress` events if `sendProgressUpdates` is set to `true`, which is also the default. The `index` parameter can be used to resume from a certain point.
-
-Adjust `index` and `offset` arguments as needed.
+Subscribes to shielded transaction updates. This includes relevant transactions and possibly Merkle tree updates, as well as `ShieldedTransactionsProgress` events. The optional `index` is an index into the Zswap state and defaults to 0. To resume after a transaction you've already processed, pass its `zswapEndIndex`.
 
 #### Example: Subscribe to shielded transactions
 
@@ -606,7 +625,7 @@ This example shows how to subscribe to shielded transactions for a specific sess
   "id": "3",
   "type": "start",
   "payload": {
-    "query": "subscription { shieldedTransactions(sessionId: \"1CYq6ZsLmn\", index: 100) { __typename ... on ViewingUpdate { index update { __typename ... on MerkleTreeCollapsedUpdate { start end update protocolVersion } ... on RelevantTransaction { start end transaction { id hash } } } } ... on ShieldedTransactionsProgress { highestIndex highestRelevantIndex highestRelevantWalletIndex } } }"
+    "query": "subscription { shieldedTransactions(sessionId: \"sessionIdHere\", index: 100) { __typename ... on RelevantTransaction { transaction { id hash } zswapCollapsedUpdate { startIndex endIndex update protocolVersion } } ... on ShieldedTransactionsProgress { highestZswapEndIndex highestCheckedZswapEndIndex highestRelevantZswapEndIndex } } }"
   }
 }
 ```
@@ -617,23 +636,18 @@ The subscription returns events as they occur, with different event types provid
 
 The `ShieldedTransactionsEvent` union type can be one of the following:
 
-**ViewingUpdate**: Contains relevant transactions and/or collapsed Merkle tree updates.
-- `index`: Next start index into the zswap state (Int!)
-- `update`: Array of ZswapChainStateUpdate items ([ZswapChainStateUpdate!]!)
-  - `MerkleTreeCollapsedUpdate`: Merkle tree update
-    - `start`: Start index (Int!)
-    - `end`: End index (Int!)
-    - `update`: Hex-encoded merkle-tree collapsed update (HexEncoded)
-    - `protocolVersion`: Protocol version (Int!)
-  - `RelevantTransaction`: Transaction relevant to the wallet
-    - `start`: Start index (Int!)
-    - `end`: End index (Int!)
-    - `transaction`: The relevant transaction (Transaction!)
+**RelevantTransaction**: Contains a transaction relevant to the wallet and, when needed, a collapsed Merkle tree update.
+- `transaction`: The relevant transaction (RegularTransaction!)
+- `zswapCollapsedUpdate`: Zswap Merkle tree collapsed update (MerkleTreeCollapsedUpdate, optional). Present only when there is a gap between the current Zswap index of the subscription and the Zswap start index of the transaction.
+  - `startIndex`: Start index (Int!)
+  - `endIndex`: End index (Int!)
+  - `update`: Hex-encoded Merkle tree collapsed update (HexEncoded!)
+  - `protocolVersion`: Protocol version (Int!)
 
 **ShieldedTransactionsProgress**: Synchronization progress information.
-- `highestIndex`: The highest end index of all currently known transactions (Int!)
-- `highestRelevantIndex`: The highest end index of all currently known relevant transactions (Int!)
-- `highestRelevantWalletIndex`: The highest end index for this particular wallet (Int!)
+- `highestZswapEndIndex`: The highest end index into the Zswap state of all currently known transactions (Int!)
+- `highestCheckedZswapEndIndex`: The highest end index into the Zswap state of all transactions checked for relevance (Int!)
+- `highestRelevantZswapEndIndex`: The highest end index into the Zswap state of all relevant transactions for this particular wallet (Int!)
 
 ### Unshielded transactions subscription
 

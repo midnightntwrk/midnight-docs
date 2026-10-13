@@ -60,7 +60,7 @@ Create `bboard-cli/package.json`:
 
 Each launcher script targets a different network:
 
-- `preprod-remote`: Connects to the hosted **Preprod** testnet
+- `preprod-remote`: Connects to the **Preprod** testnet through Blockfrost, with a project token from `BLOCKFROST_PROJECT_ID`
 - `preview-remote`: Connects to the hosted **Preview** testnet
 - `standalone`: Connects to a local Midnight network running on your machine using the genesis-mint wallet seed
 
@@ -137,7 +137,7 @@ The CLI supports three network environments:
 
 - **Standalone**: Connects to a local Midnight network running on your machine and uses the genesis-mint wallet seed; DUST generation is disabled because the genesis wallet already holds tDUST.
 - **Preview**: Connects to the hosted Preview testnet.
-- **Preprod**: Connects to the hosted Preprod testnet.
+- **Preprod**: Connects to the Preprod testnet through Blockfrost, with a **Midnight Preprod** project token from `BLOCKFROST_PROJECT_ID`.
 
 ```typescript title="bboard-cli/src/config.ts"
 export class StandaloneConfig implements Config {
@@ -213,19 +213,48 @@ export class PreprodTestEnvironment extends RemoteTestEnvironment {
   }
 
   getEnvironmentConfiguration(): EnvironmentConfiguration {
+    // The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+    const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+    if (!projectId) {
+      throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+    }
+    const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
     return {
       walletNetworkId: 'preprod',
       networkId: 'preprod',
-      indexer: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-      indexerWS: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-      node: 'https://rpc.preprod.midnight.network',
-      nodeWS: 'wss://rpc.preprod.midnight.network',
+      indexer: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+      indexerWS: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+      node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
+      nodeWS: withBlockfrostKey('wss://rpc.midnight-preprod.blockfrost.io'),
       faucet: 'https://midnight-tmnight-preprod.nethermind.dev/',
       proofServer: this.getProofServerUrl(),
     };
   }
+
+  // testkit-js 4.1.1 drops the query string from its health-check URLs, so Blockfrost
+  // rejects the indexer check for lack of a token. Run the checks with the token instead.
+  healthCheck = async () => {
+    this.logger.info('Performing env health check');
+    const { node, indexer, proofServer } = this.getEnvironmentConfiguration();
+    const checks = [
+      ['node', node, '/health'],
+      ['indexer', indexer, '/ready'],
+      ['proof server', proofServer, '/health'],
+    ] as const;
+    for (const [name, baseUrl, path] of checks) {
+      const url = new URL(baseUrl);
+      url.pathname = path;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`The ${name} health check failed with HTTP ${response.status}.`);
+      }
+      this.logger.info(`Connected to ${name} ${url.origin}${url.pathname}: ${await response.text()}`);
+    }
+  };
 }
 ```
+
+Blockfrost serves the Preprod indexer and node RPC, so `PreprodTestEnvironment` reads a **Midnight Preprod** project token from `BLOCKFROST_PROJECT_ID` and appends it to each URL. See [Getting a Blockfrost project token](../../guides/networks-and-environments#getting-a-blockfrost-project-token). It also replaces the testkit health check, because testkit-js 4.1.1 calls the indexer's `/ready` endpoint without the token.
 
 All three configurations rely on the local Docker proof server for generating zero-knowledge (ZK) proofs. The local proof server provides better performance and doesn't require external network access for proof generation.
 
@@ -664,7 +693,7 @@ The factory method creates and configures a wallet instance with proper DUST set
 }
 ```
 
-The factory method configures DUST options with a network-dependent `additionalFeeOverhead`. The default value provided by `@midnight-ntwrk/testkit-js` (`500_000_000_000_000_000n`) is required on the `undeployed` (standalone) network — lower values can fail with `BalanceCheckOverspend` on the node side. On remote testnets, that overhead would require more DUST than the wallet typically holds, so the CLI overrides it to `1_000n`.
+The factory method configures DUST options with a network-dependent `additionalFeeOverhead`. The wallet adds this value to every fee it declares. A DUST spend has no refund, so the wallet spends the whole overhead on each transaction. `@midnight-ntwrk/testkit-js` defaults the overhead to `0n`. The CLI sets `500_000_000_000_000_000n` (500 DUST) on the `undeployed` (standalone) network, where the genesis wallet holds far more tDUST than that. On remote testnets, that overhead would require more DUST than the wallet typically holds, so the CLI sets `1_000n`.
 
 If a seed is provided, the builder restores an existing wallet; otherwise it generates a new random seed. The builder result also exposes a pre-constructed `keystore` for signing unshielded intents. The method logs the seed and shielded address for user reference and stores all cryptographic material in the provider.
 

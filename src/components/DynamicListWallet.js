@@ -166,8 +166,9 @@ const DynamicListWithDropdownFilters = () => {
   // Extract unique statuses and keep "All" at the top
   const sortedStatuses = ['All', ...new Set(versionedReleases.map(release => release.status))];
 
-  // Set latest version as default if releases exist
-  const latestVersion = versionedReleases.length > 0 ? versionedReleases[0].version : 'All';
+  // Open on the release marked LATEST. Without one, open on the first entry.
+  const latestRelease = versionedReleases.find(release => release.status === 'LATEST');
+  const latestVersion = latestRelease?.version ?? (versionedReleases.length > 0 ? versionedReleases[0].version : 'All');
   const [selectedVersion, setSelectedVersion] = useState(latestVersion);
   const [selectedStatus, setSelectedStatus] = useState('All');
 
@@ -270,6 +271,28 @@ const DynamicListWithDropdownFilters = () => {
 
           {/* Summary */}
           <h4 style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>Summary</h4>
+          {/* One-line summary. Placeholders such as "Summary of Release 1.0.0" stay hidden. */}
+          {release.summary && !/^Summary of (Release |v)?\d/.test(release.summary) && (
+            <p>
+              {release.summary.split(/(`[^`]+`)/g).map((part, i) =>
+                part.startsWith('`') && part.endsWith('`') ? (
+                  <code
+                    key={i}
+                    style={{
+                      background: 'var(--ifm-code-background)',
+                      color: 'var(--ifm-code-color)',
+                      padding: '0.2rem 0.4rem',
+                      borderRadius: '4px',
+                    }}
+                  >
+                    {part.slice(1, -1)}
+                  </code>
+                ) : (
+                  part
+                )
+              )}
+            </p>
+          )}
           <ul>
             {release.details.map((detail, index) => {
               const parts = detail.split(/(`[^`]+`)/g);
