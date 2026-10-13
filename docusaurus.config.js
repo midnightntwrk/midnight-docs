@@ -262,6 +262,8 @@ const config = {
           includeVersionedDocs: false,
           enableMarkdownFiles: true,
           includeGeneratedIndex: false,
+          // Write full https://docs.midnight.network/... links in llms.txt and the .md files.
+          relativePaths: false,
           excludeRoutes: [
                   '_architecture/*', 
                   '_contribute/*', 
@@ -271,24 +273,34 @@ const config = {
                   '_operate/*', 
                   '_other/*', 
                   '_validate/*', 
-                  '/relnotes/*/**',
                   '/tags/**',
+                  '/sdks/tags/**',
+                  '/api-reference/tags/**',
+                  '/search',
                   '/archive/**'
                 ],
         },
+        // Section order in llms.txt. Patterns match route paths: '/section/**' for a folder, '/page' for a single page.
+        // The overview is the root page (slug: /), which the plugin always lists first.
+        // A top-level section that matches no pattern goes to the end, after the API reference, so add new sections above it.
         includeOrder: [
-              'overview/*',
-              'what-is-midnight.mdx',
-              'getting-started/*',
-              'examples/*',
-              'tutorials/*',
-              'concepts/*',
-              'guides/*',
-              'compact/*',
-              'nodes/*',
-              'relnotes/*',
-              'glossary.mdx',
-              'troubleshoot/*',
+              '/what-is-midnight',
+              '/getting-started/**',
+              '/tutorials/**',
+              '/guides/**',
+              '/how-to/**',
+              '/examples/**',
+              '/concepts/**',
+              '/tokens/**',
+              '/compact/**',
+              '/sdks/**',
+              '/ai-integration/**',
+              '/nodes/**',
+              '/relnotes/**',
+              '/glossary',
+              '/troubleshoot/**',
+              // Keep the API reference last. It is most of the file, so a section listed after it starts past character 100,000.
+              '/api-reference/**',
           ],
       }
     ],

@@ -20,9 +20,10 @@ One term matters throughout. You **register** NIGHT for DUST generation, the on-
 
 These apply to every procedure in this guide:
 
-- A [Lace wallet](../getting-started/installation) set up on the target test network, for the faucet and Lace procedures.
+- A [Lace wallet](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) set up on the target test network, for the faucet and Lace procedures.
 - Node.js version 22 or higher, for the wallet SDK procedure. macOS, Linux, and Windows through WSL all work.
 - A local [proof server](./run-proof-server) on port 6300, for the wallet SDK procedure.
+- A Blockfrost **Midnight Preprod** project token in the `BLOCKFROST_PROJECT_ID` environment variable, for the wallet SDK procedure. Blockfrost serves the Preprod indexer and node RPC; see [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
 - [Vitest](https://vitest.dev/) alongside the packages listed below, if you want to run the verification tests.
 
 {/* _mod-docs-content-type: PROCEDURE */}
@@ -117,7 +118,7 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
    curl http://localhost:6300/health
    ```
 
-3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, which keeps WebSocket behavior consistent across Node versions. The endpoints come from the [Environment reference](./networks-and-environments#environment-reference):
+3. Create `src/index.ts` and add the imports and configuration. The script assigns the `ws` package as the global WebSocket before any wallet code runs, which keeps WebSocket behavior consistent across Node versions. The endpoints come from the [Environment reference](./networks-and-environments#environment-reference), and the script reads your Blockfrost token from `BLOCKFROST_PROJECT_ID` and appends it to each one:
 
    ```typescript
    import { WebSocket } from 'ws';
@@ -146,10 +147,15 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
 
    setNetworkId('preprod');
 
+   // The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+   const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+   if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+   const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
    const CONFIG = {
-     indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-     indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-     node: 'https://rpc.preprod.midnight.network',
+     indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+     indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+     node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
      proofServer: 'http://localhost:6300',
    };
    ```
@@ -204,7 +210,7 @@ Turn a seed into a running wallet. Midnight wallets are three sub-wallets, shiel
    const keys = deriveKeys(seed);
    ```
 
-2. Build the three sub-wallets and unify them behind the `WalletFacade`. The DUST wallet requires `costParameters`: `feeBlocksMargin` sets how many blocks of finalization the fee estimate allows for, and `additionalFeeOverhead` is an optional buffer added on top of the computed fee, which defaults to `0n` if you omit it:
+2. Build the three sub-wallets and unify them behind the `WalletFacade`. The DUST wallet requires `costParameters`: `feeBlocksMargin` sets how many blocks of finalization the fee estimate allows for, and `additionalFeeOverhead` is an optional amount that the wallet adds to every fee it declares, which defaults to `0n` if you omit it. A DUST spend has no refund, so the wallet spends the whole declared fee, overhead included:
 
    ```typescript
    const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
@@ -231,7 +237,7 @@ Turn a seed into a running wallet. Midnight wallets are three sub-wallets, shiel
    const dustConfig = {
      ...shieldedConfig,
      costParameters: {
-       // Optional buffer added on top of the computed fee. Defaults to 0n.
+       // Optional amount added to every fee the wallet declares. A DUST spend does not return it. Defaults to 0n.
        additionalFeeOverhead: 300_000_000_000_000n, // 0.3 DUST
        // Blocks to allow for finalization when estimating the fee.
        feeBlocksMargin: 5,
@@ -278,10 +284,15 @@ import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-
 
 setNetworkId('preprod');
 
+// The Preprod indexer and node RPC are served by Blockfrost and need a project token.
+const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
+if (!projectId) throw new Error('BLOCKFROST_PROJECT_ID is not set.');
+const withBlockfrostKey = (url: string) => `${url}?project_id=${encodeURIComponent(projectId)}`;
+
 const CONFIG = {
-  indexerHttpUrl: 'https://indexer.preprod.midnight.network/api/v4/graphql',
-  indexerWsUrl: 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws',
-  node: 'https://rpc.preprod.midnight.network',
+  indexerHttpUrl: withBlockfrostKey('https://midnight-preprod.blockfrost.io/api/v0'),
+  indexerWsUrl: withBlockfrostKey('wss://midnight-preprod.blockfrost.io/api/v0/ws'),
+  node: withBlockfrostKey('https://rpc.midnight-preprod.blockfrost.io'),
   proofServer: 'http://localhost:6300',
 };
 
@@ -418,7 +429,7 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
    console.log(`tNIGHT received: ${formatNight(nightBalance)}`);
    ```
 
-2. Wait for the wallet to sync, then register the unregistered NIGHT UTXOs for DUST generation. Registration needs a fully synced wallet, so `waitForSyncedState` gates this step; keep the process running, because a restarted script syncs again from the beginning. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
+2. Wait for the wallet to sync, then register the unregistered NIGHT UTXOs for DUST generation. Registration needs a fully synced wallet, so `waitForSyncedState` gates this step; keep the process running, because a restarted script syncs again from the beginning. A first registration pays its own fee from the DUST that the NIGHT would have generated since it arrived. `estimateRegistration` returns the amount to reach, and `waitForGeneratedDust` waits until a UTXO has generated it. Without the wait, a registration built too soon after the funds arrive throws before the wallet signs anything. [Registration rules](./manage-dust#registration-rules) covers a UTXO that is too small or too new. The registration is built as a recipe, signed by the unshielded keystore, finalized, and submitted. To direct the generated DUST to a different wallet, decode that wallet's DUST address as the receiver instead:
 
    ```typescript
    const state = await wallet.waitForSyncedState();
@@ -433,6 +444,10 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
      // Send the DUST elsewhere by replacing this with another wallet's address.
      const target = String(DustAddress.encodePublicKey(getNetworkId(), state.dust.publicKey));
      const dustReceiver = MidnightBech32m.parse(target).decode(DustAddress, getNetworkId());
+
+     // Wait until the NIGHT has generated enough DUST to pay the registration's own fee.
+     const { fee } = await wallet.estimateRegistration(unregistered);
+     await wallet.waitForGeneratedDust(unregistered, fee);
 
      const recipe = await wallet.registerNightUtxosForDustGeneration(
        unregistered,
@@ -522,6 +537,7 @@ The failure modes readers hit most often on the funding path, and their fixes.
 | Faucet says `Provided address is invalid` | Use the **unshielded** address (`mn_addr_...`) with no surrounding whitespace. The faucet rejects shielded and DUST addresses. |
 | Faucet says `rate_limit_error` or `Reached maximum number of requests` | Wait a few hours and retry. If it persists, open a ticket at the [Midnight Service Desk](https://midnightntwrk.github.io/servicedesk/) or ask in [Discord](https://discord.gg/midnightnetwork). |
 | `Cannot find module` when running the script | Run `npm install` first. If it persists, delete `node_modules` and `package-lock.json`, then reinstall. |
+| `BLOCKFROST_PROJECT_ID is not set.`, or HTTP `403` errors while the wallet syncs | Set `BLOCKFROST_PROJECT_ID` to the project ID of a **Midnight Preprod** project on Blockfrost. A Mainnet project's token gets `403` on Preprod. See [Migrating from the Midnight-hosted endpoints](./networks-and-environments#migrating-from-the-midnight-hosted-mainnet-endpoints) for each `403` message. |
 | Connection refused on port 6300 | The proof server is not running; see [Run the proof server](./run-proof-server). |
 | Balance stays zero after the faucet confirms | Give it a couple of minutes; the wallet detects funds after its next sync. Confirm the address you pasted matches the printed one exactly. |
 | DUST stays zero after registration | Give the registration time to land on-chain, then confirm the proof server answers on `http://localhost:6300/health`. |
