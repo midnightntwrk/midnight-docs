@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -50,8 +50,8 @@ The entry point being called
 
 ```ts
 readonly fallibleTranscript: 
-  | undefined
-| Transcript<AlignedValue>;
+  | Transcript<AlignedValue>
+  | undefined;
 ```
 
 The fallible execution stage transcript
@@ -62,8 +62,8 @@ The fallible execution stage transcript
 
 ```ts
 readonly guaranteedTranscript: 
-  | undefined
-| Transcript<AlignedValue>;
+  | Transcript<AlignedValue>
+  | undefined;
 ```
 
 The guaranteed execution stage transcript

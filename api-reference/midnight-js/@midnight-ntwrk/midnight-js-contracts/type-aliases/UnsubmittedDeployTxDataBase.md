@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -9,6 +9,14 @@
 > **UnsubmittedDeployTxDataBase**\<`C`\> = `object`
 
 Base type for data relevant to an unsubmitted deployment transaction.
+
+## Remarks
+
+**Privacy-sensitive type.** Transitively contains
+[UnsubmittedDeployTxPrivateData](UnsubmittedDeployTxPrivateData.md) via the `private` field (signing key
+and initial private state). When logging, serializing, or transmitting,
+read only the `public` field or destructure specific non-sensitive fields.
+Never spread or stringify the whole object.
 
 ## Type Parameters
 

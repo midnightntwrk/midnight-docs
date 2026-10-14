@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: parseCheckResult()
 
 ```ts
-function parseCheckResult(result): (undefined | bigint)[];
+function parseCheckResult(result): (bigint | undefined)[];
 ```
 
 Parses the result of a proof-server check call
@@ -20,4 +20,4 @@ Parses the result of a proof-server check call
 
 ## Returns
 
-(`undefined` \| `bigint`)[]
+(`bigint` \| `undefined`)[]

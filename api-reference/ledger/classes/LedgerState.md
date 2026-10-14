@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -195,7 +195,7 @@ How much in bridged night a recipient is owed and can claim.
 ### index()
 
 ```ts
-index(address): undefined | ContractState;
+index(address): ContractState | undefined;
 ```
 
 Indexes into the contract state map with a given contract address
@@ -208,7 +208,7 @@ Indexes into the contract state map with a given contract address
 
 #### Returns
 
-`undefined` \| [`ContractState`](ContractState.md)
+[`ContractState`](ContractState.md) \| `undefined`
 
 ***
 
