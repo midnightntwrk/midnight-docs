@@ -104,7 +104,7 @@ The proof server reaches outward once, at startup, to download the public provin
 
 :::tip Offline and mirrored parameters
 
-Pass `--no-fetch-params` to skip the startup download, and set `MIDNIGHT_PARAM_SOURCE` to point at your own mirror.
+Set `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS=true` to defer the startup download: each parameter set is then fetched at first use instead of at startup, not skipped altogether. Set `MIDNIGHT_PARAM_SOURCE` to point at your own mirror. To keep the downloaded keys between containers, mount a volume at `/.cache/midnight` (for example, `-v midnight-zk-params:/.cache/midnight` on `docker run`).
 
 :::
 
@@ -129,19 +129,21 @@ Docker is not a stylistic preference. It is the lowest-friction way to distribut
 ## Run the proof server
 
 ```bash
-docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+docker run -p 6300:6300 -e MIDNIGHT_PROOF_SERVER_VERBOSE=true midnightntwrk/proof-server:8.1.3
 ```
+
+Set options with environment variables, and pass no command after the image name. The image's entrypoint is `bash -c` with its own startup command, so anything written after the image name replaces that command's arguments in a way that runs only its first word: a trailing `midnight-proof-server -v` starts the server, but the `-v` never reaches it and verbose logging stays off.
 
 Or run it with Docker Compose. Save the following as `proof-server.yml`:
 
 ```yaml
 services:
   proof-server:
-    image: 'midnightntwrk/proof-server:8.1.0'
-    command: ['midnight-proof-server', '-v']
+    image: 'midnightntwrk/proof-server:8.1.3'
     ports:
       - '127.0.0.1:6300:6300'
     environment:
+      MIDNIGHT_PROOF_SERVER_VERBOSE: 'true'
       RUST_BACKTRACE: 'full'
     healthcheck:
       test: ['CMD-SHELL', 'echo > /dev/tcp/127.0.0.1/6300']
@@ -167,18 +169,18 @@ Leave it running. Every transaction you prove goes through it.
 
 :::info Pin the version tag
 
-At the time of writing, 8.1.0 is the current stable tag. The `latest` tag exists but lags behind: it was last republished in May 2026, while 8.1.0 and the 9.0.0 release candidates came after. Pinning also keeps the proof server aligned with your node and indexer versions. Check the [compatibility matrix](../relnotes/support-matrix) for the version tested against your target network.
+At the time of writing, 8.1.3 is the current stable tag. The `latest` tag exists but lags behind: it was last republished in May 2026, while 8.1.3 and the 9.0.0 release candidates came after. Pinning also keeps the proof server aligned with your node and indexer versions. Check the [compatibility matrix](../relnotes/support-matrix) for the version tested against your target network.
 
 :::
 
 ### A note on port 6300
 
-The proof server has a `--port` flag and a `MIDNIGHT_PROOF_SERVER_PORT` environment variable, so the port is configurable.
+The port inside the container is set with the `PORT` environment variable (for example, `-e PORT=7000`). The image's own startup command already passes `--port $PORT`, which overrides `MIDNIGHT_PROOF_SERVER_PORT`, so that variable does not move the port in this image.
 
 Leave it on 6300 anyway. Lace hardcodes `localhost:6300` for the Undeployed network, and the examples you are likely to copy assume it. If 6300 is genuinely occupied on your host, remap only the host side and update your DApp configuration to match:
 
 ```bash
-docker run -p 6301:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+docker run -p 6301:6300 -e MIDNIGHT_PROOF_SERVER_VERBOSE=true midnightntwrk/proof-server:8.1.3
 ```
 
 {/* _mod-docs-content-type: PROCEDURE */}
@@ -191,7 +193,7 @@ curl http://localhost:6300/health
 # {"status":"ok","timestamp":"..."}
 
 curl http://localhost:6300/version
-# 8.1.0
+# 8.1.3
 
 curl http://localhost:6300/ready
 # {"status":"ok","jobsProcessing":0,"jobsPending":0,"jobCapacity":0,"timestamp":"..."}
