@@ -14,20 +14,20 @@ tags: [midnight, wallet, nodejs, backend, deployment, wallet-sdk, seed]
 
 A deploy script, a test harness, and a backend service all need the same thing: a wallet that runs in a Node.js process with no browser and no extension. This guide builds one from a seed, syncs it, funds it, deploys a smart contract from it, and keeps its state across restarts.
 
-The code runs against the local network, so nothing is at risk while you follow along. Every file on this page ran end to end on Node.js 24.15.0 with the package versions shown, and the deploy script also ran on Node.js 22.18.0. For a wallet that lives in the browser, see [Create a React wallet connector](./react-wallet-connect) instead.
+The code runs against the local network, so nothing is at risk while you follow along. Every file on this page ran end to end on Node.js 24.15.0 with the package versions shown. The deploy script also ran on Node.js 22.12.0 and 22.18.0. For a wallet that lives in the browser, see [Create a React wallet connector](./react-wallet-connect) instead.
 
 ## Prerequisites
 
 These apply to every procedure in this guide:
 
-- Node.js 22 or later. The wallet SDK does not run on Node.js 20; see [Wallet troubleshooting for Node.js](#wallet-troubleshooting-for-nodejs).
+- Node.js 22.12 or later. The wallet SDK does not run on Node.js 20 or on early Node.js 22 releases; see [Wallet troubleshooting for Node.js](#wallet-troubleshooting-for-nodejs).
 - The [Compact compiler](../getting-started/installation), to compile the example contract. This guide used version 0.31.1.
 - A running local network: node on port 9944, indexer on port 8088, and proof server on port 6300. Start one with [Running a local network](./networks-and-environments#running-a-local-network). The Docker Compose option in that procedure is enough, because this guide funds the wallet itself.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## A wallet in a Node.js process
 
-The wallet SDK is a set of JavaScript packages, and `WalletFacade` runs in a plain Node.js process. Your process holds the keys, keeps WebSocket connections to the indexer and the node, and sends proof requests to a proof server. Nothing on this path needs a browser API. Node.js 22 and later provide the global `WebSocket` that the SDK uses, so the scripts on this page run without the `ws` package.
+The wallet SDK is a set of JavaScript packages, and `WalletFacade` runs in a plain Node.js process. Your process holds the keys, keeps WebSocket connections to the indexer and the node, and sends proof requests to a proof server. Nothing on this path needs a browser API. Node.js 22.12 and later provide the global `WebSocket` that the SDK uses, so the scripts on this page run without the `ws` package.
 
 A wallet process has four pieces of state, and each one has a different owner:
 
@@ -54,7 +54,7 @@ Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a
      "private": true,
      "type": "module",
      "engines": {
-       "node": ">=22"
+       "node": ">=22.12"
      },
      "scripts": {
        "compile": "compact compile contract/counter.compact contract/managed/counter",
@@ -854,8 +854,9 @@ Failures you are likely to hit on this guide's path, and their fixes. Every quot
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| The script prints nothing after start and never syncs | Node.js 20 has no global `WebSocket` | Use Node.js 22 or later |
-| `TypeError: state.pendingOutputs.values.map is not a function or its return value is not iterable` | Node.js 20 with a `WebSocket` polyfill. The SDK uses iterator methods that Node.js 20 does not have | Use Node.js 22 or later |
+| The script prints nothing after start and never syncs | Node.js 20 has no global `WebSocket` | Use Node.js 22.12 or later |
+| `TypeError: Cannot read properties of null (reading 'length')` from `@polkadot/rpc-provider/ws` | An early Node.js 22 release. Node.js 22.0.0 fails this way | Use Node.js 22.12 or later |
+| `TypeError: state.pendingOutputs.values.map is not a function or its return value is not iterable` | Node.js 20 with a `WebSocket` polyfill. The SDK uses iterator methods that Node.js 20 does not have | Use Node.js 22.12 or later |
 | `Error: expected instance of StateValue` on a circuit call, after a deploy that worked | Two copies of `@midnight-ntwrk/onchain-runtime-v3` in `node_modules` | Add the `overrides` entry from [Setting up the project](#setting-up-the-project) and reinstall |
 | `SubmissionError: Transaction submission error`, caused by `disconnected from ws://...: 1000:: Normal Closure` | The node connection closed while the wallet was submitting | Submit the same finalized transaction again, as `submitWithRetry` does |
 | `RPC-CORE: subscribeRuntimeVersion(): RuntimeVersion:: disconnected from ws://...: 1000:: Normal Closure` in the output | A log line from the node client when the wallet closes its connection | None needed |
