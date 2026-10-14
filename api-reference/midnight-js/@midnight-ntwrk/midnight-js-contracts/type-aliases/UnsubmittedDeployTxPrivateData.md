@@ -1,4 +1,4 @@
-[**Midnight.js API Reference v4.0.4**](../../../README.md)
+[**Midnight.js API Reference v4.1.0**](../../../README.md)
 
 ***
 
@@ -9,6 +9,18 @@
 > **UnsubmittedDeployTxPrivateData**\<`C`\> = `object`
 
 Base type for private data relevant to an unsubmitted deployment transaction.
+
+## Remarks
+
+**Privacy-sensitive type.** The `signingKey` field carries the contract's
+maintenance authority, and `initialPrivateState` carries application-defined
+private state that the zero-knowledge proofs were designed to keep
+confidential. Every field on this type is private.
+
+Application code must not log, serialize, or transmit instances of this
+type. If a non-sensitive identifier derived from the deployment is needed,
+compute it explicitly outside this type rather than passing the whole
+object across a trust boundary.
 
 ## Type Parameters
 
