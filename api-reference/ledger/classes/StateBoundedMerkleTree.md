@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -73,7 +73,11 @@ If the indices are out-of-bounds for the tree, or `end < start`
 ### findPathForLeaf()
 
 ```ts
-findPathForLeaf(leaf): undefined | AlignedValue;
+findPathForLeaf(
+   leaf, 
+   indexStart?, 
+   indexEnd?, 
+   alreadyHashed?): AlignedValue | undefined;
 ```
 
 **`Internal`**
@@ -87,9 +91,21 @@ Returns undefined if the leaf is not in the tree.
 
 [`AlignedValue`](../type-aliases/AlignedValue.md)
 
+##### indexStart?
+
+`bigint`
+
+##### indexEnd?
+
+`bigint`
+
+##### alreadyHashed?
+
+`boolean`
+
 #### Returns
 
-`undefined` \| [`AlignedValue`](../type-aliases/AlignedValue.md)
+[`AlignedValue`](../type-aliases/AlignedValue.md) \| `undefined`
 
 ***
 
@@ -142,7 +158,7 @@ not automatically rehash trees.
 ### root()
 
 ```ts
-root(): undefined | AlignedValue;
+root(): AlignedValue | undefined;
 ```
 
 **`Internal`**
@@ -152,7 +168,7 @@ Returns undefined if the tree has not been fully hashed.
 
 #### Returns
 
-`undefined` \| [`AlignedValue`](../type-aliases/AlignedValue.md)
+[`AlignedValue`](../type-aliases/AlignedValue.md) \| `undefined`
 
 ***
 

@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -51,14 +51,14 @@ The operation expected at this entry point
 The guaranteed transcript computed
 for this call
 
-`undefined` | [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+[`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\> | `undefined`
 
 ##### fallible\_public\_transcript
 
 The fallible transcript computed for
 this call
 
-`undefined` | [`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\>
+[`Transcript`](../type-aliases/Transcript.md)\<[`AlignedValue`](../type-aliases/AlignedValue.md)\> | `undefined`
 
 ##### private\_transcript\_outputs
 

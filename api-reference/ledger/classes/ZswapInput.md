@@ -1,4 +1,4 @@
-[**@midnight/ledger v8.0.3**](../README.md)
+[**@midnight/ledger v8.1.2**](../README.md)
 
 ***
 
@@ -19,7 +19,7 @@ A shielded transaction input
 ### contractAddress
 
 ```ts
-readonly contractAddress: undefined | string;
+readonly contractAddress: string | undefined;
 ```
 
 The contract address receiving the input, if the sender is a contract
@@ -122,7 +122,7 @@ static newContractOwned(
 
 ##### segment
 
-`undefined` | `number`
+`number` | `undefined`
 
 ##### contract
 

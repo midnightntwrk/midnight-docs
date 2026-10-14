@@ -69,6 +69,11 @@ export interface Config {
   readonly networkId: string;
 }
 
+// Blockfrost serves the Preprod indexer and node RPC, and every request needs a
+// Midnight Preprod project token from BLOCKFROST_PROJECT_ID.
+const withBlockfrostKey = (url: string): string =>
+  `${url}?project_id=${encodeURIComponent(process.env.BLOCKFROST_PROJECT_ID?.trim() ?? "")}`;
+
 export class PreprodConfig implements Config {
   logDir = path.resolve(
     currentDir,
@@ -77,9 +82,9 @@ export class PreprodConfig implements Config {
     "preprod",
     `${new Date().toISOString()}.log`,
   );
-  indexer = "https://indexer.preprod.midnight.network/api/v4/graphql";
-  indexerWS = "wss://indexer.preprod.midnight.network/api/v4/graphql/ws";
-  node = "wss://rpc.preprod.midnight.network";
+  indexer = withBlockfrostKey("https://midnight-preprod.blockfrost.io/api/v0");
+  indexerWS = withBlockfrostKey("wss://midnight-preprod.blockfrost.io/api/v0/ws");
+  node = withBlockfrostKey("wss://rpc.midnight-preprod.blockfrost.io");
   proofServer = "http://127.0.0.1:6300";
   networkId = "preprod";
 }
@@ -104,7 +109,7 @@ export class StandaloneConfig implements Config {
 }
 ```
 
-This file covers both networks: `PreprodConfig` points the indexer and node at Midnight's remote infrastructure, while `StandaloneConfig` points them at a local stack. In both cases the proof server runs locally on port `6300` — the Docker container you started in [Part 2](./attestation-api) for Preprod, or the one bundled with [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network).
+This file covers both networks: `PreprodConfig` points the indexer and node at the public Preprod endpoints, which [Blockfrost](https://blockfrost.io) serves, and appends your Blockfrost **Midnight Preprod** project token from `BLOCKFROST_PROJECT_ID` to each URL, while `StandaloneConfig` points them at a local stack. In both cases the proof server runs locally on port `6300` — the Docker container you started in [Part 2](./attestation-api) for Preprod, or the one bundled with [Midnight Local Dev](/guides/networks-and-environments#running-a-local-network).
 
 Key details:
 
@@ -1747,12 +1752,15 @@ import { createLogger } from './logger-utils.js';
 import { run } from './cli.js';
 import { PreprodConfig } from './config.js';
 
+if (!process.env.BLOCKFROST_PROJECT_ID?.trim()) {
+  throw new Error('BLOCKFROST_PROJECT_ID is not set. Add your Blockfrost Midnight Preprod project ID to .env.');
+}
 const config = new PreprodConfig();
 const logger = await createLogger(config.logDir);
 await run(config, logger);
 ```
 
-The entry file you run decides the network — there is no environment variable to set. `standalone.ts` expects the local node, indexer, and proof server to already be running at the default ports; it does not start any Docker containers itself.
+The entry file you run decides the network, so there is no network variable to set. The Preprod entry point does need `BLOCKFROST_PROJECT_ID` in `.env`; see [Getting a Blockfrost project token](/guides/networks-and-environments#getting-a-blockfrost-project-token). `standalone.ts` expects the local node, indexer, and proof server to already be running at the default ports; it does not start any Docker containers itself.
 
 ### Package configuration
 
@@ -1843,6 +1851,11 @@ MIDNIGHT_STORAGE_PASSWORD=""
 # Optional BIP39 mnemonic for the wallet. If unset, the CLI uses a hex seed.
 # Needed when running `npm run preprod-remote` — the wallet must hold tDUST.
 # WALLET_MNEMONIC=""
+
+# Blockfrost project ID for the Midnight Preprod network. Needed when running
+# `npm run preprod-remote`: Blockfrost serves the Preprod indexer and node RPC.
+# Create a project at https://blockfrost.io and select Midnight Preprod.
+# BLOCKFROST_PROJECT_ID=""
 EOF
 
 cp zkloan-credit-scorer-cli/.env.example zkloan-credit-scorer-cli/.env

@@ -1,6 +1,6 @@
 # Ledger API
 
-**@midnight/ledger v8.0.3**
+**@midnight/ledger v8.1.2**
 
 ***
 
