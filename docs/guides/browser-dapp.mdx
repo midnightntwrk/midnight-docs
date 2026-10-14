@@ -14,7 +14,7 @@ tags: [midnight, javascript, dapp, wallet, providers, deployment]
 
 A browser DApp does the same work as a Node.js script that deploys and calls a smart contract, with one difference: it holds no keys. The user's wallet extension owns the keys, pays the fee, and submits the transaction, and the page reaches it through the DApp Connector API. This guide takes a web page through the whole sequence. You connect to the wallet and build the Midnight.js providers from it. Then you deploy a contract, call a circuit, read the private state back, and join the same contract from a second browser.
 
-The examples use Midnight.js 4.1.1 and DApp Connector API 4.0.1 with a small counter contract and a plain TypeScript page built with Vite. Nothing in the code depends on a UI framework, so the same modules work inside a React or Next.js component. For the Node.js version of this workflow, see [Deploying and operating a contract](./deploy-and-operate).
+The examples use Midnight.js 4.1.1 and DApp Connector API 4.0.1 with a small counter contract and a plain TypeScript page built with Vite. Nothing in the Midnight.js code depends on a UI framework. In React or Next.js, run it in client-side code and configure your bundler for the WebAssembly packages the way this guide configures Vite. For the Node.js version of this workflow, see [Deploying and operating a contract](./deploy-and-operate).
 
 ## Prerequisites
 
@@ -226,13 +226,13 @@ Find the wallet, connect to it with the network ID you target, and give Midnight
    import { connectWallet, findWallets } from './wallet';
    ```
 
-3. Add a helper that runs a button's action and logs any failure, and the handler for the **Connect wallet** button, above the `log('Ready')` line. Wallet errors are plain objects, not `Error` instances, so the helper checks the `type` field instead of using `instanceof`:
+3. Add a helper that runs a button's action and logs any failure, and the handler for the **Connect wallet** button, above the `log('Ready')` line. Wallet errors are not instances of a class your page can import. The helper checks the `type` field instead of using `instanceof`, as the DApp Connector API recommends:
 
    ```typescript title="src/main.ts"
    const run = (id: string, action: () => Promise<void>) =>
      $(id).addEventListener('click', () => {
        action().catch((error: unknown) => {
-         // Wallet errors are plain objects with a reason. Some browser errors have a name and no message.
+         // Wallet errors carry type DAppConnectorAPIError and a reason. Some browser errors have a name and no message.
          const { type, reason, message, name } = error as Partial<APIError>;
          log(`${id} failed: ${type === 'DAppConnectorAPIError' ? reason : message || name}`);
        });
@@ -258,7 +258,7 @@ If the wallet is set to a different network than `NETWORK_ID`, the connection fa
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Building the providers from the wallet
 
-Build the six providers that every Midnight.js deploy and call takes. In a browser, the wallet fills three of them: proving, balancing, and submitting. The page's own origin serves the ZK files, IndexedDB holds private state, and the wallet reports which indexer to read from.
+Build the six providers that every Midnight.js deploy and call takes. In a browser, the wallet fills three of them: proving, balancing, and submitting. The page's own origin serves the ZK files, IndexedDB holds private state, and the wallet reports which indexer to read from unless you name your own.
 
 ### Prerequisites
 
@@ -334,7 +334,10 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
      // deploy transaction has already landed. Check it now instead.
      validatePassword(password);
 
+     // Read from the wallet's indexer unless .env.local names another one.
      const config = await api.getConfiguration();
+     const indexerUri: string = import.meta.env.VITE_INDEXER_URI ?? config.indexerUri;
+     const indexerWsUri: string = import.meta.env.VITE_INDEXER_WS_URI ?? config.indexerWsUri;
      const { unshieldedAddress } = await api.getUnshieldedAddress();
 
      // Fetches keys/ and zkir/ from public/counter/.
@@ -349,7 +352,7 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
          privateStoragePasswordProvider: () => password,
          accountId: unshieldedAddress,
        }),
-       publicDataProvider: indexerPublicDataProvider(config.indexerUri, config.indexerWsUri),
+       publicDataProvider: indexerPublicDataProvider(indexerUri, indexerWsUri),
        zkConfigProvider,
        proofProvider: await dappConnectorProofProvider(api, zkConfigProvider, CostModel.initialCostModel()),
        walletProvider: wallet,
@@ -360,7 +363,20 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
 
    :::warning Private state lives in this browser profile
 
-   `levelPrivateStateProvider` encrypts private state and the contract's signing key with the password and keeps them in IndexedDB. Clearing the site's data deletes them, and a wrong password cannot decrypt them. The password must have at least 16 characters and three of the four character classes. This page asks the user for it; do not ship a password in your source.
+   `levelPrivateStateProvider` encrypts private state and the contract's signing key with the password and keeps them in IndexedDB. Clearing the site's data deletes them, and a wrong password cannot decrypt them. The password needs at least 16 characters and at least three of the four character classes: uppercase, lowercase, digits, and symbols. It cannot repeat a character more than three times in a row or contain a run of four sequential characters, such as `1234` or `abcd`. This page asks the user for it; do not ship a password in your source.
+
+   :::
+
+   :::note Reading from your own indexer
+
+   The page reads public state from the indexer that `getConfiguration()` reports. If that indexer does not answer, or you want a different one, add its HTTP and WebSocket addresses to `.env.local` and restart the development server:
+
+   ```text title=".env.local"
+   VITE_INDEXER_URI=<indexer-graphql-url>
+   VITE_INDEXER_WS_URI=<indexer-websocket-url>
+   ```
+
+   [Networks and environments](./networks-and-environments) lists the indexer addresses for each network, including the Blockfrost endpoints that need a project token. Vite builds `VITE_` values into the page, so anyone who loads it can read a token you put there.
 
    :::
 
@@ -393,7 +409,7 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
 
 ### Verification
 
-Reload the page, enter a password of at least 16 characters, and select **Connect wallet**. The page logs `Connected to` and the wallet's name, and the **Deploy** and **Join** buttons become active.
+Reload the page, enter a password that follows the rules in the warning above, and select **Connect wallet**. The page logs `Connected to` and the wallet's name, and the **Deploy** and **Join** buttons become active.
 
 With a password that is too short, the providers are not built and nothing is sent to the network:
 
@@ -616,7 +632,7 @@ Which implementation fills each Midnight.js provider slot in a browser, and whic
 | Slot | Browser implementation | Package | Wallet methods used | Notes |
 |---|---|---|---|---|
 | `privateStateProvider` | `levelPrivateStateProvider` | `midnight-js-level-private-state-provider` | `getUnshieldedAddress`, for `accountId` | Encrypted IndexedDB store, scoped to the account and the contract address. Needs the `events` package in the bundle |
-| `publicDataProvider` | `indexerPublicDataProvider` | `midnight-js-indexer-public-data-provider` | `getConfiguration`, for `indexerUri` and `indexerWsUri` | Reads need no wallet approval |
+| `publicDataProvider` | `indexerPublicDataProvider` | `midnight-js-indexer-public-data-provider` | `getConfiguration`, for `indexerUri` and `indexerWsUri` | Reads need no wallet approval. `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` replace the wallet's indexer |
 | `zkConfigProvider` | `FetchZkConfigProvider` | `midnight-js-fetch-zk-config-provider` | None | Fetches `keys/<circuit>.prover`, `keys/<circuit>.verifier`, and `zkir/<circuit>.bzkir` under the base URL |
 | `proofProvider` | `dappConnectorProofProvider` | `midnight-js-dapp-connector-proof-provider` | `getProvingProvider` | Lace 2.4.2 forwards proving to the proof server address in its settings |
 | `walletProvider` | Your bridge over the connected API | `dapp-connector-api` for the types | `getShieldedAddresses`, `balanceUnsealedTransaction` | The wallet asks the user to approve each transaction it balances |
@@ -635,9 +651,10 @@ Failures you are likely to meet on this guide's path, and their fixes. The Lace 
 | `Invalid network ID`, `Unsupported network ID`, or `Network ID mismatch` from Lace on connect | The ID passed to `connect` is misspelled, or Lace is set to another network | Pass the lowercase ID, such as `preprod`, and switch Lace to the same network |
 | `Access to wallet api denied` from Lace on connect | The user declined the connection | Let the user try again |
 | `User rejected transaction` from Lace | The user declined the transaction | Nothing was submitted. Let the user try again |
-| `Password is shorter than 16 characters`, or `PasswordValidationError` | The private state password fails the store's rules | Use 16 or more characters with three of the four character classes |
+| `Password is shorter than 16 characters`, `Password contains sequential patterns`, or another `PasswordValidationError` | The private state password fails the store's rules | Use 16 or more characters with three of the four character classes, no more than three identical characters in a row, and no sequences such as `1234` or `abcd`. The error message names the rule that failed |
 | `OperationError` when joining | The password does not match the one that encrypted the stored private state | Ask for the password the user set when they first used the contract in this browser |
 | `No private state found at private state ID '<id>'` | `findDeployedContract` ran without `initialPrivateState` in a browser that has nothing stored for the contract | Pass `initialPrivateState` when the store returns `null`, as in [Joining a deployed contract](#joining-a-deployed-contract) |
+| `Failed to fetch` after the wallet approved a deploy or call, with a console error for the indexer address | The page cannot reach the indexer that `getConfiguration()` reports. The wallet had already submitted the transaction | Set `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` to an indexer that answers, as in [Building the providers from the wallet](#building-the-providers-from-the-wallet) |
 | The join keeps waiting | No contract exists at that address on the network the wallet reports | Check the address and the network |
 
 ## Additional resources
