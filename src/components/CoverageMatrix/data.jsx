@@ -10,7 +10,7 @@
 //  - Add or rename a column in `columns` (id must be unique, lowercase-dashed)
 //    and point `href` at its docs page.
 //  - Under each feature in `features`, add `"<column-id>": "x"` for a feature
-//    the example fully demonstrates, or `"?"` for partial / in-progress.
+//    the example demonstrates. Coverage is binary, so there is no partial mark.
 //
 // `group` buckets a column as a full "DApps" or a standalone "Contracts" example.
 
@@ -58,6 +58,12 @@ export const columns = [
     href: "/examples/dapps/bboard"
   },
   {
+    id: "leaderboard",
+    name: "Leaderboard",
+    group: "DApps",
+    href: "/examples/dapps/leaderboard"
+  },
+  {
     id: "zkloan",
     name: "ZK Loan",
     group: "DApps",
@@ -75,6 +81,7 @@ export const features = [
       "private-reserve-auction": "x",
       battleship: "x",
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -86,6 +93,7 @@ export const features = [
       "private-reserve-auction": "x",
       battleship: "x",
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -98,6 +106,7 @@ export const features = [
       "private-reserve-auction": "x",
       battleship: "x",
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -111,6 +120,7 @@ export const features = [
       "private-reserve-auction": "x",
       battleship: "x",
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -141,7 +151,8 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x"
+      bboard: "x",
+      leaderboard: "x"
     }
   },
   {
@@ -156,7 +167,8 @@ export const features = [
     name: "Ledger Map",
     coverage: {
       election: "x",
-      "private-reserve-auction": "x"
+      "private-reserve-auction": "x",
+      leaderboard: "x"
     }
   },
   {
@@ -203,13 +215,15 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x"
+      bboard: "x",
+      leaderboard: "x"
     }
   },
   {
     name: "ZK proof of identity without revealing it",
     coverage: {
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -267,6 +281,7 @@ export const features = [
     name: "Web UI",
     coverage: {
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -274,6 +289,7 @@ export const features = [
     name: "Wallet and proof server integration",
     coverage: {
       bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   }
