@@ -1,0 +1,363 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Battleship tests"
+title: "Battleship tests"
+description: "Play Battleship on a local devnet with MidnightJS, then try to cheat and prove the contract rejects every attempt."
+sidebar_position: 20
+toc_max_heading_level: 3
+---
+
+# Battleship tests
+
+Every exported circuit of a deployed contract is, in effect, a public API. Anyone can call it,
+so a test suite has to cover the calls that should fail as carefully as the ones that should
+succeed. The failing calls are the ones that prove the contract's defenses work.
+
+This part walks through `src/test/battleship.test.ts`. It plays a full game between Alice and
+Bob on a local devnet and tries the cheats from the [contract walkthrough](/tutorials/battleship/smart-contract#what-can-go-wrong):
+shooting out of turn, and rewriting private state to lie about a shot.
+
+## Prerequisites
+
+- The [Battleship contract](/tutorials/battleship/smart-contract) part of this tutorial.
+- Docker, running, for the local devnet.
+
+## Run the suite
+
+From `examples/battleship`, start the local network, wait until the test wallets have DUST to pay
+fees with, and run the tests:
+
+```bash
+yarn env:up
+yarn wait:dust
+yarn test:local
+```
+
+`yarn env:up` starts a Midnight node, an indexer, and a proof server from `compose.yml`. Leave them
+running while you work through this page. The full suite generates real proofs for ten
+transactions, so expect it to take several minutes.
+
+When it finishes, all 12 tests pass, including the ones that expect a rejection:
+
+```
+ ✓ src/test/battleship.test.ts (12 tests) 179167ms
+     ✓ deploys the contract  18225ms
+     ✓ Allows Bob to acceptGame  17155ms
+     ✓ Allows Alice to take the first shot(MISS)  17340ms
+     ✓ Allows Bob to check the board (MISS)  18665ms
+     ✓ Allows Bob to shoot(HIT)  17348ms
+     ✓ Allows Alice to check the board and report a hit  18670ms
+     ✓ Allows Alice to shoot again (HIT)  17319ms
+     ✓ Allows Bob to check the board for a HIT  17062ms
+     ✓ Allows Bob to shoot the winning shot  18644ms
+     ✓ Stops Alice from cheating  357ms
+     ✓ Allows Alice to check the board and lose  16979ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+```
+
+Vitest lists only tests that take longer than 300 ms, so "Stops Bob from being a cheater" passes without a line of its own. The timings tell you something: each honest move takes about 17 seconds, most of it generating a proof, while a cheat fails in well under a second. A failing `assert` stops the circuit on the cheater's own machine, so no proof is ever generated and nothing is submitted.
+
+Tear the network down when you're done:
+
+```bash
+yarn env:down
+```
+
+## The test harness
+
+Everything above the line `// Everything above is harness setup. Your tests begin here.` in the
+test file is shared harness. It is the same in every example in midnight-examples:
+
+- **`src/config.ts`** holds the endpoints for each network. `MIDNIGHT_NETWORK` picks one:
+  `yarn test:local` sets it to `local`, and `yarn test:preview` and `yarn test:preprod` run the
+  same suite against the public test networks.
+- **`resolveWallet(network, role)`**, from the shared `@midnight-ntwrk/example-fast-sync`
+  package, returns the wallet secret for a role. On `local` these are the devnet's pre-funded
+  wallets, so there is nothing to set up. On a remote network they come from a repo-root
+  `.env.<network>` file.
+- **`src/wallet.ts`** builds, starts and syncs each wallet. **`src/providers.ts`** bundles the
+  MidnightJS providers a player needs: public data from the indexer, private state, ZK artifacts
+  and proving, and the wallet itself.
+
+The suite declares a wallet and a provider set for each player, and fixes their ship locations:
+
+```typescript title="src/test/battleship.test.ts"
+describe(`Battleship Smart Contract via midnight-js (${network})`, () => {
+    let aliceWallet: MidnightWalletProvider;
+    let bobWallet: MidnightWalletProvider;
+    let aliceProviders: BattleshipProviders;
+    let bobProviders: BattleshipProviders;
+    let contractAddress: ContractAddress;
+
+    const config = getConfig();
+    const aliceSetup = resolveWallet(network, 'ALICE');
+    const bobSetup = resolveWallet(network, 'BOB');
+```
+
+```typescript title="src/test/battleship.test.ts"
+    const board1x1 = BigInt(1);
+    const board1x2 = BigInt(2);
+    const board2x1 = BigInt(10);
+    const board2x2 = BigInt(11);
+```
+
+Alice's ships are on squares 1 and 2, Bob's on 10 and 11. In a real DApp the players would pick
+these in a UI. Each player also has an ID for their private state in the private state provider:
+
+```typescript title="src/test/battleship.test.ts"
+const ALICE_PRIVATE_ID = 'alicePrivateState';
+const BOB_PRIVATE_ID = 'bobPrivateState';
+```
+
+`beforeAll` builds and syncs both wallets, then builds each player's providers. On a remote network
+it also waits until both wallets are funded. A small helper reads the contract's public ledger
+through a player's providers, and the tests use it after every call:
+
+```typescript title="src/test/battleship.test.ts"
+    async function queryLedger(providers: BattleshipProviders) {
+        const state = await providers.publicDataProvider.queryContractState(contractAddress);
+        expect(state).not.toBeNull();
+        return ledger(state!.data);
+    }
+```
+
+## Playing the game
+
+### Alice deploys
+
+Alice creates her private state, with a fresh random secret key, and deploys the contract. Her
+ship locations are the constructor's arguments:
+
+```typescript title="src/test/battleship.test.ts"
+    it('deploys the contract', async () => {
+
+        const aliceSk = randomBytes(32);
+        const alicePrivateState = createBattlePrivateState(
+            board1x1,// x1 ship location
+            board1x2,// x2
+            BoardState.UNSET,
+            ShotState.MISS,
+            aliceSk,
+        );
+
+        const deployed: any = await (deployContract<Contract>)(aliceProviders, {
+            compiledContract: CompiledBattleshipContract,
+            privateStateId: ALICE_PRIVATE_ID,
+            initialPrivateState: alicePrivateState,
+            args: [alicePrivateState.x1, alicePrivateState.x2]
+        });
+
+        // deployContract has already pointed Alice's private state provider at
+        // this address and stored initialPrivateState under ALICE_PRIVATE_ID.
+        contractAddress = deployed.deployTxData.public.contractAddress;
+```
+
+`deployContract` takes the deploying player's providers, the compiled contract from
+`contract/index.ts`, the private state ID and initial private state, and the constructor `args`.
+
+`deployContract` also points Alice's private state provider at the new contract address and
+stores `initialPrivateState` there under `ALICE_PRIVATE_ID`, so the test only records the address.
+Later calls read her private state from the provider by that ID.
+
+Then the test checks the ledger against what the constructor should have done:
+
+```typescript title="src/test/battleship.test.ts"
+        const state = await queryLedger(aliceProviders);
+        expect(state.board1State).toEqual(BoardState.SET);
+        expect(state.board2State).toEqual(BoardState.UNSET);
+        expect(state.winState).toEqual(WinState.CONTINUE_PLAY);
+```
+
+### Bob joins
+
+Bob didn't deploy, so nothing has stored his private state yet. The test creates it with a fresh
+secret key, points his private state provider at the contract address and stores it under
+`BOB_PRIVATE_ID` itself. Then he calls `acceptGame` with `submitCallTx`, the MidnightJS function
+for calling a circuit on a deployed contract:
+
+```typescript title="src/test/battleship.test.ts"
+        const txData: FinalizedCallTxData<Contract, 'acceptGame'> =
+            await (submitCallTx<Contract, 'acceptGame'>)(bobProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'acceptGame',
+                args: [bobPrivateState.x1, bobPrivateState.x2]
+        });
+        logger.info(`Bob successfully joined the game!`);
+
+        const state = await queryLedger(bobProviders);
+        expect(state.board2State).toEqual(BoardState.SET);
+        expect(state.board2.size()).toEqual(2n);
+        expect(state.turn).toEqual(TurnState.PLAYER_1_SHOOT);
+```
+
+The ledger now holds Bob's two commitments, and the state machine has opened Alice's first turn.
+
+:::note
+The test keeps `submitCallTx`'s result in `txData` to show its type. `txData.public` holds the
+finalized transaction: its status, ID and hash, block, and fees. `txData.private.result` is the
+circuit's return value. The `private` side also carries the call's private inputs and next
+private state, so don't log or send the whole object.
+:::
+
+## Cheat checks
+
+### Shooting out of turn
+
+It is Alice's turn, so before Alice shoots, the test has Bob try to shoot first. The call is wrapped
+in `expect(...).rejects.toThrow()`, which passes only if the call fails:
+
+```typescript title="src/test/battleship.test.ts"
+    it('Allows Alice to take the first shot(MISS)', async () => {
+        const shot = BigInt(5);// miss
+
+        logger.info(`Bob tries to shoot out of turn...`);
+        await expect(async () => {
+            await (submitCallTx<Contract, 'player2Shoot'>)(bobProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'player2Shoot',
+                args: [BigInt(1)]// arbitrary
+            });
+        }).rejects.toThrow();
+        logger.info(`Bobs shot (out of turn) was rejected!`);
+```
+
+Bob passes the role check, because he is `player2`. It's the state machine that stops him: `turn`
+is `PLAYER_1_SHOOT`, so the assert `turn == TurnState.PLAYER_2_SHOOT` fails. Alice then shoots at
+square 5, a MISS, and the test checks that the shot is on the ledger and the turn has moved to
+`PLAYER_2_CHECK`.
+
+The next tests play on honestly: Bob reports the MISS, Bob hits Alice's square 1, Alice reports
+that HIT, and Alice shoots Bob's square 10.
+
+### Lying about a HIT
+
+Alice's shot at square 10 is a HIT, and it is Bob's turn to check. Bob tries to get out of it by
+rewriting his private state so that his ships are on 15 and 16:
+
+```typescript title="src/test/battleship.test.ts"
+    it('Stops Bob from being a cheater', async () => {
+
+        logger.info(`Bob realizes it is going to be a HIT and tries to cheat...`);
+        const bobPrivateState = await bobProviders.privateStateProvider.get(BOB_PRIVATE_ID);
+        const cheatBobPrivateState = createBattlePrivateState(
+            BigInt(15),
+            BigInt(16),
+            BoardState.SET,
+            ShotState.MISS,
+            bobPrivateState.sk,
+        );
+        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, cheatBobPrivateState);
+        await expect(async () => {
+            await (submitCallTx<Contract, 'checkBoard2'>)(bobProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'checkBoard2',
+            });
+        }).rejects.toThrow();
+        logger.info(`Bobs cheating attempt was rejected!`);
+```
+
+With the forged state, Bob's `localCheckBoard` witness honestly reports a MISS for square 10.
+But `checkBoard2` rehashes square 10 with Bob's secret key and finds that hash in `board2`, the
+commitment Bob made when he joined. The assert
+`!board2.member(honestyCheckHash)` fails, and the call is rejected.
+
+The test then restores Bob's real private state and checks that the ledger hasn't changed: still
+no hits recorded, and still Bob's turn to check.
+
+```typescript title="src/test/battleship.test.ts"
+        logger.info(`Bob is resetting his board to the original private state...`);
+        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, bobPrivateState);
+        logger.info(`Bob successfully reverted his private state to the original!`);
+
+        const state = await queryLedger(aliceProviders);
+        expect(state.board2HitCount).toEqual(0n);
+        expect(state.player1Shot.head().is_some).toBeTruthy();
+        expect(state.player1Shot.head().value).toEqual(board2x1);
+        expect(state.turn).toEqual(TurnState.PLAYER_2_CHECK);
+```
+
+Asserting on the ledger after a rejected call matters. It shows that a failed cheat had no effect,
+not merely that it threw.
+
+### Moving a ship
+
+Bob checks the HIT honestly, then shoots Alice's square 2, which would be her second hit and lose
+her the game. Alice tries to move that ship to square 10 before she checks:
+
+```typescript title="src/test/battleship.test.ts"
+        newAlicePrivateState = createBattlePrivateState(
+            BigInt(1),
+            BigInt(10),// changed the location locally, but can't change contract
+            BoardState.SET,
+            ShotState.MISS,
+            newAlicePrivateState.sk,
+        );
+        await aliceProviders.privateStateProvider.set(ALICE_PRIVATE_ID, newAlicePrivateState);
+
+        await expect(async () => {
+            await (submitCallTx<Contract, 'checkBoard1'>)(aliceProviders, {
+                compiledContract: CompiledBattleshipContract,
+                contractAddress,
+                privateStateId: ALICE_PRIVATE_ID,
+                circuitId: 'checkBoard1',
+            });
+        }).rejects.toThrow();
+```
+
+Her private state now says square 2 is empty. The contract doesn't read her private state, though.
+It checks the commitment she made at deployment, which still contains square 2, so `checkBoard1`
+rejects the MISS. Alice restores her real state, reports the HIT, and the last test confirms that
+Bob has won:
+
+```typescript title="src/test/battleship.test.ts"
+        const state = await queryLedger(aliceProviders);
+        expect(state.player2Shot.head().is_some).toBeFalsy();
+        expect(state.board1HitCount).toEqual(2n);
+        expect(state.board1Hits.member(board1x2)).toBeTruthy();
+        expect(state.winState).toEqual(WinState.PLAYER_2_WINS);
+```
+
+## Test yourself
+
+The suite checks some of the contract's defenses, not all of them. Add a test for each of these,
+using the patterns above. A call with no circuit arguments omits `args`.
+
+- Alice tries to call `acceptGame` on her own game. Which assert stops her?
+- Bob tries to call `player1Shoot`. Which assert stops him?
+- After a HIT is recorded, the shooter tries the same square again.
+- After the game is won, either player tries to shoot.
+
+For each one, assert on the ledger afterwards too, to show the rejected call changed nothing.
+
+The full test file is
+[`src/test/battleship.test.ts`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/battleship/src/test/battleship.test.ts).
+
+## Conclusion
+
+This tutorial covered the core of defensive programming in Compact:
+
+- **A state machine** of explicit states, checked by an `assert` at the top of each circuit, so
+  only one action is possible at a time.
+- **Role checks** through a DApp-specific public key derived from a private secret.
+- **Commitments** that pin private data at the start, so later off-chain answers can be checked
+  on chain.
+- **Never trusting a witness:** every value a witness returns is checked by the circuit.
+- **Tests that cheat**, and assert both the rejection and the unchanged ledger.
+
+The full example, including a browser UI for the game, is
+[`examples/battleship`](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/battleship)
+in midnight-examples.
+
+## Next
+
+The next step in the learning path is the [ZK loan](/tutorials/zk-loan) tutorial: private credit
+scoring against a signed attestation from an off-chain API.
