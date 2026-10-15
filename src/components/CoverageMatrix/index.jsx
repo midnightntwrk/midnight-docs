@@ -5,20 +5,25 @@ import styles from "./styles.module.css";
 
 const GROUPS = ["All", "DApps", "Contracts"];
 
-const MARKS = {
-  x: { cls: "markFull", label: "Demonstrated" },
-  "?": { cls: "markPartial", label: "Partial or in progress" }
-};
-
+// Coverage is binary: a cell is either demonstrated ("x") or empty.
 function CoverageMark({ value }) {
-  const mark = MARKS[value] || { cls: "markNone", label: "Not covered" };
+  if (value !== "x") {
+    return (
+      <span
+        className={styles.markNone}
+        role="img"
+        aria-label="Not covered"
+        title="Not covered"
+      />
+    );
+  }
+  // The dot is decorative. The label is real text, hidden visually, so screen
+  // readers and the Markdown version of the page (/examples.md) both get it.
   return (
-    <span
-      className={styles[mark.cls]}
-      role="img"
-      aria-label={mark.label}
-      title={mark.label}
-    />
+    <span title="Demonstrated">
+      <span className={styles.markFull} aria-hidden="true" />
+      <span className={styles.srOnly}>Demonstrated</span>
+    </span>
   );
 }
 
@@ -72,8 +77,7 @@ export default function CoverageMatrix() {
     const feature = allFeatures.find((f) => f.name === selectedFeature);
     if (!feature) return [];
     return allColumns
-      .filter((c) => feature.coverage[c.id])
-      .map((c) => ({ ...c, level: feature.coverage[c.id] }));
+      .filter((c) => feature.coverage[c.id] === "x");
   }, [selectedFeature]);
 
   // Of the matches, how many are hidden by the current group filter.
@@ -140,12 +144,10 @@ export default function CoverageMatrix() {
                   m.href ? (
                     <Link key={m.id} to={m.href} className={styles.chipLink}>
                       {m.name}
-                      {m.level === "?" ? <em> partial</em> : null}
                     </Link>
                   ) : (
                     <span key={m.id} className={styles.chip}>
                       {m.name}
-                      {m.level === "?" ? <em> partial</em> : null}
                     </span>
                   )
                 )}
@@ -206,9 +208,6 @@ export default function CoverageMatrix() {
       <div className={styles.legend}>
         <span className={styles.legendItem}>
           <span className={styles.markFull} /> Demonstrated
-        </span>
-        <span className={styles.legendItem}>
-          <span className={styles.markPartial} /> Partial or in progress
         </span>
         <span className={styles.legendItem}>
           <span className={styles.markNone} /> Not covered
