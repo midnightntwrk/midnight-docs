@@ -1,0 +1,494 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Battleship contract"
+title: "Battleship contract"
+description: "Read a Compact contract written defensively: a state machine, role checks, and hash commitments that verify each player's private answers on chain."
+sidebar_position: 10
+toc_max_heading_level: 3
+---
+
+# Battleship contract
+
+This part walks through `contract/battleship.compact` and its TypeScript witnesses. It is
+organized by the defensive technique each piece of code implements, not by line order.
+
+## Prerequisites
+
+- The [set-up steps](/tutorials/battleship) of this tutorial, so you have midnight-examples
+  installed and compiled.
+- The [Compact toolchain](/getting-started/installation) and Node.js 22.
+
+Open `examples/battleship/contract/battleship.compact` in your editor and keep it beside this page.
+
+## The game
+
+Battleship is a guessing game for two players. Each player marks their ships on a private grid.
+Players take turns calling "shots" at the other player's grid, and the first player to hit all of
+the opposing ships wins.
+
+To keep the code short, this version simplifies the board:
+
+- The board is a number line from 1 to 20 instead of a grid.
+- Each player has two ships, and each ship is a single number on the line.
+- The first player to score two hits wins.
+
+The game in order:
+
+1. Alice (player 1) deploys the contract and sets her board.
+2. Bob (player 2) joins the game and sets his board.
+3. Alice shoots at Bob's board.
+4. Bob checks his board and reports a HIT or a MISS.
+5. Bob shoots at Alice's board.
+6. Alice checks her board and reports a HIT or a MISS.
+7. Steps 3–6 repeat until one board has two hits, and that board's owner loses.
+
+## What can go wrong
+
+The board-game version runs on trust. On a public blockchain, nothing can. Every exported circuit
+is a public entry point that anyone can call, at any time, with any arguments. Witness functions
+run on the caller's own machine, so a player can also return whatever they like from them.
+
+A dishonest player could try to:
+
+- act out of turn, or act as the other player;
+- claim a MISS when the shot was in fact a HIT;
+- move a ship in the middle of the game by rewriting their private state;
+- re-shoot a square that was already a HIT, to inflate the hit count.
+
+The contract blocks each of these with an `assert`. The pattern to look for throughout is
+**assert everything you assume**: who is calling, what state the game is in, whether the inputs
+are in range, and whether a witness told the truth.
+
+## Public and private data
+
+All ledger data is public. The ship locations must stay private, yet the contract still has to
+check claims about them. It does that with commitments: each player publishes a hash of each ship
+location combined with a secret key, and later answers are checked against those hashes.
+
+| Public (on the ledger) | Private (in each player's private state) |
+| --- | --- |
+| Each player's DApp-specific public key | The secret key behind it |
+| Hash commitments to the ship locations | The ship locations |
+| Shots and confirmed hits | The local HIT/MISS check, until the contract verifies it |
+| Turn, board and win states | |
+
+## Technique 1: a state machine
+
+A Compact contract is best thought of as a state machine. The contract declares a custom `enum` for
+each kind of state:
+
+```compact title="contract/battleship.compact"
+pragma language_version 0.23;
+import CompactStandardLibrary;
+
+export enum BoardState { UNSET, SET }
+export enum ShotState { MISS, HIT }
+export enum TurnState {
+    PLAYER_1_SHOOT,
+    PLAYER_1_CHECK,
+    PLAYER_2_SHOOT,
+    PLAYER_2_CHECK,
+}
+export enum WinState {
+    CONTINUE_PLAY,
+    PLAYER_1_WINS,
+    PLAYER_2_WINS
+}
+```
+
+The public ledger holds the current value of each state, alongside the players, the board
+commitments and the shots:
+
+```compact title="contract/battleship.compact"
+export ledger player1: Bytes<32>;
+export ledger player2: Bytes<32>;
+export ledger turn: TurnState;
+export ledger board1: Set<Bytes<32>>;// linear board shape
+export ledger board2: Set<Bytes<32>>;// hashed storage of ship locations
+export ledger board1State: BoardState;
+export ledger board2State: BoardState;
+export ledger player1Shot: List<Uint<8>>;// current shot
+export ledger player2Shot: List<Uint<8>>;
+export ledger board1Hits: Set<Uint<8>>;// previous hits stored for later assertions
+export ledger board2Hits: Set<Uint<8>>;
+export ledger winState: WinState;
+export ledger board1HitCount: Counter;
+export ledger board2HitCount: Counter;
+```
+
+Each circuit starts by asserting the state it expects and ends by moving the state on. Together,
+these asserts open exactly one circuit at a time. The turn order is:
+
+`PLAYER_1_SHOOT` → `PLAYER_2_CHECK` → `PLAYER_2_SHOOT` → `PLAYER_1_CHECK` → repeat
+
+For example, `player1Shoot` refuses to run unless Bob has set his board, it is player 1's turn to
+shoot, and nobody has won yet:
+
+```compact title="contract/battleship.compact"
+    // state verification checks
+    assert(board2State == BoardState.SET, "Player 2 has not yet set their board");
+    assert(turn == TurnState.PLAYER_1_SHOOT, "It is not player1 turn to shoot");
+    assert(winState == WinState.CONTINUE_PLAY, "A winner has already been declared");
+```
+
+When it succeeds, it hands the turn to player 2's check:
+
+```compact title="contract/battleship.compact"
+    // on-chain state updates
+    player1Shot.pushFront(currentShot);
+    turn = TurnState.PLAYER_2_CHECK;
+```
+
+States can also close a circuit for good. The constructor sets `board2State` to `UNSET`, and
+`acceptGame` only runs while it is still `UNSET`:
+
+```compact title="contract/battleship.compact"
+    // state verification check
+    assert(board2State == BoardState.UNSET, "There is already a player2");
+```
+
+`acceptGame` sets `board2State` to `SET` before it returns, so once Bob has joined, no one else
+can.
+
+## Technique 2: role checks
+
+The contract never stores a wallet address. Instead, each player has a secret key in their
+private state, and the contract identifies them by a hash of it. The secret comes from a witness:
+
+```compact title="contract/battleship.compact"
+witness localSetBoard(_x1: Uint<8>, _x2: Uint<8>): BoardState;
+witness localCheckBoard(x: Uint<8>): ShotState;
+witness localSk(): Bytes<32>;
+```
+
+`getDappPubKey` hashes the secret with a domain separator, `"battleship:pk:"`:
+
+```compact title="contract/battleship.compact"
+// hashing a Dapp specific public key to track user interaction (only within this dapp)
+export circuit getDappPubKey(_sk: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([pad(32, "battleship:pk:"), _sk]);
+}
+```
+
+The domain separator makes the resulting key specific to this DApp. A player's actions can be
+linked to each other inside this game, but not to their keys in other DApps that hash the same
+secret.
+
+The constructor records the deployer as `player1`:
+
+```compact title="contract/battleship.compact"
+    // user id and assignment
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    player1 = disclose(pubKey);
+```
+
+From then on, every player-specific circuit opens with the same three lines. It recomputes the
+caller's key from their secret and asserts that it matches the stored role:
+
+```compact title="contract/battleship.compact"
+export circuit player1Shoot (x: Uint<8>): [] {
+    // caller verification check
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    assert(player1 == disclose(pubKey), "You are not player1");
+```
+
+Bob can't call `player1Shoot`, because he doesn't know Alice's secret. `acceptGame` uses the same
+check the other way round, so that Alice can't take both seats:
+
+```compact title="contract/battleship.compact"
+    assert(player1 != disclose(pubKey), "You cannot play against yourself");
+```
+
+Notice the underscore in `_sk`, `_x1` and `_x2`. It means nothing to the compiler. It is a
+convention for marking values that must stay private, so they are easy to spot when you review
+what the circuit discloses.
+
+## Technique 3: commit to private data
+
+Witness functions are declared in Compact but implemented in TypeScript, on the caller's machine.
+**Never trust a witness.** A player can change the implementation or the private state behind it,
+so the contract has to check anything a witness returns.
+
+Before it trusts anything, the constructor validates Alice's ship locations:
+
+```compact title="contract/battleship.compact"
+constructor(_x1: Uint<8>, _x2: Uint<8>) {
+    // input verification checks
+    assert(_x1 != _x2, "Cannot use the same number twice");
+    assert(_x1 > 0 && _x2 > 0, "No zero index, board starts at 1");
+    assert(_x1 <= 20 && _x2 <= 20, "Out of bounds, please keep ships on the board");
+```
+
+It then commits to them. Each location is hashed together with Alice's secret key and inserted
+into the public `board1` set:
+
+```compact title="contract/battleship.compact"
+    // hash the inputs to verify them later, user needs to provide the same value and _sk
+    const hash1 = commitBoardSpace(_x1 as Bytes<32>, _sk);
+    board1.insert(hash1);
+    const hash2 = commitBoardSpace(_x2 as Bytes<32>, _sk);
+    board1.insert(hash2);
+```
+
+```compact title="contract/battleship.compact"
+// hashing a commitment to a board space
+circuit commitBoardSpace(_x: Bytes<32>, _sk: Bytes<32>): Bytes<32> {
+    const hash = persistentHash<Vector<2, Bytes<32>>>([_x, _sk]);
+    return disclose(hash);
+}
+```
+
+Why include the secret key? There are only 20 squares. Without it, anyone could hash all 20
+numbers and compare the results with `board1` to find Alice's ships. With a 32-byte secret in the
+hash, that brute-force search is out of reach. The hash is also deterministic, which is what makes
+it useful later: given the same square and the same secret, the contract gets the same hash back.
+
+Finally, the constructor asks Alice's machine to record the ships in her private state, and
+checks the answer instead of assuming it:
+
+```compact title="contract/battleship.compact"
+    // best practice example -- don't disclose(localSetBoard1(_x1, _x2)),
+    // disclose only what you need (localBoardState);
+    const localBoardState = localSetBoard(_x1, _x2);
+    assert(localBoardState == BoardState.SET, "Please update the state of board1 to SET");
+    board1State = disclose(localBoardState);
+
+    // setting initial states
+    board2State = BoardState.UNSET;
+    winState = WinState.CONTINUE_PLAY;
+}
+```
+
+Only the board state is disclosed, never the ship locations. `disclose()` doesn't publish anything
+by itself. It tells the compiler that you intend a value derived from private data to become public,
+here by writing it to the ledger.
+
+`acceptGame` does the same for Bob: the same role check, the `board2State` check you saw earlier,
+the same input validation, and a commitment into `board2`. It then opens the first turn:
+
+```compact title="contract/battleship.compact"
+    // setting on-chain state
+    board2State = disclose(localBoardState);
+
+    // updating on-chain state
+    turn = TurnState.PLAYER_1_SHOOT;
+}
+```
+
+## Technique 4: verify off-chain answers on chain
+
+### Shooting
+
+A shot is public, so the shoot circuits are mostly validation:
+
+```compact title="contract/battleship.compact"
+    // input validation
+    assert(x > 0 && x <= 20, "Shot out of bounds, please shoot on the board");
+
+    // shots are public knowledge
+    const currentShot = disclose(x);
+    assert(!board2Hits.member(currentShot), "Cheat Detected: Player1: Attempt to repeat a previous HIT");
+```
+
+The last `assert` stops a player from shooting a square that is already a recorded HIT, which
+would otherwise count the same ship twice. `player1Shot` is a `List`, and the shot is pushed onto
+its front for the other player to check.
+
+Count the lines in `player1Shoot` and `player2Shoot`: there are about as many `assert` statements as
+operations. That is what a defensively written circuit looks like.
+
+### Checking a board
+
+This is where the game would break without a blockchain. Only the target player knows whether a
+shot hit, because only they know where their ships are. So the contract asks them, and then checks
+the answer against their commitment.
+
+`checkBoard1` runs when Alice reports on Bob's shot. It starts with the role check and the state
+checks, then takes the shot off the front of `player2Shot`:
+
+```compact title="contract/battleship.compact"
+export circuit checkBoard1(): [] {
+
+    // caller verification check
+    const _sk = localSk();
+    const pubKey = getDappPubKey(_sk);
+    assert(player1 == disclose(pubKey), "You are not player1");
+
+    // state verification checks
+    assert(winState == WinState.CONTINUE_PLAY, "A winner has already been declared");
+    assert(turn == TurnState.PLAYER_1_CHECK, "It is not Player 1 turn to CHECK");
+    assert(!player2Shot.isEmpty(), "No shot to check");
+
+    // shot processing
+    const currentShot = player2Shot.head().value;
+    assert(!board1Hits.member(currentShot), "Cheat Detected: Player2: Attempt to repeat a previous HIT");
+    player2Shot.popFront();
+```
+
+Next it rebuilds the commitment for the shot's square from Alice's secret, and asks her witness for
+a HIT or MISS:
+
+```compact title="contract/battleship.compact"
+    // hash for comparision with on-chain hash
+    const honestyCheckHash = commitBoardSpace(currentShot as Bytes<32>, _sk);
+
+    // currentShot has already been exposed, but we need to satisfy the compiler here too
+    const shotState = disclose(localCheckBoard(currentShot));
+    assert(shotState == ShotState.HIT || shotState == ShotState.MISS, "Please provide a valid state");
+```
+
+Then comes the honesty check. If Alice reports a MISS, `honestyCheckHash` must **not** be one of her
+committed squares. If she reports a HIT, it must be:
+
+```compact title="contract/battleship.compact"
+    // conditional handling
+    if(shotState == ShotState.MISS){
+        // don't trust, verify
+        assert(!board1.member(honestyCheckHash), "Cheat Detected: Player 1: claimed a MISS, when it was in fact a HIT");
+        turn = TurnState.PLAYER_1_SHOOT;
+
+    } else {
+
+        // don't trust, verify
+        assert(board1.member(honestyCheckHash), "Cheat Detected: Player 1: claimed a HIT, when is was in fact a MISS. Why would they do that?");
+        board1HitCount.increment(1);
+        board1Hits.insert(currentShot);
+        turn = TurnState.PLAYER_1_SHOOT;
+
+        // did someone win?
+        winState = board1HitCount == 2 ? WinState.PLAYER_2_WINS : WinState.CONTINUE_PLAY;
+    }
+}
+```
+
+These two asserts close both cheating routes:
+
+- **Lying about a shot.** If Alice's witness says MISS for a square she committed to, the first
+  assert fails.
+- **Moving a ship.** If Alice rewrites her private state to move a ship away from the shot, her
+  witness answers MISS. But `board1` still holds the commitment to the original square, so the
+  check fails all the same. The commitment pins the board to what she set at the start.
+
+A failed `assert` means Alice can't produce a valid proof for the transaction, so the dishonest
+report never reaches the chain.
+
+`checkBoard2` is the same circuit for Bob, checking `player1Shot` against `board2`.
+
+:::tip Test yourself
+The contract blocks re-shooting a recorded HIT, but nothing stops a player from shooting the same
+missed square twice. Which ledger field and `assert` would you add to block repeated misses as well?
+:::
+
+## The witnesses
+
+The witnesses are implemented in `contract/witnesses.ts`. The private state for one player holds
+their ship locations, their last board and shot states, and their secret key:
+
+```typescript title="contract/witnesses.ts"
+export type BattlePrivateState = {
+    x1: bigint,
+    x2: bigint,
+    boardState: number,
+    shotState: number,
+    sk: Uint8Array,
+};
+```
+
+`createBattlePrivateState` builds one. The tests use it to create each player's starting state,
+and later to forge a cheating one.
+
+```typescript title="contract/witnesses.ts"
+export const createBattlePrivateState = (
+    x1: bigint,
+    x2: bigint,
+    boardState: number,
+    shotState: number,
+    sk: Uint8Array,
+) => ({
+    x1,
+    x2,
+    boardState,
+    shotState,
+    sk
+});
+```
+
+Each witness receives a `WitnessContext`, from which it reads `privateState`, followed by the
+arguments from its Compact declaration. It returns a tuple of the updated private state and the
+value the circuit asked for:
+
+```typescript title="contract/witnesses.ts"
+export const witnesses = {
+    localSetBoard: ({
+        privateState
+    }: WitnessContext<Ledger, BattlePrivateState>, x1: bigint, x2: bigint): [
+        BattlePrivateState,
+        BoardState
+    ] => {
+        privateState.x1 = x1;
+        privateState.x2 = x2;
+        privateState.boardState = BoardState.SET;
+        return [privateState, privateState.boardState];
+    },// end of localSetBoard
+    localCheckBoard: ({
+        privateState
+    }: WitnessContext<Ledger, BattlePrivateState>, x: bigint): [
+        BattlePrivateState,
+        ShotState
+    ] => {
+        let currentShot = ShotState.MISS;// reset to default -- MISS
+        if(x == privateState.x1 || x == privateState.x2){
+            currentShot = ShotState.HIT;// only HIT if it is in fact a HIT
+        }
+        privateState.shotState = currentShot;
+        return [privateState, privateState.shotState];
+    },// end of localCheckBoard
+    localSk: ({
+        privateState
+    }: WitnessContext<Ledger, BattlePrivateState>): [
+        BattlePrivateState,
+        Uint8Array
+    ] => {
+        return [privateState, privateState.sk];
+    },
+};
+```
+
+This is an honest implementation. Nothing forces a player to run it, and the contract doesn't
+assume they do. Every value these functions return is checked by an `assert` in the circuit that
+called them.
+
+`contract/index.ts` wires the witnesses to the compiled contract and exports
+`CompiledBattleshipContract` and `zkConfigPath` for the tests.
+
+## Compile
+
+From `examples/battleship`:
+
+```bash
+yarn compile
+```
+
+This runs `compact compile contract/battleship.compact contract/managed/battleship` and generates
+the proving keys:
+
+```
+Compiling 5 circuits:
+  circuit "acceptGame" (k=14, rows=12767)  
+  circuit "checkBoard1" (k=14, rows=8649)  
+  circuit "checkBoard2" (k=14, rows=8650)  
+  circuit "player1Shoot" (k=13, rows=4226)  
+  circuit "player2Shoot" (k=13, rows=4222)  
+Overall progress [====================] 5/5 
+```
+
+Five circuits, one for each exported impure circuit. `getDappPubKey` is a pure circuit and
+`commitBoardSpace` is not exported, so neither gets a proving key.
+
+## Next
+
+In the [Battleship tests](/tutorials/battleship/test-suite), you'll play a game on a local devnet
+and try each cheat from [What can go wrong](#what-can-go-wrong).
