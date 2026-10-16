@@ -1,0 +1,668 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Deploying and calling a contract from a browser DApp
+description: "Connect a browser DApp to a wallet, build the Midnight.js providers from it, then deploy a contract, join it, call a circuit, and read private state."
+sidebar_label: "Build a browser DApp"
+sidebar_position: 56
+toc_max_heading_level: 2
+keywords: [midnight, browser, dapp, dapp-connector, wallet, lace, midnight-js, providers, private state, vite, deploy]
+tags: [midnight, javascript, dapp, wallet, providers, deployment]
+---
+
+# Deploying and calling a contract from a browser DApp
+
+A browser DApp does the same work as a Node.js script that deploys and calls a smart contract, with one difference: it holds no keys. The user's wallet extension owns the keys, pays the fee, and submits the transaction, and the page reaches it through the DApp Connector API. This guide takes a web page through the whole sequence. You connect to the wallet and build the Midnight.js providers from it. Then you deploy a contract, call a circuit, read the private state back, and join the same contract from a second browser.
+
+The examples use Midnight.js 4.1.1 and DApp Connector API 4.0.1 with a small counter contract and a plain TypeScript page built with Vite. Nothing in the Midnight.js code depends on a UI framework. In React or Next.js, run it in client-side code and configure your bundler for the WebAssembly packages the way this guide configures Vite. For the Node.js version of this workflow, see [Deploying and operating a contract](./deploy-and-operate).
+
+## Prerequisites
+
+These apply to every procedure in this guide:
+
+- Node.js 22 or later.
+- The Compact toolchain at the version the [support matrix](../relnotes/support-matrix) pairs with Midnight.js 4.1.1, which is 0.31.1.
+- A browser wallet that implements DApp Connector API 4.x, such as [Lace](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk), set to the network you target.
+- NIGHT in that wallet, registered for DUST generation, because every deploy and call pays a fee in DUST. [Funding a wallet](./acquire-tokens) covers the faucet and the registration.
+- A [proof server](./run-proof-server) running on your machine. Lace sends proving requests to the proof server address in its settings, which is `http://localhost:6300` unless you change it.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## How the page and the wallet share the work
+
+A contract call from a browser has five stages, and the page and the wallet each own some of them. Knowing which side does what tells you where a failure comes from and which data never leaves the browser.
+
+| Stage | Who does it | What happens |
+|---|---|---|
+| Run the circuit | The page | Midnight.js runs the circuit and its witnesses in the page. Private state stays in the browser's storage. |
+| Prove | The wallet's proving provider | The page supplies the prover key, verifier key, and ZKIR for the circuit. The wallet's proving provider returns the proof. |
+| Balance and sign | The wallet | The page hands over the proven transaction with `balanceUnsealedTransaction`. The wallet adds the DUST fee, asks the user to approve, and signs. |
+| Submit | The wallet | The page hands the finished transaction back with `submitTransaction`, and the wallet sends it to the network. |
+| Confirm and read | The page | Midnight.js watches the indexer until the transaction is final, then stores the new private state. |
+
+A deployment follows the same path without the proving stage: creating a contract needs the circuits' verifier keys, not a proof.
+
+Three rules follow from this split:
+
+- **The page serves the ZK files.** The `keys/` and `zkir/` folders from the compile have to be reachable over HTTP from the page's own origin.
+- **The network ID comes first.** Midnight.js reads the network ID whenever it builds a transaction, so call `setNetworkId` before any deploy or call. Network IDs are lowercase: `preprod`, `preview`, `mainnet`, and `undeployed`.
+- **Private state belongs to the browser profile, not to the wallet.** It lives in IndexedDB on the device. The same wallet in another browser starts with no private state for your contract.
+
+[Browser provider reference](#browser-provider-reference) maps each stage to the Midnight.js provider that implements it.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Setting up the project
+
+Create a Vite project, add the Midnight.js packages, compile the contract, and put the ZK files where the page can fetch them. Two settings cause most first-run failures. Vite's development server needs the WebAssembly packages excluded from pre-bundling, and the private state store needs the `events` package, which browsers do not provide.
+
+### Procedure
+
+1. Create a TypeScript project with Vite and install its dependencies:
+
+   ```bash
+   npm create vite@latest counter-dapp -- --template vanilla-ts
+   cd counter-dapp
+   npm install
+   ```
+
+2. Install the DApp Connector types, the Midnight.js packages, and `events`:
+
+   ```bash
+   npm install @midnight-ntwrk/dapp-connector-api @midnight-ntwrk/midnight-js-contracts \
+     @midnight-ntwrk/midnight-js-dapp-connector-proof-provider @midnight-ntwrk/midnight-js-fetch-zk-config-provider \
+     @midnight-ntwrk/midnight-js-indexer-public-data-provider @midnight-ntwrk/midnight-js-level-private-state-provider \
+     @midnight-ntwrk/midnight-js-network-id @midnight-ntwrk/midnight-js-protocol \
+     @midnight-ntwrk/midnight-js-types @midnight-ntwrk/midnight-js-utils events
+   ```
+
+3. Create `vite.config.ts` in the project root. Without the `exclude` list, the development server fails with `Cannot access '__wbindgen_start' before initialization`:
+
+   ```typescript title="vite.config.ts"
+   import { defineConfig } from 'vite';
+
+   export default defineConfig({
+     optimizeDeps: {
+       // Vite's dev server pre-bundles dependencies, which breaks the start-up
+       // order of these WebAssembly packages. Excluding them keeps it intact.
+       exclude: [
+         '@midnight-ntwrk/ledger-v8',
+         '@midnight-ntwrk/onchain-runtime-v3',
+         '@midnight-ntwrk/zkir-v2',
+       ],
+     },
+   });
+   ```
+
+4. Add the contract. Each call to `increment` raises a public counter, and a witness supplies a number that only this browser knows: how many times this user has called it.
+
+   ```compact title="contract/counter.compact"
+   pragma language_version 0.23;
+
+   import CompactStandardLibrary;
+
+   export ledger round: Counter;
+
+   witness nextLocalCount(): Uint<32>;
+
+   export circuit increment(): [] {
+     const local = nextLocalCount();
+     assert(local > 0, "local count must be positive");
+     round.increment(1);
+   }
+   ```
+
+5. Compile the contract, then copy the ZK files into `public/counter/` so that Vite serves them at `/counter/keys/` and `/counter/zkir/`. Repeat the copy whenever you recompile:
+
+   ```bash
+   compact compile contract/counter.compact contract/managed/counter
+   mkdir -p public/counter
+   cp -R contract/managed/counter/keys contract/managed/counter/zkir public/counter/
+   ```
+
+6. Replace `index.html` with a page that has one button for each step of this guide:
+
+   ```html title="index.html"
+   <!doctype html>
+   <html lang="en">
+     <head>
+       <meta charset="UTF-8" />
+       <title>Counter DApp</title>
+     </head>
+     <body>
+       <h1>Counter DApp</h1>
+       <p>
+         <label>Private state password <input id="password" type="password" autocomplete="current-password" /></label>
+         <button id="connect">Connect wallet</button>
+       </p>
+       <p>
+         <button id="deploy" disabled>Deploy</button>
+         <label>Contract address <input id="address" size="70" /></label>
+         <button id="join" disabled>Join</button>
+       </p>
+       <p>
+         <button id="increment" disabled>Increment</button>
+         <button id="read">Read public state</button>
+       </p>
+       <pre id="log"></pre>
+       <script type="module" src="/src/main.ts"></script>
+     </body>
+   </html>
+   ```
+
+7. Delete the template's files in `src/`, then create `src/main.ts`. The later procedures add to this file, always above the last line:
+
+   ```typescript title="src/main.ts"
+   const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+   const log = (line: string) => {
+     $('log').textContent += `${line}\n`;
+   };
+
+   log('Ready');
+   ```
+
+### Verification
+
+The project builds, and the page loads the Midnight.js WebAssembly modules. Build it first:
+
+```bash
+npm run build
+```
+
+Vite prints warnings that the `assert` module has been externalized for browser compatibility. The build still succeeds:
+
+```text
+✓ built in 1.31s
+```
+
+Then start the development server with `npm run dev` and open the URL it prints. The page shows `Ready`. The network ID defaults to `preprod`; to target another network, put it in a `.env.local` file, for example `VITE_NETWORK_ID=preview`, before you start the server.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Connecting to the wallet and setting the network
+
+Find the wallet, connect to it with the network ID you target, and give Midnight.js the same ID. Do not look a wallet up by a fixed key: the specification has each wallet add its entry to `window.midnight` under a freshly generated UUID, and Lace generates a new one on every page load. Read the entries instead, and identify a wallet by its `rdns` and `apiVersion`. Lace reports the `rdns` value `io.lace.wallet`.
+
+### Procedure
+
+1. Create `src/wallet.ts`:
+
+   ```typescript title="src/wallet.ts"
+   import type { ConnectedAPI, InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+   declare global {
+     interface Window {
+       midnight?: Record<string, InitialAPI>;
+     }
+   }
+
+   // Lowercase, exactly as the wallet and Midnight.js expect it.
+   export const NETWORK_ID: string = import.meta.env.VITE_NETWORK_ID ?? 'preprod';
+
+   // Every installed wallet adds an entry to window.midnight. The key is not
+   // stable, so identify a wallet by its rdns and apiVersion instead.
+   export const findWallets = (): InitialAPI[] =>
+     Object.values(window.midnight ?? {}).filter(
+       (wallet) => typeof wallet?.connect === 'function' && wallet.apiVersion.startsWith('4.'),
+     );
+
+   export async function connectWallet(wallet: InitialAPI): Promise<ConnectedAPI> {
+     const api = await wallet.connect(NETWORK_ID);
+
+     const status = await api.getConnectionStatus();
+     if (status.status !== 'connected' || status.networkId !== NETWORK_ID) {
+       throw new Error(`The wallet is not connected to ${NETWORK_ID}.`);
+     }
+
+     // Midnight.js reads this value whenever it builds a transaction.
+     setNetworkId(NETWORK_ID);
+     return api;
+   }
+   ```
+
+2. Add these imports at the top of `src/main.ts`:
+
+   ```typescript title="src/main.ts"
+   import type { APIError } from '@midnight-ntwrk/dapp-connector-api';
+
+   import { connectWallet, findWallets } from './wallet';
+   ```
+
+3. Add a helper that runs a button's action and logs any failure, and the handler for the **Connect wallet** button, above the `log('Ready')` line. Wallet errors are not instances of a class your page can import. The helper checks the `type` field instead of using `instanceof`, as the DApp Connector API recommends:
+
+   ```typescript title="src/main.ts"
+   const run = (id: string, action: () => Promise<void>) =>
+     $(id).addEventListener('click', () => {
+       action().catch((error: unknown) => {
+         // Wallet errors carry type DAppConnectorAPIError and a reason. Some browser errors have a name and no message.
+         const { type, reason, message, name } = error as Partial<APIError>;
+         log(`${id} failed: ${type === 'DAppConnectorAPIError' ? reason : message || name}`);
+       });
+     });
+
+   run('connect', async () => {
+     const [wallet] = findWallets();
+     if (!wallet) throw new Error('No Midnight wallet found.');
+     const api = await connectWallet(wallet);
+     const { unshieldedAddress } = await api.getUnshieldedAddress();
+     log(`Connected to ${wallet.name} as ${unshieldedAddress}`);
+   });
+   ```
+
+   This page takes the first wallet it finds. When more than one wallet is installed, the DApp Connector API specification expects you to let the user choose; [Create a React wallet connector](./react-wallet-connect#select-a-wallet) shows a picker.
+
+### Verification
+
+Reload the page and select **Connect wallet**. The wallet asks you to approve the connection. After you approve, the page logs `Connected to`, the wallet's name, and your unshielded address, which starts with `mn_addr_` and the network name.
+
+If the wallet is set to a different network than `NETWORK_ID`, the connection fails instead. See [Browser DApp troubleshooting](#browser-dapp-troubleshooting).
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Building the providers from the wallet
+
+Build the six providers that every Midnight.js deploy and call takes. In a browser, the wallet fills three of them: proving, balancing, and submitting. The page's own origin serves the ZK files, IndexedDB holds private state, and the wallet reports which indexer to read from unless you name your own.
+
+### Prerequisites
+
+- The connection from [Connecting to the wallet and setting the network](#connecting-to-the-wallet-and-setting-the-network).
+
+### Procedure
+
+1. Describe the contract to TypeScript in `src/contract.ts`: its private state, its witness, and the compiled contract object that Midnight.js deploys and calls. The witness runs in the page and returns the next private state together with the value the circuit asked for:
+
+   ```typescript title="src/contract.ts"
+   import type { FoundContract } from '@midnight-ntwrk/midnight-js-contracts';
+   import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+   import type { MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+
+   import * as Counter from '../contract/managed/counter/contract/index.js';
+
+   export type CounterPrivateState = { readonly localCount: number };
+   export type CounterCircuits = 'increment';
+   export const PRIVATE_STATE_ID = 'counterPrivateState';
+   export type CounterProviders = MidnightProviders<CounterCircuits, typeof PRIVATE_STATE_ID, CounterPrivateState>;
+   // What both deployContract and findDeployedContract return.
+   export type CounterContract = FoundContract<Counter.Contract<CounterPrivateState>>;
+
+   const witnesses: Counter.Witnesses<CounterPrivateState> = {
+     nextLocalCount: ({ privateState }) => {
+       const localCount = privateState.localCount + 1;
+       return [{ localCount }, BigInt(localCount)];
+     },
+   };
+
+   export const compiledCounter = CompiledContract.make('counter', Counter.Contract<CounterPrivateState>).pipe(
+     CompiledContract.withWitnesses(witnesses),
+     CompiledContract.withCompiledFileAssets('/counter'),
+   );
+
+   export const ledger = Counter.ledger;
+   ```
+
+2. Create `src/providers.ts`. The wallet exchanges transactions as hex strings and Midnight.js works with ledger transaction objects, so `walletBridge` converts in both directions:
+
+   ```typescript title="src/providers.ts"
+   import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import { dappConnectorProofProvider } from '@midnight-ntwrk/midnight-js-dapp-connector-proof-provider';
+   import { FetchZkConfigProvider } from '@midnight-ntwrk/midnight-js-fetch-zk-config-provider';
+   import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+   import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+   import { CostModel, Transaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import type { MidnightProvider, WalletProvider } from '@midnight-ntwrk/midnight-js-types';
+   import { fromHex, toHex, validatePassword } from '@midnight-ntwrk/midnight-js-utils';
+
+   import type { CounterCircuits, CounterPrivateState, CounterProviders } from './contract';
+   import { PRIVATE_STATE_ID } from './contract';
+
+   // The wallet speaks hex strings. Midnight.js speaks ledger transaction objects.
+   async function walletBridge(api: ConnectedAPI): Promise<WalletProvider & MidnightProvider> {
+     const { shieldedCoinPublicKey, shieldedEncryptionPublicKey } = await api.getShieldedAddresses();
+     return {
+       getCoinPublicKey: () => shieldedCoinPublicKey,
+       getEncryptionPublicKey: () => shieldedEncryptionPublicKey,
+       balanceTx: async (tx) => {
+         const balanced = await api.balanceUnsealedTransaction(toHex(tx.serialize()));
+         return Transaction.deserialize('signature', 'proof', 'binding', fromHex(balanced.tx));
+       },
+       submitTx: async (tx) => {
+         await api.submitTransaction(toHex(tx.serialize()));
+         return tx.identifiers()[0];
+       },
+     };
+   }
+
+   export async function buildProviders(api: ConnectedAPI, password: string): Promise<CounterProviders> {
+     // The store checks the password on its first write, which happens after a
+     // deploy transaction has already landed. Check it now instead.
+     validatePassword(password);
+
+     // Read from the wallet's indexer unless .env.local names another one.
+     const config = await api.getConfiguration();
+     const indexerUri: string = import.meta.env.VITE_INDEXER_URI ?? config.indexerUri;
+     const indexerWsUri: string = import.meta.env.VITE_INDEXER_WS_URI ?? config.indexerWsUri;
+     const { unshieldedAddress } = await api.getUnshieldedAddress();
+
+     // Fetches keys/ and zkir/ from public/counter/.
+     const zkConfigProvider = new FetchZkConfigProvider<CounterCircuits>(
+       `${window.location.origin}/counter`,
+       fetch.bind(window),
+     );
+     const wallet = await walletBridge(api);
+
+     return {
+       privateStateProvider: levelPrivateStateProvider<typeof PRIVATE_STATE_ID, CounterPrivateState>({
+         privateStoragePasswordProvider: () => password,
+         accountId: unshieldedAddress,
+       }),
+       publicDataProvider: indexerPublicDataProvider(indexerUri, indexerWsUri),
+       zkConfigProvider,
+       proofProvider: await dappConnectorProofProvider(api, zkConfigProvider, CostModel.initialCostModel()),
+       walletProvider: wallet,
+       midnightProvider: wallet,
+     };
+   }
+   ```
+
+   :::warning Private state lives in this browser profile
+
+   `levelPrivateStateProvider` encrypts private state and the contract's signing key with the password and keeps them in IndexedDB. Clearing the site's data deletes them, and a wrong password cannot decrypt them. The password needs at least 16 characters and at least three of the four character classes: uppercase, lowercase, digits, and symbols. It cannot repeat a character more than three times in a row or contain a run of four sequential characters, such as `1234` or `abcd`. This page asks the user for it; do not ship a password in your source.
+
+   :::
+
+   :::note Reading from your own indexer
+
+   The page reads public state from the indexer that `getConfiguration()` reports. If that indexer does not answer, or you want a different one, add its HTTP and WebSocket addresses to `.env.local` and restart the development server:
+
+   ```text title=".env.local"
+   VITE_INDEXER_URI=<indexer-graphql-url>
+   VITE_INDEXER_WS_URI=<indexer-websocket-url>
+   ```
+
+   [Networks and environments](./networks-and-environments) lists the indexer addresses for each network, including the Blockfrost endpoints that need a project token. Vite builds `VITE_` values into the page, so anyone who loads it can read a token you put there.
+
+   :::
+
+3. Add these imports at the top of `src/main.ts`:
+
+   ```typescript title="src/main.ts"
+   import type { CounterContract, CounterProviders } from './contract';
+   import { buildProviders } from './providers';
+   ```
+
+4. Add an object that holds the providers and the contract between button presses, above the `run('connect', ...)` handler:
+
+   ```typescript title="src/main.ts"
+   const session: { providers?: CounterProviders; counter?: CounterContract } = {};
+   ```
+
+5. Replace the `run('connect', ...)` handler so that it builds the providers and enables the next buttons:
+
+   ```typescript title="src/main.ts"
+   run('connect', async () => {
+     const [wallet] = findWallets();
+     if (!wallet) throw new Error('No Midnight wallet found.');
+     const api = await connectWallet(wallet);
+     session.providers = await buildProviders(api, $<HTMLInputElement>('password').value);
+     log(`Connected to ${wallet.name}`);
+     $<HTMLButtonElement>('deploy').disabled = false;
+     $<HTMLButtonElement>('join').disabled = false;
+   });
+   ```
+
+### Verification
+
+Reload the page, enter a password that follows the rules in the warning above, and select **Connect wallet**. The page logs `Connected to` and the wallet's name, and the **Deploy** and **Join** buttons become active.
+
+With a password that is too short, the providers are not built and nothing is sent to the network:
+
+```text
+connect failed: Password is shorter than 16 characters
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Deploying the contract
+
+Deploy the counter from the page and keep its address. `deployContract` builds the deployment transaction in the page and passes it to the wallet to balance and submit. It then waits for the indexer to report the transaction as final, and stores the initial private state and the contract's signing key in the browser.
+
+### Prerequisites
+
+- The providers from [Building the providers from the wallet](#building-the-providers-from-the-wallet).
+
+### Procedure
+
+1. Create `src/deploy.ts`:
+
+   ```typescript title="src/deploy.ts"
+   import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+   import { compiledCounter, type CounterProviders, PRIVATE_STATE_ID } from './contract';
+
+   export const deployCounter = (providers: CounterProviders) =>
+     deployContract(providers, {
+       compiledContract: compiledCounter,
+       privateStateId: PRIVATE_STATE_ID,
+       initialPrivateState: { localCount: 0 },
+     });
+   ```
+
+2. Add this import at the top of `src/main.ts`:
+
+   ```typescript title="src/main.ts"
+   import { deployCounter } from './deploy';
+   ```
+
+3. Add the handler for the **Deploy** button above the `log('Ready')` line:
+
+   ```typescript title="src/main.ts"
+   run('deploy', async () => {
+     if (!session.providers) return;
+     log('Deploying...');
+     session.counter = await deployCounter(session.providers);
+     const { contractAddress } = session.counter.deployTxData.public;
+     $<HTMLInputElement>('address').value = contractAddress;
+     log(`Deployed at ${contractAddress}`);
+     $<HTMLButtonElement>('increment').disabled = false;
+   });
+   ```
+
+### Verification
+
+Reload the page, connect, and select **Deploy**. Approve the transaction in the wallet. When the transaction is final, the page logs the contract address and fills the **Contract address** field:
+
+```text
+Deploying...
+Deployed at d49ebc2cde6fd3fe97eb93d7ef75dec933fa930ed5d92c13999907c2a7496377
+```
+
+Copy the address. You need it to join the contract after a reload or from another browser.
+
+If you decline the transaction in the wallet, the page deploys nothing and stores nothing. With Lace, the page logs:
+
+```text
+Deploying...
+deploy failed: User rejected transaction
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Calling a circuit and reading the result
+
+Call `increment`, then read both halves of the result: the private state the witness produced and the public counter on the ledger. Every circuit is a function on the contract's `callTx` object. The value it resolves to carries the new private state in `private.nextPrivateState`, and Midnight.js writes that state to the store only after the transaction succeeds on-chain.
+
+### Prerequisites
+
+- A deployed contract from [Deploying the contract](#deploying-the-contract).
+
+### Procedure
+
+1. Create `src/call.ts`. Reading public state needs only the indexer: `queryContractState` returns the contract's current state, and the generated `ledger` function decodes its `data` field:
+
+   ```typescript title="src/call.ts"
+   import { type CounterContract, type CounterProviders, ledger } from './contract';
+
+   export async function increment(counter: CounterContract) {
+     const tx = await counter.callTx.increment();
+     return {
+       txId: tx.public.txId,
+       blockHeight: tx.public.blockHeight,
+       localCount: tx.private.nextPrivateState.localCount,
+     };
+   }
+
+   export async function readRound(providers: Pick<CounterProviders, 'publicDataProvider'>, contractAddress: string) {
+     const state = await providers.publicDataProvider.queryContractState(contractAddress);
+     return state === null ? null : ledger(state.data).round;
+   }
+   ```
+
+2. Add these imports at the top of `src/main.ts`:
+
+   ```typescript title="src/main.ts"
+   import { increment, readRound } from './call';
+   import { PRIVATE_STATE_ID } from './contract';
+   ```
+
+3. Add the handlers for the **Increment** and **Read public state** buttons above the `log('Ready')` line. The first one reads the private state back from the store to show that it matches the call's result:
+
+   ```typescript title="src/main.ts"
+   run('increment', async () => {
+     if (!session.providers || !session.counter) return;
+     log('Calling increment...');
+     const result = await increment(session.counter);
+     const stored = await session.providers.privateStateProvider.get(PRIVATE_STATE_ID);
+     log(`Transaction ${result.txId} in block ${result.blockHeight}`);
+     log(`localCount from the call: ${result.localCount}; stored: ${stored?.localCount}`);
+   });
+
+   run('read', async () => {
+     if (!session.providers) throw new Error('Connect first.');
+     const contractAddress = $<HTMLInputElement>('address').value.trim();
+     log(`round is ${await readRound(session.providers, contractAddress)}`);
+   });
+   ```
+
+### Verification
+
+Reload the page, connect, deploy a new contract, and select **Increment**. Approve the transaction in the wallet. The private state from the call and the stored private state agree:
+
+```text
+Calling increment...
+Transaction 00235d246422a09bf4127d5c673fc106d156ddaa503ad501f3a3c2904e353ce816 in block 757
+localCount from the call: 1; stored: 1
+```
+
+Then select **Read public state**. The public counter shows the same call:
+
+```text
+round is 1
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Joining a deployed contract
+
+Reconnect to a contract that already exists, after a page reload or from another browser, without losing private state. The trap is `initialPrivateState`: whenever you pass it, `findDeployedContract` writes it over whatever the browser has stored for that contract. Pass it only when nothing is stored yet.
+
+### Prerequisites
+
+- The address of a contract deployed from the same compiled output. `findDeployedContract` compares your local verifier keys with the deployed ones and refuses a contract that differs.
+
+### Procedure
+
+1. Create `src/join.ts`:
+
+   ```typescript title="src/join.ts"
+   import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
+
+   import { compiledCounter, type CounterContract, type CounterProviders, PRIVATE_STATE_ID } from './contract';
+
+   export async function joinCounter(providers: CounterProviders, contractAddress: string): Promise<CounterContract> {
+     // Private state is stored per contract address, so select the address before looking.
+     providers.privateStateProvider.setContractAddress(contractAddress);
+     const stored = await providers.privateStateProvider.get(PRIVATE_STATE_ID);
+
+     return findDeployedContract(providers, {
+       contractAddress,
+       compiledContract: compiledCounter,
+       privateStateId: PRIVATE_STATE_ID,
+       // Passing initialPrivateState overwrites whatever is stored, so pass it on a first join only.
+       ...(stored === null ? { initialPrivateState: { localCount: 0 } } : {}),
+     });
+   }
+   ```
+
+2. Add this import at the top of `src/main.ts`:
+
+   ```typescript title="src/main.ts"
+   import { joinCounter } from './join';
+   ```
+
+3. Add the handler for the **Join** button above the `log('Ready')` line:
+
+   ```typescript title="src/main.ts"
+   run('join', async () => {
+     if (!session.providers) return;
+     const contractAddress = $<HTMLInputElement>('address').value.trim();
+     session.counter = await joinCounter(session.providers, contractAddress);
+     const stored = await session.providers.privateStateProvider.get(PRIVATE_STATE_ID);
+     log(`Joined ${contractAddress}; stored localCount is ${stored?.localCount}`);
+     $<HTMLButtonElement>('increment').disabled = false;
+   });
+   ```
+
+### Verification
+
+Deploy a contract and increment it once, then reload the page. Connect with the same password, paste the contract address, and select **Join**. The private state from before the reload is still there, and the next call continues from it:
+
+```text
+Joined d49ebc2cde6fd3fe97eb93d7ef75dec933fa930ed5d92c13999907c2a7496377; stored localCount is 1
+Calling increment...
+Transaction 00f492a9397992b1759c2a7417eda9229cea7b4b9c79801350e10803eb44080136 in block 762
+localCount from the call: 2; stored: 2
+```
+
+Now open the page in a different browser profile with the same wallet, connect, paste the address, and select **Join**, then **Read public state**. That profile has no private state for the contract, so it starts from zero while the public counter keeps its value:
+
+```text
+Joined d49ebc2cde6fd3fe97eb93d7ef75dec933fa930ed5d92c13999907c2a7496377; stored localCount is 0
+round is 2
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Browser provider reference
+
+Which implementation fills each Midnight.js provider slot in a browser, and which wallet method it relies on. The packages live under the `@midnight-ntwrk/` scope. For the Node.js implementations, see [Provider implementations](./deploy-and-operate#provider-implementations).
+
+| Slot | Browser implementation | Package | Wallet methods used | Notes |
+|---|---|---|---|---|
+| `privateStateProvider` | `levelPrivateStateProvider` | `midnight-js-level-private-state-provider` | `getUnshieldedAddress`, for `accountId` | Encrypted IndexedDB store, scoped to the account and the contract address. Needs the `events` package in the bundle |
+| `publicDataProvider` | `indexerPublicDataProvider` | `midnight-js-indexer-public-data-provider` | `getConfiguration`, for `indexerUri` and `indexerWsUri` | Reads need no wallet approval. `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` replace the wallet's indexer |
+| `zkConfigProvider` | `FetchZkConfigProvider` | `midnight-js-fetch-zk-config-provider` | None | Fetches `keys/<circuit>.prover`, `keys/<circuit>.verifier`, and `zkir/<circuit>.bzkir` under the base URL |
+| `proofProvider` | `dappConnectorProofProvider` | `midnight-js-dapp-connector-proof-provider` | `getProvingProvider` | Lace 2.4.2 forwards proving to the proof server address in its settings |
+| `walletProvider` | Your bridge over the connected API | `dapp-connector-api` for the types | `getShieldedAddresses`, `balanceUnsealedTransaction` | The wallet asks the user to approve each transaction it balances |
+| `midnightProvider` | Your bridge over the connected API | `dapp-connector-api` for the types | `submitTransaction` | Takes the finished transaction as a hex string and returns nothing. The bridge returns the transaction ID from `tx.identifiers()` |
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Browser DApp troubleshooting
+
+Failures you are likely to meet on this guide's path, and their fixes. The Lace messages come from the Lace 2.4.2 source; the others come from a real run.
+
+| Error | Cause | Fix |
+|---|---|---|
+| `ReferenceError: Cannot access '__wbindgen_start' before initialization`, and a blank page on the development server | Vite pre-bundled the WebAssembly packages | Add the `optimizeDeps.exclude` list from [Setting up the project](#setting-up-the-project) |
+| `TypeError: Class extends value undefined is not a constructor or null`, with a console warning that `events` has been externalized | The private state store imports the Node.js `events` module, which browsers lack | Run `npm install events` |
+| `Network ID has not been configured. Call setNetworkId() before any wallet or contract operation.` | A deploy or call ran before `setNetworkId` | Call `setNetworkId` when you connect, with the same ID you pass to `connect` |
+| `Invalid network ID`, `Unsupported network ID`, or `Network ID mismatch` from Lace on connect | The ID passed to `connect` is misspelled, or Lace is set to another network | Pass the lowercase ID, such as `preprod`, and switch Lace to the same network |
+| `Access to wallet api denied` from Lace on connect | The user declined the connection | Let the user try again |
+| `User rejected transaction` from Lace | The user declined the transaction | Nothing was submitted. Let the user try again |
+| `Password is shorter than 16 characters`, `Password contains sequential patterns`, or another `PasswordValidationError` | The private state password fails the store's rules | Use 16 or more characters with three of the four character classes, no more than three identical characters in a row, and no sequences such as `1234` or `abcd`. The error message names the rule that failed |
+| `OperationError` when joining | The password does not match the one that encrypted the stored private state | Ask for the password the user set when they first used the contract in this browser |
+| `No private state found at private state ID '<id>'` | `findDeployedContract` ran without `initialPrivateState` in a browser that has nothing stored for the contract | Pass `initialPrivateState` when the store returns `null`, as in [Joining a deployed contract](#joining-a-deployed-contract) |
+| `Failed to fetch` after the wallet approved a deploy or call, with a console error for the indexer address | The page cannot reach the indexer that `getConfiguration()` reports. The wallet had already submitted the transaction | Set `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` to an indexer that answers, as in [Building the providers from the wallet](#building-the-providers-from-the-wallet) |
+| The join keeps waiting | No contract exists at that address on the network the wallet reports | Check the address and the network |
+
+## Additional resources
+
+- [Create a React wallet connector](./react-wallet-connect) and [Create a Next.js wallet connector](./nextjs-wallet-connect): the connection step on its own, inside a component, with a wallet picker.
+- [Deploying and operating a contract](./deploy-and-operate): the same workflow from Node.js, plus contract maintenance.
+- [Manage private state with witnesses](./private-state-witnesses): how witnesses read and update private state.
+- [Proving transactions locally](./local-proving): why the proof server runs on your machine and how to start it.
+- [Funding a wallet](./acquire-tokens): faucet tNIGHT and DUST registration.
+- [Networks and environments](./networks-and-environments): network IDs and endpoints for every network.
+- [DApp Connector API reference](/api-reference/dapp-connector) and [Midnight.js API reference](/api-reference/midnight-js): every method and provider interface in full.
