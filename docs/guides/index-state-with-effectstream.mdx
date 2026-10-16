@@ -32,9 +32,9 @@ These apply to every procedure in this guide:
 
 These procedures read from a hosted indexer over HTTPS, so they need no Docker, no Midnight node, no proof server, and no Compact toolchain.
 
-:::note The compatibility matrix does not cover EffectStream
+:::note[Keep the pinned SDK version]
 
-The EffectStream packages depend on no `@midnight-ntwrk/*` package, so the [support matrix](../relnotes/support-matrix) governs the contract half of a project and not this half.
+This guide pins `@effectstream/node-sdk` to `0.104.0`. That release builds on the ledger 8 packages in the [support matrix](../relnotes/support-matrix), such as Midnight.js 4.1.1. The newest release on npm, the `0.200` line, depends on ledger 9 prereleases, and Preview, Preprod, and Mainnet run ledger 8.
 
 :::
 
@@ -109,11 +109,11 @@ Build and run a node that watches a Midnight contract and prints each state chan
    bun start
    ```
 
-5. Read the decoded state in the transition, which receives an object with `state`, `blockHeight`, `blockTimestamp`, `network`, and `address`. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number. Byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
+5. Read the decoded state in the transition, which receives an object with `state`, `blockHeight`, `blockTimestamp`, `network`, and `address`. `blockHeight` is EffectStream's own block number, which starts at 1 on every run, not the Midnight height. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number. Byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
 
 :::tip Replay history instead of waiting for a call
 
-A transition fires on state changes, not on blocks, so a quiet contract prints nothing. `startBlockHeight` takes a block number to replay from that height instead of starting at the tip. Keep the replay short: the node fetches a few blocks per second, and the hosted indexer answers `403 Forbidden` to a client that fetches too much, too fast. Find the block of the contract's most recent call with the indexer's [`contractAction` query](/api-reference/midnight-indexer/operations/queries/contract-action) and start a little below it. The counter used in this guide was last called at block 377864.
+A transition fires on state changes, not on blocks, so a quiet contract prints nothing. `startBlockHeight` takes a block number to replay from that height instead of starting at the tip. The node then fetches every block from that height to the tip, in batches of ten with one indexer request per block, before the first transition fires. Replay therefore only suits a call made recently. The hosted indexer answers `403 Forbidden` to a client that fetches too much, too fast, which a long replay does. Find the block of a contract's most recent call with the indexer's [`contractAction` query](/api-reference/midnight-indexer/operations/queries/contract-action). The counter used in this guide was last called at block 377864, which is too far behind the tip to replay. To watch a transition, point the node at a contract you can call yourself.
 
 :::
 
@@ -248,7 +248,7 @@ This table lists the failures you may hit on this guide's path, with their fixes
 | Install fails resolving a package that imports itself by name | Bun's auto-install cache created no `node_modules` anchor | Run `bun install` before `bun start` |
 | The first transition takes far longer than expected | EffectStream holds each change for several blocks of confirmation | Wait. The delay keeps the database consistent with settled state |
 | A comparison against a decoded number never matches | Unsigned integers decode to decimal strings, not numbers | Convert with `BigInt(state.field)` before comparing |
-| The node stops with `Unable to read the Midnight preview tip: 403 Forbidden` | The hosted indexer is refusing your client, which happens when a replay fetches too many blocks too fast | Wait before retrying, and start the replay a little below the height you need rather than at block 1 |
+| The node stops with `Unable to read the Midnight preview tip: 403 Forbidden` | The hosted indexer is refusing your client, which happens when a replay fetches too many blocks too fast | Wait before retrying, and replay only from a height close to the tip |
 | Parse error naming an array where a scalar belongs | A `struct`, `enum`, or `Vector` sits at a schema position | Use the compiler-generated decoder, or reorder the ledger if you control the contract; see [What the ledger schema can read](#what-the-ledger-schema-can-read) |
 
 ## Additional resources
@@ -257,4 +257,4 @@ This table lists the failures you may hit on this guide's path, with their fixes
 - [Deploying and operating a contract](./deploy-and-operate): the providers a DApp uses to reach the Midnight indexer directly, and how to deploy a contract of your own to index.
 - [Networks and environments](./networks-and-environments): every endpoint, network ID, and the local stack.
 - [Security and best practices](./security-best-practices): what a chain observer sees, and how `disclose()` decides it.
-- [Support matrix](../relnotes/support-matrix): the versions governing the contract half of a project.
+- [Support matrix](../relnotes/support-matrix): the Midnight versions each network runs.
