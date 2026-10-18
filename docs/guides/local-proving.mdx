@@ -104,7 +104,9 @@ The proof server reaches outward once, at startup, to download the public provin
 
 :::tip Offline and mirrored parameters
 
-Pass `--no-fetch-params` to skip the startup download, and set `MIDNIGHT_PARAM_SOURCE` to point at your own mirror.
+The proof server keeps what it downloads in `/.cache/midnight` inside the container. Mount a volume there, for example `-v midnight-zk-params:/.cache/midnight`, and later containers start from the cache without downloading anything.
+
+Set `MIDNIGHT_PARAM_SOURCE` to download from your own mirror instead. Setting `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS=true` skips the download at startup, but it does not make the proof server work offline. Anything missing from the cache downloads the first time a proof needs it.
 
 :::
 
@@ -129,19 +131,21 @@ Docker is not a stylistic preference. It is the lowest-friction way to distribut
 ## Run the proof server
 
 ```bash
-docker run -p 6300:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+docker run -p 6300:6300 -e MIDNIGHT_PROOF_SERVER_VERBOSE=true midnightntwrk/proof-server:8.1.3
 ```
+
+`MIDNIGHT_PROOF_SERVER_VERBOSE=true` turns on debug logs. Keep it on during development, because the proof server logs the reason for a rejected request only at that level.
 
 Or run it with Docker Compose. Save the following as `proof-server.yml`:
 
 ```yaml
 services:
   proof-server:
-    image: 'midnightntwrk/proof-server:8.1.0'
-    command: ['midnight-proof-server', '-v']
+    image: 'midnightntwrk/proof-server:8.1.3'
     ports:
       - '127.0.0.1:6300:6300'
     environment:
+      MIDNIGHT_PROOF_SERVER_VERBOSE: 'true'
       RUST_BACKTRACE: 'full'
     healthcheck:
       test: ['CMD-SHELL', 'echo > /dev/tcp/127.0.0.1/6300']
@@ -167,18 +171,18 @@ Leave it running. Every transaction you prove goes through it.
 
 :::info Pin the version tag
 
-At the time of writing, 8.1.0 is the current stable tag. The `latest` tag exists but lags behind: it was last republished in May 2026, while 8.1.0 and the 9.0.0 release candidates came after. Pinning also keeps the proof server aligned with your node and indexer versions. Check the [compatibility matrix](../relnotes/support-matrix) for the version tested against your target network.
+At the time of writing, 8.1.3 is the current stable tag. The `latest` tag exists, but it moves to a newer image without notice. Pinning also keeps the proof server aligned with your node and indexer versions. Check the [compatibility matrix](../relnotes/support-matrix) for the version tested against your target network.
 
 :::
 
 ### A note on port 6300
 
-The proof server has a `--port` flag and a `MIDNIGHT_PROOF_SERVER_PORT` environment variable, so the port is configurable.
+Inside the container, the proof server listens on the port in the `PORT` environment variable, which defaults to 6300. The image starts the proof server with `--port $PORT`, so setting `MIDNIGHT_PROOF_SERVER_PORT` has no effect there.
 
-Leave it on 6300 anyway. Lace hardcodes `localhost:6300` for the Undeployed network, and the examples you are likely to copy assume it. If 6300 is genuinely occupied on your host, remap only the host side and update your DApp configuration to match:
+Leave it on 6300. Lace hardcodes `localhost:6300` for the Undeployed network, and the examples you are likely to copy assume it. If 6300 is genuinely occupied on your host, remap only the host side and update your DApp configuration to match:
 
 ```bash
-docker run -p 6301:6300 midnightntwrk/proof-server:8.1.0 midnight-proof-server -v
+docker run -p 6301:6300 -e MIDNIGHT_PROOF_SERVER_VERBOSE=true midnightntwrk/proof-server:8.1.3
 ```
 
 {/* _mod-docs-content-type: PROCEDURE */}
@@ -191,13 +195,13 @@ curl http://localhost:6300/health
 # {"status":"ok","timestamp":"..."}
 
 curl http://localhost:6300/version
-# 8.1.0
+# 8.1.3
 
 curl http://localhost:6300/ready
 # {"status":"ok","jobsProcessing":0,"jobsPending":0,"jobCapacity":0,"timestamp":"..."}
 ```
 
-`/ready` is the most useful during development. If `jobsPending` climbs while `jobsProcessing` stays flat, proving jobs are queuing. The server keeps a small pool of proving workers, two by default, adjustable with `--num-workers`.
+`/ready` is the most useful during development. If `jobsPending` climbs while `jobsProcessing` stays flat, proving jobs are queuing. The server keeps a small pool of proving workers, two by default, adjustable with the `MIDNIGHT_PROOF_SERVER_NUM_WORKERS` environment variable.
 
 :::info HTTP workers versus proving workers
 
