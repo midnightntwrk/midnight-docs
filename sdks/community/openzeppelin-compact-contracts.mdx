@@ -17,11 +17,11 @@ id: openzeppelin-compact-contracts
 
 The library is modular: instead of inheriting a base contract, you import individual modules into your own `.compact` source with a prefix and call their circuits as building blocks.
 
-:::danger[Experimental - alpha, not audited]
+:::danger[Experimental, not for production]
 
-The library is currently at version `v0.0.1-alpha.1`. Per the project's own README, it has never been audited or thoroughly reviewed for security vulnerabilities, and the maintainers explicitly state: **DO NOT USE IT IN PRODUCTION.**
+The library is currently at version `0.2.0`. The project's own README calls the code highly experimental, and the maintainers explicitly state: **DO NOT USE IT IN PRODUCTION.** The repository's [audits folder](https://github.com/OpenZeppelin/compact-contracts/tree/main/audits) holds OpenZeppelin's audit report for version `0.1.0`. Version `0.2.0` includes changes made after that audit.
 
-Use these contracts for prototyping, learning, and Testnet development only.
+Use these contracts for prototyping, learning, and development on Preview and Preprod only.
 
 :::
 
@@ -30,16 +30,16 @@ Use these contracts for prototyping, learning, and Testnet development only.
 Before using the library, ensure that you have:
 
 - The [Compact developer tools](../../getting-started/installation) installed.
-- [Node.js](https://nodejs.org/) and [yarn](https://yarnpkg.com/getting-started/install) available.
+- [Node.js](https://nodejs.org/) 22 or later and [Yarn](https://yarnpkg.com/getting-started/install) available.
 - A working understanding of [Compact module imports](/compact/reference/compact-reference) and the `prefix` syntax.
 
 ## Compatibility
 
-The table below lists the Compact compiler and runtime versions the library targets. Verify these against your local toolchain before integrating.
+The table below lists the Compact compiler and language versions the library targets. Verify these against your local toolchain before integrating.
 
 | Component | Version | Notes |
 |---|---|---|
-| Library version | `v0.0.1-alpha.1` | Alpha; rapid iteration expected. |
+| Library version | `0.2.0` | The release that `yarn add @openzeppelin/compact-contracts` installs. Rapid iteration expected. |
 | Compact compiler | `0.29.0` | Pinned by the library's CI badge. |
 | Compact language | `>= 0.21.0` | Per `pragma` in every source file. |
 | Token amounts | `Uint<128>` (not `Uint<256>`) | Midnight encoding limit; `Uint<256>` is not supported by the Compact compiler. |
@@ -47,45 +47,49 @@ The table below lists the Compact compiler and runtime versions the library targ
 
 :::note[Compiler version mismatch]
 
-OpenZeppelin's library currently pins compiler `0.29.0`, while the official Midnight Toolchain has shipped a newer release. The pragma `>= 0.21.0` keeps source-level compatibility, but verify your local `compact compile --version` before reporting issues.
+Version `0.2.0` needs compiler `0.29.0` or later. OpenZeppelin builds and tests it with `0.29.0`, while the official Midnight Toolchain has shipped newer releases. The pragma `>= 0.21.0` keeps source-level compatibility: the example on this page also compiles with compilers `0.31.1`, `0.34.0`, and `0.35.0`.
+
+The compiler also decides which ledger version the compiled contract targets. Compiler `0.29.0` targets ledger version 7, and `0.31.1` targets ledger version 8. Compilers `0.34.0` and `0.35.0` target ledger version 9. To deploy, compile with the toolchain that the [compatibility matrix](/relnotes/support-matrix) lists for your target network. Verify your local `compact compile --version` before reporting issues.
+
+The npm `beta` tag and the repository's `main` branch carry prereleases that target compiler `0.34.0` and `pragma language_version >= 0.26.0`. This page does not cover them.
 
 :::
 
 ## Modules
 
-The library organizes its modules into four families. Most modules import `Initializable` (one-time init guard) and `Utils` (zero-address and Either helpers) for composition.
+The library organizes its modules into four families. Most modules import `Utils` (zero-address and Either helpers) for composition.
 
-### Access control · `src/access/`
+### Access control · `access/`
 
 These modules control who can call specific circuits in your contract. They are listed from simplest to most complex: single-owner first, then role-based, then their privacy-preserving variants.
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `Ownable` | Single-owner authorization. Stores the owner as `Either<ZswapCoinPublicKey, ContractAddress>`. Supports ownership transfer, renunciation, and safe/unsafe variants for contract-address owners. | [Guide](https://docs.openzeppelin.com/contracts-compact/ownable) · [API](https://docs.openzeppelin.com/contracts-compact/api/ownable) |
-| `AccessControl` | Role-based authorization with admin hierarchy. Roles are `Bytes<32>` identifiers. Each role has a configurable admin role that controls grants and revocations. | [Guide](https://docs.openzeppelin.com/contracts-compact/accessControl) · [API](https://docs.openzeppelin.com/contracts-compact/api/accessControl) |
-| `ShieldedAccessControl` | *Privacy-preserving* role-based access control. Stores role commitments in a `MerkleTree<20>` and revokes via nullifiers, so role membership can be proven in zero knowledge. | _Not yet on OpenZeppelin's docs site - see [source](https://github.com/OpenZeppelin/compact-contracts/blob/main/contracts/src/access/ShieldedAccessControl.compact)._ |
+| `Ownable` | Single-owner authorization. Stores the owner as `Either<Bytes<32>, ContractAddress>`. Supports ownership transfer, renunciation, and safe/unsafe variants for contract-address owners. | [Guide](https://docs.openzeppelin.com/contracts-compact/ownable) · [API](https://docs.openzeppelin.com/contracts-compact/api/ownable) |
+| `AccessControl` | Role-based authorization with admin hierarchy. Roles are `Bytes<32>` identifiers. Each role has a configurable admin role that controls grants and revocations. | [Guide](https://docs.openzeppelin.com/contracts-compact/access-control) · [API](https://docs.openzeppelin.com/contracts-compact/api/access-control) |
+| `ShieldedAccessControl` | *Privacy-preserving* role-based access control. Stores role commitments in a `MerkleTree<20>` and revokes via nullifiers, so role membership can be proven in zero knowledge. | [Guide](https://docs.openzeppelin.com/contracts-compact/shielded-access-control) · [API](https://docs.openzeppelin.com/contracts-compact/api/shielded-access-control) |
 | `ZOwnablePK` | *Privacy-preserving* single-owner authorization. Stores the owner as a commitment hash instead of a public key, so on-chain data does not reveal who the owner is. | Documented alongside [Ownable](https://docs.openzeppelin.com/contracts-compact/ownable) |
 
-### Security · `src/security/`
+### Security · `security/`
 
 These modules enforce lifecycle and operational guards on your contract.
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `Initializable` | One-time initialization guard. Prevents a contract from being initialized more than once. Most other modules depend on this. | [Guide](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
+| `Initializable` | One-time initialization guard. Stops a contract from initializing more than once. No other module in the library imports it: modules that need initialization track their own flag. OpenZeppelin advises using it only in your top-level contract. | [Guide](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
 | `Pausable` | Emergency pause switch. Gates circuit execution behind `assertNotPaused()`. Wrap `_pause()` and `_unpause()` in your own authorization logic. | [Guide](https://docs.openzeppelin.com/contracts-compact/security) · [API](https://docs.openzeppelin.com/contracts-compact/api/security) |
 
-### Tokens · `src/token/`
+### Tokens · `token/`
 
 These modules implement standard token interfaces adapted for Compact.
 
 | Module | Purpose | OpenZeppelin docs |
 |---|---|---|
-| `FungibleToken` | ERC-20-style fungible token. Supports `transfer`, `approve`, `transferFrom`, `mint`, and `burn`. Balances use `Uint<128>` (not `Uint<256>` - see [Compatibility](#compatibility)). Includes safe and unsafe transfer variants. | [Guide](https://docs.openzeppelin.com/contracts-compact/fungibleToken) · [API](https://docs.openzeppelin.com/contracts-compact/api/fungibleToken) |
-| `NonFungibleToken` | ERC-721-style non-fungible token. Tracks ownership, approvals, operator approvals, and token URIs. Token IDs use `Uint<128>`. | [Guide](https://docs.openzeppelin.com/contracts-compact/nonFungibleToken) · [API](https://docs.openzeppelin.com/contracts-compact/api/nonFungibleToken) |
-| `MultiToken` | ERC-1155-style multi-token. Manages multiple token types in a single contract. Does not support batched operations (Compact lacks dynamic arrays). | [Guide](https://docs.openzeppelin.com/contracts-compact/multitoken) · [API](https://docs.openzeppelin.com/contracts-compact/api/multitoken) |
+| `FungibleToken` | ERC-20-style fungible token. Supports `transfer`, `approve`, `transferFrom`, `_mint`, and `_burn`. Balances use `Uint<128>` (not `Uint<256>` - see [Compatibility](#compatibility)). Includes safe and unsafe transfer variants. | [Guide](https://docs.openzeppelin.com/contracts-compact/fungible-token) · [API](https://docs.openzeppelin.com/contracts-compact/api/fungible-token) |
+| `NonFungibleToken` | ERC-721-style non-fungible token. Tracks ownership, approvals, operator approvals, and token URIs. Token IDs use `Uint<128>`. | [Guide](https://docs.openzeppelin.com/contracts-compact/non-fungible-token) · [API](https://docs.openzeppelin.com/contracts-compact/api/non-fungible-token) |
+| `MultiToken` | ERC-1155-style multi-token. Manages multiple token types in a single contract. Does not support batched operations (Compact lacks dynamic arrays). | [Guide](https://docs.openzeppelin.com/contracts-compact/multi-token) · [API](https://docs.openzeppelin.com/contracts-compact/api/multi-token) |
 
-### Utilities · `src/utils/`
+### Utilities · `utils/`
 
 Helper functions for type safety and input validation.
 
@@ -95,41 +99,46 @@ Helper functions for type safety and input validation.
 
 ## Installation
 
-The library currently ships as a Git submodule. The OpenZeppelin team plans to publish it on npm, as noted in the project's [README](https://github.com/OpenZeppelin/compact-contracts#readme).
+The library ships as the npm package [`@openzeppelin/compact-contracts`](https://www.npmjs.com/package/@openzeppelin/compact-contracts). The `latest` tag installs version `0.2.0`, the release this page describes.
 
-To add the library to a new project, clone it as a submodule and compile the contracts:
+To add the library to a new project, create the project and install the package:
 
 ```bash
 mkdir my-project && cd my-project
-git init
-git submodule add https://github.com/OpenZeppelin/compact-contracts.git
-nvm install
-yarn
-SKIP_ZK=true yarn compact
+yarn init -y
+yarn add @openzeppelin/compact-contracts
 ```
+
+The package contains the Compact source of each module in the `access/`, `security/`, `token/`, and `utils/` folders.
+
+:::caution[Yarn Plug'n'Play]
+
+The imports in your contract point to files in `node_modules`. Yarn 2 and later use Plug'n'Play by default, which does not create that folder. If your project has no `node_modules` folder after the install, run `yarn config set nodeLinker node-modules`, then run `yarn install`. Alternatively, install the package with `npm install @openzeppelin/compact-contracts`.
+
+:::
 
 ## Compose a contract
 
 Import individual modules into your `.compact` source with a prefix, then call their circuits as building blocks. Note the `prefix Pausable_;` convention: the prefix itself ends in `_`. Calling the internally underscored `_pause` circuit becomes `Pausable__pause()` - the double underscore is intentional.
 
-```compact
+```compact nocompile
 pragma language_version >= 0.21.0;
 
 import CompactStandardLibrary;
-import "./compact-contracts/node_modules/@openzeppelin/compact-contracts/src/access/Ownable"
+import "./node_modules/@openzeppelin/compact-contracts/access/Ownable"
   prefix Ownable_;
-import "./compact-contracts/node_modules/@openzeppelin/compact-contracts/src/security/Pausable"
+import "./node_modules/@openzeppelin/compact-contracts/security/Pausable"
   prefix Pausable_;
-import "./compact-contracts/node_modules/@openzeppelin/compact-contracts/src/token/FungibleToken"
+import "./node_modules/@openzeppelin/compact-contracts/token/FungibleToken"
   prefix FungibleToken_;
 
 constructor(
   _name: Opaque<"string">,
   _symbol: Opaque<"string">,
   _decimals: Uint<8>,
-  _recipient: Either<ZswapCoinPublicKey, ContractAddress>,
+  _recipient: Either<Bytes<32>, ContractAddress>,
   _amount: Uint<128>,
-  _initOwner: Either<ZswapCoinPublicKey, ContractAddress>,
+  _initOwner: Either<Bytes<32>, ContractAddress>,
 ) {
   Ownable_initialize(_initOwner);
   FungibleToken_initialize(_name, _symbol, _decimals);
@@ -137,7 +146,7 @@ constructor(
 }
 
 export circuit transfer(
-  to: Either<ZswapCoinPublicKey, ContractAddress>,
+  to: Either<Bytes<32>, ContractAddress>,
   value: Uint<128>,
 ): Boolean {
   Pausable_assertNotPaused();
@@ -153,11 +162,15 @@ export circuit unpause(): [] {
   Ownable_assertOnlyOwner();
   Pausable__unpause();
 }
+
+export pure circuit computeAccountId(secretKey: Bytes<32>): Bytes<32> {
+  return Ownable_computeAccountId(secretKey);
+}
 ```
 
-:::note[Why import through `node_modules`]
+:::note[Account identifiers and witnesses]
 
-The OpenZeppelin team recommends importing through `compact-contracts/node_modules/@openzeppelin/compact-contracts/...` rather than the submodule path, to avoid state conflicts between shared dependencies. For details, see the project's [README](https://github.com/OpenZeppelin/compact-contracts#readme).
+The `Bytes<32>` side of each address holds an account identifier, not a wallet public key. `Ownable` and `FungibleToken` derive it as a `persistentHash` of the caller's secret key, and each exports a pure `computeAccountId` circuit that computes it. The example wraps the one from `Ownable` in its own `computeAccountId` circuit. Your DApp can call `pureCircuits.computeAccountId(secretKey)` from the compiled output to get the identifiers that the constructor and `transfer` take. The compiled contract declares the witnesses `wit_OwnableSK` and `wit_FungibleTokenSK`, which your DApp implements to return that 32-byte secret key. The package does not include witness implementations. For details, see OpenZeppelin's [Ownable guide](https://docs.openzeppelin.com/contracts-compact/ownable).
 
 :::
 
@@ -169,17 +182,19 @@ Run the Compact compiler to generate TypeScript bindings and ZK circuit artifact
 compact compile MyContract.compact artifacts/MyContract
 ```
 
-A successful compile lists each circuit with its proving-system size:
+A successful compile lists each circuit with its proving-system size. This output comes from compiler `0.31.1`, and row counts differ between compiler versions:
 
 ```text
 Compiling 3 circuits:
-  circuit "pause"   (k=10, rows=125)
-  circuit "transfer"(k=11, rows=1180)
-  circuit "unpause" (k=10, rows=121)
+  circuit "pause" (k=13, rows=2362)
+  circuit "transfer" (k=13, rows=3855)
+  circuit "unpause" (k=13, rows=2359)
 Overall progress [====================] 3/3
 ```
 
-`k` is the domain size (the circuit is laid out on `2^k` rows), and `rows` is how many of those rows the circuit uses. Smaller circuits prove and verify faster - see OpenZeppelin's [ZK Circuits 101](https://docs.openzeppelin.com/contracts-compact/zkCircuits101) for a longer explanation.
+The pure `computeAccountId` circuit needs no proof, so the output does not list it.
+
+`k` is the domain size (the circuit is laid out on `2^k` rows), and `rows` is how many of those rows the circuit uses. Smaller circuits prove and verify faster - see OpenZeppelin's [ZK Circuits 101](https://docs.openzeppelin.com/contracts-compact/zk-circuits-101) for a longer explanation.
 
 ## Patterns to know
 
@@ -189,13 +204,13 @@ These patterns apply across the library and affect how you structure your contra
 
 - **Composition through prefixes**: The `import ... prefix X_;` syntax namespaces each module so multiple modules can coexist in a single contract without identifier collisions. Circuits whose names start with `_` show up as `X__name` at the call site.
 
-- **Initialization is explicit**: Most modules import `Initializable` and require an explicit `initialize` call from your constructor. `Initializable_assertNotInitialized()` and `Initializable_assertInitialized()` enforce this. Calling other circuits before `initialize` fails at runtime.
+- **Initialization is explicit**: `Ownable`, `ZOwnablePK`, `ShieldedAccessControl`, and the three token modules each track their own initialization flag. Each requires an explicit `initialize` call from your constructor. Until that call runs, their guarded circuits fail at runtime with a `contract not initialized` error.
 
-- **Contract-address recipients are restricted**: Compact does not yet support contract-to-contract calls, so every module's safe path (e.g., `Ownable.transferOwnership`, `AccessControl.grantRole`, `FungibleToken.transfer`) rejects `ContractAddress` recipients. Each module pairs the safe variant with `_unsafe*` circuits explicitly named to make the risk visible. The maintainers plan to deprecate the unsafe variants once Compact supports contract-to-contract calls.
+- **Safe circuits reject contract-address recipients**: Version `0.2.0` targets compiler `0.29.0`, which predates [cross-contract calls](/compact/reference/compact-reference#cross-contract-calls) (they arrived with ledger version 9). Every module's safe path (e.g., `Ownable.transferOwnership`, `AccessControl.grantRole`, `FungibleToken.transfer`) therefore rejects `ContractAddress` recipients. Each module pairs the safe variant with `_unsafe*` circuits explicitly named to make the risk visible. The maintainers plan to deprecate the unsafe variants once the library supports cross-contract calls.
 
-- **Caller authorization comes in two flavors**: `Ownable` and `AccessControl` use `ownPublicKey()` directly to check the caller. `ZOwnablePK` and `ShieldedAccessControl` use a witness-derived secret combined with hashing and instance salts to verify the caller via commitments - never exposing the public key on-chain. The privacy-preserving variants are the recommended choice when the contract should not reveal who its owners or role-holders are.
+- **Caller authorization comes in two flavors**: `Ownable`, `AccessControl`, and the token modules identify the caller by an account identifier. It is a `persistentHash` of a secret key that each module reads from its own witness, such as `wit_OwnableSK`. They do not rely on `ownPublicKey()`, in line with the [derived-identity pattern](/guides/security-best-practices#authenticating-a-caller-with-a-derived-identity). Unlike the example in that guide, the hash has no domain separator. Neither uses a per-contract salt, so the identifier is the same in every contract that uses the same key. Use a different key for each contract if the identities must not be linkable. `ZOwnablePK` and `ShieldedAccessControl` use a witness-derived secret combined with hashing and instance salts to verify the caller via commitments - never exposing the public key on-chain. `ZOwnablePK` still hashes `ownPublicKey()` into its owner identifier, so the secret nonce from its `wit_secretNonce` witness is what authenticates the caller. The privacy-preserving variants are the recommended choice when the contract should not reveal who its owners or role-holders are.
 
-- **`Either<ZswapCoinPublicKey, ContractAddress>` is the canonical address type**: The `Utils.canonicalize` helper zeroes out the unused side of an `Either` to prevent crafted-input attacks where both sides carry data.
+- **`Either<Bytes<32>, ContractAddress>` is the canonical address type**: The `Utils.canonicalize` helper zeroes out the unused side of an `Either` to prevent crafted-input attacks where both sides carry data.
 
 ## Resources
 
@@ -204,8 +219,8 @@ For more information, see the following links.
 - [Project repository](https://github.com/OpenZeppelin/compact-contracts) - README, source, and contribution guide.
 - [OpenZeppelin documentation site](https://docs.openzeppelin.com/contracts-compact/) - The project's own reference, organized as Overview, Learn, Modules, and API Reference.
 - [Module/Contract pattern](https://docs.openzeppelin.com/contracts-compact/extensibility) - Formal terminology for `internal`, `public`, and `external` circuits and the rules for safe composition.
-- [ZK Circuits 101](https://docs.openzeppelin.com/contracts-compact/zkCircuits101) - Short primer on what the `k=N, rows=N` numbers in the compile output mean and why circuit size matters.
-- [Building a fungible-token contract with OpenZeppelin and Compact](/blog/funbigle-token-contract-open-zeppelin) - Dev Diaries walkthrough of `FungibleToken`.
+- [ZK Circuits 101](https://docs.openzeppelin.com/contracts-compact/zk-circuits-101) - Short primer on what the `k=N, rows=N` numbers in the compile output mean and why circuit size matters.
+- [Building a fungible-token contract with OpenZeppelin and Compact](/blog/funbigle-token-contract-open-zeppelin) - Dev Diaries walkthrough of `FungibleToken`, written for an earlier release of the library.
 
 ## Reporting issues
 
