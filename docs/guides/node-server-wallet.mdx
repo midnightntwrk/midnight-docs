@@ -21,7 +21,7 @@ The code runs against the local network, so nothing is at risk while you follow 
 These apply to every procedure in this guide:
 
 - Node.js 22.12 or later. The wallet SDK does not run on Node.js 20 or on early Node.js 22 releases; see [Wallet troubleshooting for Node.js](#wallet-troubleshooting-for-nodejs).
-- The [Compact compiler](../getting-started/installation), to compile the example contract. This guide used version 0.31.1.
+- The [Compact compiler](../getting-started/installation) version 0.31.1, to compile the example contract. Install it with `compact update 0.31.1`.
 - A running local network: node on port 9944, indexer on port 8088, and proof server on port 6300. Start one with [Running a local network](./networks-and-environments#running-a-local-network). The Docker Compose option in that procedure is enough, because this guide funds the wallet itself.
 
 {/* _mod-docs-content-type: CONCEPT */}
@@ -57,7 +57,7 @@ Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a
        "node": ">=22.12"
      },
      "scripts": {
-       "compile": "compact compile contract/counter.compact contract/managed/counter",
+       "compile": "compact compile +0.31.1 contract/counter.compact contract/managed/counter",
        "sync": "tsx src/sync.ts",
        "fund-local": "tsx src/fund-local.ts",
        "deploy": "tsx src/deploy.ts",
@@ -92,6 +92,8 @@ Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a
    ```
 
    The wallet SDK is the single package `@midnightntwrk/wallet-sdk`. Its scope has no hyphen, unlike the `@midnight-ntwrk/` packages next to it. `@scure/bip39` turns a recovery phrase into a seed.
+
+   The `+0.31.1` in the `compile` script runs Compact toolchain 0.31.1, whatever your default compiler is. Each toolchain release generates code for one `@midnight-ntwrk/compact-runtime` version, and 0.31.1 generates code for 0.16.0, the version in this file.
 
    :::warning[Keep the override]
 
@@ -400,7 +402,7 @@ Start the wallet from its keys, wait until it has read the chain, and save its s
 
    `buildWallet` starts each sub-wallet from the saved state when there is one, and from the keys when there is not. Either way, `wallet.start` takes the secret keys: the saved state holds the wallet's public keys, its coins, and its sync position, and no secret key. `walletStateFile` names the file after the wallet's address, so a process started with a different seed never picks up another wallet's state.
 
-   `submitWithRetry` covers a failure that shows up in scripts. `submitTransaction` can reject with a `SubmissionError` when the connection to the node closes during the call. The finalized transaction is still valid, so the helper sends the same one again.
+   `submitWithRetry` covers a failure that shows up in scripts. `submitTransaction` can reject with a `SubmissionError` when the connection to the node closes during the call. The finalized transaction is still valid, so the helper sends the same one again. If the first attempt reached the node before the connection closed, the node can reject the retry as a duplicate even though the transaction went through. When the helper throws, check whether the transaction landed before you treat it as failed.
 
 2. Create `src/sync.ts`, which starts the wallet, waits for sync, prints the balances, and saves the state:
 
@@ -857,6 +859,7 @@ Failures you are likely to hit on this guide's path, and their fixes. Every quot
 | The script prints nothing after start and never syncs | Node.js 20 has no global `WebSocket` | Use Node.js 22.12 or later |
 | `TypeError: Cannot read properties of null (reading 'length')` from `@polkadot/rpc-provider/ws` | An early Node.js 22 release. Node.js 22.0.0 fails this way | Use Node.js 22.12 or later |
 | `TypeError: state.pendingOutputs.values.map is not a function or its return value is not iterable` | Node.js 20 with a `WebSocket` polyfill. The SDK uses iterator methods that Node.js 20 does not have | Use Node.js 22.12 or later |
+| `Version mismatch: compiled code expects 0.19.0, runtime is 0.16.0` when a script loads the contract | A Compact toolchain newer than 0.31.1 compiled the contract | Run `compact update 0.31.1`, then `npm run compile` |
 | `Error: expected instance of StateValue` on a circuit call, after a deploy that worked | Two copies of `@midnight-ntwrk/onchain-runtime-v3` in `node_modules` | Add the `overrides` entry from [Setting up the project](#setting-up-the-project) and reinstall |
 | `SubmissionError: Transaction submission error`, caused by `disconnected from ws://...: 1000:: Normal Closure` | The node connection closed while the wallet was submitting | Submit the same finalized transaction again, as `submitWithRetry` does |
 | `RPC-CORE: subscribeRuntimeVersion(): RuntimeVersion:: disconnected from ws://...: 1000:: Normal Closure` in the output | A log line from the node client when the wallet closes its connection | None needed |
