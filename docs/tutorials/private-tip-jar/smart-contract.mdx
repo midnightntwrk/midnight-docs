@@ -1,0 +1,445 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Private tip jar contracts"
+title: "Private tip jar contracts"
+description: "Read the tip jar's two Compact contracts: an anonymous tip stored as a fresh contract-owned coin, an owner-only withdrawal, and a demo token to tip with."
+sidebar_position: 10
+toc_max_heading_level: 3
+tags:
+  - tutorials
+  - private-tip-jar
+  - compact
+  - shielded-tokens
+  - privacy
+  - intermediate
+  - midnight-network
+---
+
+# Private tip jar contracts
+
+This part walks through the example's two contracts. Most of it is about
+`contract/private-tip-jar.compact`, the jar. Then it covers `contract/tip-token.compact`, the
+demo token the tests tip with, and how `contract/index.ts` exports both.
+
+## Prerequisites
+
+- The [set-up steps](/tutorials/private-tip-jar) of this tutorial, so you have midnight-examples
+  installed and compiled.
+- The [Compact toolchain](/getting-started/installation) and Node.js 22.
+
+Open `examples/private-tip-jar/contract/private-tip-jar.compact` in your editor and keep it beside
+this page.
+
+## The design
+
+The example started as a design card,
+[`SPEC.md`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/private-tip-jar/SPEC.md),
+written before the contract. It names two roles:
+
+| Role | Recognized by | Can |
+|---|---|---|
+| Owner | a hash of the owner's secret key equals the `owner` field | withdraw any tip |
+| Tipper | nobody: `tip` has no caller check and calls no witness | tip a coin of the accepted token |
+
+The jar works in three steps:
+
+1. The owner deploys the jar with the token it accepts. The contract stores a hash of the owner's
+   secret key, never the key itself and never the owner's wallet.
+2. A tipper calls `tip` with a new shielded coin that their wallet pays for. The contract takes
+   custody of the coin and stores it in a public pot.
+3. The owner calls `withdraw` once for each coin in the pot, and each call pays that coin to the
+   owner's shielded wallet.
+
+### Shielded coins in one paragraph
+
+A shielded coin is described by a `ShieldedCoinInfo`: a `color` (which token it is), a `value`,
+and a 32-byte `nonce` that makes the coin unique. Coins move through Zswap, Midnight's shielded
+transfer protocol. A transaction that spends a coin publishes a nullifier for it, and a
+transaction that creates a coin publishes a commitment to it. Neither reveals the coin's nonce,
+color, value, or the wallet that owns it. (A contract that sends or receives a coin is named,
+though.) A contract can hold shielded coins too, but it has no secret key, so to spend one later
+it has to know the whole coin. The jar keeps its coins in its public ledger. That one fact shapes
+the whole design.
+
+## The ledger
+
+The jar's public state is three fields, and nothing else:
+
+```compact title="contract/private-tip-jar.compact"
+// Hash of the owner's secret key, written once at deployment. `sealed` means
+// no circuit can ever change it, so ownership cannot be transferred or hijacked.
+export sealed ledger owner: Bytes<32>;
+
+// The only token color the jar accepts, fixed at deployment. Tips of any
+// other color are refused, so every pot entry is the same currency.
+export sealed ledger tipColor: Bytes<32>;
+
+// The coins the jar currently holds, keyed by each coin's own nonce.
+// Every coin here is contract-owned and was created by its `tip` transaction
+// under a fresh nonce, so publishing it links nothing back to a tipper's
+// wallet. The coin value IS public: that is the price of letting the contract
+// spend these coins without anyone having to hand it a secret later.
+export ledger pot: Map<Bytes<32>, QualifiedShieldedCoinInfo>;
+```
+
+- **`owner`** and **`tipColor`** are `sealed`: only the constructor, and circuits it calls, can
+  write them. The compiler rejects any exported circuit that would. Nobody can take over the jar or
+  change the token it accepts after deployment.
+- **`pot`** maps a coin's nonce to the coin. Its value type is `QualifiedShieldedCoinInfo`, a
+  `ShieldedCoinInfo` plus the coin's `mt_index`, its position in Zswap's commitment tree. The
+  contract needs that position to spend the coin later.
+
+Notice what is missing. There is no list of tippers and no counter per tipper. Nothing in the
+ledger is keyed by, or derived from, who tipped. This contract makes no unshielded transfers, so
+its ledger declarations tell you most of what it publishes. The rest, such as which circuit each
+transaction calls and when, is in [What is public, and what isn't](#what-is-public-and-what-isnt).
+
+## The owner
+
+### A secret behind a hash
+
+The owner's secret key lives in the owner's private state, and one witness hands it to the
+circuits that need it:
+
+```compact title="contract/private-tip-jar.compact"
+witness ownerSecretKey(): Bytes<32>;
+```
+
+The TypeScript side is one function in `contract/witnesses.ts`. It returns the key from private
+state and leaves the state unchanged:
+
+```typescript title="contract/witnesses.ts"
+export type PrivateTipJarPrivateState = {
+  ownerSecretKey: Uint8Array;
+};
+
+export const createPrivateTipJarPrivateState = (
+  ownerSecretKey: Uint8Array,
+): PrivateTipJarPrivateState => ({ ownerSecretKey });
+```
+
+```typescript title="contract/witnesses.ts"
+export const witnesses = {
+  // Called by the constructor (to store `owner`) and by `withdraw` (to prove
+  // the caller is the owner). The private state is returned unchanged: reading
+  // the key does not consume or rotate it.
+  ownerSecretKey: ({
+    privateState,
+  }: WitnessContext<Ledger, PrivateTipJarPrivateState>): [
+    PrivateTipJarPrivateState,
+    Uint8Array,
+  ] => [privateState, privateState.ownerSecretKey],
+};
+```
+
+Tippers never call this witness, because `tip` doesn't use it. A tipper's private state can hold
+any value, and the tests give tippers a random key.
+
+### The constructor
+
+```compact title="contract/private-tip-jar.compact"
+constructor(acceptedColor: Bytes<32>) {
+    owner = disclose(ownerKey(ownerSecretKey()));
+    tipColor = disclose(acceptedColor);
+}
+```
+
+The deployer becomes the owner. The constructor stores `ownerKey` of the deployer's secret, so
+the raw secret never appears in the deploy transaction. The accepted color is a plain constructor
+argument rather than a witness, because it is meant to be public. Both writes still need
+`disclose()`. Compact treats constructor and circuit arguments like witness data, so the compiler
+requires `disclose()` whenever a value derived from either reaches the ledger.
+
+### `ownerKey`
+
+```compact title="contract/private-tip-jar.compact"
+export pure circuit ownerKey(sk: Bytes<32>): Bytes<32> {
+    return persistentHash<Vector<2, Bytes<32>>>([pad(32, "private-tip-jar:owner:"), sk]);
+}
+```
+
+This is the DApp-specific key from Private Party and Battleship's
+[role checks](/tutorials/battleship/smart-contract#technique-2-role-checks): a hash of the secret
+behind a domain separator, here `"private-tip-jar:owner:"`. What's new is the `pure` keyword.
+`ownerKey` reads no ledger state and calls no witness, and `pure` has the compiler check that.
+TypeScript can call it directly, without a transaction. The tests use it to compute the `owner`
+value they expect from a secret.
+
+`ownerKey` doesn't include the contract's address, so the same secret in two jars gives the same
+`owner` value, and anyone can link the two jars to one owner. Use a fresh secret for each jar.
+
+## Tipping
+
+`tip` is the heart of the example:
+
+```compact title="contract/private-tip-jar.compact"
+export circuit tip(coin: ShieldedCoinInfo): [] {
+    // The guards run before any coin moves. A failing assert is rejected
+    // while the transaction is being built, so a bad tip costs nothing.
+    assert(coin.color == tipColor, "Tips must be paid in the jar's token");
+    assert(coin.value > 0, "A tip must be worth something");
+    // Pot keys are public and the tipper picks the nonce, so without this a
+    // tip that reused a pot key with a different value (a different coin, so
+    // Zswap would accept it) would overwrite that entry and strand its coin
+    // in the contract for good.
+    assert(!pot.member(disclose(coin.nonce)), "A tip with that nonce is already in the jar");
+
+    // `disclose` here acknowledges that the coin flows into a public effect
+    // (the Zswap output to this contract, which carries only its commitment)
+    // and, below, into the ledger. Both are fine: the nonce is fresh.
+    receiveShielded(disclose(coin));
+
+    // insertCoin records the coin as a QualifiedShieldedCoinInfo, filling in
+    // the commitment-tree index the ledger assigns when this transaction
+    // lands, so `withdraw` can spend it later with sendShielded.
+    pot.insertCoin(
+        disclose(coin.nonce),
+        disclose(coin),
+        right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+    );
+}
+```
+
+Read it in four steps.
+
+**1. No identity.** `tip` has no caller check and calls no witness. It doesn't ask who is tipping,
+so it has nothing about the tipper to leak. Anyone can tip.
+
+**2. Guards first.** The first two `assert`s check the coin's color against `tipColor` and refuse
+a zero value. They run before any coin moves. A failing `assert` stops the circuit on the tipper's
+own machine, while the transaction is being built, so no proof is generated, nothing is
+submitted, and a bad tip costs nothing. The third guard is covered in step 4.
+
+**3. `receiveShielded`, and what `coin` really is.** `coin` is not one of the tipper's wallet
+coins. It describes a *new* coin, and `receiveShielded` claims it for the contract: the ledger
+only accepts the transaction if it also contains a Zswap output creating that coin for the
+contract. MidnightJS puts that output in the transaction, and the tipper's wallet pays for it as it
+balances it, spending whichever coins of that color its coin selection picks. Change comes back
+under fresh nonces. So the tipper can tip any amount without first making a coin of exactly that
+value. In the tests, Bob tips 40 and then 60 from the single 100-coin he was minted.
+
+The tipper's client makes the coin up, with a fresh random nonce (the tests use `freshCoin` from
+the repo's `@midnight-ntwrk/example-coins` package, which calls the ledger's
+`createShieldedCoinInfo`). The `disclose()` here does not write anything secret to the ledger. It
+acknowledges that the coin flows into a public effect, the Zswap output that moves it to the
+contract, which carries only the coin's commitment.
+
+**4. Store the coin as it is.** `pot.insertCoin` stores the coin under its own nonce. `insertCoin`
+is a `Map` operation for coins, available when the value type is `QualifiedShieldedCoinInfo`. As
+well as the key and a `ShieldedCoinInfo`, it takes the coin's recipient, here the contract itself:
+`kernel.self()` is the contract's own address, and the recipient is an `Either` where `left` is a
+user's coin public key and `right` is a contract address. (`sendUnshielded` in Private Party takes
+them the other way round, with a contract address on the left.) While the transaction runs,
+`insertCoin` looks up the coin's real `mt_index` in the commitment tree and stores the qualified
+coin. That only works for a coin created in the same transaction, as a tip is. It's how
+`withdraw` can spend the coin later.
+
+Publishing the coin is safe because its nonce is fresh. A coin's commitment is a hash of its
+nonce, color, value, and owner, so a published nonce lets anyone test a guessed wallet key against
+the chain. Here that test can only ever match the contract's own coin, because no wallet coin
+shares the nonce.
+
+The pot keys are public, though, and the tipper chooses them. A coin with an existing key's nonce
+and a different value is a different coin, so Zswap would accept it, and `insertCoin` would
+overwrite that pot entry and strand its coin in the contract for good. That is what the third
+`assert` refuses.
+
+An earlier version of this contract re-sent each tip to `kernel.self()` before storing it (the
+standard library's `sendImmediateShielded` is exactly that send, a `sendShielded` at `mt_index`
+0). It existed because the tests passed one of the tipper's wallet coins as `coin`. A fresh coin
+makes it unnecessary, and saves the circuit a coin spend.
+
+### What the tipper's client has to do
+
+The contract can't tell a fresh nonce from a reused one, so keeping the tip unlinkable is the
+client's job. If a client builds `coin` from one of its wallet's coins instead, that nonce is in
+two commitments: the wallet coin's and the contract's. Publishing it in the pot then lets anyone
+who can guess the wallet's key confirm the tip was theirs. That includes whoever minted or sent
+the coin to the tipper, who knows its nonce outright. In the tests the token's minter is also the
+jar's owner, which is exactly the case that matters. The
+[test suite](/tutorials/private-tip-jar/test-suite) checks that none of Bob's wallet coins'
+nonces reach the pot.
+
+## Withdrawing
+
+```compact title="contract/private-tip-jar.compact"
+export circuit withdraw(tipKey: Bytes<32>): [] {
+    // Ownership is proven by knowing the secret behind `owner`. The secret is
+    // only used inside the proof; the comparison result is all that matters.
+    assert(ownerKey(ownerSecretKey()) == owner, "Only the owner can withdraw");
+
+    // The key is public anyway (it is a pot key), so disclosing it is free.
+    const key = disclose(tipKey);
+    assert(pot.member(key), "No such tip in the jar");
+
+    // `pot` holds the coin with the mt_index the ledger assigned when the tip
+    // landed (insertCoin records it), so it can be spent with sendShielded.
+    const coin = pot.lookup(key);
+
+    // Pay the full coin to the caller's shielded wallet. `ownPublicKey()` is
+    // the key of whoever submits the transaction, which the owner check above
+    // has already restricted to the owner.
+    sendShielded(
+        coin,
+        left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey()),
+        coin.value
+    );
+    pot.remove(key);
+}
+```
+
+- **The owner check.** The circuit hashes the secret from the witness and compares the result
+  with `owner`. The secret is only used inside the proof. A caller with any other secret fails
+  the `assert` and never gets a proof.
+- **The pot key.** `tipKey` names one coin in the pot. The keys are public anyway, so disclosing it
+  costs nothing. A key that isn't in the pot, including one already withdrawn, fails the second
+  `assert`, so no coin can be paid twice.
+- **The payout.** `sendShielded` pays the whole coin to `ownPublicKey()`, then `pot.remove`
+  deletes the entry. `ownPublicKey()` is a witness: the caller's runtime supplies the submitting
+  wallet's coin public key, and nothing proves it. That's why it is never used to decide who may
+  withdraw. The owner check does that. `ownPublicKey()` only says where the owner wants the coin to
+  go.
+
+This is the same role check as Battleship's: the caller proves knowledge of a secret whose hash
+the contract stored, rather than being trusted because of who submitted the transaction.
+
+`withdraw` moves one coin per call, which keeps the circuit small. To empty the jar, the owner
+calls it once for each pot entry.
+
+## The second contract: a demo token
+
+A fresh local devnet has no shielded tokens in it, so there is nothing to tip with.
+`contract/tip-token.compact` fixes that. It is a bare faucet that anyone can mint from, and it
+is test scaffolding, not part of the tip jar's design. Never deploy something like it as a real
+currency.
+
+```compact title="contract/tip-token.compact"
+export ledger mintCount: Counter;
+```
+
+```compact title="contract/tip-token.compact"
+export circuit mint(recipient: ZswapCoinPublicKey, amount: Uint<64>, nonce: Bytes<32>): [] {
+    mintShieldedToken(
+        pad(32, "private-tip-jar:demo-token:"),
+        disclose(amount),
+        disclose(nonce),
+        left<ZswapCoinPublicKey, ContractAddress>(disclose(recipient))
+    );
+    mintCount.increment(1);
+}
+```
+
+- **`mintShieldedToken`** creates a new shielded coin of `amount` and sends it straight to
+  `recipient`'s wallet. Its first argument is a 32-byte domain separator.
+- **The token's color** is derived from that domain separator and the token contract's address.
+  The jar doesn't need to know anything about the token contract. It only needs the color, and
+  the tests compute it off chain with `rawTokenType(domain, address)` once the token is deployed.
+  That color is the jar's constructor argument, and it is the only link between the two contracts.
+- **`mintCount`** counts mints, and the first devnet test reads it back to confirm the mint landed.
+  `mint` would get a proving key without it, because `mintShieldedToken` already touches the ledger.
+- **The minter knows the coin.** Whoever calls `mint` chooses `nonce`, so they know the minted
+  coin. This is why a tipper never passes the minted coin to `tip`: the tests tip fresh coins,
+  and Bob's wallet spends the minted coin to pay for them.
+
+For a real shielded token, with an issuer and burn paths, see the `shielded-chips` example later on
+the learning path.
+
+### Exporting two contracts
+
+Each `.compact` file compiles into its own directory under `contract/managed/`, with its own
+proving keys. `contract/index.ts` exports a `CompiledContract` for each one. The jar is bound to
+its witnesses:
+
+```typescript title="contract/index.ts"
+export const CompiledPrivateTipJarContract = CompiledContract.make(
+  'PrivateTipJarContract',
+  Contract,
+).pipe(
+  CompiledContract.withWitnesses(witnesses),
+  CompiledContract.withCompiledFileAssets(zkConfigPath),
+);
+```
+
+The token declares no witnesses, so it uses `withVacantWitnesses`, and points at its own keys:
+
+```typescript title="contract/index.ts"
+export const tipTokenZkConfigPath = path.resolve(currentDir, 'managed', 'tip-token');
+
+// The demo token declares no witnesses.
+export const CompiledTipTokenContract = CompiledContract.make(
+  'TipTokenContract',
+  TipTokenContractClass,
+).pipe(
+  CompiledContract.withVacantWitnesses,
+  CompiledContract.withCompiledFileAssets(tipTokenZkConfigPath),
+);
+```
+
+The tests deploy each one with `deployContract` and call each one with `submitCallTx`, choosing
+the `CompiledContract` that matches the contract they're talking to.
+
+## What is public, and what isn't
+
+Read the ledger, not the `disclose()` calls, to see what is public. The jar's ledger is exactly
+`owner`, `tipColor`, and `pot`.
+
+**Hidden**, and checked by the tests' privacy test:
+
+- **Who tipped.** No field is derived from a tipper's wallet key, a tipper secret, or any of the
+  tipper's wallet coins. The wallet coins that pay for a tip are spent through Zswap, which
+  publishes nullifiers and commitments, not the coins or their owner.
+- **The coins tippers spent.** The pot holds only the coins each tip created for the contract,
+  under nonces no wallet coin shares.
+- **The owner's secret key.** Only its domain-separated hash, `owner`, is stored.
+
+**Public by design**, the accepted leaks listed in `SPEC.md`:
+
+- **Every tip amount.** Each pot entry is a whole coin, value included, because the contract needs
+  the whole coin to spend it later. Hiding amounts would need the tipper to hand the owner a
+  secret off chain, which this example doesn't do.
+- **The count and timing of tips and withdrawals.** Which circuit each transaction calls is
+  public, along with when it ran.
+- **The accepted color and the owner hash.** One owner secret used in two jars links them.
+- **The tipped coin, nonce included.** That is safe only because the nonce is fresh, and the
+  contract can't check that, so it is the client's job, as described above.
+- **Where the owner's money goes**, to anyone who guesses the owner's wallet. A withdrawal's payout
+  nonce is derived from a public pot nonce. The owner is a public role in this design.
+- **Fee payment.** Each tipper pays their own transaction fees in DUST. The example doesn't analyze
+  whether fee payment links a tip to the tipper's wallet, and makes no claim that it doesn't.
+
+## Compile
+
+You compiled every contract during set-up. To compile just this example's two contracts again,
+from `examples/private-tip-jar`:
+
+```bash
+yarn compile
+```
+
+This runs `compact compile` once for each contract, each into its own `contract/managed/<name>/`
+directory, and generates their proving keys. The jar has two circuits with proving keys, and the
+token has one:
+
+```
+Compiling 2 circuits:
+  circuit "tip" (k=14, rows=12437)
+  circuit "withdraw" (k=15, rows=16756)
+Overall progress [====================] 2/2
+Compiling 1 circuits:
+  circuit "mint" (k=14, rows=10391)
+Overall progress [====================] 1/1
+```
+
+`ownerKey` is pure, so it gets no proving key of its own. `tip` is the smaller of the jar's two
+circuits, because it only receives a coin, while `withdraw` also sends one. (When `tip` re-sent
+each coin to the contract as well, it was the largest of the three: k=15, 30,328 rows.)
+
+For the tests and type-checking alone, `yarn compile:fast` skips proving-key generation and
+finishes in seconds. A devnet run needs the full `yarn compile`.
+
+## Next
+
+In the [Private tip jar tests](/tutorials/private-tip-jar/test-suite), you'll run the jar in
+memory and then on a local devnet: mint a token, tip it, prove nothing about the tipper is public,
+and withdraw.
