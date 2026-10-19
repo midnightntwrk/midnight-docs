@@ -1,20 +1,20 @@
 ---
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-title: Choosing where to prove transactions
-description: "Compare a local proof server, wallet proving, and a remote proof server, see what each one receives, and connect your DApp to the one you pick."
-sidebar_label: "Choose where to prove"
+title: Proving transactions locally
+description: "Run a local proof server or delegate proving to the wallet, see what a proof server receives, and why remote proving isn't recommended."
+sidebar_label: "Prove locally"
 sidebar_position: 36
 toc_max_heading_level: 2
-keywords: [midnight, proof server, proving, zero-knowledge, zk proofs, wallet proving, getProvingProvider, witness, workers]
+keywords: [midnight, proof server, local proving, proving, zero-knowledge, zk proofs, wallet proving, getProvingProvider, remote proving, TEE, MPS-0004, witness, workers]
 tags: [midnight, proof-server, proving, zk, dapp]
 ---
 
-# Choosing where to prove transactions
+# Proving transactions locally
 
-Every Midnight transaction that calls a contract, spends shielded tokens, or pays a fee in DUST carries zero-knowledge (ZK) proofs. Something has to build those proofs, and whatever builds them sees your private inputs. This guide is for DApp developers who need to decide where that happens. It compares the options and shows what a proof server receives. It then walks you through connecting a DApp to a local proof server and to the wallet's proving provider, and lists the proof server's endpoints and settings.
+Every Midnight transaction that calls a contract, spends shielded tokens, or pays a fee in DUST carries zero-knowledge (ZK) proofs. Something has to build those proofs, and whatever builds them sees your private inputs. That is why the Midnight Foundation recommends proving on the user's own machine. This guide is for DApp developers. It shows what a proof server receives and why remote proving isn't recommended. It then walks you through connecting a DApp to a local proof server and to the wallet's proving provider. It also lists the proof server's endpoints and settings.
 
-This guide describes proof server 8.1.3, Midnight.js 4.1.1, DApp Connector API 4.0.1, and Lace 2.4.2. The first three are the versions in the [compatibility matrix](../relnotes/support-matrix) at the time of writing.
+This guide describes proof server 8.1.3, Compact toolchain 0.31.1, Midnight.js 4.1.1, DApp Connector API 4.0.1, and Lace 2.4.2. All but Lace are the versions in the [compatibility matrix](../relnotes/support-matrix) at the time of writing.
 
 To start a proof server from Docker Desktop as a wallet user, see [Run the proof server](./run-proof-server).
 
@@ -24,7 +24,7 @@ These apply to every procedure in this guide:
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 - Node.js v22 or later
-- A contract compiled with the Compact toolchain, including its proving keys. See [install the Midnight toolchain](../getting-started/installation).
+- A contract compiled with Compact toolchain 0.31.1, including its proving keys. See [install the Midnight toolchain](../getting-started/installation). Toolchain 0.31.1 pairs with Compact runtime 0.16.0 and the ledger 8 networks. Toolchains 0.34.0 and 0.35.0 compile for ledger 9, which the networks in the compatibility matrix don't run.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## What a proof server receives
@@ -44,18 +44,18 @@ The proof server contacts one outside host, https://srs.midnight.network/. It do
 {/* _mod-docs-content-type: REFERENCE */}
 ## Proving options
 
-Use this table to pick a setup. The local proof server is the default on every network, including Preprod and Mainnet. Midnight's public networks give you a node and an indexer. They don't give you a proof server. See [Networks and environments](./networks-and-environments).
+Use this table to pick between the two supported setups. The local proof server is the default on every network, including Preprod and Mainnet. Midnight's public networks give you a node and an indexer. They don't give you a proof server. See [Networks and environments](./networks-and-environments).
 
 | Option | Who builds the proof | Who can read the private inputs | How a DApp uses it |
 | :---- | :---- | :---- | :---- |
 | Local proof server | A container on the user's machine | Only that machine | `httpClientProofProvider('http://localhost:6300', zkConfigProvider)` |
 | Wallet proving provider | Whatever the wallet is set up to use | The wallet, and any proof server it forwards to | `dappConnectorProofProvider(api, zkConfigProvider, costModel)` |
-| Proof server on a machine you operate | Your server | You, and anyone with access to that server | `httpClientProofProvider('https://...', zkConfigProvider, { headers })` |
-| Proof server that someone else operates | Their server | The operator | Not recommended. The operator receives every witness value, and the coin and DUST secret keys for any wallet proofs sent there. |
+
+A proof server anywhere else is a remote proof server. The Midnight Foundation doesn't recommend one outside a trusted execution environment (TEE), for the reasons in [Why remote proving is not recommended](#why-remote-proving-is-not-recommended).
 
 The wallet proving provider is an interface, so what happens behind it depends on the wallet:
 
-- **Lace.** In Lace 2.4.2, `getProvingProvider()` returns a provider that sends requests to the proof server address in the wallet's settings. That address is `http://localhost:6300` on every network, and the local proof server is the only choice the settings offer. A Lace user needs a local proof server running with either of the first two options.
+- **Lace.** In Lace 2.4.2, `getProvingProvider()` returns a provider that sends requests to the proof server address in the wallet's settings. That address is `http://localhost:6300` on every network, and the local proof server is the only choice the settings offer. A Lace user needs a local proof server running with either option.
 - **Other wallets.** A wallet can prove inside its own process instead. The wallet SDK includes a WebAssembly prover for this, which runs in a Web Worker. Check the wallet's own documentation to see where it proves.
 
 Proof server 8.1.3 produces one proof version, `V2`, which you can confirm at `/proof-versions`.
@@ -222,7 +222,7 @@ export circuit bump(): [] {
 }
 ```
 
-Compile it with `compact compile src/vault.compact src/managed/vault`, then run the test with a local proof server up.
+Compile it with `compact compile +0.31.1 src/vault.compact src/managed/vault`, then run the test with a local proof server up. The `+0.31.1` picks the toolchain that matches Compact runtime 0.16.0 and ledger 8. If it isn't installed, `compact update 0.31.1 --no-set-default` adds it without changing your default.
 
 ```typescript title="wallet-proving.test.ts"
 import { describe, expect, it } from 'vitest';
@@ -300,24 +300,13 @@ describe('wallet proving', () => {
 ```
 
 {/* _mod-docs-content-type: CONCEPT */}
-## Remote proof servers
+## Why remote proving is not recommended
 
-A remote proof server is one that doesn't run on the user's machine. It can be reasonable when you operate it yourself for your own backend, such as a service that submits transactions with its own wallet. It moves the trust boundary: every private input in a request reaches that server in the clear.
+A remote proof server is one that doesn't run on the user's machine, whether you operate it or someone else does. The Midnight Foundation doesn't recommend proving on one, in any current form, outside a trusted execution environment (TEE).
 
-**Encryption protects the route, not the destination.** HTTPS stops someone on the network from reading a request. The server still decrypts it and works on the plain values. Sending users' proof requests to a server means its operator can read their witness values.
+The reason is what the request contains. A contract call sends every witness value in the clear, and the wallet's shielded and DUST spends send the coin secret key and the DUST secret key. HTTPS protects a request on its way to the server, but the server decrypts it and works on the plain values. Whoever operates the server, or compromises it, can read spending keys, keep witness data to deanonymize users later, or change a preimage before proving it. A proof server has no way to show a client that it runs unmodified code, so a client can't tell an honest server from one that logs everything.
 
-**The proof server needs something in front of it.** It has no authentication and no TLS of its own. Put it behind a reverse proxy that adds both, and keep the proof server's own port off the public network.
-
-**Midnight.js helps a little.** `httpClientProofProvider` accepts `https` URLs. It logs a warning when you give it an `http` URL for a host other than the local machine. Its third argument takes `headers`, which is where a token for your proxy goes, and a `timeout` in milliseconds.
-
-```typescript
-const proofProvider = httpClientProofProvider('https://prover.example.com', zkConfigProvider, {
-  timeout: 600_000,
-  headers: { Authorization: `Bearer ${process.env.PROOF_SERVER_TOKEN}` },
-});
-```
-
-Lace 2.4.2 has no setting for a remote proof server, so this option is for code you run yourself.
+[MPS-0004](https://github.com/midnightntwrk/midnight-improvement-proposals/blob/main/mps/mps-0004-trusted-proof-serving.md) sets out these problems in full. It also sets the goals for a proof server that runs inside a TEE and proves, through hardware attestation, that it runs a published build. For now, prove locally or through the wallet, and keep any proof server's port off the public network.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## Workers and queueing
@@ -345,13 +334,15 @@ These are the settings in proof server 8.1.3. With the Docker image, set them as
 
 | Environment variable | Flag | Default | What it sets |
 | :---- | :---- | :---- | :---- |
-| `MIDNIGHT_PROOF_SERVER_PORT` | `--port` | `6300` | The port the server listens on. With Docker, leave it and change the host side of `-p` instead. |
+| `MIDNIGHT_PROOF_SERVER_PORT` | `--port` | `6300` | The port the server listens on. The Docker image starts the proof server with `--port $PORT`, so this variable has no effect there. Leave the port alone and change the host side of `-p` instead. |
 | `MIDNIGHT_PROOF_SERVER_VERBOSE` | `--verbose` | off | Debug logging, which includes every request body. |
 | `MIDNIGHT_PROOF_SERVER_NUM_WORKERS` | `--num-workers` | `2` | How many proofs are built at the same time. |
 | `MIDNIGHT_PROOF_SERVER_JOB_CAPACITY` | `--job-capacity` | `0` | How many jobs can wait. `0` means no limit. |
 | `MIDNIGHT_PROOF_SERVER_JOB_TIMEOUT` | `--job-timeout` | `600` | Seconds before the server discards a job. |
 | `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS` | `--no-fetch-params` | off | Skips the downloads at startup. The server fetches each file the first time it needs it instead. |
 | `MIDNIGHT_PARAM_SOURCE` | none | `https://srs.midnight.network/` | Where the server downloads public parameters and built-in keys from. |
+
+The proof server keeps what it downloads in `/.cache/midnight` inside the container. Mount a volume there, for example `-v midnight-zk-params:/.cache/midnight`, and later containers start from the cache without downloading anything. `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS=true` skips the download at startup, but it doesn't make the proof server work offline. Anything missing from the cache downloads the first time a proof needs it.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Proof server endpoints
@@ -385,6 +376,7 @@ The proving endpoints take and return binary bodies. These are the errors a DApp
 - [Funding a wallet](./acquire-tokens) and [Managing DUST](./manage-dust): get tNIGHT and generate the tDUST that pays fees.
 - [Deploying and operating](./deploy-and-operate): where the proof provider sits among the other Midnight.js providers.
 - [Proving and private data](./security-best-practices#proving-and-private-data): the proving trust boundary next to the other security decisions.
+- [MPS-0004: Trustworthy Delegated Proof Generation for Privacy-Preserving Transactions](https://github.com/midnightntwrk/midnight-improvement-proposals/blob/main/mps/mps-0004-trusted-proof-serving.md): the problems with remote proving in full, and the goals for a TEE-based proof server.
 - [Midnight.js SDK](/sdks/official/midnight-js): the proof provider packages.
 - [DApp Connector API reference](/api-reference/dapp-connector): `getProvingProvider()` and the rest of the wallet API.
 - [Compatibility matrix](../relnotes/support-matrix): the proof server version tested with each network.
