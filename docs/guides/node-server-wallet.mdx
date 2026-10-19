@@ -1,0 +1,876 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Running a wallet in a Node.js service
+description: "Build a Midnight wallet in a Node.js process: derive keys from a seed, sync, keep state across restarts, and deploy a smart contract from a script."
+sidebar_label: "Run a wallet in Node.js"
+sidebar_position: 18
+toc_max_heading_level: 2
+keywords: [midnight, wallet sdk, node.js, server, backend, seed, mnemonic, walletfacade, deploy script, wallet state]
+tags: [midnight, wallet, nodejs, backend, deployment, wallet-sdk, seed]
+---
+
+# Running a wallet in a Node.js service
+
+A deploy script, a test harness, and a backend service all need the same thing: a wallet that runs in a Node.js process with no browser and no extension. This guide builds one from a seed, syncs it, funds it, deploys a smart contract from it, and keeps its state across restarts.
+
+The code runs against the local network, so nothing is at risk while you follow along. Every file on this page ran end to end on Node.js 24.15.0 with the package versions shown. The deploy script also ran on Node.js 22.12.0 and 22.18.0. For a wallet that lives in the browser, see [Create a React wallet connector](./react-wallet-connect) instead.
+
+## Prerequisites
+
+These apply to every procedure in this guide:
+
+- Node.js 22.12 or later. The wallet SDK does not run on Node.js 20 or on early Node.js 22 releases; see [Wallet troubleshooting for Node.js](#wallet-troubleshooting-for-nodejs).
+- The [Compact compiler](../getting-started/installation) version 0.31.1, to compile the example contract. Install it with `compact update 0.31.1`.
+- A running local network: node on port 9944, indexer on port 8088, and proof server on port 6300. Start one with [Running a local network](./networks-and-environments#running-a-local-network). The Docker Compose option in that procedure is enough, because this guide funds the wallet itself.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## A wallet in a Node.js process
+
+The wallet SDK is a set of JavaScript packages, and `WalletFacade` runs in a plain Node.js process. Your process holds the keys, keeps WebSocket connections to the indexer and the node, and sends proof requests to a proof server. Nothing on this path needs a browser API. Node.js 22.12 and later provide the global `WebSocket` that the SDK uses, so the scripts on this page run without the `ws` package.
+
+A wallet process has four pieces of state, and each one has a different owner:
+
+- The **seed** is the secret. One seed derives the shielded, unshielded, and DUST keys, and it is the only way to recover the wallet. Your process reads it from a secret store at startup and never writes it anywhere.
+- The **wallet state** is everything the wallet has learned by syncing: which coins it owns and how far it has read the chain. The wallet rebuilds it from the chain when it is missing, so you save it only so that a restart does not sync from the beginning.
+- The **private state store** holds the private state of the contracts you deploy or call, plus the signing key that Midnight.js generates for each contract you deploy. You cannot rebuild it from the chain. Lose it and you lose the signing keys that authorize updates to those contracts.
+- The **contract addresses** you deployed. They are public, and your application keeps them wherever it keeps configuration.
+
+A server usually runs one wallet for its whole lifetime. Build the `WalletFacade` once at startup, share it between requests, and stop it on shutdown. [What to keep between restarts](#what-to-keep-between-restarts) lists where each piece of state lives.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Setting up the project
+
+Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a small contract to deploy. The versions are the ones the [compatibility matrix](../relnotes/support-matrix) pairs together.
+
+### Procedure
+
+1. Create a directory with this `package.json`, then run `npm install`:
+
+   ```json title="package.json"
+   {
+     "name": "midnight-node-wallet",
+     "version": "0.1.0",
+     "private": true,
+     "type": "module",
+     "engines": {
+       "node": ">=22.12"
+     },
+     "scripts": {
+       "compile": "compact compile +0.31.1 contract/counter.compact contract/managed/counter",
+       "sync": "tsx src/sync.ts",
+       "fund-local": "tsx src/fund-local.ts",
+       "deploy": "tsx src/deploy.ts",
+       "service": "tsx src/service.ts",
+       "test": "vitest run --testTimeout=120000 --hookTimeout=120000"
+     },
+     "dependencies": {
+       "@midnight-ntwrk/compact-runtime": "0.16.0",
+       "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+       "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+       "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+       "@midnight-ntwrk/midnight-js-types": "4.1.1",
+       "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+       "@midnightntwrk/wallet-sdk": "1.2.0",
+       "@scure/bip39": "2.4.0",
+       "rxjs": "7.8.2"
+     },
+     "devDependencies": {
+       "@types/node": "24.10.1",
+       "tsx": "4.23.12",
+       "typescript": "5.9.3",
+       "vitest": "4.1.10"
+     },
+     "overrides": {
+       "@midnight-ntwrk/onchain-runtime-v3": "3.0.0"
+     }
+   }
+   ```
+
+   The wallet SDK is the single package `@midnightntwrk/wallet-sdk`. Its scope has no hyphen, unlike the `@midnight-ntwrk/` packages next to it. `@scure/bip39` turns a recovery phrase into a seed.
+
+   The `+0.31.1` in the `compile` script runs Compact toolchain 0.31.1, whatever your default compiler is. Each toolchain release generates code for one `@midnight-ntwrk/compact-runtime` version, and 0.31.1 generates code for 0.16.0, the version in this file.
+
+   :::warning[Keep the override]
+
+   `@midnight-ntwrk/midnight-js-protocol` 4.1.1 pins `@midnight-ntwrk/onchain-runtime-v3` to 3.0.0, while `@midnight-ntwrk/compact-runtime` 0.16.0 accepts any 3.x release. Without the `overrides` entry, npm installs two copies, and every circuit call fails with `expected instance of StateValue`.
+
+   :::
+
+2. Add a TypeScript configuration:
+
+   ```json title="tsconfig.json"
+   {
+     "compilerOptions": {
+       "target": "ES2022",
+       "module": "NodeNext",
+       "moduleResolution": "NodeNext",
+       "types": ["node"],
+       "strict": true,
+       "noEmit": true,
+       "esModuleInterop": true,
+       "skipLibCheck": true
+     },
+     "include": ["src/**/*.ts", "test/**/*.ts"]
+   }
+   ```
+
+3. Add the network configuration. `setNetworkId` runs when this module loads, so every other file imports it first:
+
+   ```typescript title="src/config.ts"
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+   // Local network. For a public network, change the ID and the four endpoints.
+   setNetworkId('undeployed');
+
+   const indexerPort = process.env.INDEXER_PORT ?? '8088';
+   const nodePort = process.env.NODE_PORT ?? '9944';
+   const proofServerPort = process.env.PROOF_SERVER_PORT ?? '6300';
+
+   export const CONFIG = {
+     indexerHttpUrl: `http://127.0.0.1:${indexerPort}/api/v4/graphql`,
+     indexerWsUrl: `ws://127.0.0.1:${indexerPort}/api/v4/graphql/ws`,
+     node: `http://127.0.0.1:${nodePort}`,
+     proofServer: `http://127.0.0.1:${proofServerPort}`,
+   };
+   ```
+
+   To target a public network, change the network ID and the four endpoints to the values in the [environment reference](./networks-and-environments#environment-reference). The proof server stays on your machine for every network.
+
+4. Add a contract to deploy. This one keeps a public counter:
+
+   ```compact title="contract/counter.compact"
+   pragma language_version >= 0.22;
+
+   import CompactStandardLibrary;
+
+   // Public state: how many times increment has been called.
+   export ledger round: Counter;
+
+   export circuit increment(): [] {
+     round.increment(1);
+   }
+   ```
+
+5. Compile the contract:
+
+   ```bash
+   npm run compile
+   ```
+
+### Verification
+
+The compiler writes the contract module, the keys, and the ZKIR files that the deploy step needs:
+
+```bash
+ls contract/managed/counter
+```
+
+```text
+compiler
+contract
+keys
+zkir
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Deriving wallet keys from a recovery phrase or seed
+
+Turn the secret your service holds into the three key sets a wallet needs. The secret is either a 24-word BIP-39 recovery phrase or a raw seed in hex. They are different secrets. A phrase goes through the standard BIP-39 seed derivation and gives a 64-byte seed. A hex seed goes to `HDWallet.fromSeed` as it is. The same words always give the same wallet, so pick one form for a wallet and keep using it.
+
+### Procedure
+
+1. Create `src/keys.ts`:
+
+   ```typescript title="src/keys.ts"
+   import { Buffer } from 'node:buffer';
+   import { HDWallet, Roles, createKeystore, validateMnemonic } from '@midnightntwrk/wallet-sdk';
+   import { mnemonicToSeedSync } from '@scure/bip39';
+   import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+
+   /** Turn a BIP-39 recovery phrase into the 64-byte seed the HD wallet expects. */
+   export const seedFromMnemonic = (phrase: string): Uint8Array => {
+     const mnemonic = phrase.trim().toLowerCase().split(/\s+/).join(' ');
+     if (!validateMnemonic(mnemonic)) throw new Error('Not a valid BIP-39 recovery phrase.');
+     return mnemonicToSeedSync(mnemonic);
+   };
+
+   /** Decode a hex seed, rejecting anything Buffer.from would silently truncate. */
+   export const seedFromHex = (hex: string): Uint8Array => {
+     if (!/^(?:[0-9a-fA-F]{2}){16,64}$/.test(hex))
+       throw new Error('A hex seed must be 32 to 128 hex characters.');
+     return Buffer.from(hex, 'hex');
+   };
+
+   /** Read the wallet secret from the environment: a recovery phrase or a hex seed. */
+   export const readSeed = (): Uint8Array => {
+     if (process.env.WALLET_MNEMONIC) return seedFromMnemonic(process.env.WALLET_MNEMONIC);
+     if (process.env.WALLET_SEED) return seedFromHex(process.env.WALLET_SEED.trim());
+     throw new Error('Set WALLET_MNEMONIC or WALLET_SEED.');
+   };
+
+   /** Derive the three key sets the wallet needs from one seed. */
+   export const deriveWalletKeys = (seed: Uint8Array) => {
+     const hd = HDWallet.fromSeed(seed);
+     if (hd.type !== 'seedOk') throw new Error('Invalid seed');
+     const result = hd.hdWallet
+       .selectAccount(0)
+       .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
+       .deriveKeysAt(0);
+     if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
+     hd.hdWallet.clear();
+
+     return {
+       shieldedSecretKeys: ledger.ZswapSecretKeys.fromSeed(result.keys[Roles.Zswap]),
+       dustSecretKey: ledger.DustSecretKey.fromSeed(result.keys[Roles.Dust]),
+       unshieldedKeystore: createKeystore(result.keys[Roles.NightExternal], getNetworkId()),
+     };
+   };
+
+   export type WalletKeys = ReturnType<typeof deriveWalletKeys>;
+   ```
+
+   `seedFromMnemonic` normalizes the phrase and checks it with `validateMnemonic` before deriving the seed. `seedFromHex` checks the whole string first, because `Buffer.from(value, 'hex')` stops at the first invalid character and would derive a different wallet from a truncated paste. `deriveWalletKeys` selects account `0` and derives one key for each of the `Zswap`, `NightExternal`, and `Dust` roles. Those become the shielded secret keys, the DUST secret key, and the keystore that signs unshielded transactions.
+
+2. Generate a recovery phrase for a new wallet, and save it in your secret store:
+
+   ```bash
+   node -e 'import("@midnightntwrk/wallet-sdk").then((sdk) => console.log(sdk.generateMnemonicWords().join(" ")))'
+   ```
+
+3. Give the phrase to the process through the environment:
+
+   ```bash
+   export WALLET_MNEMONIC="<your 24 words>"
+   ```
+
+   :::danger[Protect the seed]
+
+   Anyone who has the phrase or the seed controls the wallet. Load it from a secret manager, never commit it, and never log it.
+
+   :::
+
+### Verification
+
+The same phrase always gives the same address, and a malformed secret fails before any key exists. Save this test as `test/seed.test.ts` and run `npm test`:
+
+```typescript title="test/seed.test.ts"
+import '../src/config.js';
+import { describe, it, expect } from 'vitest';
+import { generateMnemonicWords } from '@midnightntwrk/wallet-sdk';
+import { deriveWalletKeys, seedFromHex, seedFromMnemonic } from '../src/keys.js';
+
+const address = (seed: Uint8Array) => String(deriveWalletKeys(seed).unshieldedKeystore.getBech32Address());
+
+describe('turning a secret into wallet keys', () => {
+  it('derives a 64-byte seed and the same address from the same phrase', () => {
+    const phrase = generateMnemonicWords().join(' ');
+    const seed = seedFromMnemonic(phrase);
+    expect(seed.length).toBe(64);
+    expect(address(seedFromMnemonic(`  ${phrase.toUpperCase()}  `))).toBe(address(seed));
+    expect(address(seed)).toMatch(/^mn_addr_undeployed1/);
+  });
+
+  it('rejects a phrase that fails the BIP-39 checksum', () => {
+    expect(() => seedFromMnemonic(Array(24).fill('abandon').join(' '))).toThrow(
+      'Not a valid BIP-39 recovery phrase.',
+    );
+  });
+
+  it('rejects a hex seed that Buffer.from would truncate', () => {
+    expect(() => seedFromHex('zz'.repeat(32))).toThrow('32 to 128 hex characters');
+    expect(() => seedFromHex('abc')).toThrow('32 to 128 hex characters');
+    expect(seedFromHex('0'.repeat(63) + '1').length).toBe(32);
+  });
+});
+```
+
+```text
+ ✓ test/seed.test.ts > turning a secret into wallet keys > derives a 64-byte seed and the same address from the same phrase 102ms
+ ✓ test/seed.test.ts > turning a secret into wallet keys > rejects a phrase that fails the BIP-39 checksum 4ms
+ ✓ test/seed.test.ts > turning a secret into wallet keys > rejects a hex seed that Buffer.from would truncate 0ms
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Starting, syncing, and saving the wallet
+
+Start the wallet from its keys, wait until it has read the chain, and save its state so the next start resumes from where this one stopped. Each of the three sub-wallets serializes its own state with `serializeState` and comes back with `restore`.
+
+### Prerequisites
+
+- The keys module from [Deriving wallet keys from a recovery phrase or seed](#deriving-wallet-keys-from-a-recovery-phrase-or-seed).
+
+### Procedure
+
+1. Create `src/wallet.ts`:
+
+   ```typescript title="src/wallet.ts"
+   import { existsSync } from 'node:fs';
+   import { readFile, rename, writeFile } from 'node:fs/promises';
+   import {
+     WalletFacade,
+     ShieldedWallet,
+     DustWallet,
+     UnshieldedWallet,
+     PublicKey,
+     NoOpTransactionHistoryStorage,
+   } from '@midnightntwrk/wallet-sdk';
+   import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { type FinalizedTransaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import { CONFIG } from './config.js';
+   import { type WalletKeys } from './keys.js';
+
+   export type SavedWalletState = { shielded: string; unshielded: string; dust: string };
+
+   /** One snapshot file per wallet, named after its unshielded address. */
+   export const walletStateFile = (keys: WalletKeys): string =>
+     `wallet-state-${keys.unshieldedKeystore.getBech32Address()}.json`;
+
+   export const loadWalletState = async (file: string): Promise<SavedWalletState | undefined> =>
+     existsSync(file) ? (JSON.parse(await readFile(file, 'utf8')) as SavedWalletState) : undefined;
+
+   export const saveWalletState = async (wallet: WalletFacade, file: string): Promise<void> => {
+     const snapshot: SavedWalletState = {
+       shielded: await wallet.shielded.serializeState(),
+       unshielded: await wallet.unshielded.serializeState(),
+       dust: await wallet.dust.serializeState(),
+     };
+     // Write to a temporary file first so a crash cannot leave a half-written snapshot.
+     await writeFile(`${file}.tmp`, JSON.stringify(snapshot), { mode: 0o600 });
+     await rename(`${file}.tmp`, file);
+   };
+
+   /** Start a wallet from its keys, resuming from a snapshot when one is passed. */
+   export const buildWallet = async (keys: WalletKeys, saved?: SavedWalletState): Promise<WalletFacade> => {
+     const { shieldedSecretKeys, dustSecretKey, unshieldedKeystore } = keys;
+
+     const wallet = await WalletFacade.init({
+       configuration: {
+         networkId: getNetworkId(),
+         indexerClientConnection: {
+           indexerHttpUrl: CONFIG.indexerHttpUrl,
+           indexerWsUrl: CONFIG.indexerWsUrl,
+         },
+         provingServerUrl: new URL(CONFIG.proofServer),
+         relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
+         txHistoryStorage: new NoOpTransactionHistoryStorage(),
+         costParameters: {
+           additionalFeeOverhead: 300_000_000_000_000n, // 0.3 DUST
+           feeBlocksMargin: 5,
+         },
+       },
+       shielded: (cfg) =>
+         saved
+           ? ShieldedWallet(cfg).restore(saved.shielded)
+           : ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
+       unshielded: (cfg) =>
+         saved
+           ? UnshieldedWallet(cfg).restore(saved.unshielded)
+           : UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+       dust: (cfg) =>
+         saved
+           ? DustWallet(cfg).restore(saved.dust)
+           : DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+     });
+     await wallet.start(shieldedSecretKeys, dustSecretKey);
+     return wallet;
+   };
+
+   /** Submit a finalized transaction, trying again if the connection to the node drops. */
+   export const submitWithRetry = async (
+     wallet: WalletFacade,
+     tx: FinalizedTransaction,
+     attempts = 3,
+   ): Promise<string> => {
+     for (let attempt = 1; ; attempt++) {
+       try {
+         return await wallet.submitTransaction(tx);
+       } catch (err) {
+         if (attempt >= attempts) throw err;
+         console.warn(`Submission attempt ${attempt} failed, trying again`);
+         await new Promise((resolve) => setTimeout(resolve, 2_000));
+       }
+     }
+   };
+   ```
+
+   `buildWallet` starts each sub-wallet from the saved state when there is one, and from the keys when there is not. Either way, `wallet.start` takes the secret keys: the saved state holds the wallet's public keys, its coins, and its sync position, and no secret key. `walletStateFile` names the file after the wallet's address, so a process started with a different seed never picks up another wallet's state.
+
+   `submitWithRetry` covers a failure that shows up in scripts. `submitTransaction` can reject with a `SubmissionError` when the connection to the node closes during the call. The finalized transaction is still valid, so the helper sends the same one again. If the first attempt reached the node before the connection closed, the node can reject the retry as a duplicate even though the transaction went through. When the helper throws, check whether the transaction landed before you treat it as failed.
+
+2. Create `src/sync.ts`, which starts the wallet, waits for sync, prints the balances, and saves the state:
+
+   ```typescript title="src/sync.ts"
+   import './config.js';
+   import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { deriveWalletKeys, readSeed } from './keys.js';
+   import { buildWallet, loadWalletState, saveWalletState, walletStateFile } from './wallet.js';
+
+   const keys = deriveWalletKeys(readSeed());
+   const stateFile = walletStateFile(keys);
+   const saved = await loadWalletState(stateFile);
+   console.log(saved ? `Restoring wallet state from ${stateFile}` : 'No saved state, syncing from the start');
+
+   const wallet = await buildWallet(keys, saved);
+   const state = await wallet.waitForSyncedState();
+   console.log(`Unshielded address: ${keys.unshieldedKeystore.getBech32Address()}`);
+   console.log(`NIGHT (STAR): ${state.unshielded.balances[unshieldedToken().raw] ?? 0n}`);
+   console.log(`DUST (SPECK): ${state.dust.balance(new Date())}`);
+
+   await saveWalletState(wallet, stateFile);
+   await wallet.stop();
+   ```
+
+   `waitForSyncedState` resolves when all three sub-wallets have caught up with the chain. Balances are `bigint` values in the smallest unit: NIGHT divides into 10<sup>6</sup> STAR and DUST into 10<sup>15</sup> SPECK.
+
+3. Run it twice:
+
+   ```bash
+   npm run sync
+   npm run sync
+   ```
+
+### Verification
+
+The first run starts from nothing and writes the state file:
+
+```text
+No saved state, syncing from the start
+Unshielded address: mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz
+NIGHT (STAR): 0
+DUST (SPECK): 0
+```
+
+The second run restores it:
+
+```text
+Restoring wallet state from wallet-state-mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz.json
+Unshielded address: mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz
+NIGHT (STAR): 0
+DUST (SPECK): 0
+```
+
+This test proves the round trip on a wallet that holds funds. It saves the state of the local network's genesis wallet, checks the file, and restores it. Save it as `test/wallet-state.test.ts` and run `npm test`:
+
+```typescript title="test/wallet-state.test.ts"
+import '../src/config.js';
+import { describe, it, expect, afterAll } from 'vitest';
+import { Buffer } from 'node:buffer';
+import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { type WalletFacade } from '@midnightntwrk/wallet-sdk';
+import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+import { deriveWalletKeys, seedFromHex } from '../src/keys.js';
+import { buildWallet, loadWalletState, saveWalletState } from '../src/wallet.js';
+
+// The genesis wallet of the local network always holds NIGHT, so its state is never empty.
+const GENESIS_SEED = '0'.repeat(63) + '1';
+const file = join(mkdtempSync(join(tmpdir(), 'wallet-state-')), 'snapshot.json');
+const night = unshieldedToken().raw;
+
+let wallet: WalletFacade | undefined;
+afterAll(async () => {
+  await wallet?.stop();
+});
+
+describe('saving and restoring wallet state', () => {
+  it('restores the same balances from a snapshot that does not hold the signing key', async () => {
+    const keys = deriveWalletKeys(seedFromHex(GENESIS_SEED));
+
+    wallet = await buildWallet(keys);
+    const before = await wallet.waitForSyncedState();
+    await saveWalletState(wallet, file);
+    await wallet.stop();
+
+    const snapshot = readFileSync(file, 'utf8');
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(snapshot).not.toContain(Buffer.from(keys.unshieldedKeystore.getSecretKey()).toString('hex'));
+
+    wallet = await buildWallet(keys, await loadWalletState(file));
+    const after = await wallet.waitForSyncedState();
+    expect(after.unshielded.balances[night]).toBeGreaterThan(0n);
+    expect(after.unshielded.balances[night]).toBe(before.unshielded.balances[night]);
+    expect(after.unshielded.availableCoins.length).toBe(before.unshielded.availableCoins.length);
+    expect(after.dust.availableCoins.length).toBe(before.dust.availableCoins.length);
+  });
+});
+```
+
+```text
+ ✓ test/wallet-state.test.ts > saving and restoring wallet state > restores the same balances from a snapshot that does not hold the signing key 3736ms
+
+ Test Files  2 passed (2)
+      Tests  4 passed (4)
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Funding the wallet on the local network
+
+Send NIGHT to the new wallet so that it can generate DUST and pay fees. On the local network, the genesis wallet holds the NIGHT, and its seed is public. On Preview and Preprod, use the faucet in [Funding a wallet](./acquire-tokens) instead and skip this procedure.
+
+### Prerequisites
+
+- The wallet module and the address printed in [Starting, syncing, and saving the wallet](#starting-syncing-and-saving-the-wallet).
+
+### Procedure
+
+1. Create `src/fund-local.ts`:
+
+   ```typescript title="src/fund-local.ts"
+   // Local network only: send NIGHT from the pre-funded genesis wallet to an address.
+   import './config.js';
+   import { Buffer } from 'node:buffer';
+   import { MidnightBech32m, UnshieldedAddress } from '@midnightntwrk/wallet-sdk';
+   import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import { deriveWalletKeys } from './keys.js';
+   import { buildWallet, submitWithRetry } from './wallet.js';
+
+   const GENESIS_SEED = '0'.repeat(63) + '1';
+   const AMOUNT = 1_000_000_000n; // 1,000 NIGHT, in STAR
+
+   const to = process.argv[2];
+   if (!to) throw new Error('Usage: tsx src/fund-local.ts <mn_addr_undeployed1...>');
+   const receiverAddress = MidnightBech32m.parse(to).decode(UnshieldedAddress, getNetworkId());
+
+   const genesis = deriveWalletKeys(Buffer.from(GENESIS_SEED, 'hex'));
+   const wallet = await buildWallet(genesis);
+   await wallet.waitForSyncedState();
+
+   const recipe = await wallet.transferTransaction(
+     [{ type: 'unshielded', outputs: [{ type: unshieldedToken().raw, receiverAddress, amount: AMOUNT }] }],
+     { shieldedSecretKeys: genesis.shieldedSecretKeys, dustSecretKey: genesis.dustSecretKey },
+     { ttl: new Date(Date.now() + 30 * 60 * 1000) },
+   );
+   const signed = await wallet.signRecipe(recipe, (payload) => genesis.unshieldedKeystore.signData(payload));
+   const finalized = await wallet.finalizeRecipe(signed);
+   const txId = await submitWithRetry(wallet, finalized);
+   console.log(`Sent ${AMOUNT} STAR to ${to} in transaction ${txId}`);
+
+   await wallet.stop();
+   ```
+
+   A transfer is a recipe that the wallet builds, the unshielded keystore signs, and the wallet finalizes and submits. `MidnightBech32m.parse(...).decode(UnshieldedAddress, ...)` rejects an address that belongs to another network or another address type.
+
+2. Run it with the unshielded address of your wallet:
+
+   ```bash
+   npm run fund-local -- <your mn_addr_undeployed1... address>
+   ```
+
+### Verification
+
+The transfer lands:
+
+```text
+Sent 1000000000 STAR to mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz in transaction 008af9ca350b907f0ad25df71c29e8e9ef3f8cc0a2a119451ab493925cadc300e9
+```
+
+The next sync restores the saved state, catches up, and shows the balance:
+
+```bash
+npm run sync
+```
+
+```text
+Restoring wallet state from wallet-state-mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz.json
+Unshielded address: mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz
+NIGHT (STAR): 1000000000
+DUST (SPECK): 0
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Deploying a contract from the wallet
+
+Run the whole path in one script: restore the wallet, register its NIGHT for DUST generation, wire the Midnight.js providers around it, deploy the counter, and call it.
+
+### Prerequisites
+
+- A funded wallet from [Funding the wallet on the local network](#funding-the-wallet-on-the-local-network).
+- The compiled contract from [Setting up the project](#setting-up-the-project).
+
+### Procedure
+
+1. Create `src/deploy.ts`:
+
+   ```typescript title="src/deploy.ts"
+   import { CONFIG } from './config.js';
+   import * as Rx from 'rxjs';
+   import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
+   import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+   import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+   import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
+   import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
+   import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
+   import { type FinalizedTransaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { type MidnightProviders, type UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
+   import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
+   import { Contract, ledger as counterLedger } from '../contract/managed/counter/contract/index.js';
+   import { deriveWalletKeys, readSeed } from './keys.js';
+   import { buildWallet, loadWalletState, saveWalletState, submitWithRetry, walletStateFile } from './wallet.js';
+
+   const COUNTER_DIR = new URL('../contract/managed/counter', import.meta.url).pathname;
+
+   const password = process.env.PRIVATE_STATE_PASSWORD;
+   if (!password) throw new Error('Set PRIVATE_STATE_PASSWORD.');
+
+   // 1. Build the wallet, restoring the last snapshot when there is one, and sync.
+   const keys = deriveWalletKeys(readSeed());
+   const { shieldedSecretKeys, dustSecretKey, unshieldedKeystore } = keys;
+   const stateFile = walletStateFile(keys);
+   const wallet = await buildWallet(keys, await loadWalletState(stateFile));
+   let state = await wallet.waitForSyncedState();
+   console.log(`Wallet synced: ${unshieldedKeystore.getBech32Address()}`);
+
+   // 2. Register any unregistered NIGHT so the wallet generates DUST for fees.
+   const unregistered = state.unshielded.availableCoins.filter(
+     (coin) => coin.meta?.registeredForDustGeneration !== true,
+   );
+   if (unregistered.length > 0) {
+     const { fee } = await wallet.estimateRegistration(unregistered);
+     await wallet.waitForGeneratedDust(unregistered, fee);
+     const recipe = await wallet.registerNightUtxosForDustGeneration(
+       unregistered,
+       unshieldedKeystore.getPublicKey(),
+       (payload) => unshieldedKeystore.signData(payload),
+     );
+     await submitWithRetry(wallet, await wallet.finalizeRecipe(recipe));
+     console.log(`Registered ${unregistered.length} NIGHT UTXO(s) for DUST generation`);
+   }
+   state = await Rx.firstValueFrom(
+     wallet.state().pipe(
+       Rx.filter((s) => s.isSynced),
+       Rx.filter((s) => s.dust.balance(new Date()) > 0n),
+     ),
+   );
+   console.log(`DUST (SPECK): ${state.dust.balance(new Date())}`);
+
+   // 3. Wire the Midnight.js providers around the wallet.
+   type CounterProviders = MidnightProviders<'increment'>;
+
+   const walletProvider = {
+     getCoinPublicKey: () => shieldedSecretKeys.coinPublicKey,
+     getEncryptionPublicKey: () => shieldedSecretKeys.encryptionPublicKey,
+     balanceTx: async (tx: UnboundTransaction, ttl: Date = ttlOneHour()): Promise<FinalizedTransaction> => {
+       const recipe = await wallet.balanceUnboundTransaction(tx, { shieldedSecretKeys, dustSecretKey }, { ttl });
+       return await wallet.finalizeRecipe(recipe);
+     },
+     submitTx: (tx: FinalizedTransaction) => submitWithRetry(wallet, tx),
+   };
+
+   const zkConfigProvider = new NodeZkConfigProvider<'increment'>(COUNTER_DIR);
+   const providers: CounterProviders = {
+     privateStateProvider: levelPrivateStateProvider({
+       privateStateStoreName: 'counter-private-state',
+       signingKeyStoreName: 'counter-signing-keys',
+       privateStoragePasswordProvider: () => password,
+       accountId: unshieldedKeystore.getBech32Address().asString(),
+     }),
+     publicDataProvider: indexerPublicDataProvider(CONFIG.indexerHttpUrl, CONFIG.indexerWsUrl),
+     zkConfigProvider,
+     proofProvider: httpClientProofProvider(CONFIG.proofServer, zkConfigProvider),
+     walletProvider,
+     midnightProvider: walletProvider,
+   };
+
+   // 4. Deploy the contract and call a circuit.
+   const compiledContract = CompiledContract.withCompiledFileAssets(
+     CompiledContract.withVacantWitnesses(CompiledContract.make('counter', Contract)),
+     COUNTER_DIR,
+   );
+
+   const deployed = await deployContract(providers, { compiledContract });
+   const contractAddress = deployed.deployTxData.public.contractAddress;
+   console.log(`Deployed counter at ${contractAddress}`);
+
+   const call = await deployed.callTx.increment();
+   console.log(`increment landed in block ${call.public.blockHeight}`);
+
+   const contractState = await providers.publicDataProvider.queryContractState(contractAddress);
+   console.log(`round = ${counterLedger(contractState!.data).round}`);
+
+   // 5. Save the wallet state for the next start, then shut down.
+   await wallet.waitForSyncedState();
+   await saveWalletState(wallet, stateFile);
+   await wallet.stop();
+   ```
+
+   The script has five parts:
+
+   - **Wallet.** It restores the saved state when the file exists and waits for sync.
+   - **DUST.** NIGHT pays no fees until you register it for DUST generation. The script registers any unregistered NIGHT and waits for a DUST balance. A first registration pays its own fee, which is why the script waits for `waitForGeneratedDust` before building it. [Funding a wallet](./acquire-tokens#registering-night-for-dust-generation-with-the-wallet-sdk) explains each call.
+   - **Providers.** `walletProvider` balances a transaction with the wallet's DUST and finalizes it, and the same object submits it. `levelPrivateStateProvider` is the private state store for Node.js: an encrypted LevelDB directory, scoped to this wallet by `accountId`. [Deploying and operating a contract](./deploy-and-operate#configuring-providers-for-a-contract) covers every provider.
+   - **Deploy and call.** The counter has no witnesses and no private state, so the contract uses `withVacantWitnesses` and `deployContract` takes no private state options.
+   - **Save.** The script saves the wallet state before it stops, so the next run does not start from the beginning.
+
+2. Set a password for the private state store. It must have at least 16 characters and three of the four character classes:
+
+   ```bash
+   export PRIVATE_STATE_PASSWORD="<a strong password from your secret store>"
+   ```
+
+3. Deploy:
+
+   ```bash
+   npm run deploy
+   ```
+
+### Verification
+
+The script prints the contract address, and the counter reads `1` after one call. In this run the first submission of the registration hit a closed node connection, and `submitWithRetry` sent it again:
+
+```text
+Wallet synced: mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz
+Submission attempt 1 failed, trying again
+Registered 1 NIGHT UTXO(s) for DUST generation
+DUST (SPECK): 843233999999999
+Deployed counter at 3a9fd9b7872241fc2da1497449bbfef19c27c25aabe860171065384418683f60
+increment landed in block 799
+round = 1
+```
+
+A second run restores the wallet, finds the NIGHT already registered, and deploys a new instance:
+
+```text
+Wallet synced: mn_addr_undeployed1hfnczn55gj4cx6y6cexvuzn7rtjkudf62fhk5x6cz0vcen0j5jrqu32rpz
+DUST (SPECK): 995530999999997
+Deployed counter at f3561e20727b881607627bfa90fa36ef15cf70dd0f787e800577b0759065d655
+increment landed in block 814
+round = 1
+```
+
+The private state store is now on disk next to the script, in a directory named `midnight-level-db`.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Keeping the wallet running in a service
+
+A script builds a wallet, uses it, and exits. A service keeps one wallet for as long as it runs, so it also has to save state while it runs and close the wallet when it stops.
+
+### Prerequisites
+
+- The wallet module from [Starting, syncing, and saving the wallet](#starting-syncing-and-saving-the-wallet).
+
+### Procedure
+
+1. Create `src/service.ts`:
+
+   ```typescript title="src/service.ts"
+   import './config.js';
+   import * as Rx from 'rxjs';
+   import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { deriveWalletKeys, readSeed } from './keys.js';
+   import { buildWallet, loadWalletState, saveWalletState, walletStateFile } from './wallet.js';
+
+   const keys = deriveWalletKeys(readSeed());
+   const stateFile = walletStateFile(keys);
+   const wallet = await buildWallet(keys, await loadWalletState(stateFile));
+   await wallet.waitForSyncedState();
+   console.log('Wallet synced, service running');
+
+   // Log balance changes while the process runs.
+   const balances = wallet
+     .state()
+     .pipe(
+       Rx.filter((s) => s.isSynced),
+       Rx.map((s) => s.unshielded.balances[unshieldedToken().raw] ?? 0n),
+       Rx.distinctUntilChanged(),
+     )
+     .subscribe((night) => console.log(`NIGHT (STAR): ${night}`));
+
+   // Save a snapshot on a timer, so a crash loses at most one interval of sync progress.
+   const timer = setInterval(() => {
+     saveWalletState(wallet, stateFile).catch((err) => console.error('Snapshot failed', err));
+   }, 60_000);
+
+   // Save once more and close the connections when the process is asked to stop.
+   const shutdown = async () => {
+     clearInterval(timer);
+     balances.unsubscribe();
+     await saveWalletState(wallet, stateFile);
+     await wallet.stop();
+     console.log('Wallet stopped');
+     process.exit(0);
+   };
+   process.once('SIGINT', shutdown);
+   process.once('SIGTERM', shutdown);
+   ```
+
+   The timer saves the state every minute, so a crash loses at most a minute of sync progress. The shutdown handler saves once more and calls `wallet.stop`, which closes the indexer and node connections. Without `stop`, those connections keep the process alive after your own code has finished.
+
+2. Start the service with Node.js directly, so that signals reach your handler:
+
+   ```bash
+   node --import tsx src/service.ts
+   ```
+
+3. Stop it with `Ctrl+C`, or send `SIGTERM` the way a process manager or container runtime does.
+
+### Verification
+
+The service reports the synced balance, then saves and stops when it receives the signal:
+
+```text
+Wallet synced, service running
+NIGHT (STAR): 1000000000
+Wallet stopped
+```
+
+{/* _mod-docs-content-type: REFERENCE */}
+## What to keep between restarts
+
+What a wallet process stores, where the code on this page puts it, and what happens when it is gone.
+
+| State | Where it lives | If you lose it |
+|---|---|---|
+| Recovery phrase or seed | Your secret store, read from `WALLET_MNEMONIC` or `WALLET_SEED` | The wallet and its funds are unrecoverable |
+| Wallet state | `wallet-state-<address>.json`, written by `saveWalletState` | The wallet syncs from the start of the chain on the next run |
+| Private state store | The `midnight-level-db` directory, written by `levelPrivateStateProvider` | Contract private state and the signing keys for contracts you deployed are gone |
+| Private state password | Your secret store, read from `PRIVATE_STATE_PASSWORD` | You cannot decrypt the private state store |
+| Contract addresses | Your application configuration | Find them again in your deploy logs |
+
+The wallet state file holds no secret key, but it does list the coins the wallet owns. Keep it private, and keep one file per wallet and per network.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Wallet helper names in the example repositories
+
+Example projects wrap the SDK in helper functions, and those helper names are not SDK exports. This table maps the common ones to what they call.
+
+| Name | Where it comes from | What to use |
+|---|---|---|
+| `buildWalletFromHexSeed`, `initWalletWithSeed` | Helpers in [midnight-local-dev](https://github.com/midnightntwrk/midnight-local-dev) and [example-zkloan](https://github.com/midnightntwrk/example-zkloan) | `HDWallet.fromSeed` and `WalletFacade.init`, as in `src/keys.ts` and `src/wallet.ts` |
+| `waitForSync` | Helper in midnight-local-dev | `wallet.waitForSyncedState()` |
+| `registerNightForDust` | Helper in midnight-local-dev | `wallet.registerNightUtxosForDustGeneration(...)`, as in `src/deploy.ts` |
+| `WalletSaveStateProvider`, `FluentWalletBuilder` | Test utilities in [testkit-js](/api-reference/testkit-js) | `serializeState` and `restore` on each sub-wallet, as in `src/wallet.ts` |
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Wallet troubleshooting for Node.js
+
+Failures you are likely to hit on this guide's path, and their fixes. Every quoted message comes from a real run.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The script prints nothing after start and never syncs | Node.js 20 has no global `WebSocket` | Use Node.js 22.12 or later |
+| `TypeError: Cannot read properties of null (reading 'length')` from `@polkadot/rpc-provider/ws` | An early Node.js 22 release. Node.js 22.0.0 fails this way | Use Node.js 22.12 or later |
+| `TypeError: state.pendingOutputs.values.map is not a function or its return value is not iterable` | Node.js 20 with a `WebSocket` polyfill. The SDK uses iterator methods that Node.js 20 does not have | Use Node.js 22.12 or later |
+| `Version mismatch: compiled code expects 0.19.0, runtime is 0.16.0` when a script loads the contract | A Compact toolchain newer than 0.31.1 compiled the contract | Run `compact update 0.31.1`, then `npm run compile` |
+| `Error: expected instance of StateValue` on a circuit call, after a deploy that worked | Two copies of `@midnight-ntwrk/onchain-runtime-v3` in `node_modules` | Add the `overrides` entry from [Setting up the project](#setting-up-the-project) and reinstall |
+| `SubmissionError: Transaction submission error`, caused by `disconnected from ws://...: 1000:: Normal Closure` | The node connection closed while the wallet was submitting | Submit the same finalized transaction again, as `submitWithRetry` does |
+| `RPC-CORE: subscribeRuntimeVersion(): RuntimeVersion:: disconnected from ws://...: 1000:: Normal Closure` in the output | A log line from the node client when the wallet closes its connection | None needed |
+| The wallet shows another wallet's balance | The saved state belongs to a different seed. `restore` trusts the file | Keep one state file per address, as `walletStateFile` does |
+| `PasswordValidationError: Password is shorter than 16 characters` | The private state password is too weak | Use 16 characters or more, with three of the four character classes |
+| `Set WALLET_MNEMONIC or WALLET_SEED.` | The process has no secret to derive keys from | Export one of the two variables |
+
+## Additional resources
+
+- [Funding a wallet](./acquire-tokens): faucets, registration for DUST generation, and the same wallet on Preprod.
+- [Managing DUST for transaction fees](./manage-dust): fee estimates, sending several transactions from one wallet, and DUST errors.
+- [Deploying and operating a contract](./deploy-and-operate): every provider, contract state, and the maintenance authority.
+- [Networks and environments](./networks-and-environments): network IDs and endpoints for the local network, Preview, Preprod, and Mainnet.
+- [Wallet SDK API reference](/api-reference/wallet-sdk): `WalletFacade` and the sub-wallet interfaces in full.
