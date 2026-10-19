@@ -1,0 +1,409 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "Private party tests"
+title: "Private party tests"
+description: "Run the private party on a local devnet with MidnightJS: RSVP privately, check in with NIGHT, claim the fees, and deploy a contract step by step."
+sidebar_position: 20
+toc_max_heading_level: 3
+tags:
+  - tutorials
+  - private-party
+  - midnight-js
+  - testing
+  - beginner
+  - midnight-network
+---
+
+# Private party tests
+
+Compiling only proves the contract is valid Compact. To know it behaves as intended, you have to
+run it. This part walks through `src/test/party.test.ts`. The suite holds a whole party on a
+local devnet with three people: Alice, the organizer, and Bob and Charlie, the guests. Along the
+way it checks that the contract turns away callers who shouldn't get through.
+
+## Prerequisites
+
+- The [Private party contract](/tutorials/private-party/smart-contract) part of this tutorial.
+- Docker, running, for the local devnet.
+
+## Run the suite
+
+From `examples/private-party`, start the local network, wait until the test wallets have DUST to
+pay fees with, and run the party suite:
+
+```bash
+yarn env:up
+yarn wait:dust
+yarn test:local src/test/party.test.ts
+```
+
+`yarn env:up` starts a Midnight node, an indexer, and a proof server from `compose.yml`. The proof
+server generates the zero-knowledge proof for each transaction. Leave the network running while
+you work through this page. Every successful call generates a real proof, so expect the suite to
+take a few minutes.
+
+When it finishes, all 11 tests pass, including the ones that expect a rejection:
+
+```
+ ✓ src/test/party.test.ts (11 tests) 168210ms
+     ✓ Deploys a contract (the easy way)  17109ms
+     ✓ Allows Bob to rsvp (privately)  18570ms
+     ✓ Allows Charlie to rsvp(privately)  17170ms
+     ✓ starts the party  18504ms
+     ✓ Allows Bob to check in  17351ms
+     ✓ Closes the doors to the party  18522ms
+     ✓ Allows Alice to claimFees  40580ms
+     ✓ Deploys the contract(the hard way)  18086ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+```
+
+Vitest lists only tests that take longer than 300 ms, so the three rejection tests ("Blocks
+organizers from rsvp" and the two "Blocks non-organizers" tests) pass without a line of their own.
+The timings tell you something. Each successful call takes 15–20 seconds, most of it spent
+generating a proof. (`claimFees` takes longer because the test also waits for Alice's wallet to
+sync before and after, to read her balance.) A rejected call takes milliseconds. A failing
+`assert` stops the circuit on the caller's own machine, so no proof is generated and nothing is
+submitted.
+
+`yarn test:local` on its own also runs `src/test/sponsorship.test.ts`, where the organizer pays
+the transaction fees for a guest who has no DUST. That flow is covered in the
+[DUST sponsorship guide](/guides/dust-sponsorship).
+
+Tear the network down when you're done:
+
+```bash
+yarn env:down
+```
+
+## The test harness
+
+Everything above the line `// Everything above is harness setup. Your tests begin here.` in the
+test file is shared harness. It is the same in every example in midnight-examples:
+
+- **`src/config.ts`** holds the endpoints for each network. `MIDNIGHT_NETWORK` picks one:
+  `yarn test:local` sets it to `local`, and `yarn test:preview` and `yarn test:preprod` run the
+  same suite against the public test networks.
+- **`resolveWallet(network, role)`**, from the shared `@midnight-ntwrk/example-fast-sync`
+  package, returns the wallet secret for a role. On `local` these are the devnet's pre-funded
+  wallets, so there is nothing to set up. On a remote network they come from a repo-root
+  `.env.<network>` file.
+- **`src/wallet.ts`** builds, starts, and syncs each wallet. **`src/providers.ts`** bundles the
+  MidnightJS providers a user needs: public data from the indexer, private state, ZK artifacts
+  and proving, and the wallet itself.
+
+The suite declares a wallet and a provider set for each person:
+
+```typescript title="src/test/party.test.ts"
+describe(`Private Party smart contract via midnight-js (${network})`, () => {
+    let aliceWallet: MidnightWalletProvider;
+    let bobWallet: MidnightWalletProvider;
+    let charlieWallet: MidnightWalletProvider;
+    let aliceProviders: PartyProviders;
+    let bobProviders: PartyProviders;
+    let charlieProviders: PartyProviders;
+    let contractAddress: ContractAddress;
+```
+
+Each person also has an ID for their entry in their private state provider:
+
+```typescript title="src/test/party.test.ts"
+    const ALICE_PRIVATE_ID = 'PartyPrivateState';
+    const BOB_PRIVATE_ID = 'BobPartyPrivateState';
+    const CHARLIE_PRIVATE_ID = 'CharliePartyPrivateState';
+```
+
+`beforeAll` builds and syncs the three wallets, then builds each person's providers. On a remote
+network it also waits until every wallet has NIGHT and DUST. Two small helpers do the rest. One
+reads the contract's public ledger, the other reads a wallet's NIGHT balance:
+
+```typescript title="src/test/party.test.ts"
+    async function queryLedger(providers: PartyProviders) {
+        const state =
+            await providers.publicDataProvider.queryContractState(contractAddress);
+        expect(state).not.toBeNull();
+        return ledger(state!.data);
+    }
+
+    // NIGHT token type is the all-zero raw token type
+    const NIGHT_TOKEN_TYPE = '0000000000000000000000000000000000000000000000000000000000000000';
+
+    async function getNightBalance(walletProvider: MidnightWalletProvider): Promise<bigint> {
+        const facadeState = await walletProvider.wallet.waitForSyncedState();
+        return facadeState.unshielded.balances[NIGHT_TOKEN_TYPE] ?? 0n;
+    }
+```
+
+## The party
+
+### Alice deploys
+
+Alice creates her private state with a fresh random secret and deploys a party for ten guests,
+with an entry fee of 5 STAR:
+
+```typescript title="src/test/party.test.ts"
+    it('Deploys a contract (the easy way)', async () => {
+        const PARTY_SIZE = BigInt(10);
+        const FEE = BigInt(5);
+        const alicePrivateState = createPartyPrivateState(randomBytes(32));
+
+        logger.info(`Deploying a contract the easy way...`);
+        const deployed: DeployedContract<Contract> = 
+            await (deployContract<Contract>)(aliceProviders, {
+                compiledContract: CompiledPartyContract,
+                privateStateId: ALICE_PRIVATE_ID,
+                initialPrivateState: alicePrivateState,
+                args: [PARTY_SIZE, FEE, alicePrivateState.secret]
+            });
+```
+
+`deployContract` takes the deployer's providers, the compiled contract from `contract/index.ts`,
+the private state ID and initial private state, and the constructor `args`: the party size, the
+fee, and Alice's secret. Once the deployment succeeds, it also stores the private state in Alice's
+private state provider under `ALICE_PRIVATE_ID`, so later tests read her secret back from there.
+
+The test then checks the ledger against what the constructor should have done:
+
+```typescript title="src/test/party.test.ts"
+        const state = await queryLedger(aliceProviders);
+        expect(state.maxListSize).toEqual(PARTY_SIZE);
+        expect(state.partyState).toEqual(PartyState.NOT_STARTED);
+        expect(state.entryFee).toEqual(FEE);
+        expect(state.hashedPartyGoers.size()).toEqual(0n);
+```
+
+### Bob RSVPs, privately
+
+Bob makes his own secret and stores it in his private state provider. He wasn't the deployer, so
+he points his provider at the contract first:
+
+```typescript title="src/test/party.test.ts"
+        const bobInitialPrivateState = createPartyPrivateState(randomBytes(32));
+        bobProviders.privateStateProvider.setContractAddress(contractAddress);
+        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, bobInitialPrivateState);
+        const bobPrivateState = await bobProviders.privateStateProvider.get(BOB_PRIVATE_ID);
+
+        const bobUnshielded = await bobWallet.wallet.unshielded.getAddress();
+        const bobAddress = { bytes: new Uint8Array(bobUnshielded.data) };
+```
+
+The circuit's `UserAddress` argument is a struct with one field, `bytes`. The test fills it from
+the raw bytes of Bob's unshielded wallet address. For Charlie and Alice it builds the same thing
+from the address's hex string with `encodeUserAddress`. Both give the same 32 bytes.
+
+Then Bob calls `rsvp`:
+
+```typescript title="src/test/party.test.ts"
+        const txData: FinalizedCallTxData<Contract, 'rsvp'> = 
+            await (submitCallTx<Contract, 'rsvp'>)(bobProviders, {
+                compiledContract: CompiledPartyContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'rsvp',
+                args: [bobAddress, bobPrivateState.secret]
+            });
+```
+
+`submitCallTx` runs the circuit locally, has the proof server prove it, balances the transaction
+with Bob's wallet, submits it, and waits until the indexer reports it on chain. Bob's address and secret are
+circuit arguments, so neither appears on chain. Only the commitment does:
+
+```typescript title="src/test/party.test.ts"
+        const state = await queryLedger(aliceProviders);
+        expect(state.hashedPartyGoers.size()).toEqual(1n);
+        expect(state.partyState).toEqual(PartyState.NOT_STARTED);
+```
+
+Charlie RSVPs the same way, and the list grows to two.
+
+### Turning away the wrong callers
+
+Three tests call a circuit as someone who shouldn't get through, and expect the call to be
+rejected. Alice tries to RSVP to her own party:
+
+```typescript title="src/test/party.test.ts"
+        await expect(async () => {
+            await (submitCallTx<Contract, 'rsvp'>)(aliceProviders, {
+                compiledContract: CompiledPartyContract,
+                contractAddress,
+                privateStateId: ALICE_PRIVATE_ID,
+                circuitId: 'rsvp',
+                args: [{ bytes: aliceAddress }, alicePrivateState.secret]
+            });
+        }).rejects.toThrow();
+```
+
+Her secret hashes to the `organizer` key, so `assert(pubKey != organizer, …)` fails. Bob tries to
+start the party, and later to close the doors, with his own secret. Both hit the organizer check,
+and the test confirms the party state didn't change:
+
+```typescript title="src/test/party.test.ts"
+        await expect(async () => {
+            await (submitCallTx<Contract, 'startParty'>)(bobProviders, {
+                compiledContract: CompiledPartyContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'startParty',
+                args: [bobPrivateState.secret]
+            });
+        }).rejects.toThrow();
+        logger.info(`Bob was rejected!`);
+
+        const state = await queryLedger(bobProviders);
+        expect(state.partyState).toEqual(PartyState.NOT_STARTED);
+```
+
+Between the two, Alice starts the party with her secret, and the state moves to `STARTED`.
+
+### Bob checks in, and becomes public
+
+Bob checks in with the same address and secret he used to RSVP:
+
+```typescript title="src/test/party.test.ts"
+        const txData: FinalizedCallTxData<Contract, 'checkIn'> = 
+            await (submitCallTx<Contract, 'checkIn'>)(bobProviders, {
+                compiledContract: CompiledPartyContract,
+                contractAddress,
+                privateStateId: BOB_PRIVATE_ID,
+                circuitId: 'checkIn',
+                args: [bobAddress, bobPrivateState.secret]
+            });
+        logger.info(`Bob has successfully checked in and is now public!`);
+
+        const state = await queryLedger(bobProviders);
+        expect(state.partyState).toEqual(PartyState.STARTED);
+        expect(state.checkedInParty.size()).toEqual(1n);
+        expect(state.checkedInParty.member(bobAddress)).toBeTruthy();
+```
+
+Nothing in the call mentions NIGHT. The circuit's `receiveUnshielded` adds the entry fee to the
+transaction, and Bob's wallet pays it when it balances the transaction. The last assertion is the
+privacy boundary in one line: anyone can now read Bob's address off the ledger.
+
+### Alice claims the fees
+
+After Alice closes the doors, she claims the fees to her own unshielded address. The test reads
+her NIGHT balance before and after:
+
+```typescript title="src/test/party.test.ts"
+        const balanceBefore = await getNightBalance(aliceWallet);
+        logger.info(`Alice NIGHT balance before claimFees: ${balanceBefore}`);
+
+        logger.info(`Alice is claiming fees...`);
+        const txData: FinalizedCallTxData<Contract, 'claimFees'> =
+            await (submitCallTx<Contract, 'claimFees'>)(aliceProviders, {
+                compiledContract: CompiledPartyContract,
+                contractAddress,
+                privateStateId: ALICE_PRIVATE_ID,
+                circuitId: 'claimFees',
+                args: [{ bytes: aliceAddress }, alicePrivateState.secret]
+            });
+        logger.info(`Alice has successfully claimed fees!`);
+
+        const balanceAfter = await getNightBalance(aliceWallet);
+        logger.info(`Alice NIGHT balance after claimFees:  ${balanceAfter}`);
+        logger.info(`Alice NIGHT balance delta:            ${balanceAfter - balanceBefore}`);
+```
+
+Only Bob checked in, so the contract holds one entry fee, and the log shows a delta of 5 STAR. The
+test asserts on the final `FEES_CLAIMED` state. It logs the delta rather than asserting on it.
+
+## Deploying the hard way
+
+`deployContract` and `submitCallTx` each wrap a pipeline of steps. The last test deploys a second
+party with those steps spelled out, so you can see what happens in between:
+
+```typescript title="src/test/party.test.ts"
+        // Step 1: Local circuit execution
+        const unprovenData: UnsubmittedDeployTxData<Contract> = 
+            await (createUnprovenDeployTx as any)(aliceProviders, {
+                compiledContract: CompiledPartyContract,
+                privateStateId: ALICE_PRIVATE_ID,
+                initialPrivateState: alicePrivateState,
+                args: [PARTY_SIZE, FEE, alicePrivateState.secret]
+            });
+        
+        const pendingAddress = unprovenData.public?.contractAddress;
+        logger.info(`Unproven tx created. Pending contract address: ${pendingAddress}`);
+
+        // Step 2: Prove (send to proof server, get ZK proof back)
+        const provenTx = await aliceProviders.proofProvider.proveTx(unprovenData.private.unprovenTx);
+        logger.info('proven tx received from proof server');
+
+        // Step 3: Balance wallet
+        const balancedTx = await aliceProviders.walletProvider.balanceTx(provenTx);
+        logger.info('Balanced tx ready for submission');
+
+        // Step 4: Submit (send to network node)
+        const txId = await aliceProviders.midnightProvider.submitTx(balancedTx);
+        logger.info(`Submitted tx id: ${txId}`);
+
+        // Step 5: Watch for finalized txn
+        const finalizedTxData = await aliceProviders.publicDataProvider.watchForTxData(txId);
+        logger.info(`Finalized! Status: ${finalizedTxData.status}, block: ${finalizedTxData.blockHeight}`);
+```
+
+1. **Run locally.** `createUnprovenDeployTx` runs the constructor on Alice's machine and builds
+   an unproven transaction. The contract address is already known at this point.
+2. **Prove.** The proof provider has the proof server generate a zero-knowledge proof for each
+   circuit call in the transaction, and returns the proven transaction.
+3. **Balance.** The wallet adds the inputs that pay for the transaction: DUST for the fee, and
+   any tokens the transaction needs.
+4. **Submit.** The wallet sends the transaction to the node.
+5. **Watch.** The public data provider waits until the indexer reports the transaction in a
+   block, with its status and block height.
+
+Each provider handles one step. That's why a test builds a full provider set for each person, and
+why a DApp can swap one provider out, for example to prove in a browser wallet instead of on a
+local proof server.
+
+`deployContract` also saves the deployer's private state. Here the test does it by hand:
+
+```typescript title="src/test/party.test.ts"
+        // Store private state (normally done inside deployContract)
+        aliceProviders.privateStateProvider.setContractAddress(pendingAddress);
+        await aliceProviders.privateStateProvider.set(ALICE_PRIVATE_ID, alicePrivateState);
+```
+
+## Test yourself
+
+The suite covers the main path and the organizer checks. Add a test for each of these, using the
+patterns above:
+
+- Bob tries to RSVP a second time with the same address and secret. Which assert stops him?
+- Charlie, who RSVP'd, tries to check in with Bob's address and his own secret.
+- A guest tries to check in before the party has started.
+- Bob, a guest, tries to call `claimFees`.
+
+For each one, assert on the ledger afterwards too, to show the rejected call changed nothing.
+
+The full test file is
+[`src/test/party.test.ts`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/private-party/src/test/party.test.ts).
+
+## Conclusion
+
+This tutorial put the privacy boundary in one place:
+
+- **Commitments** keep the RSVP list private. A salted `persistentCommit` hides each guest's
+  address, and only the guest's secret reopens it.
+- **A DApp-specific public key** identifies the organizer without a wallet address, and gates
+  the organizer-only circuits.
+- **Unshielded NIGHT** is public, so paying the entry fee is where each guest becomes public, and
+  claiming the fees is where the organizer does.
+- **A state machine** decides which circuits can run at each stage.
+
+Paying in unshielded NIGHT is what exposes the guests. As an exercise, think about how the
+contract would change if the entry fee were paid in a shielded token instead. The private tip
+jar tutorial, later in the learning path, introduces shielded tokens.
+
+The full example, including a browser UI for the party, is
+[`examples/private-party`](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/private-party)
+in midnight-examples.
+
+## Next
+
+The next step in the learning path is the [Battleship](/tutorials/battleship) tutorial:
+defensive programming with a state machine, role checks, and on-chain verification of off-chain
+data that catches cheating.
