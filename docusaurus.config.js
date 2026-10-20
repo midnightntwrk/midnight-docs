@@ -207,25 +207,23 @@ const config = {
             from: '/category/dapps',
             to: '/examples/dapps',
           },
+          // Retired Counter and Bulletin board tutorials and DApp examples
           {
-            from: ['/category/counter', '/tutorials/counter'],
-            to: '/tutorials/bboard',
-          },
-          {
-            from: '/tutorials/counter/smart-contract',
-            to: '/tutorials/bboard/smart-contract',
-          },
-          {
-            from: '/tutorials/counter/counter-cli',
-            to: '/tutorials/bboard/bboard-cli',
-          },
-          {
-            from: '/examples/dapps/counter',
-            to: '/examples/dapps/bboard',
-          },
-          {
-            from: '/category/bulletin-board',
-            to: '/tutorials/bboard',
+            from: [
+              '/category/counter',
+              '/tutorials/counter',
+              '/tutorials/counter/smart-contract',
+              '/tutorials/counter/counter-cli',
+              '/examples/dapps/counter',
+              '/category/bulletin-board',
+              '/tutorials/bboard',
+              '/tutorials/bboard/smart-contract',
+              '/tutorials/bboard/bboard-cli',
+              '/tutorials/bboard/bboard-api-implementation',
+              '/tutorials/bboard/bboard-cli-implementation',
+              '/examples/dapps/bboard',
+            ],
+            to: '/tutorials',
           },
           {
             from: '/category/battleship',
