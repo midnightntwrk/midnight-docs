@@ -1,0 +1,514 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "ZK Loan tests"
+title: "ZK Loan tests"
+description: "Run the ZK loan DApp on a local devnet with MidnightJS, and check that tampered credit data, blacklisted borrowers, and an ex-admin are rejected."
+sidebar_position: 30
+toc_max_heading_level: 3
+---
+
+# ZK Loan tests
+
+The [contract](/tutorials/zk-loan/smart-contract) and the
+[attestation API](/tutorials/zk-loan/attestation-api) only prove their worth together, on a real
+chain, with real proofs. This part walks through `src/test/zk-loan.test.ts`. It deploys the contract
+to a local devnet, registers the attestation API's key, takes out loans for two borrowers, and
+tries the attacks the contract defends against: tampered credit data, a non-admin acting as admin,
+a blacklisted borrower, and an admin who has handed over the role.
+
+## Prerequisites
+
+- The [ZK Loan contract](/tutorials/zk-loan/smart-contract) and
+  [Attestation API](/tutorials/zk-loan/attestation-api) parts of this tutorial.
+- Docker, running, for the local devnet.
+
+## Run the suite
+
+From `examples/zk-loan`, start the local network, wait until the test wallet has DUST to pay fees
+with, and run the tests:
+
+```bash
+yarn env:up
+yarn wait:dust
+yarn test:local
+```
+
+`yarn env:up` starts a Midnight node, an indexer, and a proof server from `compose.yml`. Leave them
+running while you work through this page. You don't start the attestation API yourself: the suite
+starts its own copy in-process. Every successful call generates a real proof, so expect the suite
+to take several minutes.
+
+When it finishes, all 20 tests pass: the 10 on-chain tests, including the ones that expect a
+rejection, and the attestation API's 10 unit tests:
+
+```
+ ✓ src/test/attestation-api/server.test.ts (4 tests) 57ms
+ ✓ src/test/attestation-api/signing.test.ts (6 tests) 71ms
+ ✓ src/test/zk-loan.test.ts (10 tests) 221489ms
+     ✓ deploys the contract with the deployer as admin  16742ms
+     ✓ lets the admin register the attestation API's public key  17248ms
+     ✓ approves a Tier 1 loan within the limit  18459ms
+     ✓ proposes a capped amount when the request exceeds the tier, and the borrower accepts  35989ms
+     ✓ records a Tier 2 loan for a second borrower under a separate identity  35820ms
+     ✓ blocks a blacklisted borrower until the admin removes them  35997ms
+     ✓ migrates all loans to the identity derived from a new PIN  24001ms
+     ✓ rotates the admin role to a new admin public key  35993ms
+
+ Test Files  3 passed (3)
+      Tests  20 passed (20)
+```
+
+Vitest lists only tests that take longer than 300 ms, so the two tests that expect nothing but a
+rejection, a non-admin registering a provider and tampered credit data, pass without a line of their
+own. The timings tell you something: each successful call takes about 17 seconds, most of it
+generating a proof, so the tests with two successful calls take about 36. Exact times vary from
+machine to machine. A rejected call fails in well under a second. A failing `assert` stops the
+circuit on the caller's own machine, so no proof is generated and nothing is submitted.
+
+Tear the network down when you're done:
+
+```bash
+yarn env:down
+```
+
+## The test harness
+
+Everything above the line `// Everything above is generated boilerplate. Your tests begin here.`
+in the test file is the test harness. Most of it is the same in every example in
+midnight-examples:
+
+- **`src/config.ts`** holds the endpoints for each network. `MIDNIGHT_NETWORK` picks one:
+  `yarn test:local` sets it to `local`, and `yarn test:preview` and `yarn test:preprod` run the
+  same suite against the public test networks.
+- **`resolveWallet(network)`**, from the shared `@midnight-ntwrk/example-fast-sync` package,
+  returns the wallet secret. On `local` it is the devnet's pre-funded wallet, so there is nothing to
+  set up. On a remote network it comes from a repo-root `.env.<network>` file.
+- **`src/wallet.ts`** builds, starts, and syncs the wallet. **`src/providers.ts`** bundles the
+  MidnightJS providers a party needs: public data from the indexer, private state, ZK artifacts
+  and proving, and the wallet itself.
+
+### One wallet, two identities
+
+Unlike Battleship, this suite has one wallet. It only pays fees. The two parties, Alice and Bob,
+are two private states, each with its own 32-byte secret:
+
+```typescript title="src/test/zk-loan.test.ts"
+// Both parties share ONE wallet (it only pays fees). Their contract identities
+// live in separate private states, each holding its own 32-byte userSecretKey —
+// which is the point: in this contract identity comes from the witness secret,
+// not from the wallet that submits the transaction.
+const ALICE_STATE_ID = 'AliceZkLoanState'; // deployer => admin, and a borrower
+const BOB_STATE_ID = 'BobZkLoanState'; // a second borrower, not admin
+
+const PROVIDER_ID = 1n; // the id the attestation API is started with
+const ALICE_PIN = 1234n;
+const ALICE_NEW_PIN = 5678n;
+const BOB_PIN = 4321n;
+```
+
+That is the contract's identity model at work. A party is whoever's secret the witness presents,
+not whichever wallet submits the transaction.
+
+### The attestation provider
+
+`beforeAll` builds and syncs the wallet and the providers, then starts the real attestation API
+from `attestation-api/server.ts` on a free port, with a fresh key, as `yarn attestation:start` does
+without `PROVIDER_SECRET_KEY`:
+
+```typescript title="src/test/zk-loan.test.ts"
+    // Fresh ephemeral provider key per run, like `yarn attestation:start`
+    // without PROVIDER_SECRET_KEY.
+    attestationServer = createServer(generateKeyPair().sk, Number(PROVIDER_ID));
+    await new Promise<void>((resolve) => attestationServer.listen(0, '127.0.0.1', resolve));
+    const addr = attestationServer.address();
+    attestationUrl = `http://127.0.0.1:${typeof addr === 'string' ? addr : addr.port}`;
+    logger.info(`Attestation API at ${attestationUrl}`);
+```
+
+The two secrets are random per run:
+
+```typescript title="src/test/zk-loan.test.ts"
+  const aliceSecret = new Uint8Array(randomBytes(32));
+  const bobSecret = new Uint8Array(randomBytes(32));
+
+  // Off-chain mirror of `deriveUserPublicKey` — the same pure circuit, so the
+  // bytes match what the contract computes in-circuit.
+  const userPk = (secret: Uint8Array, pin: bigint): Uint8Array =>
+    pureCircuits.deriveUserPublicKey(secret, pin);
+```
+
+`userPk` calls the contract's own pure circuit, so the test derives exactly the key the contract
+derives in-circuit, and can look loans up by it.
+
+### Helpers
+
+`attestedState` is the borrower's half of the [attestation flow](/tutorials/zk-loan/attestation-api#the-attestation-flow).
+It hashes the borrower's derived key, asks the API to sign the profile against that hash, and
+builds the private state the witnesses present:
+
+```typescript title="src/test/zk-loan.test.ts"
+  async function attestedState(
+    secret: Uint8Array,
+    pin: bigint,
+    creditScore: number,
+    monthlyIncome: number,
+    monthsAsCustomer: number,
+  ): Promise<ZkLoanPrivateState> {
+    const userPubKeyHash = transientHash(bytes32, userPk(secret, pin));
+    const res = await fetch(`${attestationUrl}/attest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        creditScore,
+        monthlyIncome,
+        monthsAsCustomer,
+        userPubKeyHash: userPubKeyHash.toString(),
+      }),
+    });
+    expect(res.status).toBe(200);
+    const { signature } = (await res.json()) as AttestationResponse;
+    return {
+      creditScore: BigInt(creditScore),
+      monthlyIncome: BigInt(monthlyIncome),
+      monthsAsCustomer: BigInt(monthsAsCustomer),
+      // JSON carries bigints as decimal strings.
+      attestationSignature: {
+        announcement: { x: BigInt(signature.announcement.x), y: BigInt(signature.announcement.y) },
+        response: BigInt(signature.response),
+      },
+      attestationProviderId: PROVIDER_ID,
+      userSecretKey: secret,
+    };
+  }
+```
+
+Only the hash leaves the test. The API never sees the secret or the PIN.
+
+Two more helpers keep each step short. `setPrivateState` stores a party's private state for the
+deployed contract, and `call` wraps `submitCallTx`, the MidnightJS function that calls a circuit on
+a deployed contract:
+
+```typescript title="src/test/zk-loan.test.ts"
+  async function setPrivateState(id: string, state: ZkLoanPrivateState): Promise<void> {
+    providers.privateStateProvider.setContractAddress(contractAddress);
+    await providers.privateStateProvider.set(id, state);
+  }
+
+  // Thin wrapper over submitCallTx so each step reads as the circuit call it is.
+  async function call<K extends ZkLoanCircuitId>(
+    privateStateId: string,
+    circuitId: K,
+    ...args: CircuitArgs<K>
+  ) {
+    return (submitCallTx<Contract, K>)(providers, {
+      compiledContract: CompiledZkLoanContract,
+      contractAddress,
+      privateStateId,
+      circuitId,
+      args,
+    } as any);
+  }
+```
+
+A helper also reads the contract's public ledger, and the tests use it after every call:
+
+```typescript title="src/test/zk-loan.test.ts"
+  async function queryLedger() {
+    const state = await providers.publicDataProvider.queryContractState(contractAddress);
+    expect(state).not.toBeNull();
+    return ledger(state!.data);
+  }
+```
+
+## Setting up the contract
+
+### Alice deploys
+
+Alice deploys with a private state that holds only her secret. That is all the constructor needs:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('deploys the contract with the deployer as admin', async () => {
+    const deployed: DeployedContract<Contract> = await (deployContract<Contract>)(providers, {
+      compiledContract: CompiledZkLoanContract,
+      privateStateId: ALICE_STATE_ID,
+      initialPrivateState: createZkLoanPrivateState(aliceSecret),
+    });
+
+    contractAddress = deployed.deployTxData.public.contractAddress;
+    logger.info(`Contract deployed at: ${contractAddress}`);
+    expect(contractAddress).toBeDefined();
+    expect(contractAddress.length).toBeGreaterThan(0);
+
+    const state = await queryLedger();
+    // Only the derived admin PUBLIC key is on-chain — never the secret.
+    expect(state.contractAdmin).toEqual(pureCircuits.deriveAdminPublicKey(aliceSecret));
+    expect(state.loans.isEmpty()).toBe(true);
+    expect(state.providers.isEmpty()).toBe(true);
+  });
+```
+
+`deployContract` takes the providers, the compiled contract from `contract/index.ts`, and the
+private state ID and initial private state. It stores the private state under `ALICE_STATE_ID`.
+
+The checks show the constructor's effect: `contractAdmin` holds the hash of Alice's secret,
+computed off-chain here with the same pure circuit, and the secret itself is nowhere on the ledger.
+
+### Registering the provider
+
+Alice reads the API's key from `/provider-info` and registers it:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it("lets the admin register the attestation API's public key", async () => {
+    const res = await fetch(`${attestationUrl}/provider-info`);
+    expect(res.status).toBe(200);
+    const info = (await res.json()) as ProviderInfoResponse;
+    expect(BigInt(info.providerId)).toEqual(PROVIDER_ID);
+    const providerPk = { x: BigInt(info.publicKey.x), y: BigInt(info.publicKey.y) };
+
+    await call(ALICE_STATE_ID, 'registerProvider', PROVIDER_ID, providerPk);
+
+    const state = await queryLedger();
+    expect(state.providers.member(PROVIDER_ID)).toBe(true);
+    const pk = state.providers.lookup(PROVIDER_ID);
+    expect(pk.x).toEqual(providerPk.x);
+    expect(pk.y).toEqual(providerPk.y);
+  });
+```
+
+### A non-admin tries to register a provider
+
+Bob gets a private state with his own secret, and tries to register a provider of his own. The call
+is wrapped in `expect(...).rejects.toThrow()`, which passes only if the call fails:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('rejects provider registration by a non-admin', async () => {
+    await setPrivateState(BOB_STATE_ID, createZkLoanPrivateState(bobSecret));
+    // Fails while building the proof: Bob's secret does not hash to contractAdmin.
+    await expect(
+      call(BOB_STATE_ID, 'registerProvider', 2n, generateKeyPair().pk),
+    ).rejects.toThrow();
+    expect((await queryLedger()).providers.member(2n)).toBe(false);
+  });
+```
+
+Bob's secret doesn't hash to `contractAdmin`, so the guard fails while the proof is built, on Bob's
+own machine. Nothing is submitted, and the ledger has no provider 2.
+
+Asserting on the ledger after a rejected call matters. It shows that the attack had no effect, not
+merely that it threw.
+
+## Borrowing
+
+### A Tier 1 loan
+
+Alice gets her profile signed (a score of 720, an income of 2,500, and 24 months as a customer)
+and asks for 5,000:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('approves a Tier 1 loan within the limit', async () => {
+    // Tier 1: score >= 700, income >= 2000, tenure >= 24 => up to 10,000.
+    await setPrivateState(ALICE_STATE_ID, await attestedState(aliceSecret, ALICE_PIN, 720, 2500, 24));
+    await call(ALICE_STATE_ID, 'requestLoan', 5000n, ALICE_PIN);
+
+    const state = await queryLedger();
+    const aliceKey = userPk(aliceSecret, ALICE_PIN);
+    expect(state.loans.member(aliceKey)).toBe(true);
+    const loan = state.loans.lookup(aliceKey).lookup(1n);
+    expect(loan.status).toEqual(LoanStatus.Approved);
+    expect(loan.authorizedAmount).toEqual(5000n);
+  });
+```
+
+The profile meets Tier 1, which allows up to 10,000, so the loan is `Approved` for the full 5,000.
+It is loan 1 under Alice's derived key. The ledger holds the status and the amount, and nothing
+about the profile.
+
+### A capped proposal
+
+Alice asks for 15,000, more than Tier 1 allows:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('proposes a capped amount when the request exceeds the tier, and the borrower accepts', async () => {
+    await call(ALICE_STATE_ID, 'requestLoan', 15000n, ALICE_PIN);
+
+    const aliceKey = userPk(aliceSecret, ALICE_PIN);
+    let loan = (await queryLedger()).loans.lookup(aliceKey).lookup(2n);
+    expect(loan.status).toEqual(LoanStatus.Proposed);
+    expect(loan.authorizedAmount).toEqual(10000n);
+
+    await call(ALICE_STATE_ID, 'respondToLoan', 2n, ALICE_PIN, true);
+
+    loan = (await queryLedger()).loans.lookup(aliceKey).lookup(2n);
+    expect(loan.status).toEqual(LoanStatus.Approved);
+    expect(loan.authorizedAmount).toEqual(10000n);
+  });
+```
+
+The contract records loan 2 as `Proposed` at the tier's maximum, 10,000. Alice accepts with
+`respondToLoan`, and the loan becomes `Approved`. Her private state still holds the same signed
+profile, so this call needs no new attestation.
+
+### Tampered credit data
+
+Bob gets a profile signed honestly, a score of 650, then inflates the score to 800 in his private
+state before he applies:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('rejects a request whose credit data was tampered with after signing', async () => {
+    const signed = await attestedState(bobSecret, BOB_PIN, 650, 1600, 10);
+    // Bob inflates his score; the provider's signature no longer matches.
+    await setPrivateState(BOB_STATE_ID, { ...signed, creditScore: 800n });
+    await expect(call(BOB_STATE_ID, 'requestLoan', 5000n, BOB_PIN)).rejects.toThrow();
+    expect((await queryLedger()).loans.member(userPk(bobSecret, BOB_PIN))).toBe(false);
+  });
+```
+
+With a score of 800, Bob would qualify for more. But the signature covers the score the provider
+signed, 650. Inside `requestLoan`, `evaluateApplicant` rebuilds the message from the witness's
+profile, and `schnorrVerify` fails on it. No proof, no transaction, and no loans under Bob's key.
+
+### A Tier 2 loan, declined
+
+Bob applies again with his honest, signed profile, for 9,000:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('records a Tier 2 loan for a second borrower under a separate identity', async () => {
+    // Tier 2: score >= 600, income >= 1500 => up to 7,000.
+    await setPrivateState(BOB_STATE_ID, await attestedState(bobSecret, BOB_PIN, 650, 1600, 10));
+    await call(BOB_STATE_ID, 'requestLoan', 9000n, BOB_PIN);
+
+    const state = await queryLedger();
+    const loan = state.loans.lookup(userPk(bobSecret, BOB_PIN)).lookup(1n);
+    expect(loan.status).toEqual(LoanStatus.Proposed);
+    expect(loan.authorizedAmount).toEqual(7000n);
+    // Bob declines the lower offer.
+    await call(BOB_STATE_ID, 'respondToLoan', 1n, BOB_PIN, false);
+    const declined = (await queryLedger()).loans.lookup(userPk(bobSecret, BOB_PIN)).lookup(1n);
+    expect(declined.status).toEqual(LoanStatus.NotAccepted);
+    expect(declined.authorizedAmount).toEqual(0n);
+  });
+```
+
+A score of 650 and an income of 1,600 meet Tier 2, which allows up to 7,000. So the loan is
+`Proposed` at 7,000. Bob declines, and the loan becomes `NotAccepted` with an amount of 0.
+
+Bob's loan is loan 1 under *his* key, in the same contract as Alice's two. Each borrower's loans
+live under their own derived key.
+
+## Admin actions
+
+### The blacklist
+
+Alice blacklists Bob by his derived key, and Bob's next request is rejected. Then she lifts the
+ban:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('blocks a blacklisted borrower until the admin removes them', async () => {
+    const bobKey = userPk(bobSecret, BOB_PIN);
+    await call(ALICE_STATE_ID, 'blacklistUser', bobKey);
+    expect((await queryLedger()).blacklist.member(bobKey)).toBe(true);
+
+    await expect(call(BOB_STATE_ID, 'requestLoan', 1000n, BOB_PIN)).rejects.toThrow();
+
+    await call(ALICE_STATE_ID, 'removeBlacklistUser', bobKey);
+    expect((await queryLedger()).blacklist.member(bobKey)).toBe(false);
+  });
+```
+
+The admin can blacklist Bob because his key is on the ledger: it is the key of his loans.
+
+### Changing a PIN
+
+Alice moves to a new PIN:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('migrates all loans to the identity derived from a new PIN', async () => {
+    const oldKey = userPk(aliceSecret, ALICE_PIN);
+    const newKey = userPk(aliceSecret, ALICE_NEW_PIN);
+
+    // Alice has 2 loans, below the batch size of 5, so one call finishes.
+    await call(ALICE_STATE_ID, 'changePin', ALICE_PIN, ALICE_NEW_PIN);
+
+    const state = await queryLedger();
+    expect(state.loans.member(oldKey)).toBe(false);
+    expect(state.onGoingPinMigration.member(oldKey)).toBe(false);
+    const migrated = state.loans.lookup(newKey);
+    expect(migrated.size()).toEqual(2n);
+    expect(migrated.lookup(1n).authorizedAmount).toEqual(5000n);
+    expect(migrated.lookup(2n).authorizedAmount).toEqual(10000n);
+  });
+```
+
+Alice has two loans, fewer than the batch size of five, so one `changePin` call moves both and
+clears the migration cursor. Her old key is gone from `loans`, and her loans are now under the new
+key. The `changePin` transaction names both keys, though, so anyone watching the chain can link
+them.
+
+### Handing over the admin role
+
+Alice hands the admin role to Bob. Bob derives his admin key off-chain with the pure circuit, and
+only that public key reaches the contract:
+
+```typescript title="src/test/zk-loan.test.ts"
+  it('rotates the admin role to a new admin public key', async () => {
+    const bobAdminPk = pureCircuits.deriveAdminPublicKey(bobSecret);
+    await call(ALICE_STATE_ID, 'rotateAdmin', bobAdminPk);
+    expect((await queryLedger()).contractAdmin).toEqual(bobAdminPk);
+
+    // The old admin is now locked out; the new one can act.
+    await expect(call(ALICE_STATE_ID, 'removeProvider', PROVIDER_ID)).rejects.toThrow();
+    await call(BOB_STATE_ID, 'removeProvider', PROVIDER_ID);
+    expect((await queryLedger()).providers.member(PROVIDER_ID)).toBe(false);
+  });
+```
+
+Alice is locked out at once: her secret no longer hashes to `contractAdmin`, so her
+`removeProvider` call is rejected. Bob's succeeds.
+
+## Test yourself
+
+The suite checks some of the contract's defenses, not all of them. Add a test for each of these,
+using the patterns above:
+
+- Bob reuses Alice's signed profile: copy her `attestationSignature` into his private state and
+  request a loan. Which check stops him?
+- Alice responds to a loan that isn't `Proposed`, such as her loan 1.
+- A borrower with a score of 550 applies. What does the ledger record?
+- Alice calls `requestLoan` with an amount of 0.
+- After Bob is blacklisted, he tries `changePin` to escape to a new identity.
+
+For each rejection, assert on the ledger afterwards too, to show the call changed nothing.
+
+The full test file is
+[`src/test/zk-loan.test.ts`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/zk-loan/src/test/zk-loan.test.ts).
+The contract's 62 simulator tests, in
+[`src/test/zk-loan.sim.test.ts`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/zk-loan/src/test/zk-loan.sim.test.ts),
+cover many more cases, and run in seconds with `yarn test:sim`.
+
+## Conclusion
+
+This tutorial covered private computation over data you can't trust by itself:
+
+- **Attestations verified in the circuit.** A trusted provider signs the private data, and a
+  Compact module verifies the Schnorr signature inside the proof, so tampered data can't pass.
+- **One hash on both sides.** The off-chain signer calls the contract's own pure circuit for the
+  challenge, so the signer and the circuit can't disagree.
+- **Constrained witnesses.** The witness-assisted reduction is checked over the integers, so a
+  prover can't pick a convenient answer.
+- **Witness-derived identity.** Admin and borrower identities are domain-separated hashes of a
+  private secret, never `ownPublicKey()`.
+- **Fixed-size batching** to work over a variable number of records, with a cursor on the ledger.
+- **Only the outcome on chain:** the status and amount of each loan, under a derived key rather
+  than a wallet address. The provider that signed the attestation can still match that key to the
+  borrower.
+
+The full example is
+[`examples/zk-loan`](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/zk-loan)
+in midnight-examples. It also has a browser UI in `ui/`, which defaults to Preprod and the Lace
+wallet. See its README.
+
+## Next
+
+The last step in the learning path is the [Leaderboard](/tutorials/leaderboard) tutorial:
+a full-stack DApp with a browser UI, Lace wallet integration, and a deployment to Vercel.
