@@ -8,6 +8,9 @@
 1–3 sentences summarizing the most important changes in this release
 Example: "This release updates the Compact compiler to 0.27, introduces ledger v6 on Preview, and adds new ZK proof APIs. Breaking changes affect all Preview developers."
 
+Set the page's frontmatter `description` to name the version and its one or two headline changes, in 160 characters or fewer. Don't copy it from the previous release.
+Example: "Release notes for Midnight.js 3.1.0, which introduces ledger v6 on Preview and adds new ZK proof APIs."
+
 ## Audience
 
 These release notes are intended for:
