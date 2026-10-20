@@ -43,6 +43,7 @@ These come from other repositories, and the next sync overwrites any local edit.
 | `docs/tutorials/leaderboard/`, except `index.mdx` and `_category_.yaml` | `tutorials/` in [midnightntwrk/midnight-leaderboard](https://github.com/midnightntwrk/midnight-leaderboard) |
 | The folders in `api-reference/`, except `overview/`, `error-reference/`, `wallet-sdk/`, and `dapp-connector/README.md` | The component repositories, through the Copy API docs workflow (`.github/workflows/apis.yml`) and the Compact sync. The indexer pages under `midnight-indexer/operations/` and `types/` come from `static/midnight-indexer/schema-v4.graphql` through `yarn docusaurus graphql-to-doc`, and the workflow copies that schema in from the indexer repository. |
 | The `COMPACT_SYNC` blocks in `src/css/custom.css` | LFDT-Minokawa/compact |
+| `docs/tutorials/private-party/`, except `_category_.yaml` | `examples/private-party/tutorials/` in [midnightntwrk/midnight-examples](https://github.com/midnightntwrk/midnight-examples), through its sync-tutorials workflow (PRs on the `sync/examples-tutorials` branch) |
 
 Don't run `.license_headers.sh`. It rewrites every file that has no license header.
 
