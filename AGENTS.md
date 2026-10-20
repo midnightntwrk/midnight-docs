@@ -39,11 +39,10 @@ These come from other repositories, and the next sync overwrites any local edit.
 | Path | Source |
 | --- | --- |
 | `docs/compact/` | The Compact team owns this folder (see `CODEOWNERS`), and most of it comes from `doc/` in [LFDT-Minokawa/compact](https://github.com/LFDT-Minokawa/compact). Don't change anything in it. If a link on one of its pages breaks, add a redirect for the old path instead. |
-| `docs/tutorials/battleship/` and `docs/tutorials/zk-loan/`, except `_category_.yaml` | `examples/<name>/tutorials/` in [midnightntwrk/midnight-examples](https://github.com/midnightntwrk/midnight-examples), through its sync-tutorials workflow (PRs on the `sync/examples-tutorials` branch) |
+| `docs/tutorials/<name>/` for each example that has a `tutorials/index.mdx` (now `battleship`, `private-party`, `private-tip-jar`, `shielded-chips`, and `zk-loan`), except `_category_.yaml` | `examples/<name>/tutorials/` in [midnightntwrk/midnight-examples](https://github.com/midnightntwrk/midnight-examples), through its sync-tutorials workflow (PRs on the `sync/examples-tutorials` branch) |
 | `docs/tutorials/leaderboard/`, except `index.mdx` and `_category_.yaml` | `tutorials/` in [midnightntwrk/midnight-leaderboard](https://github.com/midnightntwrk/midnight-leaderboard) |
 | The folders in `api-reference/`, except `overview/`, `error-reference/`, `wallet-sdk/`, and `dapp-connector/README.md` | The component repositories, through the Copy API docs workflow (`.github/workflows/apis.yml`) and the Compact sync. The indexer pages under `midnight-indexer/operations/` and `types/` come from `static/midnight-indexer/schema-v4.graphql` through `yarn docusaurus graphql-to-doc`, and the workflow copies that schema in from the indexer repository. |
 | The `COMPACT_SYNC` blocks in `src/css/custom.css` | LFDT-Minokawa/compact |
-| `docs/tutorials/private-party/`, except `_category_.yaml` | `examples/private-party/tutorials/` in [midnightntwrk/midnight-examples](https://github.com/midnightntwrk/midnight-examples), through its sync-tutorials workflow (PRs on the `sync/examples-tutorials` branch) |
 
 Don't run `.license_headers.sh`. It rewrites every file that has no license header.
 
