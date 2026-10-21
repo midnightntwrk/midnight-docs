@@ -42,7 +42,7 @@ Splitting a DApp across chains usually means a bridge: a message-passing contrac
 
 EffectStream targets the weaker requirement. When you need a consistent view of two chains rather than atomic execution across them, neither chain has to know the other exists. Both are ingested independently, and a state machine you write merges them into one database.
 
-The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The rollup joins on that key.
+The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight records a property for a token. It takes the contract address, token ID, property name, and value as arguments, and writes each one to the public ledger with `disclose()`. The template's circuit keeps nothing private. In a real DApp, the circuit computes the disclosed value from private inputs. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The database stores and links rows by that key. The template's merged API query joins on `token_id` alone, though, so its results mix up tokens from two contracts that share an ID.
 
 One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so values a circuit discloses and writes to the ledger are what your state machine can see. Designing the circuit designs the sync surface.
 
@@ -70,7 +70,7 @@ Start the whole stack and mint a token.
    bun install
    ```
 
-3. Start the stack. This compiles the Compact circuit, compiles and deploys the Solidity contracts, deploys the Midnight contract, then starts the database, sync node, batcher, and frontend:
+3. Start the stack. The `dev` script launches the database and the Midnight node, indexer, and proof server, and compiles the Compact circuit and the Solidity contracts. It then starts the local EVM chains, deploys both contracts, and starts the sync node, batcher, and frontend:
 
    ```bash
    bun run dev
@@ -148,7 +148,7 @@ Four files carry a chain event from the wire into your API. Read them in order t
 )
 ```
 
-`contract: { ledger: CounterContract.ledger }` hands the primitive the reader that `compact compile` generates. That reader decodes anything Compact can express, which is the difference from the declarative schema in [Index contract state with EffectStream](./index-state-with-effectstream#what-the-ledger-schema-can-read).
+`contract: { ledger: CounterContract.ledger }` hands the primitive the reader that `compact compile` generates. That reader decodes every exported ledger field, including struct fields, lists, and Merkle trees, which is the difference from the declarative schema in [Index contract state with EffectStream](./index-state-with-effectstream#what-the-ledger-schema-can-read).
 
 `packages/node/grammar.ts` maps each prefix to a parser. Both prefixes use builtin grammars, so the template writes none of its own.
 
