@@ -21,7 +21,7 @@ The examples use Midnight.js 4.1.1 and DApp Connector API 4.0.1 with a small cou
 These apply to every procedure in this guide:
 
 - Node.js 22 or later.
-- The Compact toolchain 0.31.1, the version the [support matrix](../relnotes/support-matrix) pairs with Midnight.js 4.1.1. Install it with `compact update 0.31.1`. Newer toolchains compile for ledger 9, which Midnight.js 4.1.1 does not support.
+- The Compact toolchain 0.31.1, the version the [support matrix](../relnotes/support-matrix) pairs with Midnight.js 4.1.1. Install it with `compact update 0.31.1 --no-set-default`, which keeps your current default toolchain. Newer toolchains compile for ledger 9, which Midnight.js 4.1.1 does not support.
 - A browser wallet that implements DApp Connector API 4.x, such as [Lace](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk), set to the network you target.
 - NIGHT in that wallet, registered for DUST generation, because every deploy and call pays a fee in DUST. [Funding a wallet](./acquire-tokens) covers the faucet and the registration.
 - On Preprod, a Blockfrost project ID for the **Midnight Preprod** network, because the page reads public state from the Blockfrost indexer. See [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
@@ -65,14 +65,14 @@ Create a Vite project, add the Midnight.js packages, compile the contract, and p
    npm install
    ```
 
-2. Install the DApp Connector types, the Midnight.js packages, and `events`:
+2. Install the DApp Connector types, the Midnight.js packages, and `events`, pinned to the versions this guide uses:
 
    ```bash
-   npm install @midnight-ntwrk/dapp-connector-api @midnight-ntwrk/midnight-js-contracts \
-     @midnight-ntwrk/midnight-js-dapp-connector-proof-provider @midnight-ntwrk/midnight-js-fetch-zk-config-provider \
-     @midnight-ntwrk/midnight-js-indexer-public-data-provider @midnight-ntwrk/midnight-js-level-private-state-provider \
-     @midnight-ntwrk/midnight-js-network-id @midnight-ntwrk/midnight-js-protocol \
-     @midnight-ntwrk/midnight-js-types @midnight-ntwrk/midnight-js-utils events
+   npm install @midnight-ntwrk/dapp-connector-api@4.0.1 @midnight-ntwrk/midnight-js-contracts@4.1.1 \
+     @midnight-ntwrk/midnight-js-dapp-connector-proof-provider@4.1.1 @midnight-ntwrk/midnight-js-fetch-zk-config-provider@4.1.1 \
+     @midnight-ntwrk/midnight-js-indexer-public-data-provider@4.1.1 @midnight-ntwrk/midnight-js-level-private-state-provider@4.1.1 \
+     @midnight-ntwrk/midnight-js-network-id@4.1.1 @midnight-ntwrk/midnight-js-protocol@4.1.1 \
+     @midnight-ntwrk/midnight-js-types@4.1.1 @midnight-ntwrk/midnight-js-utils@4.1.1 events
    ```
 
 3. Create `vite.config.ts` in the project root. Without the `exclude` list, the development server fails with `Cannot access '__wbindgen_start' before initialization`:
@@ -188,12 +188,6 @@ Find the wallet, connect to it with the network ID you target, and give Midnight
    import type { ConnectedAPI, InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
    import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
-   declare global {
-     interface Window {
-       midnight?: Record<string, InitialAPI>;
-     }
-   }
-
    // Lowercase, exactly as the wallet and Midnight.js expect it.
    export const NETWORK_ID: string = import.meta.env.VITE_NETWORK_ID ?? 'preprod';
 
@@ -247,7 +241,7 @@ Find the wallet, connect to it with the network ID you target, and give Midnight
    });
    ```
 
-   This page takes the first wallet it finds. When more than one wallet is installed, the DApp Connector API specification expects you to let the user choose; [Create a React wallet connector](./react-wallet-connect#select-a-wallet) shows a picker.
+   This page takes the first wallet it finds. When more than one wallet is installed, the DApp Connector API specification requires you to let the user choose, and asks you to warn them when two wallets report the same or a similar `rdns`. [Create a React wallet connector](./react-wallet-connect#select-a-wallet) shows a picker.
 
 ### Verification
 
@@ -370,7 +364,7 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
 
    :::
 
-3. Name the indexer in a `.env.local` file in the project root. `buildProviders` reads these two values before it falls back to the indexer that `getConfiguration()` reports. Do not rely on the wallet's value. Lace 2.4.3 ships indexer addresses on `blockfrost.lw.iog.io` for Preprod, Preview, and Mainnet, and that proxy answers `410 Gone` for Midnight. On Preprod, use the Blockfrost endpoints with your project ID:
+3. Name the indexer in a `.env.local` file in the project root. `buildProviders` reads these two values before it falls back to the indexer that `getConfiguration()` reports. Lace 2.4.3's built-in defaults put the indexer on `blockfrost.lw.iog.io` for Preprod, Preview, and Mainnet, and that proxy now answers `410 Gone` for Midnight, so naming the indexer here keeps the page working whatever the wallet reports. On Preprod, use the Blockfrost endpoints with your project ID:
 
    ```text title=".env.local"
    VITE_INDEXER_URI=https://midnight-preprod.blockfrost.io/api/v0?project_id=<your-preprod-project-id>
@@ -428,6 +422,12 @@ connect failed: Password is shorter than 16 characters
 ## Deploying the contract
 
 Deploy the counter from the page and keep its address. `deployContract` builds the deployment transaction in the page and passes it to the wallet to balance and submit. It then waits for the indexer to report the transaction as final, and stores the initial private state and the contract's signing key in the browser.
+
+:::warning Keep the page open until the deploy finishes
+
+The page saves the contract's signing key and initial private state only after the transaction is final. If the user reloads or closes the page after approving, the contract can still land, but this browser never saves either one. Joining the contract later stores a new signing key, which cannot run maintenance on it. A circuit call works the same way: the page saves its new private state only when the call returns.
+
+:::
 
 ### Prerequisites
 
@@ -652,7 +652,7 @@ Failures you are likely to meet on this guide's path, and their fixes. The Lace 
 
 | Error | Cause | Fix |
 |---|---|---|
-| `language version 0.27.0 mismatch` or `language version 0.26.0 mismatch` from `compact compile` | The default Compact toolchain is 0.35.0 or 0.34.0, which compile for ledger 9 | Install toolchain 0.31.1 with `compact update 0.31.1`, and compile with `compact compile +0.31.1` |
+| `language version 0.27.0 mismatch` or `language version 0.26.0 mismatch` from `compact compile` | The default Compact toolchain is 0.35.0 or 0.34.0, which compile for ledger 9 | Install toolchain 0.31.1 with `compact update 0.31.1 --no-set-default`, and compile with `compact compile +0.31.1` |
 | `ReferenceError: Cannot access '__wbindgen_start' before initialization`, and a blank page on the development server | Vite pre-bundled the WebAssembly packages | Add the `optimizeDeps.exclude` list from [Setting up the project](#setting-up-the-project) |
 | `TypeError: Class extends value undefined is not a constructor or null`, with a console warning that `events` has been externalized | The private state store imports the Node.js `events` module, which browsers lack | Run `npm install events` |
 | `Network ID has not been configured. Call setNetworkId() before any wallet or contract operation.` | A deploy or call ran before `setNetworkId` | Call `setNetworkId` when you connect, with the same ID you pass to `connect` |
