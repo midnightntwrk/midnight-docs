@@ -223,7 +223,19 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
 
 6. In `packages/node/api.ts`, add `rarity: Type.String()` to `ResponseSchema`. The `GET /api/erc721` handler returns whatever `getEvmMidnight` selects, so the schema is the only change the route needs.
 
-7. Pass the new argument where the template calls the circuit, the `callTx.increment` call in `packages/frontend/client/src/increment.ts`. The end-to-end test in `packages/tests/stm/midnight-property.test.ts` makes the same call, so update it too if you run `bun run test`. Nothing in the template's build checks these calls against the circuit. A call you forget fails at runtime with `increment: expected 6 arguments (as invoked from Typescript), received 5`.
+7. Pass the new argument where the template calls the circuit, the `callTx.increment` call in `packages/frontend/client/src/increment.ts`. The frontend has no input for `rarity`, so pass a fixed value after the property value:
+
+   ```typescript
+   const finalizedTxData = await counterContract.callTx.increment(
+     toEncodedString(contractAddress, 64),
+     toEncodedString(tokenId, 64),
+     toEncodedString(propertyName, 32),
+     toEncodedString(propertyValue, 32),
+     toEncodedString("legendary", 32),        // added
+   );
+   ```
+
+   The end-to-end test in `packages/tests/stm/midnight-property.test.ts` makes the same call, so add a value there too if you run `bun run test`. Nothing in the template's build checks these calls against the circuit. A call you forget fails at runtime with `increment: expected 6 arguments (as invoked from Typescript), received 5`.
 
 8. Restart the stack, then mint a token and set a property from the frontend as before. A restart begins from an empty database, new local chains, and a new Midnight contract, so tokens from the earlier run are gone.
 
@@ -245,6 +257,19 @@ curl http://localhost:9999/api/erc721
 Press Ctrl+C in the terminal running `bun run dev`. The orchestrator stops every process it started and frees their ports, so nothing survives in the background.
 
 Two things survive on disk under `packages/contracts-midnight/`: the `midnight-level-db-deploy` directory, which holds private state, and `contract-round-value.undeployed.json`, which records the deployed address. The database and the local chains do not survive. The next `bun run dev` starts them empty and deploys a fresh Midnight contract at a new address, so tokens and properties from an earlier run are gone.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Template troubleshooting
+
+Failures you are likely to hit on this guide's path, and their fixes. Every quoted message comes from a real run.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The contract compile fails with `Couldn't find compiler for aarch64-darwin (0.33.0-rc.2)`, and `compact update 0.33.0-rc.2` fails with `Couldn't find version 0.33.0-rc.2` | You cloned the default branch, `v-next`. Its template compiles with a prerelease toolchain that `compact update` cannot install. See [effectstream#895](https://github.com/effectstream/effectstream/issues/895) | Clone the tested commit on `midnight-1`, as in [Run the template](#run-the-template) |
+| The frontend build stops with `JavaScript heap out of memory` | Node sizes its default heap from the machine's memory, and on a smaller machine that heap is too small for the build | Export `NODE_OPTIONS=--max-old-space-size=4096`, then run `bun run dev` again |
+| The frontend build warns `"WebSocket" is not exported by ".../isomorphic-ws/browser.js"` | The Midnight.js indexer provider imports a named `WebSocket` that the browser build of `isomorphic-ws` does not export. In the browser, the provider uses the browser's own `WebSocket` instead | None needed. **Connect Midnight** works with this warning |
+| The sync log shows `[STM:midnight] empty token_id, skipping` | The sync node read the freshly deployed contract, whose fields are all still empty | None needed. It appears before you set the first property |
+| A circuit call fails with `increment: expected 6 arguments (as invoked from Typescript), received 5` | A caller still passes the old arguments after you added `rarity` to the circuit | Add the new argument to every `callTx.increment` call, as in step 7 of [Add a field end to end](#add-a-field-end-to-end) |
 
 ## Additional resources
 
