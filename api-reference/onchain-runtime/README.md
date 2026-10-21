@@ -1,6 +1,6 @@
 # Onchain Runtime API
 
-**@midnight-ntwrk/onchain-runtime v3.1.1**
+**@midnight-ntwrk/onchain-runtime v3.1.2**
 
 ***
 
