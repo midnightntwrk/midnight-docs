@@ -46,6 +46,29 @@ export function getFeedbackConfig(
 let client: Promise<PostHog> | undefined;
 
 /**
+ * The only event properties that leave the browser. before_send drops
+ * everything else posthog-js adds, such as the full URL, referrer, campaign
+ * parameters, user agent, screen size and session IDs.
+ */
+const SENT_PROPERTIES = new Set([
+  "token",
+  "distinct_id",
+  "$lib",
+  "$lib_version",
+  "$process_person_profile",
+  "$insert_id",
+  "$time",
+  "$browser",
+  "$os",
+  "$device_type",
+  "feedback_id",
+  "page_path",
+  "page_title",
+  "helpful",
+  "comment"
+]);
+
+/**
  * posthog-js is only downloaded after a reader answers, and only feedback
  * events are sent. The named instance keeps this separate from any site-wide
  * PostHog setup. Nothing is stored in cookies or local storage.
@@ -67,7 +90,18 @@ function loadClient({ apiKey, apiHost }: FeedbackConfig): Promise<PostHog> {
           advanced_disable_flags: true,
           disable_external_dependency_loading: true,
           mask_personal_data_properties: true,
-          respect_dnt: true
+          respect_dnt: true,
+          save_referrer: false,
+          save_campaign_params: false,
+          before_send: (event) =>
+            event && {
+              ...event,
+              properties: Object.fromEntries(
+                Object.entries(event.properties).filter(([key]) =>
+                  SENT_PROPERTIES.has(key)
+                )
+              )
+            }
         },
         "docs_page_feedback"
       )
