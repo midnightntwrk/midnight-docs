@@ -74,16 +74,17 @@ export default function PageFeedback(): ReactNode {
   const [vote, setVote] = useState<Vote | null>(null);
   const [comment, setComment] = useState("");
   const [feedbackId] = useState(newFeedbackId);
+  const [announcement, setAnnouncement] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
   const messageRef = useRef<HTMLParagraphElement>(null);
+  const focusMessage = useRef(false);
   const questionId = useId();
   const commentId = useId();
   const hintId = useId();
   const config = getFeedbackConfig(siteConfig.customFields);
 
-  // The control that had focus goes away after each step, so focus moves to
-  // the message that replaces it, and screen readers read the message out.
   useEffect(() => {
-    if (status !== "asking") {
+    if (status !== "asking" && focusMessage.current) {
       messageRef.current?.focus();
     }
   }, [status]);
@@ -104,15 +105,27 @@ export default function PageFeedback(): ReactNode {
     page_title: metadata.title
   };
 
+  // Each step replaces the control the reader used. If focus was in the
+  // control, it moves to the new message, which screen readers read out.
+  // If the reader has moved on, or the click didn't focus the button (Safari
+  // and Firefox on macOS), focus and scroll stay put and the live region
+  // announces the message instead. Either way the message is in the page once.
+  const show = (next: Exclude<Status, "asking">) => {
+    focusMessage.current =
+      rootRef.current?.contains(document.activeElement) ?? false;
+    setAnnouncement(focusMessage.current ? "" : MESSAGES[next]);
+    setStatus(next);
+  };
+
   const answer = async (value: Vote) => {
     setVote(value);
-    setStatus("voted");
+    show("voted");
     const sent = await sendFeedback(config, "docs_page_feedback", {
       ...page,
       helpful: value
     });
     if (!sent) {
-      setStatus("failed");
+      show("failed");
     }
   };
 
@@ -120,23 +133,27 @@ export default function PageFeedback(): ReactNode {
     event.preventDefault();
     const text = comment.trim().slice(0, COMMENT_MAX_LENGTH);
     if (!text || !vote) {
-      setStatus("thanked");
+      show("thanked");
       return;
     }
-    setStatus("commented");
+    show("commented");
     const sent = await sendFeedback(config, "docs_page_feedback_comment", {
       ...page,
       helpful: vote,
       comment: text
     });
     if (!sent) {
-      setStatus("failed");
+      show("failed");
     }
   };
 
-  if (status === "asking") {
-    return (
-      <div className={styles.feedback}>
+  return (
+    <div ref={rootRef} className={styles.feedback}>
+      {/* Rendered from the start so its updates are announced. */}
+      <p role="status" aria-live="polite" className={styles.message}>
+        {announcement}
+      </p>
+      {status === "asking" && (
         <div role="group" aria-labelledby={questionId} className={styles.ask}>
           <p id={questionId} className={styles.question}>
             Was this page helpful?
@@ -158,16 +175,18 @@ export default function PageFeedback(): ReactNode {
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.feedback}>
-      {/* A new element per step, so focusing it is always announced. */}
-      <p key={status} ref={messageRef} tabIndex={-1} className={styles.message}>
-        {MESSAGES[status]}
-      </p>
+      )}
+      {status !== "asking" && !announcement && (
+        // A new element per step, so focusing it is always announced.
+        <p
+          key={status}
+          ref={messageRef}
+          tabIndex={-1}
+          className={styles.message}
+        >
+          {MESSAGES[status]}
+        </p>
+      )}
       {status === "voted" && (
         <form className={styles.form} onSubmit={submitComment}>
           <label htmlFor={commentId} className={styles.label}>
