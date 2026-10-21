@@ -25,7 +25,7 @@ The code on this page targets DApp Connector API 4.0.1 and Wallet SDK 1.2.0, the
   npm install @midnight-ntwrk/dapp-connector-api@4.0.1 @midnightntwrk/wallet-sdk@1.2.0 @midnight-ntwrk/ledger-v8@8.1.3 @midnight-ntwrk/zkir-v2@2.1.1 rxjs@7.8.2
   ```
 
-  Then pin `@scure/base` for the Wallet SDK's address package. `@midnightntwrk/wallet-sdk-address-format` 3.1.2 accepts any `@scure/base` 2.x, so npm installs 2.4.0 or later. From 2.4.0, the Bech32m decoder rejects strings longer than 90 characters by default. Shielded addresses are 124 to 135 characters long, so `MidnightBech32m.parse` throws on every one of them. Add this override to your `package.json`, then run `npm install` again:
+  Then pin `@scure/base` for the Wallet SDK's address package. `@midnightntwrk/wallet-sdk-address-format` 3.1.2 accepts any `@scure/base` 2.x, so npm installs 2.4.0 or later. From 2.4.0, `bech32m.decodeToBytes`, which `MidnightBech32m.parse` calls, rejects strings longer than 90 characters by default. Shielded addresses are 124 to 135 characters long, so `MidnightBech32m.parse` throws on every one of them. Add this override to your `package.json`, then run `npm install` again:
 
   ```json
   {
@@ -64,7 +64,11 @@ The Wallet SDK is the engine of a wallet. It derives keys, syncs with the indexe
 
 For one way to save and restore wallet state, see [What to keep between restarts](/guides/node-server-wallet#what-to-keep-between-restarts) in the Node.js wallet guide.
 
-The objects your wallet installs for DApps run inside the DApp's page, next to code you don't control. Keep the seed, the Wallet SDK, and your approval prompts in a separate context, such as an extension's background context or your app's native process. Have the page-side objects forward each call there. The samples on this page call the Wallet SDK directly to stay short.
+:::warning[Keep keys out of the DApp's page]
+The objects your wallet installs for DApps run inside the DApp's page, next to code you don't control. Keep the seed, the keys, the `WalletFacade`, and your approval prompts behind your transport, never in the page. Hold them in a separate context, such as an extension's background context or your app's native process. The page-side objects only forward each call there.
+:::
+
+The samples on this page call the Wallet SDK directly to stay short.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## How DApps reach your wallet
@@ -664,6 +668,9 @@ Build one connected API object for each connection, and back it with a running `
          if (typeof options.intentId === 'number' && options.intentId !== 1) {
            throw new ConnectorError(ErrorCodes.InvalidRequest, 'This wallet creates intents in segment 1 only.');
          }
+         if (typeof options.payFees !== 'boolean') {
+           throw new ConnectorError(ErrorCodes.InvalidRequest, 'makeIntent needs a payFees option.');
+         }
          // Pass both keys: in Wallet SDK 1.2.0, initSwap ignores the outputs of a kind with no inputs key.
          const inputs: Required<CombinedSwapInputs> = { shielded: {}, unshielded: {} };
          for (const { kind, type, value } of desiredInputs) {
@@ -693,11 +700,13 @@ Build one connected API object for each connection, and back it with a running `
    }
    ```
 
-   `signRecipe` signs every unsigned unshielded input in the transaction, including inputs in the DApp's own intents. Your approval prompt must show the net change to the user's balances across the whole transaction, not only what your wallet added.
+   :::warning[Show the whole transaction before signing]
+   `signRecipe` signs every unsigned unshielded input in the transaction, including inputs in the DApp's own intents. Unshielded coins are public, so a DApp can put the user's NIGHT into an intent of its own, and your wallet signs it away. Your approval prompt must show the net change to the user's balances across the whole transaction, not only what your wallet added.
+   :::
 
-   Once `finalizeRecipe` returns, the Wallet SDK tracks the transaction as pending. If the DApp never submits it, its coins stay set aside until the transaction expires. For a transaction with intents, that's the earliest intent TTL, one hour in this sample. The Wallet SDK releases the coins only while the wallet is running, because its pending-transaction tracker checks once a second.
+   Once `finalizeRecipe` returns, the Wallet SDK tracks the transaction as pending. If the DApp never submits it, its coins stay set aside until the transaction expires. That's the earliest intent TTL or three hours after the wallet created it, the ledger's DUST grace period, whichever comes first. In this sample it's the one-hour TTL. The Wallet SDK releases the coins only while the wallet is running, because its pending-transaction tracker checks once a second.
 
-5. Implement `signData`. Decode the data as the `encoding` option says, then sign `midnight_signed_message:<size>:` followed by the decoded bytes, where `<size>` is their length in bytes. Return the `data` string the DApp sent, not the prefixed bytes.
+5. Implement `signData`. Decode the data as the `encoding` option says, then sign `midnight_signed_message:<size>:` followed by the decoded bytes, where `<size>` is their length in bytes. The 4.0.1 types don't say which form `data` takes in the result, and this sample returns the string the DApp sent. [MIP-0031](https://github.com/midnightntwrk/midnight-improvement-proposals/blob/main/mips/mip-0031-message-signing/mip-0031-message-signing.md), still a proposal, has `data` carry the whole prefixed message, hex-encoded, instead.
 
    ```typescript title="src/sign-data.ts"
    import { ErrorCodes, type ConnectedAPI, type SignDataOptions } from '@midnight-ntwrk/dapp-connector-api';
@@ -748,7 +757,7 @@ Build one connected API object for each connection, and back it with a running `
    }
    ```
 
-6. Implement delegated proving. This sample proves locally in WebAssembly. It reads the DApp's circuits through the DApp's `KeyMaterialProvider`. For Midnight's own Zswap and DUST circuits, it falls back to the key material that the Wallet SDK's prover client downloads on first use.
+6. Implement delegated proving. This sample proves locally in WebAssembly. It reads the DApp's circuits through the DApp's `KeyMaterialProvider`. For Midnight's own Zswap and DUST circuits, it uses the key material that the Wallet SDK's prover client downloads on first use.
 
    ```typescript title="src/proving.ts"
    import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
@@ -757,7 +766,7 @@ Build one connected API object for each connection, and back it with a running `
    import { requireAccess } from './errors';
    import type { Session, WalletContext } from './session';
 
-   // Zswap and DUST keys and public parameters, downloaded on first use from a URL fixed in the SDK, with no hash check.
+   // Zswap and DUST keys and public parameters, downloaded on first use from a development bucket fixed in the SDK, with no status or hash check.
    const builtInKeys = WasmProver.makeDefaultKeyMaterialProvider();
 
    export function provingMethods(ctx: WalletContext, session: Session): Pick<ConnectedAPI, 'getProvingProvider'> {
@@ -766,17 +775,16 @@ Build one connected API object for each connection, and back it with a running `
          await requireAccess(ctx, session, 'getProvingProvider');
          const keys: KeyMaterialProvider = {
            async lookupKey(keyLocation) {
-             try {
-               const [ir, proverKey, verifierKey] = await Promise.all([
-                 dappKeys.getZKIR(keyLocation),
-                 dappKeys.getProverKey(keyLocation),
-                 dappKeys.getVerifierKey(keyLocation),
-               ]);
-               return { ir, proverKey, verifierKey };
-             } catch {
-               // Not one of the DApp's circuits, for example midnight/zswap/output.
+             // Midnight's own circuits, such as midnight/zswap/output, use the built-in keys.
+             if (keyLocation.startsWith('midnight/')) {
                return builtInKeys.lookupKey(keyLocation);
              }
+             const [ir, proverKey, verifierKey] = await Promise.all([
+               dappKeys.getZKIR(keyLocation),
+               dappKeys.getProverKey(keyLocation),
+               dappKeys.getVerifierKey(keyLocation),
+             ]);
+             return { ir, proverKey, verifierKey };
            },
            getParams: (k) => builtInKeys.getParams(k),
          };
@@ -789,7 +797,7 @@ Build one connected API object for each connection, and back it with a running `
 
    To prove on a proof server instead, send the key material with each request, as `httpClientProvingProvider` in Midnight.js does. The Wallet SDK's `WasmProver`, exported from `@midnightntwrk/wallet-sdk/prover-client/effect`, runs a WebAssembly prover in a Web Worker.
 
-   `WasmProver.makeDefaultKeyMaterialProvider` downloads its keys and parameters from a URL fixed in the Wallet SDK, and doesn't check their hashes. For a production wallet, host or pin that material yourself and verify its hashes.
+   `WasmProver.makeDefaultKeyMaterialProvider` downloads its keys and parameters from a development S3 bucket, `midnight-s3-fileshare-dev-eu-west-1`, fixed in the Wallet SDK. It doesn't check that a download succeeded, and it doesn't verify hashes. For a production wallet, host or pin that material yourself and verify its hashes.
 
 7. Assemble the object and freeze it. This sample has no transaction history to report, so it declines `getTxHistory`.
 
@@ -955,6 +963,8 @@ describe('Connected API', () => {
     await expect(api.makeIntent([], [], { intentId: 5, payFees: true })).rejects.toMatchObject({
       code: 'InvalidRequest',
     });
+    // @ts-expect-error A plain JavaScript DApp can leave payFees out.
+    await expect(api.makeIntent([], [], { intentId: 1 })).rejects.toMatchObject({ code: 'InvalidRequest' });
 
     session.connected = false;
     await expect(api.getUnshieldedAddress()).rejects.toMatchObject({ code: 'Disconnected' });
