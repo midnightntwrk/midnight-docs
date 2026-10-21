@@ -1,328 +1,343 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-sidebar_label: "ZK Loan smart contract"
-title: "ZK Loan smart contract"
-description: "Build a zero-knowledge loan smart contract on Midnight Network that privately evaluates credit data using zero-knowledge proofs."
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_label: "ZK Loan contract"
+title: "ZK Loan contract"
+description: "Read a Compact contract that verifies a Schnorr-signed credit attestation inside the ZK proof, scores the applicant privately, and records only the outcome."
 sidebar_position: 10
-toc_max_heading_level: 2
-tags: [tutorials, advanced, zero-knowledge, loan, dapp]
+toc_max_heading_level: 3
 ---
 
-# ZK Loan smart contract
+# ZK Loan contract
 
-This tutorial builds a zero-knowledge (ZK) loan application from scratch on [Midnight Network](/concepts/network-architecture/onchain-logic). The app privately evaluates a user's credit data (credit score, income, and employment tenure) using [ZK proofs](/concepts/zero-knowledge-proofs) and records only the loan outcome on-chain. The sensitive financial data never leaves your machine.
+This part walks through the contract in `examples/zk-loan/contract/`: the Schnorr module
+`schnorr.compact`, the loan contract `zk-loan.compact`, and the TypeScript witnesses in
+`witnesses.ts`.
 
-Traditional lending requires sharing sensitive financial data with lenders, brokers, and underwriters. That data gets stored, shared, and inevitably leaked. In 2024 alone, financial data breaches exposed hundreds of millions of records. ZK proofs flip this model. Instead of showing your data, you prove a statement about it: "My credit score is above 700, and my income exceeds $2,000/month," and the verifier learns nothing else. Midnight Network makes this practical — it is a blockchain purpose-built for [data protection](/concepts/how-midnight-works/keeping-data-private), where smart contracts can process private inputs and commit only the results on-chain.
+## Prerequisites
 
-The tutorial is split into three parts:
+- The [set-up steps](/tutorials/zk-loan) of this tutorial, so you have midnight-examples
+  installed and compiled.
+- The [Compact toolchain](/getting-started/installation) and Node.js 22.
 
-1.  **Smart contract**: Written in [Compact](/compact) (Midnight's ZK language). It defines the loan logic, eligibility tiers, and on-chain state.
-2.  **Attestation API**: A server that signs credit data with [Schnorr signatures](https://en.wikipedia.org/wiki/Schnorr_signature) so the smart contract can verify the data came from a trusted source.
-3.  **CLI**: A command-line tool to deploy the smart contract, register the attestation provider, request loans, and interact with the system — all pointing at Midnight's local network.
+Open `examples/zk-loan/contract/zk-loan.compact` in your editor and keep it beside this page.
 
-## Project setup
+## The problem
 
-This section covers the tools and directory structure needed before writing any code.
+Traditional lending asks a borrower to hand their financial data to a lender, who stores it and
+shares it. A ZK proof turns that around. Instead of showing the data, the borrower proves a
+statement about it: "my credit score is at least 700 and my income is at least 2,000 a month".
+The verifier learns that the statement is true, and nothing else.
 
-### Install prerequisites
+The contract has to solve two problems to make that work:
 
-Make sure you have **Node.js v22 or newer** installed:
+- **The data has to be honest.** The credit profile comes from a witness, which runs on the
+  borrower's machine. A borrower could return any score they like. So a trusted provider signs the
+  real figures, and the contract verifies the signature inside the proof.
+- **The borrower has to be someone.** Each loan is recorded against an identity, and some
+  circuits are admin-only. Both identities come from a secret in the caller's private state,
+  never from the wallet that submits the transaction.
 
-```shell
-node --version
+The loan flow in order:
 
-# Should print v22.x.x or higher
-```
+1. The admin deploys the contract and registers the attestation provider's public key.
+2. A borrower asks the provider to sign their credit profile, bound to their identity.
+3. The borrower calls `requestLoan`. Inside the proof, the contract verifies the signature,
+   scores the profile against three tiers, and records the loan's status and amount.
+4. If the borrower asked for more than their tier allows, the loan is `Proposed` at the tier's
+   maximum, and the borrower accepts or declines it with `respondToLoan`.
 
-:::caution Node 20 will crash mid-sync
-This DApp uses the `@midnight-ntwrk/wallet-sdk` barrel (re-exports the shielded wallet), which calls `Map.prototype.values().map(...)` on the shielded wallet state. That requires the [Iterator helpers](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Iterator) added in Node 22. On Node 20 the wallet appears to start, then crashes on the first sync update with `state.pendingOutputs.values.map is not a function`. If you use [nvm](https://github.com/nvm-sh/nvm), add a `.nvmrc` file containing `22` (or your preferred 22+ release) to the repo root so `nvm use` picks it up automatically.
-:::
+## Public and private data
 
-Install the Midnight Compact compiler. Follow the instructions in the [installation guide](/getting-started/installation) to install the Compact toolchain on your system.
+| Data | Visibility | Why |
+| --- | --- | --- |
+| 32-byte user secret | Private (witness) | The caller's identity. It never leaves their machine |
+| Credit score, income, tenure | Private (witness) | Only checked inside the proof |
+| Secret PIN | Private (circuit argument) | Hashed with the secret into the borrower's identity, never stored |
+| Attestation signature | Private (witness) | Verified inside the proof |
+| Derived user public key | Public (ledger) | The key of the borrower's loans. It reveals neither the secret nor the PIN |
+| Loan status and authorized amount | Public (ledger) | The outcome |
+| `contractAdmin`, `providers`, `blacklist` | Public (ledger) | Contract governance |
 
-Verify it is available:
+## The Schnorr module
 
-```shell
-compact compile --version
-```
-
-Run `compact update` to install the latest Compact toolchain. The workspace `package.json` declares `@midnight-ntwrk/compact-runtime: ^0.16.0`, which matches what the latest `compact compile` emits.
-
-:::note Midnight JS 4.1.x protocol ACL
-
-As of Midnight JS **4.1.x**, hand-written code no longer imports the protocol packages (`ledger`, `compact-runtime`, `compact-js`, `onchain-runtime`, `platform-js`) directly. They are consumed through the version-agnostic **`@midnight-ntwrk/midnight-js-protocol`** ACL package via subpath imports — for example, `@midnight-ntwrk/midnight-js-protocol/compact-runtime`. `@midnight-ntwrk/compact-runtime` is still declared as a direct dependency because the compiler-generated contract code imports it directly, but every hand-written import points at the protocol subpath instead. This decouples your code from a specific ledger major version.
-
-:::
-
-Also, Docker is required to run the Midnight proof server, which generates the ZK proofs for your transactions locally. Install it from [docker.com/get-docker](https://www.docker.com/get-docker) if you have not already, and make sure the Docker daemon is running.
-
-### Create the project structure
-
-Create the root project directory and initialize the monorepo configuration:
-
-```shell
-mkdir zkloan-credit-scorer
-cd zkloan-credit-scorer
-```
-
-Initialize the root `package.json` with the following code snippet by pasting directly into your terminal. This is a monorepo with three workspaces:
-
-```json
-cat > package.json << 'EOF'
-{
-  "name": "zkloan-credit-scorer",
-  "version": "3.0.0",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=22.0.0"
-  },
-  "workspaces": [
-    "contract",
-    "zkloan-credit-scorer-cli",
-    "zkloan-credit-scorer-attestation-api"
-  ],
-  "devDependencies": {
-    "@types/node": "^25.0.1",
-    "@types/ws": "^8.18.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.15"
-  },
-  "dependencies": {
-    "@midnight-ntwrk/compact-runtime": "^0.16.0",
-    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
-    "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
-    "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
-    "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
-    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
-    "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
-    "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
-    "@midnight-ntwrk/midnight-js-types": "4.1.1",
-    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
-    "@midnight-ntwrk/wallet-sdk": "1.2.0",
-    "@midnight-ntwrk/wallet-sdk-address-format": "3.1.2",
-    "@scure/bip39": "^2.0.1",
-    "dotenv": "^17.2.3",
-    "pino": "^10.1.0",
-    "pino-pretty": "^13.1.3",
-    "rxjs": "^7.8.1",
-    "ws": "^8.18.3"
-  },
-  "overrides": {
-    "smoldot": "npm:empty-npm-package@1.0.0",
-    "@midnight-ntwrk/ledger-v8": "8.1.0",
-    "@midnight-ntwrk/midnight-js-network-id": "4.1.1"
-  },
-  "resolutions": {
-    "@midnight-ntwrk/ledger-v8": "8.1.0",
-    "@midnight-ntwrk/midnight-js-network-id": "4.1.1"
-  }
-}
-EOF
-```
-
-:::note What changed vs. 4.0.x
-
-- Direct `@midnight-ntwrk/compact-js` and `@midnight-ntwrk/ledger-v8` deps are gone — both are consumed through `@midnight-ntwrk/midnight-js-protocol` (added).
-- The five individual wallet-sdk subpackages (`-facade`, `-hd`, `-shielded`, `-dust-wallet`, `-unshielded-wallet`) collapse to the single `@midnight-ntwrk/wallet-sdk` barrel. Pin the barrel exactly (`1.2.0`) — npm's `latest` dist-tag still points at `1.1.0`, so a caret range would silently resolve to the older release.
-- All `@midnight-ntwrk/midnight-js-*` packages step to `4.1.1`; the wrapped ledger pinned via `overrides`/`resolutions` moves to `8.1.0`.
-- `@midnight-ntwrk/compact-runtime` stays as a direct dep because the compiler-generated contract code imports it directly.
-
-:::
-
-Next, create the `.gitignore` with the following command:
-
-```bash
-cat > .gitignore << 'EOF'
-node_modules/
-**/dist/
-.vite/
-*.tsbuildinfo
-logs
-*.log
-midnight-level-db
-coverage
-**/reports
-.npm
-.eslintcache
-.env
-**/.DS_Store
-.vscode/
-managed/
-EOF
-```
-
-Create the three workspace directories:
-
-```bash
-mkdir -p contract/src
-mkdir -p zkloan-credit-scorer-cli/src
-mkdir -p zkloan-credit-scorer-attestation-api/src
-```
-
-## Write the Schnorr signature module
-
-Before writing the main smart contract, you need a module for verifying Schnorr signatures. This is how the smart contract verifies that credit data was signed by a trusted attestation provider.
-
-This signature is important because of a fundamental problem: the witness's data cannot be trusted on its own. The witness runs on your machine, which means you could feed in any credit score you want. A user claiming a 750 credit score with $5,000 monthly income? Nothing stops them from lying.
-
-That is why the attestation solution exists. A trusted provider (a bank, credit bureau, or scoring service) signs your real data with a cryptographic signature. The smart contract then verifies that signature within the ZK circuit. If the data was tampered with, the signature check fails, and the transaction reverts.
-
-For this, the smart contract uses *Schnorr signatures on the Jubjub elliptic curve*, Midnight's native internal curve.
+`contract/schnorr.compact` verifies a [Schnorr signature](https://en.wikipedia.org/wiki/Schnorr_signature)
+on the Jubjub curve, Midnight's native internal curve, inside a circuit. It is a `module`, not a
+contract: it has no pragma or ledger of its own, and `zk-loan.compact` imports it.
 
 :::info
-The Schnorr verification module below is a *temporary polyfill*. The Midnight team is building `jubjubSchnorrVerify` directly into the [Compact Standard Library](/compact/standard-library/exports). Once that ships, this entire module gets replaced by a single built-in function call. For now, implementing it manually is a useful exercise in understanding how signature verification works inside a ZK circuit.
+The module is a temporary polyfill. A Schnorr verifier is planned for the
+[Compact standard library](/compact/standard-library/exports), and once it ships it replaces this
+module.
 :::
 
-Now, create a file called `schnorr.compact` inside `contract/src/` and add the following code snippet:
+A signature is an announcement point `R` and a response scalar `s`:
 
-```compact
-module schnorr {
-
-import CompactStandardLibrary;
-
-export struct SchnorrSignature {
-    announcement: JubjubPoint;
-    response: Field;
-}
-
-struct SchnorrHashInput<#n> {
-    ann_x: Field;
-    ann_y: Field;
-    pk_x: Field;
-    pk_y: Field;
-    msg: Vector<n, Field>;
-}
-
-witness getSchnorrReduction(challengeHash: Field): [Uint<7>, Uint<248>];
-
-export circuit schnorrVerify<#n>(msg: Vector<n, Field>, signature: SchnorrSignature, pk: JubjubPoint): [] {
-
-    const {announcement, response} = signature;
-    const cFull: Field = transientHash<SchnorrHashInput<n>>(SchnorrHashInput<n>{
-        ann_x: jubjubPointX(announcement),
-        ann_y: jubjubPointY(announcement),
-        pk_x: jubjubPointX(pk),
-        pk_y: jubjubPointY(pk),
-        msg: msg
-    });
-
-    const TWO_248: Field = 452312848583266388373324160190187140051835877600158453279131187530910662656 as Field;
-
-    const [q, cTruncated] = getSchnorrReduction(cFull);
-    assert(disclose(q) < 116, "Schnorr quotient out of range");
-    assert(disclose(q) * TWO_248 + (disclose(cTruncated) as Field) == cFull, "Invalid challenge reduction");
-
-    const c: Field = disclose(cTruncated) as Field;
-    const lhs: JubjubPoint = ecMulGenerator(response);
-    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c));
-    assert(jubjubPointX(lhs) == jubjubPointX(rhs) && jubjubPointY(lhs) == jubjubPointY(rhs),
-           "Invalid attestation signature");
-}
-
-export pure circuit schnorrChallenge(
-    ann_x: Field, ann_y: Field,
-    pk_x: Field, pk_y: Field,
-    msg: Vector<4, Field>
-): Field {
-    const cFull: Field = transientHash<SchnorrHashInput<4>>(SchnorrHashInput<4>{
-        ann_x: ann_x, ann_y: ann_y,
-        pk_x: pk_x, pk_y: pk_y,
-        msg: msg
-    });
-    return cFull;
-}
-}
+```compact title="contract/schnorr.compact"
+  export struct SchnorrSignature {
+    announcement: JubjubPoint;  // R
+    response: Field;            // s
+  }
 ```
 
-In the Schnorr code above:
+`schnorrVerify` starts by hashing everything the signature commits to: the announcement, the
+public key, and the message. Hashing the public key and announcement, not only the message,
+prevents key-substitution attacks. It uses `transientHash`, not the `persistentHash` you met in
+[Private Party](/tutorials/private-party). `transientHash` is the circuit-efficient hash: it returns
+a `Field`, and its output isn't guaranteed to stay the same across upgrades, so it suits checks
+inside a proof rather than data kept on the ledger.
 
-`SchnorrSignature` is a struct with two fields:
+```compact title="contract/schnorr.compact"
+  export circuit schnorrVerify<#n>(
+                   msg: Vector<n, Field>,
+                   signature: SchnorrSignature,
+                   pk: JubjubPoint
+                   ): [] {
+    const {announcement, response} = signature;
+    const cFull: Field =
+            transientHash<SchnorrHashInput<n>>(
+              SchnorrHashInput<n> { ann_x: jubjubPointX(announcement),
+                                    ann_y: jubjubPointY(announcement),
+                                    pk_x: jubjubPointX(pk),
+                                    pk_y: jubjubPointY(pk),
+                                    msg: msg }
+              );
+```
 
-*   `announcement`: A point on the Jubjub elliptic curve (the "R" in Schnorr signing)
+### Witness-assisted reduction
 
-*   `response`: A scalar field element (the "s" in Schnorr signing)
+`transientHash` returns a value in the BLS12-381 scalar field, about 255 bits, but `ecMul` needs
+a scalar below the Jubjub order, about 252 bits. So the challenge is truncated to 248 bits.
+Division is expensive in a circuit, so a witness does it off-chain and the circuit only checks the
+answer:
 
-`schnorrVerify` is the verification circuit. It:
+```compact title="contract/schnorr.compact"
+  // The witness provides the quotient and remainder of dividing the challenge
+  // hash by 2^248, so it can be truncated to fit in Jubjub's scalar field.
+  // Division is cheap off-chain and expensive in-circuit; the circuit only
+  // CHECKS the result. The quotient is Uint<7> (not Field) so the check below
+  // holds over the integers rather than modulo the field prime — see the range
+  // assert in schnorrVerify.
+  witness getSchnorrReduction(challengeHash: Field): [Uint<7>, Uint<248>];
+```
 
-*   Hashes the announcement coordinates, public key coordinates, and message into a challenge (`cFull`)
+```compact title="contract/schnorr.compact"
+    // Truncate the challenge to 248 bits via witness-assisted division by 2^248.
+    // The witness provides (quotient, remainder) such that cFull == q * 2^248 + r
+    // where r : Uint<248>, guaranteeing r < 2^248 < Jubjub subgroup order.
+    // This is needed because ecMul requires scalars < JUBJUB_ORDER (~2^252.4),
+    // but transientHash returns values in BLS12-381's scalar field (~2^255).
+    const TWO_248: Field =
+            452312848583266388373324160190187140051835877600158453279131187530910662656 as Field;
+    const [q, cTruncated] = getSchnorrReduction(cFull);
+    // Bound the quotient so the reduction equation holds over the integers, not
+    // modulo the field prime. Without this, q : Field is unconstrained and a
+    // prover could pick any cTruncated (i.e. any challenge) and solve for a
+    // matching q, forging the signature. floor((BLS12-381 scalar prime - 1) / 2^248)
+    // == 115, so an honest quotient is always in [0, 115]. The zk-loan
+    // simulator test "rejects a forged attestation ..." is the regression test.
+    assert(disclose(q) < 116, "Schnorr quotient out of range");
+    assert(disclose(q) * TWO_248 + (disclose(cTruncated) as Field) == cFull,
+           "Invalid challenge reduction"
+           );
+    const c: Field = disclose(cTruncated) as Field;
+```
 
-*   Truncates the challenge to 248 bits (because the Jubjub curve order is ~252 bits, and `transientHash` outputs values in BLS12-381's scalar field, which is ~255 bits)
-
-*   Verifies the Schnorr equation: `G * response == announcement + publicKey * challenge`
-
-:::caution `JubjubPoint` equality
-Since Compact language version `0.22`, two `JubjubPoint` values can no longer be compared with `==`. The compiler emits JS reference equality for struct equality, which is always `false` for freshly constructed points and would make the assertion silently impossible to satisfy. Compare the `x` and `y` coordinates explicitly with `jubjubPointX()` / `jubjubPointY()`, as shown above.
-:::
-
-The truncation uses a *witness* (`getSchnorrReduction`). The TypeScript code provides the quotient and remainder of dividing by 2^248, and the circuit verifies `q * 2^248 + r == cFull`. This is a common pattern in ZK systems: let the prover compute something expensive off-chain, then verify the result cheaply on-chain.
+This is a common ZK pattern: let the prover compute something expensive, then verify the result
+cheaply in the circuit. The check has to pin the answer down completely, though.
 
 :::caution Constrain witness values fully
-The reduction equation alone is not enough. Circuit arithmetic is modulo the BLS12-381 scalar prime, and 2^248 is invertible in that field — so if the quotient were an unconstrained `Field`, a malicious prover could pick *any* truncated challenge `r` and solve for a matching `q`, satisfying the equation while decoupling the challenge from the hash. That would allow forging an attestation signature without the provider's secret key. Typing the quotient as `Uint<7>` and asserting `q < 116` (the largest honest quotient is `floor((p - 1) / 2^248) = 115`) forces the equation to hold over the *integers*, tying `r` to the hash instead of leaving it a free choice. The general lesson: witness values are prover-controlled inputs — constrain them until only honest values can satisfy the circuit.
+The reduction equation alone is not enough. Circuit arithmetic is modulo the BLS12-381 scalar
+prime, and 2^248 is invertible in that field. If the quotient were an unconstrained `Field`, a
+malicious prover could pick *any* truncated challenge and solve for a matching quotient, which
+would let them forge a signature without the provider's secret key. Typing the quotient as
+`Uint<7>` and asserting `q < 116` (the largest honest quotient is 115) forces the equation to hold
+over the integers, which ties the challenge to the hash. Witness values are prover-controlled
+inputs: constrain them until only honest values satisfy the circuit.
 :::
 
-`schnorrChallenge` is a `pure` circuit (no side effects, no ledger access). It computes the same challenge hash that `schnorrVerify` uses. It is exported so the attestation API can compute the same hash off-chain when signing.
+The simulator suite has a regression test for this: "rejects a forged attestation that exploits
+an unconstrained challenge quotient" builds exactly that forgery and checks the circuit rejects it.
 
-Now that this is completed, you can write the actual loan smart contract in the following steps.
+### The verification equation
 
-## Write the loan smart contract
+With the challenge `c` in hand, the circuit checks the Schnorr equation `s*G == R + c*pk`:
 
-Create `zkloan-credit-scorer.compact` inside the `contract/src/` folder.
+```compact title="contract/schnorr.compact"
+    // s*G == R + c*pk
+    const lhs: JubjubPoint = ecMulGenerator(response);
+    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c));
+    // Compare coordinates, not the points: `==` on the opaque JubjubPoint
+    // compiles to JS reference equality.
+    assert(jubjubPointX(lhs) == jubjubPointX(rhs) && jubjubPointY(lhs) == jubjubPointY(rhs),
+           "Invalid attestation signature");
+```
 
-### The header, types, ledger state, and constructor
+Compare the coordinates, not the points. `JubjubPoint` is opaque in Compact, and `==` between two
+points compiles to JavaScript reference equality, so it would never hold for freshly computed
+points.
 
-This first block declares the language version, imports, data types, ledger state, the constructor (which derives the initial admin public key from a witness secret), and the two pure circuits that turn that secret into per-user and admin identities:
+### The challenge as a pure circuit
 
-```compact
-pragma language_version >= 0.22 && <= 0.23;
+The signer off-chain must compute exactly the challenge the circuit computes. Rather than
+re-implementing the hash in TypeScript, the module exports it as a `pure` circuit: no ledger
+access and no witnesses, so the compiler also generates a TypeScript version of it.
 
+```compact title="contract/schnorr.compact"
+  // Pure helper exposing the challenge hash to TypeScript (via the re-export in
+  // zk-loan.compact) so off-chain signers compute exactly what the circuit does.
+  export pure circuit schnorrChallenge(
+                        ann_x: Field,
+                        ann_y: Field,
+                        pk_x: Field,
+                        pk_y: Field,
+                        msg: Vector<4, Field>
+                        ): Field {
+    const cFull: Field =
+            transientHash<SchnorrHashInput<4>>(
+              SchnorrHashInput<4> { ann_x: ann_x, ann_y: ann_y, pk_x: pk_x, pk_y: pk_y, msg: msg }
+              );
+    // Return the full hash. Callers must truncate to 248 bits (mod 2^248) to
+    // match schnorrVerify's challenge reduction.
+    return cFull;
+  }
+```
+
+## Types, ledger, and constructor
+
+`zk-loan.compact` pins the language version and imports the standard library and the Schnorr
+module. `prefix Schnorr_` namespaces every name the module exports, so `schnorrVerify` becomes
+`Schnorr_schnorrVerify`:
+
+```compact title="contract/zk-loan.compact"
+pragma language_version 0.23;
 import CompactStandardLibrary;
+
+// schnorr.compact sits next to this file; `prefix Schnorr_` namespaces every
+// exported name (Schnorr_schnorrVerify, Schnorr_SchnorrSignature, ...).
 import "schnorr" prefix Schnorr_;
 
+// Re-export the signature struct so it appears in the generated TypeScript
+// types — the witness returns one and the tests construct them.
 export { Schnorr_SchnorrSignature };
+```
+
+The data types come next:
+
+```compact title="contract/zk-loan.compact"
+// Enum values are serialized as their index: Approved=0, Rejected=1,
+// Proposed=2, NotAccepted=3. Tests compare against these numbers.
 export enum LoanStatus {
-    Approved,
-    Rejected,
-    Proposed,
-    NotAccepted,
+    Approved,      // approved outright, or accepted after a Proposed offer
+    Rejected,      // applicant did not meet minimum tier eligibility
+    Proposed,      // request exceeded the eligible tier — awaiting the user's decision
+    NotAccepted,   // user declined a Proposed offer
 }
+
+// The only per-loan data that ever reaches the ledger.
 export struct LoanApplication {
     authorizedAmount: Uint<16>;
     status: LoanStatus;
 }
+
+// The private credit profile. Not exported: it only ever flows from the
+// witness into `evaluateApplicant` and is never written to the ledger.
 struct Applicant {
     creditScore: Uint<16>;
     monthlyIncome: Uint<16>;
     monthsAsCustomer: Uint<16>;
 }
+```
 
-// Every browser/CLI instance holds a single 32-byte secret in private state.
-// All identity in this contract — both the admin role and per-user loan
-// identity — derives from that one secret via domain-separated hashes.
-// `ownPublicKey()` is never used: it returns a prover-claimed value with no
-// cryptographic binding to the transaction signer, so any assertion that
-// depends on it is bypassable.
+- `LoanStatus` and `LoanApplication` are exported. `export` doesn't make them public. It
+  generates TypeScript bindings, so the DApp can read and construct them. They are public anyway,
+  because `loans` on the ledger stores them, and all ledger state is public.
+- `Applicant` is not exported, so it gets no TypeScript binding. It stays private because it is
+  only ever witness and circuit-internal data, never written to the ledger, not because it isn't
+  exported.
+
+The three key types are each a `new type` over `Bytes<32>`:
+
+```compact title="contract/zk-loan.compact"
+// Distinct nominal types over Bytes<32> so a user key cannot be passed where an
+// admin key is expected (and vice versa) without an explicit cast.
 export new type UserSecretKey = Bytes<32>;
 export new type UserPublicKey = Bytes<32>;
 export new type AdminPublicKey = Bytes<32>;
+```
 
+`new type X = T;` creates a *nominal* type with the same representation as `T`. The three share
+the same 32-byte layout, but the compiler won't accept a `UserPublicKey` where a circuit expects an
+`AdminPublicKey` or a bare `Bytes<32>`. Bare `Bytes<32>` everywhere would compile too, but it would
+let a caller swap a user key for an admin key, the confusion this contract's security depends on
+avoiding.
+
+A `new type` adds no wrapper. In the generated TypeScript, a `UserPublicKey` is a plain
+`Uint8Array`. In Compact you go into the type with `value as UserPublicKey` and out with
+`pk as Bytes<32>`.
+
+### Ledger state
+
+```compact title="contract/zk-loan.compact"
+// Derived user public keys that may not request/respond/change PIN.
+export ledger blacklist: Set<UserPublicKey>;
+// Derived user public key -> (loanId -> loan). Loan ids start at 1.
+export ledger loans: Map<Bytes<32>, Map<Uint<16>, LoanApplication>>;
+// Old user public key -> last source loanId already migrated by `changePin`.
+// Presence of a key means a migration is in progress for that identity.
+export ledger onGoingPinMigration: Map<Bytes<32>, Uint<16>>;
+// Derived admin public key. Rotatable via `rotateAdmin`.
+export ledger contractAdmin: AdminPublicKey;
+// Registered attestation providers: providerId -> Jubjub public key.
+export ledger providers: Map<Uint<16>, JubjubPoint>;
+```
+
+- `loans` is a *nested map*. The outer key is a borrower's derived public key, the inner key a
+  loan ID, so each borrower can have several loans.
+- `providers` maps a provider ID to the provider's Jubjub public key. Attestation signatures are
+  verified against these.
+- `contractAdmin` holds the *derived admin public key*, a hash of the admin's secret. The ledger
+  never sees the secret itself.
+- `blacklist` holds derived user public keys, not wallet addresses.
+- `onGoingPinMigration` tracks a PIN change in progress. See [Changing the PIN](#changing-the-pin).
+
+### The constructor and witnesses
+
+The deployer becomes admin:
+
+```compact title="contract/zk-loan.compact"
+// The deployer becomes admin: their derived admin public key (NOT their secret)
+// is pinned on-chain. `disclose` is required because the value is derived from
+// witness data and is being written to public state.
 constructor() {
     contractAdmin = disclose(deriveAdminPublicKey(getUserSecret()));
 }
+```
 
-export ledger blacklist: Set<UserPublicKey>;
-export ledger loans: Map<Bytes<32>, Map<Uint<16>, LoanApplication>>;
-export ledger onGoingPinMigration: Map<Bytes<32>, Uint<16>>;
-export ledger contractAdmin: AdminPublicKey;
-export ledger providers: Map<Uint<16>, JubjubPoint>;
+Two witnesses supply the private data. `getAttestedScoringWitness` returns the credit profile,
+the provider's signature over it, and which provider signed. `getUserSecret` returns the 32-byte
+secret behind every identity in the contract:
 
+```compact title="contract/zk-loan.compact"
+// Witnesses run off-chain on the prover. Their outputs are UNTRUSTED inputs to
+// the circuit: every value is either verified (the Schnorr signature over the
+// profile) or only used through a hash whose preimage must be known (the secret).
 witness getAttestedScoringWitness(): [Applicant, Schnorr_SchnorrSignature, Uint<16>];
 witness getUserSecret(): UserSecretKey;
+```
 
+### Identity from one secret
+
+Two pure circuits turn the secret into the contract's two kinds of identity:
+
+```compact title="contract/zk-loan.compact"
 // Per-user identity, PIN-rotatable. Changing the PIN yields a new derived
-// public key, breaking linkability to the old identity.
+// public key, but not an unlinkable one: `changePin` names the old and new
+// keys in the same transaction. Used as the loan map key and the blacklist
+// key. `pure` so the same derivation is exported to TypeScript
+// (`pureCircuits.deriveUserPublicKey`) for off-chain lookups.
+// The string literal is a domain separator: it keeps this hash from ever
+// colliding with `deriveAdminPublicKey` for the same secret.
 export pure circuit deriveUserPublicKey(sk: UserSecretKey, pin: Uint<16>): UserPublicKey {
     const pinBytes = persistentHash<Uint<16>>(pin);
     return persistentHash<[Bytes<17>, Bytes<32>, UserSecretKey]>([
@@ -332,9 +347,9 @@ export pure circuit deriveUserPublicKey(sk: UserSecretKey, pin: Uint<16>): UserP
     ]) as UserPublicKey;
 }
 
-// Admin identity. No PIN binding — the admin role is stable across the
-// admin's PIN rotations. The deployer's `deriveAdminPublicKey(secret)` is
-// frozen into `contractAdmin` at construction.
+// Admin identity. No PIN binding — the admin role is stable across the admin's
+// PIN rotations. The deployer's `deriveAdminPublicKey(secret)` is frozen into
+// `contractAdmin` at construction.
 export pure circuit deriveAdminPublicKey(sk: UserSecretKey): AdminPublicKey {
     return persistentHash<[Bytes<18>, UserSecretKey]>([
         "zkloan:admin:pk:v1",
@@ -343,55 +358,174 @@ export pure circuit deriveAdminPublicKey(sk: UserSecretKey): AdminPublicKey {
 }
 ```
 
-Every Compact smart contract starts with a pragma (the language version) and imports. The standard library and the Schnorr module are imported with a prefix so their names do not collide.
+- `deriveUserPublicKey(sk, pin)` is the borrower's identity. It is bound to a PIN, so a new PIN
+  gives the borrower a new key. It isn't an unlinkable fresh start, though: `changePin` names the
+  old and new keys in the same transaction, so anyone watching the chain can link them.
+- `deriveAdminPublicKey(sk)` is the admin identity. It has no PIN, so the admin role survives the
+  admin's PIN changes.
 
-Define the data types next. Note two key things:
-- `LoanApplication` and `LoanStatus` are *exported*. The `export` keyword does not make them public — it generates TypeScript bindings in the compiled artifacts so the DApp can read and construct these types. They are visible on-chain because they are the value and field types stored in the `loans` ledger map; all ledger state is public, so anyone can read a loan's status and authorized amount.
-- `Applicant` is *not exported*, so no TypeScript binding is generated for it. It stays private because it is only ever used as witness and circuit-internal data and is never written to ledger state — not because of the missing `export`. The credit score, income, and tenure never appear on-chain.
+The string at the start of each tuple is a *domain separator*. It keeps the two hashes of the same
+secret from ever colliding or being correlated. Count its bytes exactly: `"zkloan:user:pk:v1"` is
+17 bytes and `"zkloan:admin:pk:v1"` is 18. `persistentHash` hashes the whole tuple, including the
+`UserSecretKey` value directly.
 
-`UserSecretKey`, `UserPublicKey`, and `AdminPublicKey` are each declared with `new type` — a *nominal* alias over `Bytes<32>`. The form is `new type X = T;`, which creates a distinct type with the same representation as `T`. The three share the same 32-byte layout, but the compiler treats them as distinct: it rejects passing a `UserPublicKey` where a circuit expects an `AdminPublicKey` (or a raw `Bytes<32>`), and vice versa. A bare `Bytes<32>` everywhere would compile too, but it would let callers swap a user key for an admin key — exactly the confusion this contract's security depends on avoiding.
+Both circuits are exported so off-chain code can derive the same keys. The tests call
+`pureCircuits.deriveUserPublicKey` to look up a borrower's loans, and
+`pureCircuits.deriveAdminPublicKey` to check `contractAdmin`.
 
-A `new type` is lighter than the single-field wrapper struct it replaces (`struct UserPublicKey { bytes: Bytes<32>; }`). It adds no object wrapper, so the value is a bare `Bytes<32>` in Compact and a plain `Uint8Array` in the generated TypeScript — not a `{ bytes: ... }` object. There is no `UserPublicKey { ... }` or `UserPublicKey(...)` constructor: you go *into* the type with `value as UserPublicKey` and *out* with `pk as Bytes<32>` to recover the underlying bytes. Add `export` to a `new type` whenever it appears in an exported circuit or ledger signature, so the compiler generates the TypeScript binding.
+## Requesting a loan
 
-The [ledger](/concepts/ledgers) declarations define what lives on the blockchain:
-- `loans` is a *nested map*: the outer key is the user's derived public key bytes (`Bytes<32>`), the inner key is a loan ID (`Uint<16>`), and the value is the `LoanApplication`. This lets each user have multiple loans.
-- `providers` maps a provider ID to a Jubjub curve point (the provider's public key). The smart contract verifies attestation signatures against these registered keys.
-- `contractAdmin` stores the *derived admin public key* of the deployer: `persistentHash("zkloan:admin:pk:v1" || userSecret)`. The deployer holds the 32-byte secret in private state; the ledger only ever sees the hash. Each admin circuit forces the caller, inside the ZK proof, to demonstrate knowledge of the preimage of this stored value.
-- `blacklist` stores derived `UserPublicKey` values, not wallet addresses. A user's `UserPublicKey` at a given PIN is `persistentHash("zkloan:user:pk:v1" || hash(pin) || userSecret)`. A malicious caller cannot bypass the blacklist check by claiming a different wallet pubkey — their identity in this contract is whatever their witness secret hashes to.
-- `onGoingPinMigration` tracks progress when a user changes their PIN (more on this in the identity section).
-- `deriveUserPublicKey(sk, pin)` is the per-user identity derivation; `deriveAdminPublicKey(sk)` is the admin derivation. Both consume the same 32-byte witness secret. Different domain-separator strings keep the two derivations uncorrelated.
+`requestLoan` is the entry point a borrower calls:
 
-Two details about how these hashes are built. First, `persistentHash` hashes *any* type, not just a `Vector` — here it takes a heterogeneous tuple (`[Bytes<17>, Bytes<32>, UserSecretKey]`) and hashes the `UserSecretKey` value directly, with no `.bytes` field to extract. Second, a domain-separator string literal goes straight into the tuple at its real byte length; there is no `pad()`. Count the bytes exactly: `"zkloan:user:pk:v1"` is **17 bytes** (`Bytes<17>`), while `"zkloan:admin:pk:v1"` is **18 bytes** (`Bytes<18>`) — the longer `admin` segment makes it one byte longer, so always count rather than copying a length from elsewhere. Each circuit ends with `... as UserPublicKey` / `... as AdminPublicKey` to tag the resulting `Bytes<32>` as the nominal type the signature promises.
-
-:::note
-These circuits stay exported because the off-chain code derives keys through them: the CLI/UI calls `pureCircuits.deriveUserPublicKey` for the per-user key and `pureCircuits.deriveAdminPublicKey` for the admin key. `export` on a circuit is a choice, not a requirement — if a contract derives keys only on-chain, the derivation circuit can stay unexported. Note also that dropping `pad()` changes the hash preimage (a raw 17/18-byte string instead of a 32-byte zero-padded one), so a given secret now derives a *different* public key than the earlier struct-based code did. Every consumer derives through this one compiled circuit, so they all agree; but an already-deployed instance built from the old code derives different identities, so treat it as a fresh deploy.
-:::
-
-Two witnesses. `getAttestedScoringWitness` returns the applicant's credit profile and the Schnorr-signed attestation. `getUserSecret` returns the 32-byte secret that drives all identity in the contract — the admin role and per-user PIN-bound identity. The TypeScript implementation is covered in the next section.
-
-:::note
-Do not close the file yet — the remaining blocks get appended to it.
-:::
-
-### Core loan circuits
-
-Now add the heart of the smart contract: the circuits that handle loan requests. Use the following code snippet:
-
-```compact
+```compact title="contract/zk-loan.compact"
+// Entry point. Derives the caller's identity, checks it is allowed to borrow,
+// runs the private evaluation, and records only the outcome.
 export circuit requestLoan(amountRequested: Uint<16>, secretPin: Uint<16>): [] {
     assert(amountRequested > 0, "Loan amount must be greater than zero");
     const requesterPubKey = deriveUserPublicKey(getUserSecret(), secretPin);
+    // The derived key is the public loan-map key, so it must be disclosed. The
+    // PIN and secret stay private: only their hash is revealed.
     const disclosedRequesterPubKey = disclose(requesterPubKey);
     assert(!blacklist.member(disclosedRequesterPubKey), "Requester is blacklisted");
     assert(!onGoingPinMigration.member(disclosedRequesterPubKey as Bytes<32>),
            "PIN migration is in progress for this user");
+    // The attestation is signed over this hash, binding it to ONE identity:
+    // a signature issued to someone else fails verification (anti-replay).
     const userPubKeyHash = transientHash<Bytes<32>>(disclosedRequesterPubKey as Bytes<32>);
     const [topTierAmount, status] = evaluateApplicant(userPubKeyHash);
+    // Only the tier outcome is disclosed — never the score/income/tenure.
     const disclosedTopTierAmount = disclose(topTierAmount);
     const disclosedStatus = disclose(status);
     createLoan(disclosedRequesterPubKey as Bytes<32>, amountRequested, disclosedTopTierAmount, disclosedStatus);
 }
+```
 
+1. Derive the caller's identity from their secret and PIN. The witness secret is the only
+   caller identity the contract trusts.
+2. `disclose()` the derived key. It is the public key of the loans map, and the compiler requires
+   an explicit disclosure before a witness-derived value reaches a ledger read or write.
+3. Check that the borrower isn't blacklisted or in the middle of a PIN change.
+4. Hash the identity into `userPubKeyHash` and run the private evaluation. The provider signed
+   this hash along with the profile, so a signature issued to someone else fails.
+5. Disclose only the outcome, the tier amount and status, and record the loan.
+
+:::important
+`disclose()` doesn't publish anything by itself. It is a compile-time annotation that marks a
+witness-derived value as allowed to leave the circuit. The value becomes public when a ledger read
+or write uses it. An exported circuit's return value needs `disclose()` too, but it isn't
+published: the transaction carries only a randomized commitment to the call's inputs and outputs.
+The credit score, income, and tenure are never disclosed and never reach the ledger, so they stay
+private.
+:::
+
+### The private evaluation
+
+`evaluateApplicant` isn't exported, so it can only run as part of `requestLoan`'s proof:
+
+```compact title="contract/zk-loan.compact"
+// Private credit evaluation. Not exported: it only runs as part of
+// `requestLoan`'s proof. The witness profile is trusted ONLY after the
+// provider's signature over it has been verified in-circuit.
+circuit evaluateApplicant(userPubKeyHash: Field): [Uint<16>, LoanStatus] {
+    const [profile, signature, providerId] = getAttestedScoringWitness();
+
+    // The provider must be registered on-chain by the admin. Disclosing the id
+    // reveals WHICH provider attested, but nothing about the profile.
+    assert(providers.member(disclose(providerId)), "Attestation provider not registered");
+    const providerPk = providers.lookup(disclose(providerId));
+
+    // Signed message: [creditScore, monthlyIncome, monthsAsCustomer, userPubKeyHash].
+    // Must match, element for element, what the provider signed off-chain.
+    const msg: Vector<4, Field> = [
+        profile.creditScore as Field,
+        profile.monthlyIncome as Field,
+        profile.monthsAsCustomer as Field,
+        userPubKeyHash
+    ];
+
+    // Fails the whole transaction if the signature is not valid for this
+    // provider over this exact message — so a tampered profile cannot pass.
+    Schnorr_schnorrVerify<4>(msg, signature, providerPk);
+
+    // Tier 1: best applicants, max 10,000
+    if (profile.creditScore >= 700 && profile.monthlyIncome >= 2000 && profile.monthsAsCustomer >= 24) {
+        return [10000, LoanStatus.Approved];
+    }
+    // Tier 2: good applicants, max 7,000
+    else if (profile.creditScore >= 600 && profile.monthlyIncome >= 1500) {
+        return [7000, LoanStatus.Approved];
+    }
+    // Tier 3: basic eligibility, max 3,000
+    else if (profile.creditScore >= 580) {
+        return [3000, LoanStatus.Approved];
+    }
+    // None of the above: rejected.
+    else {
+        return [0, LoanStatus.Rejected];
+    }
+}
+```
+
+It takes the profile, signature, and provider ID from the witness, checks the provider is
+registered, and rebuilds the signed message element for element. `Schnorr_schnorrVerify` fails the
+whole transaction if the signature isn't valid for that provider over that exact message. Only
+then is the profile trusted, and scored:
+
+| Tier | Credit score | Monthly income | Tenure | Maximum |
+| --- | --- | --- | --- | --- |
+| 1 | at least 700 | at least 2,000 | at least 24 months | 10,000 |
+| 2 | at least 600 | at least 1,500 | any | 7,000 |
+| 3 | at least 580 | any | any | 3,000 |
+| Rejected | below 580 | any | any | 0 |
+
+### Recording the loan
+
+```compact title="contract/zk-loan.compact"
+// Writes the loan record. All arguments are already disclosed by the caller.
+circuit createLoan(requester: Bytes<32>, amountRequested: Uint<16>, topTierAmount: Uint<16>, status: LoanStatus): [] {
+    const authorizedAmount = amountRequested > topTierAmount ? topTierAmount : amountRequested;
+
+    // Final status:
+    // - Rejected (not eligible) stays Rejected
+    // - Approved and requested <= eligible stays Approved
+    // - Approved but requested > eligible becomes Proposed (user must accept the lower amount)
+    const finalStatus = status == LoanStatus.Rejected
+        ? LoanStatus.Rejected
+        : (amountRequested > topTierAmount ? LoanStatus.Proposed : LoanStatus.Approved);
+
+    const loan = LoanApplication {
+        authorizedAmount: authorizedAmount,
+        status: finalStatus,
+    };
+    // Nested ADTs must be initialized before use: insert an empty inner map the
+    // first time this identity borrows.
+    if (!loans.member(requester)) {
+        loans.insert(requester, default<Map<Uint<16>, LoanApplication>>);
+    }
+    // Auto-incrementing loan id = current count + 1 (ids start at 1). The
+    // assert keeps the cast to Uint<16> from overflowing.
+    const totalLoans = loans.lookup(requester).size();
+    assert(totalLoans < 65535, "Maximum number of loans reached");
+    const loanNumber = (totalLoans + 1) as Uint<16>;
+    loans.lookup(requester).insert(loanNumber, disclose(loan));
+}
+```
+
+There are three outcomes:
+
+- **Approved:** the borrower asked for no more than their tier's maximum, and gets what they
+  asked for.
+- **Proposed:** the borrower asked for more. The loan records the tier's maximum and waits for
+  the borrower's answer.
+- **Rejected:** the profile didn't meet any tier. The amount is 0.
+
+### Responding to a proposal
+
+`respondToLoan` resolves a `Proposed` loan:
+
+```compact title="contract/zk-loan.compact"
+// Resolve a Proposed loan. Only the owner — whose secret + PIN derive to the
+// loan's map key — can find it, so no separate ownership check is needed.
 export circuit respondToLoan(loanId: Uint<16>, secretPin: Uint<16>, accept: Boolean): [] {
     const requesterPubKey = deriveUserPublicKey(getUserSecret(), secretPin);
     const disclosedRequesterPubKey = disclose(requesterPubKey);
@@ -405,127 +539,23 @@ export circuit respondToLoan(loanId: Uint<16>, secretPin: Uint<16>, accept: Bool
     const existingLoan = loans.lookup(disclosedPubKey).lookup(disclosedLoanId);
     assert(existingLoan.status == LoanStatus.Proposed, "Loan is not in Proposed status");
 
+    // Accept keeps the proposed (capped) amount; decline zeroes it.
     const updatedLoan = accept
         ? LoanApplication { authorizedAmount: existingLoan.authorizedAmount, status: LoanStatus.Approved }
         : LoanApplication { authorizedAmount: 0, status: LoanStatus.NotAccepted };
 
     loans.lookup(disclosedPubKey).insert(disclosedLoanId, disclose(updatedLoan));
 }
-
-
-circuit evaluateApplicant(userPubKeyHash: Field): [Uint<16>, LoanStatus] {
-
-const [profile, signature, providerId] = getAttestedScoringWitness();
-
-    assert(providers.member(disclose(providerId)), "Attestation provider not registered");
-    const providerPk = providers.lookup(disclose(providerId));
-
-    const msg: Vector<4, Field> = [
-        profile.creditScore as Field,
-        profile.monthlyIncome as Field,
-        profile.monthsAsCustomer as Field,
-        userPubKeyHash
-    ];
-
-    Schnorr_schnorrVerify<4>(msg, signature, providerPk);
-
-    if (profile.creditScore >= 700 && profile.monthlyIncome >= 2000 && profile.monthsAsCustomer >= 24) {
-        return [10000, LoanStatus.Approved];
-    }
-    else if (profile.creditScore >= 600 && profile.monthlyIncome >= 1500) {
-        return [7000, LoanStatus.Approved];
-    }
-    else if (profile.creditScore >= 580) {
-        return [3000, LoanStatus.Approved];
-    }
-    else {
-        return [0, LoanStatus.Rejected];
-    }
-}
-
-circuit createLoan(requester: Bytes<32>, amountRequested: Uint<16>, topTierAmount: Uint<16>, status: LoanStatus): [] {
-
-const authorizedAmount = amountRequested > topTierAmount ? topTierAmount : amountRequested;
-
-    const finalStatus = status == LoanStatus.Rejected
-        ? LoanStatus.Rejected
-        : (amountRequested > topTierAmount ? LoanStatus.Proposed : LoanStatus.Approved);
-
-    const loan = LoanApplication {
-       authorizedAmount: authorizedAmount,
-        status: finalStatus,
-    };
-    if(!loans.member(requester)) {
-        loans.insert(requester, default<Map<Uint<16>, LoanApplication>>);
-    }
-    const totalLoans = loans.lookup(requester).size();
-    assert(totalLoans < 65535, "Maximum number of loans reached");
-    const loanNumber = (totalLoans + 1) as Uint<16>;
-    loans.lookup(requester).insert(loanNumber, disclose(loan));
-}
 ```
 
-`requestLoan` is the main entry point that users call. Here is the flow:
+There's no separate ownership check. The loan is looked up under the identity derived from the
+caller's secret and PIN, so only its owner can find it.
 
-1.  Derive the caller's per-user identity with `deriveUserPublicKey(getUserSecret(), secretPin)`. The witness secret is the only authoritative caller identity in this contract.
-2.  `disclose()` the derived pubkey so the compiler will let the value flow into ledger reads (`blacklist.member`, `onGoingPinMigration.member`). The value is witness-derived, so explicit disclosure is required.
-3.  Check the user is not on the blacklist or mid-PIN-change.
-4.  Call `evaluateApplicant()` — this is where the private credit scoring happens. The `transientHash` of the disclosed pubkey becomes the `userPubKeyHash` that the attestation message is signed against, binding the off-chain attestation to this specific in-circuit identity.
-5.  [`disclose()`](/compact/reference/explicit-disclosure) only the results (amount and status), and write the loan record to the ledger.
+## Admin circuits
 
-:::important
-`evaluateApplicant` runs entirely in the ZK circuit. It reads the user's credit data from the witness, verifies the attestation signature, and returns the eligibility tier. `disclose()` does not itself make anything public — it is a compile-time annotation that marks a witness-derived value as safe to leave the private domain. A value only *becomes* public when it crosses a public boundary: written to a ledger field, or returned from an exported circuit. The credit score, income, and tenure are never disclosed and never cross such a boundary, so they stay private; only the eligibility *outcome* (amount and status) is disclosed and then written to the ledger, which is what actually publishes it.
-:::
+Every admin circuit opens with the same guard:
 
-Also, `evaluateApplicant` is an internal circuit (not exported, cannot be called from outside). It:
-- Gets the user's credit profile, Schnorr signature, and provider ID from the witness
-- Verifies the provider is registered on-chain
-- Verifies the Schnorr signature — this proves the data came from a trusted provider and was not fabricated by the user
-- Evaluates the credit profile against three tiers:
-
-| Tier | Credit Score | Monthly Income | Tenure | Max Amount |
-| --- | --- | --- | --- | --- |
-| 1 | >= 700 | >= $2,000 | >= 24 months | $10,000 |
-| 2 | >= 600 | >= $1,500 | any | $7,000 |
-| 3 | >= 580 | any | any | $3,000 |
-| Rejected | < 580 | any | any | $0 |
-
-`createLoan` handles the status logic. Three outcomes are possible:
-- **Approved**: The user asked for less than or equal to their max eligible amount. They get exactly what they asked for.
-- **Proposed**: The user asked for more than they qualify for. The smart contract offers the max eligible amount and waits for the user to accept or decline.
-- **Rejected**: The credit score is too low. Amount = 0.
-
-`respondToLoan` lets users accept or decline a *Proposed* loan. If they accept, the status changes to Approved. If they decline, it changes to NotAccepted and the authorized amount is zeroed out.
-
-### Admin circuits
-
-These access-controlled operations use the **witness-derived keypair pattern**. Every admin circuit starts with the same guard:
-
-```compact
-assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can ...");
-```
-
-Inside the ZK proof, this enforces that the caller knows the 32-byte preimage of the public value stored in `contractAdmin`. The ledger value alone is useless to an attacker: they could copy it into their proof input, but they cannot supply a witness whose hash matches without knowing the secret.
-
-:::warning Why not `ownPublicKey()`?
-
-An older version of this contract used `assert(ownPublicKey() == admin, "...")`. That pattern is bypassable. `ownPublicKey()` is supplied by the prover to the circuit context — the protocol does not cross-check it against the wallet that signed the transaction. A caller can put any 32-byte value in that slot and the assertion will hold. The same bypass applies to any other check that depends on `ownPublicKey()`: blacklist membership, PIN-bound identity derivation, anything where the result of `ownPublicKey()` flows into a security-relevant decision.
-
-The strict rule is: **if your contract is not routing shielded tokens to a target wallet, do not call `ownPublicKey()`.** Use witness-derived secrets for caller identity.
-
-:::
-
-The five admin circuits are:
-
-*   `blacklistUser` / `removeBlacklistUser`: Add or remove a derived `UserPublicKey` from the blacklist. The admin obtains the target's `UserPublicKey` from the on-chain `loans` map keys (where it appears whenever the target has interacted) or from the target out-of-band. An admin cannot blacklist by wallet address — `ownPublicKey()` is not trusted by the contract.
-
-*   `registerProvider` / `removeProvider`: Add or remove an attestation provider's public key.
-
-*   `rotateAdmin`: Hand over the admin role to a new derived public key. The new admin generates their own secret locally, computes `deriveAdminPublicKey` off-chain, and shares only the resulting 32-byte value with the current admin. No private key crosses the wire.
-
-Add the following code snippet:
-
-```compact
+```compact title="contract/zk-loan.compact"
 export circuit blacklistUser(account: UserPublicKey): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can blacklist users");
     blacklist.insert(disclose(account));
@@ -546,40 +576,47 @@ export circuit removeProvider(providerId: Uint<16>): [] {
     assert(providers.member(disclose(providerId)), "Provider not found");
     providers.remove(disclose(providerId));
 }
+```
 
+Inside the proof, `contractAdmin == deriveAdminPublicKey(getUserSecret())` forces the caller to
+know the secret whose hash is stored in `contractAdmin`. Anyone can read `contractAdmin` off the
+ledger, but without the secret they can't produce a witness that hashes to it.
+
+`blacklistUser` takes a derived `UserPublicKey`, not a wallet address. The admin gets it from the
+keys of the `loans` map, where it appears once the borrower has a loan.
+
+:::warning Why not `ownPublicKey()`?
+An older version of this contract checked `ownPublicKey() == admin`. That check can be bypassed:
+the prover supplies `ownPublicKey()` to the circuit, and the protocol doesn't cross-check it
+against the wallet that signs the transaction, so a caller can put any value there. The same goes
+for any security decision that depends on it. Unless a contract is sending shielded tokens to a
+wallet, don't use `ownPublicKey()`; derive caller identity from a witness secret instead.
+:::
+
+`rotateAdmin` hands the role to a new admin:
+
+```compact title="contract/zk-loan.compact"
+// Hand the admin role to a new derived public key. The caller proves they hold
+// the current admin secret; the new admin is passed in as a PUBLIC key the next
+// admin already controls (they compute it off-chain with
+// `pureCircuits.deriveAdminPublicKey`). No private key ever leaves either party.
 export circuit rotateAdmin(newAdmin: AdminPublicKey): [] {
     assert(contractAdmin == deriveAdminPublicKey(getUserSecret()), "Only admin can rotate admin role");
     contractAdmin = disclose(newAdmin);
 }
 ```
 
-### PIN migration and Schnorr re-export
+The new admin generates their own secret, computes `deriveAdminPublicKey` off-chain, and shares
+only the resulting public key. No secret changes hands.
 
-This final block has two circuits: PIN migration and the Schnorr challenge re-export.
+## Changing the PIN
 
-Per-user identity is `deriveUserPublicKey(getUserSecret(), pin)`, defined in the header block above. The witness secret plus the PIN produces a deterministic `UserPublicKey` whose bytes appear on-chain. Without knowing both the secret and the PIN, you cannot link a wallet address to a loan record — giving users an extra layer of privacy.
+A new PIN derives a new identity, but the borrower's loans are recorded under the old one, so
+`changePin` has to move them. A circuit can't loop over a variable number of loans: every loop
+bound must be known at compile time. So `changePin` migrates a fixed batch of five loans per call,
+and keeps a cursor in `onGoingPinMigration`:
 
-`changePin` is the most complex circuit. When a user changes their PIN, the derivation yields a new on-chain identity. But their existing loans are tied to the old identity. All loans need to migrate from the old `UserPublicKey` to the new one.
-
-The catch: ZK circuits cannot loop over variable-length data. If a user has 12 loans, you cannot write `for i in 0..loans.size()`. The loop bound must be known at compile time. The solution is batched migration:
-- Process exactly 5 loans per transaction (fixed at compile time with `for (const i of 0..5)`).
-- Track progress in `onGoingPinMigration` — it stores how far the migration has gotten.
-- The user calls `changePin` repeatedly until all loans are migrated.
-- Once done, the migration state is cleaned up.
-
-For a user with 12 loans:
-
-*   Call 1: Migrates loans 1–5, records progress
-
-*   Call 2: Migrates loans 6–10, records progress
-
-*   Call 3: Migrates loans 11–12, finds slots 13–15 empty, cleans up
-
-While migration is in progress, `requestLoan` is blocked for that user (the `onGoingPinMigration` check).
-
-Append this final code snippet:
-
-```compact
+```compact title="contract/zk-loan.compact"
 export circuit changePin(oldPin: Uint<16>, newPin: Uint<16>): [] {
     const oldUserPk = deriveUserPublicKey(getUserSecret(), oldPin);
     const newUserPk = deriveUserPublicKey(getUserSecret(), newPin);
@@ -594,6 +631,7 @@ export circuit changePin(oldPin: Uint<16>, newPin: Uint<16>): [] {
 
     assert(loans.member(disclosedOldPk), "Old PIN does not match any user");
 
+    // First batch: start the cursor at 0 and make sure the destination exists.
     if (!onGoingPinMigration.member(disclosedOldPk)) {
         onGoingPinMigration.insert(disclosedOldPk, 0);
     }
@@ -601,20 +639,32 @@ export circuit changePin(oldPin: Uint<16>, newPin: Uint<16>): [] {
         loans.insert(disclosedNewPk, default<Map<Uint<16>, LoanApplication>>);
     }
 
+    // Migrated loans are appended after any loans the new identity already has.
     const lastMigratedSourceId: Uint<16> = onGoingPinMigration.lookup(disclosedOldPk);
     const lastDestinationId: Uint<16> = loans.lookup(disclosedNewPk).size() as Uint<16>;
+```
 
+The first call starts the cursor at 0 and creates the borrower's new entry. Then each call moves up
+to five loans:
+
+```compact title="contract/zk-loan.compact"
+    // Process up to 5 loans per transaction. The bound is a compile-time
+    // constant, so the loop is unrolled into the circuit.
     for (const i of 0..5) {
+        // The migration may have completed in an earlier iteration of this loop.
         if (onGoingPinMigration.member(disclosedOldPk)) {
             const sourceId = (lastMigratedSourceId + i + 1) as Uint<16>;
             const destinationId = (lastDestinationId + i + 1) as Uint<16>;
 
             if (loans.lookup(disclosedOldPk).member(sourceId)) {
+                // Move the loan and advance the cursor.
                 const loan = loans.lookup(disclosedOldPk).lookup(sourceId);
                 loans.lookup(disclosedNewPk).insert(destinationId, disclose(loan));
                 loans.lookup(disclosedOldPk).remove(sourceId);
                 onGoingPinMigration.insert(disclosedOldPk, sourceId);
             } else {
+                // No more loans: clear the migration flag and drop the empty
+                // old identity entirely.
                 onGoingPinMigration.remove(disclosedOldPk);
                 if (loans.lookup(disclosedOldPk).size() == 0) {
                     loans.remove(disclosedOldPk);
@@ -623,69 +673,85 @@ export circuit changePin(oldPin: Uint<16>, newPin: Uint<16>): [] {
         }
     }
 }
+```
 
+For a borrower with 12 loans:
+
+- Call 1 moves loans 1–5 and records the cursor at 5.
+- Call 2 moves loans 6–10.
+- Call 3 moves loans 11 and 12, finds slot 13 empty, clears the cursor, and removes the old,
+  now-empty identity.
+
+While the cursor exists, `requestLoan` rejects the old identity, so no new loan can land behind
+the migration.
+
+## Re-exporting the challenge
+
+The contract re-exports the module's challenge hash, so it appears in the generated TypeScript
+`pureCircuits`, where the attestation API's signer calls it:
+
+```compact title="contract/zk-loan.compact"
+// Re-export schnorrChallenge from the schnorr module so it is available in the
+// generated TypeScript `pureCircuits` — the off-chain signer (see
+// src/test/utils/test-data.ts) must compute the exact same challenge hash.
 export pure circuit schnorrChallenge(
-    ann_x: Field,
-    ann_y: Field,
-    pk_x: Field,
-    pk_y: Field,
-    msg: Vector<4, Field> ): Field {
-
-return Schnorr_schnorrChallenge(ann_x, ann_y, pk_x, pk_y, msg);
+    ann_x: Field, ann_y: Field,
+    pk_x: Field, pk_y: Field,
+    msg: Vector<4, Field>
+): Field {
+    return Schnorr_schnorrChallenge(ann_x, ann_y, pk_x, pk_y, msg);
 }
 ```
 
-`schnorrChallenge` re-exports the Schnorr challenge hash function as a `pure` circuit (no side effects, no ledger access). This must be available in the generated TypeScript so the attestation API can compute the same hash off-chain when signing.
+## The witnesses
 
-Your smart contract file is now complete. Before moving on, here is a summary of what is private versus public:
+`contract/witnesses.ts` implements the two witnesses, plus the module's `getSchnorrReduction`.
+The private state holds the signed profile and the user secret:
 
-| **Data** | **Visibility** | **Why** |
-| --- | --- | --- |
-| 32-byte user secret | Private (witness only) | Authoritative caller identity; never leaves the user's machine |
-| Credit score, income, and tenure | Private (witness only) | Never leaves the user's machine |
-| Secret PIN | Private (circuit input) | Hashed with the user secret into per-user identity, never stored |
-| Attestation signature | Private (ZK proof input) | Verified inside the circuit |
-| Derived `UserPublicKey` (loan map key) | Public (ledger) | Unlinkable without both the user secret and the PIN |
-| Loan status and amount | Public (ledger) | The on-chain outcome |
-| `contractAdmin`, blacklist | Public (ledger) | Smart contract governance |
-
-## Create the witness function (private data provider)
-
-The witness is the TypeScript code that provides private data to the ZK circuit at proving time. It runs on your machine, never on-chain.
-
-Create `contract/src/witnesses.ts`:
-
-```typescript
-import { Ledger } from "./managed/zkloan-credit-scorer/contract/index.js";
-import { WitnessContext } from "@midnight-ntwrk/midnight-js-protocol/compact-runtime";
-
-export type SchnorrSignature = {
-  announcement: { x: bigint; y: bigint };
-  response: bigint;
-};
-
-export type ZKLoanCreditScorerPrivateState = {
+```typescript title="contract/witnesses.ts"
+export type ZkLoanPrivateState = {
   creditScore: bigint;
   monthlyIncome: bigint;
   monthsAsCustomer: bigint;
   attestationSignature: SchnorrSignature;
   attestationProviderId: bigint;
-  userSecretKey: Uint8Array;  // 32 bytes — the caller's authentic identity
+  userSecretKey: Uint8Array;
 };
+```
 
-const TWO_248 = 452312848583266388373324160190187140051835877600158453279131187530910662656n;
+`SchnorrSignature` mirrors the generated `Schnorr_SchnorrSignature`: a `JubjubPoint` crosses into
+TypeScript as its `{ x, y }` coordinates. None of these fields ever reaches the ledger.
 
-export const witnesses = {
-  getAttestedScoringWitness: ({
-    privateState
-  }: WitnessContext<Ledger, ZKLoanCreditScorerPrivateState>): [
-    ZKLoanCreditScorerPrivateState,
-    [
-      { creditScore: bigint; monthlyIncome: bigint; monthsAsCustomer: bigint },
-      SchnorrSignature,
-      bigint,
-    ],
-  ] => [
+A helper builds a private state with a secret and an empty, unsigned profile. That is enough to
+deploy and to call the admin circuits. `requestLoan` also needs a signed profile, which the
+[tests](/tutorials/zk-loan/test-suite) get from the attestation API.
+
+```typescript title="contract/witnesses.ts"
+// A private state holding only a user secret and an empty (unsigned) profile.
+// Enough to deploy and to call admin circuits; `requestLoan` additionally needs
+// a signed profile (see `createCustomSignedProfile` in the test utilities).
+export const createZkLoanPrivateState = (userSecretKey: Uint8Array): ZkLoanPrivateState => ({
+  creditScore: 0n,
+  monthlyIncome: 0n,
+  monthsAsCustomer: 0n,
+  attestationSignature: { announcement: { x: 0n, y: 0n }, response: 0n },
+  attestationProviderId: 0n,
+  userSecretKey,
+});
+```
+
+Each witness receives a `WitnessContext` and returns a tuple of the next private state and the
+value the circuit asked for:
+
+```typescript title="contract/witnesses.ts"
+// The `Witnesses<ZkLoanPrivateState>` annotation is load-bearing: leaving it to
+// inference collapses the private-state type parameter to `never` and breaks
+// the deploy/call overloads.
+export const witnesses: Witnesses<ZkLoanPrivateState> = {
+  // Hands the circuit the private profile, the provider's signature over it,
+  // and which provider signed. The circuit re-derives the message and verifies
+  // the signature before trusting any of it.
+  getAttestedScoringWitness: ({ privateState }) => [
     privateState,
     [
       {
@@ -698,183 +764,78 @@ export const witnesses = {
     ],
   ],
 
-  getSchnorrReduction: ({
-    privateState
-  }: WitnessContext<Ledger, ZKLoanCreditScorerPrivateState>,
-    challengeHash: bigint,
-  ): [ZKLoanCreditScorerPrivateState, [bigint, bigint]] => {
+  // Witness-assisted division: cheap here, and the circuit checks
+  // `q * 2^248 + r == challengeHash` with q bounded, so a dishonest answer is
+  // rejected rather than trusted.
+  getSchnorrReduction: ({ privateState }, challengeHash) => {
     const q = challengeHash / TWO_248;
     const r = challengeHash % TWO_248;
     return [privateState, [q, r]];
   },
 
-  getUserSecret: ({
-    privateState,
-  }: WitnessContext<Ledger, ZKLoanCreditScorerPrivateState>): [
-    ZKLoanCreditScorerPrivateState,
-    Uint8Array,
-  ] => {
+  // The single source of caller identity. Validate the length so a malformed
+  // private state fails loudly at proof time rather than as an opaque
+  // circuit error.
+  getUserSecret: ({ privateState }) => {
     if (!privateState.userSecretKey || privateState.userSecretKey.length !== 32) {
-      throw new Error("getUserSecret: userSecretKey is missing or wrong length");
+      throw new Error('getUserSecret: userSecretKey is missing or wrong length');
     }
     return [privateState, privateState.userSecretKey];
   },
 };
 ```
 
-In the code above, each witness function receives a `WitnessContext` containing the current `privateState` and must return:
-- The (possibly updated) private state
-- The values the circuit requested
+- `getAttestedScoringWitness` returns the profile, the signature, and the provider ID. The circuit
+  verifies the signature before it trusts any of them.
+- `getSchnorrReduction` divides the challenge hash by 2^248. The honest quotient is always between
+  0 and 115, so it passes the circuit's range check.
+- `getUserSecret` returns the bare secret, a `Uint8Array`, because `UserSecretKey` is a `new type`
+  over `Bytes<32>`. Its length check makes a malformed private state fail loudly while the proof is
+  built, rather than as an opaque circuit error.
 
-*   `getAttestedScoringWitness`: extracts the credit profile, attestation signature, and provider ID from private state.
+Annotate the object as `Witnesses<ZkLoanPrivateState>`. Left to inference, the private-state type
+parameter collapses to `never`, and the MidnightJS deploy and call functions no longer type-check.
 
-*   `getSchnorrReduction`: computes the quotient and remainder of dividing the challenge hash by 2^248 (Jubjub scalar field truncation). The circuit declares the quotient as `Uint<7>` and asserts it is below 116, so the reduction is checked over the integers rather than modulo the field prime — the honest quotient is always in [0, 115], so the TypeScript implementation needs no special handling.
+`contract/index.ts` exports the compiled contract, `CompiledZkLoanContract`, with these witnesses
+attached, for the tests and the attestation API to import.
 
-*   `getUserSecret`: returns the 32-byte secret that drives all caller identity in this contract. Because `UserSecretKey` is now a `new type` over `Bytes<32>`, its generated TypeScript type is a plain `Uint8Array` — the witness returns the bare secret, with no `{ bytes: ... }` wrapper. The contract feeds it into two pure circuits — `deriveUserPublicKey(secret, pin)` for per-user PIN-bound identity, and `deriveAdminPublicKey(secret)` for the admin role. Only the deploying admin's secret hashes to the value stored in `contractAdmin`; everyone else's `getUserSecret` returns a value whose admin-derivation does not match, so admin assertions fail for them. Domain-separator strings (`"zkloan:admin:pk:v1"` vs `"zkloan:user:pk:v1"`) keep the two derivations from the same secret uncorrelated. The runtime length check rejects malformed witnesses at proof time.
+## Compile
 
-## Create the smart contract TypeScript exports
-
-Create `contract/src/index.ts`:
-
-```shell
-cat > contract/src/index.ts << 'EOF'
-export * as ZKLoanCreditScorer from "./managed/zkloan-credit-scorer/contract/index.js";
-export * from "./witnesses.js";
-EOF
-```
-
-This re-exports both the generated smart contract code (from the Compact compiler) and the witness implementations.
-
-Now create the smart contract's `package.json` using the following command in your terminal:
-
-```shell
-cat > contract/package.json << 'EOF'
-{
-  "name": "zkloan-credit-scorer-contract",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./managed/zkloan-credit-scorer/contract": {
-      "types": "./dist/managed/zkloan-credit-scorer/contract/index.d.ts",
-      "import": "./dist/managed/zkloan-credit-scorer/contract/index.js",
-      "default": "./dist/managed/zkloan-credit-scorer/contract/index.js"
-    }
-  },
-  "scripts": {
-    "compact": "compact compile src/zkloan-credit-scorer.compact src/managed/zkloan-credit-scorer",
-    "test": "vitest run",
-    "test:compile": "npm run compact && vitest run",
-    "build": "rm -rf dist && tsc --project tsconfig.build.json && cp -Rf ./src/managed ./dist/managed && cp ./src/zkloan-credit-scorer.compact ./src/schnorr.compact ./dist"
-  }
-}
-EOF
-```
-
-Create `contract/tsconfig.json`:
+From `examples/zk-loan`:
 
 ```bash
-cat > contract/tsconfig.json << 'EOF'
-{
-  "include": ["src/**/*.ts"],
-  "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist",
-    "declaration": true,
-    "lib": ["ESNext"],
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowJs": true,
-    "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": true,
-    "strict": true,
-    "isolatedModules": true,
-    "sourceMap": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true
-  }
-}
-EOF
+yarn compile
 ```
 
-:::note `moduleResolution: bundler` is required
+This runs `compact compile contract/zk-loan.compact contract/managed/zk-loan`. The compiler finds
+`schnorr.compact` next to the contract and generates a proving key for each circuit:
 
-Midnight JS 4.1.x uses the protocol package's `exports` subpath map (`@midnight-ntwrk/midnight-js-protocol/compact-runtime`, `/ledger`, `/compact-js`, etc.). The legacy `moduleResolution: node` resolver cannot read that map. Use `bundler`, `node16`, or `nodenext` in every workspace that imports from a protocol subpath.
+```
+Compiling 8 circuits:
+  circuit "blacklistUser" (k=13, rows=2579)
+  circuit "changePin" (k=14, rows=14024)
+  circuit "registerProvider" (k=13, rows=2340)
+  circuit "removeBlacklistUser" (k=13, rows=2579)
+  circuit "removeProvider" (k=13, rows=2320)
+  circuit "requestLoan" (k=13, rows=7998)
+  circuit "respondToLoan" (k=13, rows=6222)
+  circuit "rotateAdmin" (k=13, rows=2579)
+Overall progress [====================] 8/8
+```
 
-:::
+Eight circuits, one for each exported impure circuit. The pure circuits `deriveUserPublicKey`,
+`deriveAdminPublicKey`, and `schnorrChallenge` don't need one, and `evaluateApplicant` and
+`createLoan` are compiled into `requestLoan`. `changePin` is the largest because its five-step
+loop is unrolled into the circuit.
 
-Create `contract/tsconfig.build.json`:
+The contract has a fast simulator suite too, which needs no network. It runs every circuit,
+including the forged-attestation regression test, in memory:
 
 ```bash
-cat > contract/tsconfig.build.json << 'EOF'
-{
-  "extends": "./tsconfig.json",
-  "exclude": ["src/test/**/*.ts"],
-  "compilerOptions": {}
-}
-EOF
+yarn test:sim
 ```
 
-## Compile the smart contract
+## Next
 
-Install all dependencies from the project root:
-
-```bash
-npm install
-```
-
-Compile the Compact smart contract:
-
-```shell
-cd contract
-npm run compact
-```
-
-This creates the `src/managed/zkloan-credit-scorer/` directory containing:
-
-*   `contract/` — Generated TypeScript implementation of the smart contract
-
-*   `keys/` — Proving and verifying keys for each circuit
-
-*   `zkir/` — ZK intermediate representation files
-
-*   `compiler/` — Compiler metadata
-
-Now build the TypeScript:
-
-```shell
-npm run build
-cd ..
-```
-
-At this point, the smart contract package is compiled and ready to be consumed by the CLI and attestation API.
-
-## What you built in Part 1
-
-This part covered the foundation of the ZK loan application:
-
-*   **Schnorr signature module**: A Compact module that verifies cryptographic signatures inside a ZK circuit, ensuring credit data comes from a trusted source.
-*   **Loan smart contract**: The full Compact smart contract with loan request logic, tiered eligibility evaluation, admin controls, PIN-based identity derivation, and batched PIN migration.
-*   **Witness implementation**: TypeScript code that feeds private credit data into the ZK circuit at proving time, without exposing it on-chain.
-*   **TypeScript exports and compilation**: Package configuration, compiler output, and the generated ZK circuits, keys, and bindings.
-
-The smart contract has been compiled and is ready. No credit data touches the blockchain; only the loan outcome does.
-
-## Next steps
-
-The next part builds the off-chain infrastructure that makes the smart contract functional:
-
-*   [Attestation API](./attestation-api): A REST server that signs credit data with Schnorr signatures, acting as the trusted data provider that the smart contract verifies against.
-*   **Attestation flow**: A walkthrough of how the user, attestation API, and Midnight Network interact end-to-end.
-*   **Docker setup for the proof server**: Configuring the local proof server that generates ZK proofs for your transactions.
+The [attestation API](/tutorials/zk-loan/attestation-api) is the provider this contract trusts: it
+signs credit data with the same challenge hash, so the signatures verify inside the proof.
