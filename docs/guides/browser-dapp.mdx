@@ -21,10 +21,11 @@ The examples use Midnight.js 4.1.1 and DApp Connector API 4.0.1 with a small cou
 These apply to every procedure in this guide:
 
 - Node.js 22 or later.
-- The Compact toolchain at the version the [support matrix](../relnotes/support-matrix) pairs with Midnight.js 4.1.1, which is 0.31.1.
+- The Compact toolchain 0.31.1, the version the [support matrix](../relnotes/support-matrix) pairs with Midnight.js 4.1.1. Install it with `compact update 0.31.1`. Newer toolchains compile for ledger 9, which Midnight.js 4.1.1 does not support.
 - A browser wallet that implements DApp Connector API 4.x, such as [Lace](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk), set to the network you target.
 - NIGHT in that wallet, registered for DUST generation, because every deploy and call pays a fee in DUST. [Funding a wallet](./acquire-tokens) covers the faucet and the registration.
-- A [proof server](./run-proof-server) running on your machine. Lace sends proving requests to the proof server address in its settings, which is `http://localhost:6300` unless you change it.
+- On Preprod, a Blockfrost project ID for the **Midnight Preprod** network, because the page reads public state from the Blockfrost indexer. See [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
+- A [proof server](./run-proof-server) running on your machine. Lace 2.4.3 sends proving requests to the proof server address in its Midnight settings, `http://localhost:6300`.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## How the page and the wallet share the work
@@ -110,10 +111,10 @@ Create a Vite project, add the Midnight.js packages, compile the contract, and p
    }
    ```
 
-5. Compile the contract, then copy the ZK files into `public/counter/` so that Vite serves them at `/counter/keys/` and `/counter/zkir/`. Repeat the copy whenever you recompile:
+5. Compile the contract with toolchain 0.31.1, then copy the ZK files into `public/counter/` so that Vite serves them at `/counter/keys/` and `/counter/zkir/`. Repeat the copy whenever you recompile:
 
    ```bash
-   compact compile contract/counter.compact contract/managed/counter
+   compact compile +0.31.1 contract/counter.compact contract/managed/counter
    mkdir -p public/counter
    cp -R contract/managed/counter/keys contract/managed/counter/zkir public/counter/
    ```
@@ -167,7 +168,7 @@ The project builds, and the page loads the Midnight.js WebAssembly modules. Buil
 npm run build
 ```
 
-Vite prints warnings that the `assert` module has been externalized for browser compatibility. The build still succeeds:
+Vite prints warnings that the `assert` module has been externalized for browser compatibility and that the `WebSocket` import from `isomorphic-ws` is undefined. The second one is harmless: with no WebSocket implementation passed in, the indexer client uses the browser's own. The build still succeeds:
 
 ```text
 ✓ built in 1.31s
@@ -258,7 +259,7 @@ If the wallet is set to a different network than `NETWORK_ID`, the connection fa
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Building the providers from the wallet
 
-Build the six providers that every Midnight.js deploy and call takes. In a browser, the wallet fills three of them: proving, balancing, and submitting. The page's own origin serves the ZK files, IndexedDB holds private state, and the wallet reports which indexer to read from unless you name your own.
+Build the six providers that every Midnight.js deploy and call takes. In a browser, the wallet fills three of them: proving, balancing, and submitting. The page's own origin serves the ZK files, IndexedDB holds private state, and the indexer comes from `.env.local`, or from the wallet when you leave it out.
 
 ### Prerequisites
 
@@ -367,33 +368,35 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
 
    :::
 
-   :::note Reading from your own indexer
-
-   The page reads public state from the indexer that `getConfiguration()` reports. If that indexer does not answer, or you want a different one, add its HTTP and WebSocket addresses to `.env.local` and restart the development server:
+3. Name the indexer in a `.env.local` file in the project root. `buildProviders` reads these two values before it falls back to the indexer that `getConfiguration()` reports. Do not rely on the wallet's value. Lace 2.4.3 ships indexer addresses on `blockfrost.lw.iog.io` for Preprod, Preview, and Mainnet, and that proxy answers `410 Gone` for Midnight. On Preprod, use the Blockfrost endpoints with your project ID:
 
    ```text title=".env.local"
-   VITE_INDEXER_URI=<indexer-graphql-url>
-   VITE_INDEXER_WS_URI=<indexer-websocket-url>
+   VITE_INDEXER_URI=https://midnight-preprod.blockfrost.io/api/v0?project_id=<your-preprod-project-id>
+   VITE_INDEXER_WS_URI=wss://midnight-preprod.blockfrost.io/api/v0/ws?project_id=<your-preprod-project-id>
    ```
 
-   [Networks and environments](./networks-and-environments) lists the indexer addresses for each network, including the Blockfrost endpoints that need a project token. Vite builds `VITE_` values into the page, so anyone who loads it can read a token you put there.
+   On Preview, use the Midnight-hosted indexer, which needs no token. The [Environment reference](./networks-and-environments#environment-reference) lists the addresses for every network. Restart the development server whenever you change `.env.local`.
+
+   :::warning The project ID is public
+
+   Vite builds `VITE_` values into the page, so anyone who loads the page can read your project ID. Use a project that you created for testing.
 
    :::
 
-3. Add these imports at the top of `src/main.ts`:
+4. Add these imports at the top of `src/main.ts`:
 
    ```typescript title="src/main.ts"
    import type { CounterContract, CounterProviders } from './contract';
    import { buildProviders } from './providers';
    ```
 
-4. Add an object that holds the providers and the contract between button presses, above the `run('connect', ...)` handler:
+5. Add an object that holds the providers and the contract between button presses, above the `run('connect', ...)` handler:
 
    ```typescript title="src/main.ts"
    const session: { providers?: CounterProviders; counter?: CounterContract } = {};
    ```
 
-5. Replace the `run('connect', ...)` handler so that it builds the providers and enables the next buttons:
+6. Replace the `run('connect', ...)` handler so that it builds the providers and enables the next buttons:
 
    ```typescript title="src/main.ts"
    run('connect', async () => {
@@ -634,17 +637,18 @@ Which implementation fills each Midnight.js provider slot in a browser, and whic
 | `privateStateProvider` | `levelPrivateStateProvider` | `midnight-js-level-private-state-provider` | `getUnshieldedAddress`, for `accountId` | Encrypted IndexedDB store, scoped to the account and the contract address. Needs the `events` package in the bundle |
 | `publicDataProvider` | `indexerPublicDataProvider` | `midnight-js-indexer-public-data-provider` | `getConfiguration`, for `indexerUri` and `indexerWsUri` | Reads need no wallet approval. `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` replace the wallet's indexer |
 | `zkConfigProvider` | `FetchZkConfigProvider` | `midnight-js-fetch-zk-config-provider` | None | Fetches `keys/<circuit>.prover`, `keys/<circuit>.verifier`, and `zkir/<circuit>.bzkir` under the base URL |
-| `proofProvider` | `dappConnectorProofProvider` | `midnight-js-dapp-connector-proof-provider` | `getProvingProvider` | Lace 2.4.2 forwards proving to the proof server address in its settings |
+| `proofProvider` | `dappConnectorProofProvider` | `midnight-js-dapp-connector-proof-provider` | `getProvingProvider` | Lace 2.4.3 forwards proving to the proof server address in its settings |
 | `walletProvider` | Your bridge over the connected API | `dapp-connector-api` for the types | `getShieldedAddresses`, `balanceUnsealedTransaction` | The wallet asks the user to approve each transaction it balances |
 | `midnightProvider` | Your bridge over the connected API | `dapp-connector-api` for the types | `submitTransaction` | Takes the finished transaction as a hex string and returns nothing. The bridge returns the transaction ID from `tx.identifiers()` |
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Browser DApp troubleshooting
 
-Failures you are likely to meet on this guide's path, and their fixes. The Lace messages come from the Lace 2.4.2 source; the others come from a real run.
+Failures you are likely to meet on this guide's path, and their fixes. The Lace messages come from the Lace 2.4.3 source; the others come from a real run.
 
 | Error | Cause | Fix |
 |---|---|---|
+| `language version 0.27.0 mismatch` or `language version 0.26.0 mismatch` from `compact compile` | The default Compact toolchain is 0.35.0 or 0.34.0, which compile for ledger 9 | Install toolchain 0.31.1 with `compact update 0.31.1`, and compile with `compact compile +0.31.1` |
 | `ReferenceError: Cannot access '__wbindgen_start' before initialization`, and a blank page on the development server | Vite pre-bundled the WebAssembly packages | Add the `optimizeDeps.exclude` list from [Setting up the project](#setting-up-the-project) |
 | `TypeError: Class extends value undefined is not a constructor or null`, with a console warning that `events` has been externalized | The private state store imports the Node.js `events` module, which browsers lack | Run `npm install events` |
 | `Network ID has not been configured. Call setNetworkId() before any wallet or contract operation.` | A deploy or call ran before `setNetworkId` | Call `setNetworkId` when you connect, with the same ID you pass to `connect` |
@@ -654,7 +658,8 @@ Failures you are likely to meet on this guide's path, and their fixes. The Lace 
 | `Password is shorter than 16 characters`, `Password contains sequential patterns`, or another `PasswordValidationError` | The private state password fails the store's rules | Use 16 or more characters with three of the four character classes, no more than three identical characters in a row, and no sequences such as `1234` or `abcd`. The error message names the rule that failed |
 | `OperationError` when joining | The password does not match the one that encrypted the stored private state | Ask for the password the user set when they first used the contract in this browser |
 | `No private state found at private state ID '<id>'` | `findDeployedContract` ran without `initialPrivateState` in a browser that has nothing stored for the contract | Pass `initialPrivateState` when the store returns `null`, as in [Joining a deployed contract](#joining-a-deployed-contract) |
-| `Failed to fetch` after the wallet approved a deploy or call, with a console error for the indexer address | The page cannot reach the indexer that `getConfiguration()` reports. The wallet had already submitted the transaction | Set `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` to an indexer that answers, as in [Building the providers from the wallet](#building-the-providers-from-the-wallet) |
+| `Failed to fetch` on **Read public state**, or after the wallet approved a deploy or call, with a console error for the indexer address | The page cannot reach the indexer it reads from, such as Lace 2.4.3's built-in `blockfrost.lw.iog.io` address. After a deploy or call, the wallet had already submitted the transaction | Set `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` to an indexer that answers, as in [Building the providers from the wallet](#building-the-providers-from-the-wallet) |
+| `Response not successful: Received status code 403` | Blockfrost refused the project ID in `.env.local`: it is missing, mistyped, or from a project for another network | Put the ID of a **Midnight Preprod** project in both lines, then restart the development server |
 | The join keeps waiting | No contract exists at that address on the network the wallet reports | Check the address and the network |
 
 ## Additional resources
