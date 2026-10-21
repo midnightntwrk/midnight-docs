@@ -1,0 +1,1024 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+sidebar_position: 30
+sidebar_label: Build a wallet
+title: Build a Midnight wallet
+description: "Build a Midnight wallet: run keys and sync with the Wallet SDK, and implement the DApp Connector API so DApps can connect, transact, and prove."
+toc_max_heading_level: 2
+keywords: [midnight, wallet, build a wallet, wallet sdk, dapp connector api, browser extension, caip-372, window.midnight, connectedapi]
+tags: [wallet, wallet-sdk, dapp-connector, browser-extension, caip-372, proving, security]
+---
+
+# Build a Midnight wallet
+
+This guide is for teams building a Midnight wallet: a browser extension, a mobile app, or a wallet embedded in another product. A wallet does two jobs. It holds the user's keys and funds, which the [Wallet SDK](/sdks/official/wallet-developer-guide) handles, and it answers DApps through the [DApp Connector API](https://github.com/midnightntwrk/midnight-dapp-connector-api/blob/v4.0.1/SPECIFICATION.md). The Wallet SDK guide shows the SDK calls. This guide covers what your product owns around them, and how to implement the wallet side of the connector.
+
+The code on this page targets DApp Connector API 4.0.1 and Wallet SDK 1.2.0, the versions in the [support matrix](/relnotes/support-matrix).
+
+## Prerequisites
+
+- You can derive keys and start a `WalletFacade`, as shown in [Initialize the wallet](/sdks/official/wallet-developer-guide#initialize-the-wallet).
+- You have a TypeScript project that a bundler builds, with `moduleResolution` set to `"bundler"`, and these packages installed. Every sample on this page type-checks against these exact versions.
+
+  ```bash
+  npm install @midnight-ntwrk/dapp-connector-api@4.0.1 @midnightntwrk/wallet-sdk@1.2.0 @midnight-ntwrk/ledger-v8@8.1.3 @midnight-ntwrk/zkir-v2@2.1.1 rxjs@7.8.2
+  ```
+
+  Then pin `@scure/base` for the Wallet SDK's address package. `@midnightntwrk/wallet-sdk-address-format` 3.1.2 accepts any `@scure/base` 2.x, so npm installs 2.4.0 or later. From 2.4.0, `bech32m.decodeToBytes`, which `MidnightBech32m.parse` calls, rejects strings longer than 90 characters by default. Shielded addresses are 124 to 135 characters long, so `MidnightBech32m.parse` throws on every one of them. Add this override to your `package.json`, then run `npm install` again:
+
+  ```json
+  {
+    "overrides": {
+      "@midnightntwrk/wallet-sdk-address-format": {
+        "@scure/base": "2.3.0"
+      }
+    }
+  }
+  ```
+
+  Keep the pin scoped to that package, because a project-wide `@scure/base` pin breaks other Wallet SDK imports. This guide tested only npm's `overrides` form. You can remove the pin once the Wallet SDK passes a length limit to the decoder, which [midnight-wallet issue 842](https://github.com/midnightntwrk/midnight-wallet/issues/842) tracks.
+
+  The samples import the Wallet SDK through subpaths of the `@midnightntwrk/wallet-sdk` package, such as `@midnightntwrk/wallet-sdk/facade`. The Wallet SDK uses the `@midnightntwrk` npm scope, while the connector, ledger, and ZKIR packages use `@midnight-ntwrk`. For more about the two scopes, see [Installation](/sdks/official/wallet-developer-guide#installation) in the Wallet SDK guide.
+- To run the tests in the Verification sections, you also need Vitest and jsdom. The samples type-check with TypeScript 5.9.3.
+
+  ```bash
+  npm install --save-dev vitest@3.2.4 jsdom@26.1.0 typescript@5.9.3
+  ```
+
+{/* _mod-docs-content-type: CONCEPT */}
+## What your wallet owns
+
+The Wallet SDK is the engine of a wallet. It derives keys, syncs with the indexer, balances, proves, and submits transactions. Everything a user sees or trusts is part of your product. This table lists what the SDK provides and what your wallet does with it.
+
+| Area | What the Wallet SDK provides | What your wallet does |
+|---|---|---|
+| Keys | `HDWallet.fromSeed` derives the shielded, unshielded, and DUST keys from one seed | Create or import the recovery phrase, store the seed encrypted, unlock it, and clear key material from memory after use |
+| Accounts | `selectAccount` picks the account index in the derivation path | If you support several accounts, show which account each DApp uses |
+| Sync | `WalletFacade.init`, `start`, `state()`, and `waitForSyncedState()` | Decide when the wallet syncs, show progress, and call `stop()` on shutdown |
+| Persistence | `serializeState()` and `restore()` on the shielded, unshielded, and DUST wallets | Store the serialized state for each wallet and network. Keep it private, because it lists the coins the wallet owns |
+| Services | Indexer, node, and proof server endpoints in the wallet configuration | Let the user choose endpoints, and report them to DApps through `getConfiguration` |
+| Proving | A proof server client by default, or WebAssembly proving with `makeWasmProvingService` | Choose where proofs run, for your own transactions and for DApps that call `getProvingProvider` |
+| Terms and conditions | `WalletFacade.fetchTermsAndConditions` returns the URL and SHA-256 hash of the current terms from the indexer | Show the terms to your users |
+| Approvals | No prompts or UI | Every prompt: connections, permissions, transactions, and data signing |
+
+For one way to save and restore wallet state, see [What to keep between restarts](/guides/node-server-wallet#what-to-keep-between-restarts) in the Node.js wallet guide.
+
+:::warning[Keep keys out of the DApp's page]
+The objects your wallet installs for DApps run inside the DApp's page, next to code you don't control. Keep the seed, the keys, the `WalletFacade`, and your approval prompts behind your transport, never in the page. Hold them in a separate context, such as an extension's background context or your app's native process. The page-side objects only forward each call there.
+:::
+
+The samples on this page call the Wallet SDK directly to stay short.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## How DApps reach your wallet
+
+A DApp finds your wallet through a small initial API object that you install on the page. It then works through the connected API object that `connect` returns. The design splits the work: the DApp describes what a transaction must do, and your wallet supplies the coins, pays the fees, signs, and proves.
+
+- **Initial API**: an object with `rdns`, `name`, `icon`, `apiVersion`, and `connect(networkId)`. You install it under `window.midnight`, keyed by a fresh UUIDv4. Together with that key, its contents are compatible with the [draft CAIP-372](https://github.com/ChainAgnostic/CAIPs/pull/372/files).
+- **Connected API**: the object that `connect` resolves to. It covers balances, addresses, transactions, data signing, delegated proving, configuration, and connection status. Every method is always present, and your wallet can refuse any call.
+- **No direct access to coins**: no method gives a DApp shielded coins or unshielded UTXOs. A DApp asks for an outcome, such as a transfer, and your wallet selects the coins.
+- **Transactions as hex strings**: methods take and return serialized ledger transactions as strings. Use the hex encoding of `Transaction.serialize()`, which the [leaderboard tutorial](/tutorials/leaderboard/browser-dapp) and the Midnight.js testkit adapter both use.
+
+:::info[Code against the package types]
+Some type snippets in the specification differ from the 4.0.1 package. Code against `@midnight-ntwrk/dapp-connector-api`. For example, `getDustBalance` returns `{ cap, balance }` rather than a `bigint`, and `hintUsage` takes `WalletConnectedAPI` method names. The package also marks `Configuration.proverServerUri` as deprecated in favor of `getProvingProvider`.
+:::
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Connections and permissions
+
+Your wallet decides what each DApp can see and do. The specification sets the rules a DApp can rely on, and leaves the user experience to you.
+
+**Connecting.** `connect(networkId)` receives the network that the DApp wants. Reject the call if your wallet can't connect to that network. You can ask the user to approve the connection and the permissions it gets, and show which network the DApp asked for. Expect `connect` to run more than once, for example when a DApp reconnects, and keep each connection separate.
+
+**Permissions.** Grant or refuse access method by method, at whatever granularity suits your product. When you refuse a call, reject it with the `PermissionRejected` code. A DApp can assume that this refusal lasts until its page closes, so keep returning it, even after the DApp reconnects. A DApp can call `hintUsage` with the methods it expects to use. Treat that call as a chance to ask for those permissions together. Resolve its promise with `undefined`, and only after the user answers.
+
+**Errors.** Reject with an `Error` whose `type` is `DAppConnectorAPIError`, and that carries a `code` and a `reason`. The package defines `APIError` as a type, not a class, because `instanceof` checks don't work between your wallet's code and the DApp's. You can implement it as a class that extends `Error`, as the samples on this page do.
+
+| Code | When to use it |
+|---|---|
+| `InternalError` | Your wallet couldn't process the request |
+| `Rejected` | The user declined this one request, for example after seeing what a transaction costs |
+| `InvalidRequest` | A malformed request, such as a transaction that doesn't deserialize |
+| `PermissionRejected` | The user or your policy doesn't allow this method for this DApp |
+| `Disconnected` | The connection ended |
+
+**What to expose.** Treat balances, addresses, and history as data your users choose to share:
+
+- Report available balances only: amounts your wallet is willing to spend in a transaction now. The `balances` getters on the Wallet SDK's shielded and unshielded states already count available coins only.
+- Put shielded balances and transaction history behind a permission. The specification names them as data users shouldn't share lightly.
+- Return addresses in Bech32m for the connected network. The package documents the shielded coin public key and encryption public key as Bech32m too.
+- Don't restrict `getConfiguration` unless you must. DApps use it to reach the same indexer and services as your wallet.
+- If you combine balances from several accounts, make sure a DApp can spend what you report in a single transaction. Show which accounts each DApp interaction uses.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Requests that move tokens
+
+Five connected API methods build, complete, or carry transactions. A method that returns a transaction must return one that's ready to submit: bound, signed, and proven. It can still carry an imbalance, depending on the method and its options.
+
+**Balancing a smart contract call.** `balanceUnsealedTransaction` is the method DApps use most. The DApp proves its smart contract call and sends the transaction unbound, as the ledger type `Transaction<SignatureEnabled, Proof, PreBinding>`. Your wallet adds the inputs and outputs that balance each token and pays the fee. Smart contract calls need this method because the wallet adds its inputs and outputs to the same intent as the call.
+
+**Balancing a finished transaction.** `balanceSealedTransaction` takes a bound transaction, `Transaction<SignatureEnabled, Proof, Binding>`, such as the other side of a swap. Your wallet balances it in a separate intent. That can fail for smart contracts that use fallible sections, so DApps use `balanceUnsealedTransaction` for those.
+
+**Payments.** `makeTransfer` asks your wallet to build a transfer to the outputs the DApp lists. Each recipient is a Bech32m address of the output's kind, for the connected network.
+
+**Swaps.** `makeIntent` builds a deliberately imbalanced transaction, with a surplus of `desiredInputs` and a shortage of `desiredOutputs`. The other party completes it, for example with `balanceSealedTransaction`. The `intentId` option sets the intent's segment. Use `1` so that no merged transaction runs actions before this intent. Use a specific number to assign that segment, or `"random"` to let the wallet pick one. When a swap moves unshielded tokens, Wallet SDK 1.2.0 places its intent in segment 1, so the sample on this page rejects any other number. With `"random"`, that intent also lands in segment 1, so you can't merge two such intents into one transaction. A swap of shielded tokens alone creates no intent of its own.
+
+**Fees.** Every method that builds or balances a transaction takes a `payFees` option. It defaults to `true`, and `makeIntent` requires it. With `payFees: false`, your wallet must not add a `DustSpend`, so that another party, such as a sponsor service, can pay the fee.
+
+**Submission.** `submitTransaction` makes your wallet a relayer. The DApp sends a bound, signed, and proven transaction for the connected network, and your wallet submits it.
+
+**Delegated proving.** `getProvingProvider` takes the DApp's `KeyMaterialProvider`, which returns a circuit's ZKIR, prover key, and verifier key for a key location. It returns a `ProvingProvider` with `check` and `prove`, compatible with the one in the ledger's WebAssembly bindings. Three points matter for your wallet:
+
+- The preimages you prove contain the exact private inputs that the proof hides, so your wallet can read them. Don't log them, and send them only to a prover the user chose.
+- Proving can take several minutes in the worst case, and your wallet owns that experience.
+- Prover keys are often 10 to 20 MB and can exceed 80 MB. Plan for that if proving calls cross a channel with a message size limit.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Connector methods and the Wallet SDK
+
+This table maps each connected API method to the Wallet SDK 1.2.0 call behind it, for when you implement or debug a method. The samples in [Implementing the connected API](#implementing-the-connected-api) follow it. In the table, `state()` is `WalletFacade.state()`.
+
+| Connected API method | Wallet SDK call | Notes |
+|---|---|---|
+| `getShieldedBalances` | `state()` then `shielded.balances` | Available coins only |
+| `getUnshieldedBalances` | `state()` then `unshielded.balances` | Available coins only |
+| `getDustBalance` | `state()` then `dust.balance(time)`, and `maxCap` on each item of `dust.totalCoins` | For `cap`, the sample sums `maxCap` over the coins whose backing NIGHT is unspent |
+| `getShieldedAddresses` | `state()` then `shielded.address`, `shielded.coinPublicKey`, and `shielded.encryptionPublicKey` | Encode each one with the address-format codecs |
+| `getUnshieldedAddress` | `getBech32Address()` on the unshielded keystore | |
+| `getDustAddress` | `state()` then `dust.address` | Encode it with `MidnightBech32m.encode` |
+| `balanceUnsealedTransaction` | `balanceUnboundTransaction` | Then `signRecipe` and `finalizeRecipe` |
+| `balanceSealedTransaction` | `balanceFinalizedTransaction` | Then `signRecipe` and `finalizeRecipe` |
+| `makeTransfer` | `transferTransaction` | Parse recipients with `MidnightBech32m.parse` |
+| `makeIntent` | `initSwap` | `initSwap` takes no intent ID, and puts any unshielded part in segment 1. It ignores the outputs of a kind whose inputs key is missing, and its `payFees` defaults to `false`, so pass both input keys and `payFees` |
+| `submitTransaction` | `submitTransaction` | The SDK returns a transaction identifier, and the connector method returns nothing |
+| `signData` | `signData` on the unshielded keystore | Sign the prefixed message |
+| `getProvingProvider` | `provingProvider` from `@midnight-ntwrk/zkir-v2` | Wrap the DApp's key material |
+| `getTxHistory` | No direct equivalent | The facade's `getAllFromTxHistory()` entries carry no per-segment `executionStatus` |
+| `getConfiguration`, `getConnectionStatus`, `hintUsage` | None | Your wallet's own state |
+
+For balancing, `payFees: false` maps to `tokenKindsToBalance: ['shielded', 'unshielded']`, which leaves DUST out.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Installing the initial API
+
+Install your initial API as soon as the page loads, so DApps find your wallet when they list the entries of `window.midnight`. The specification requires a fresh UUIDv4 key rather than a fixed name, and an entry that nothing on the page can overwrite.
+
+### Procedure
+
+1. Build the initial API object. Keep `rdns` stable for the life of your product, and set `apiVersion` to the exact version of `@midnight-ntwrk/dapp-connector-api` you implement. `connect` starts a new session on every call. Permission decisions carry over between sessions on the same network. `createConnectedAPI` comes from [Implementing the connected API](#implementing-the-connected-api).
+
+   ```typescript title="src/initial-api.ts"
+   import { ErrorCodes, type ConnectedAPI, type InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import { createConnectedAPI } from './connected-api';
+   import { ConnectorError } from './errors';
+   import type { MethodName, Session, WalletContext } from './session';
+
+   export function createInitialAPI(wallets: ReadonlyMap<string, WalletContext>, origin: string): InitialAPI {
+     // Permission decisions for each network, kept for as long as the page stays open.
+     const decisions = new Map<string, Pick<Session, 'granted' | 'rejected'>>();
+
+     return {
+       rdns: 'com.example.wallet', // Keep this stable for the life of the product.
+       name: 'Example Wallet',
+       icon: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=',
+       apiVersion: '4.0.1', // The exact @midnight-ntwrk/dapp-connector-api version you implement.
+
+       // Each call starts a separate session, so a DApp can reconnect cleanly.
+       connect: async (networkId: string): Promise<ConnectedAPI> => {
+         const ctx = wallets.get(networkId);
+         if (ctx === undefined) {
+           throw new ConnectorError(ErrorCodes.InvalidRequest, `This wallet can't connect to ${networkId}.`);
+         }
+         if (!(await ctx.ui.approveConnection(origin, networkId))) {
+           throw new ConnectorError(ErrorCodes.Rejected, 'The user declined the connection.');
+         }
+         let decided = decisions.get(networkId);
+         if (decided === undefined) {
+           decided = { granted: new Set<MethodName>(['getConfiguration']), rejected: new Set<MethodName>() };
+           decisions.set(networkId, decided);
+         }
+         return createConnectedAPI(ctx, { origin, networkId, ...decided, connected: true });
+       },
+     };
+   }
+   ```
+
+   The specification says to reject a network your wallet can't connect to, but doesn't name a code for it. This sample rejects it with `InvalidRequest`, and uses `Rejected` when the user declines the connection.
+
+2. Install the object under `window.midnight`. The first wallet on the page creates `window.midnight` as a non-writable, non-configurable property. Each wallet then adds its entry under a fresh UUIDv4 key, frozen, non-writable, and non-configurable.
+
+   ```typescript title="src/install.ts"
+   import type { InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
+
+   export function installInitialAPI(initialAPI: InitialAPI): string {
+     // The first wallet to arrive creates window.midnight and locks the property.
+     if (!Object.prototype.hasOwnProperty.call(window, 'midnight')) {
+       Object.defineProperty(window, 'midnight', {
+         value: Object.create(null),
+         writable: false,
+         configurable: false,
+       });
+     }
+
+     // A freshly generated UUIDv4, as the specification requires. Never a fixed name.
+     const key = crypto.randomUUID();
+     Object.defineProperty(window.midnight, key, {
+       value: Object.freeze(initialAPI),
+       writable: false,
+       configurable: false,
+       enumerable: true,
+     });
+     return key;
+   }
+   ```
+
+   `crypto.randomUUID()` returns a UUIDv4, but browsers provide it only in secure contexts, such as HTTPS pages. If your wallet also runs on plain HTTP pages, generate the UUIDv4 with a library instead.
+
+3. If your wallet implements several incompatible connector versions at once, for example around a hard fork, install one initial API for each version. Give each one its own `apiVersion` and key.
+
+### Verification
+
+This test installs your wallet next to a second one. It then does what a DApp does: it lists `window.midnight`, filters by `apiVersion`, picks your wallet by `rdns`, and connects. It also checks that a refused permission survives a reconnect to the same network, and that another network gets its own decisions. It runs with Vitest 3.2.4 in a jsdom environment.
+
+```typescript title="test/install.test.ts"
+// @vitest-environment jsdom
+import type { Configuration, InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
+import { describe, expect, it } from 'vitest';
+import { createInitialAPI } from '../src/initial-api';
+import { installInitialAPI } from '../src/install';
+import type { WalletContext } from '../src/session';
+
+const services: Configuration = {
+  indexerUri: 'http://localhost:8088/api/v4/graphql',
+  indexerWsUri: 'ws://localhost:8088/api/v4/graphql/ws',
+  substrateNodeUri: 'ws://localhost:9944',
+  networkId: 'undeployed',
+};
+
+const wallet = (approve: boolean) =>
+  ({
+    services,
+    ui: {
+      approveConnection: async () => approve,
+      approveMethods: async (_origin: string, methods: string[]) => methods,
+    },
+  }) as unknown as WalletContext;
+
+describe('Initial API', () => {
+  it('installs under a fresh UUID and a DApp can find it by rdns and connect', async () => {
+    const otherWallet: InitialAPI = {
+      rdns: 'org.other.wallet',
+      name: 'Other',
+      icon: 'data:,',
+      apiVersion: '4.0.1',
+      connect: async () => {
+        throw new Error('not used');
+      },
+    };
+    const key = installInitialAPI(createInitialAPI(new Map([['undeployed', wallet(true)]]), 'http://localhost:3000'));
+    installInitialAPI(otherWallet);
+
+    expect(key).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(Object.keys(window.midnight!)).toHaveLength(2);
+    expect(Object.isFrozen(window.midnight![key])).toBe(true);
+    expect(() => {
+      (window as { midnight?: unknown }).midnight = {};
+    }).toThrow(TypeError);
+    expect(() => {
+      window.midnight![key] = otherWallet;
+    }).toThrow(TypeError);
+
+    // What a DApp does: enumerate, filter by apiVersion, pick by rdns.
+    const found = Object.values(window.midnight ?? {})
+      .filter((w) => w.apiVersion.startsWith('4.'))
+      .find((w) => w.rdns === 'com.example.wallet');
+    const connected = await found!.connect('undeployed');
+
+    expect(Object.isFrozen(connected)).toBe(true);
+    expect(await connected.getConnectionStatus()).toEqual({ status: 'connected', networkId: 'undeployed' });
+    expect(await connected.getConfiguration()).toEqual(services);
+    await expect(found!.connect('mainnet')).rejects.toMatchObject({
+      type: 'DAppConnectorAPIError',
+      code: 'InvalidRequest',
+    });
+  });
+
+  it('keeps a refused permission when the DApp reconnects to the same network', async () => {
+    let prompts = 0;
+    const ctx = {
+      services,
+      ui: {
+        approveConnection: async () => true,
+        approveMethods: async () => {
+          prompts++;
+          return [];
+        },
+      },
+    } as unknown as WalletContext;
+    const initialAPI = createInitialAPI(
+      new Map([
+        ['undeployed', ctx],
+        ['preprod', ctx],
+      ]),
+      'http://localhost:3000',
+    );
+    const rejected = { type: 'DAppConnectorAPIError', code: 'PermissionRejected' };
+
+    await expect((await initialAPI.connect('undeployed')).getShieldedBalances()).rejects.toMatchObject(rejected);
+    await expect((await initialAPI.connect('undeployed')).getShieldedBalances()).rejects.toMatchObject(rejected);
+    expect(prompts).toBe(1);
+
+    // Another network has its own decisions, so the wallet asks again.
+    await expect((await initialAPI.connect('preprod')).getShieldedBalances()).rejects.toMatchObject(rejected);
+    expect(prompts).toBe(2);
+  });
+
+  it('rejects the connection when the user declines', async () => {
+    const initialAPI = createInitialAPI(new Map([['undeployed', wallet(false)]]), 'http://localhost:3000');
+    await expect(initialAPI.connect('undeployed')).rejects.toMatchObject({
+      type: 'DAppConnectorAPIError',
+      code: 'Rejected',
+    });
+  });
+});
+```
+
+```text
+ ✓ test/install.test.ts > Initial API > installs under a fresh UUID and a DApp can find it by rdns and connect
+ ✓ test/install.test.ts > Initial API > keeps a refused permission when the DApp reconnects to the same network
+ ✓ test/install.test.ts > Initial API > rejects the connection when the user declines
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Implementing the connected API
+
+Build one connected API object for each connection, and back it with a running `WalletFacade`. Check the user's permission before a method reads data or acts, and freeze the object before you return it.
+
+### Procedure
+
+1. Define what a running wallet and a session hold. `WalletContext` is a running wallet for one network, and `Session` records what one `connect` call can do. `WalletUI` stands in for your own prompts.
+
+   ```typescript title="src/session.ts"
+   import type { Configuration, WalletConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import type * as ledger from '@midnight-ntwrk/ledger-v8';
+   import type { BalancingRecipe, WalletFacade } from '@midnightntwrk/wallet-sdk/facade';
+   import type { UnshieldedKeystore } from '@midnightntwrk/wallet-sdk/unshielded';
+
+   export type MethodName = keyof WalletConnectedAPI;
+
+   // Your wallet's own prompts. Each one resolves with the user's answer.
+   export type WalletUI = {
+     approveConnection(origin: string, networkId: string): Promise<boolean>;
+     approveMethods(origin: string, methods: MethodName[]): Promise<MethodName[]>;
+     approveTransaction(origin: string, recipe: BalancingRecipe): Promise<boolean>;
+     approveSignData(origin: string, data: Uint8Array): Promise<boolean>;
+   };
+
+   // A running wallet for one network.
+   export type WalletContext = {
+     facade: WalletFacade;
+     shieldedSecretKeys: ledger.ZswapSecretKeys;
+     dustSecretKey: ledger.DustSecretKey;
+     unshieldedKeystore: UnshieldedKeystore;
+     // The endpoints you report to DApps from getConfiguration.
+     services: Configuration;
+     ui: WalletUI;
+   };
+
+   // What one connect() call may do.
+   export type Session = {
+     origin: string;
+     networkId: string;
+     granted: Set<MethodName>;
+     rejected: Set<MethodName>;
+     connected: boolean;
+   };
+   ```
+
+2. Add the error class and the permission check. The check asks the user the first time a DApp calls a method, and remembers the answer while the page is open. `toConnectorError` turns Wallet SDK failures into `InternalError`, so DApps always receive a `DAppConnectorAPIError`.
+
+   ```typescript title="src/errors.ts"
+   import { ErrorCodes, type APIError, type ErrorCode } from '@midnight-ntwrk/dapp-connector-api';
+   import type { MethodName, Session, WalletContext } from './session';
+
+   export class ConnectorError extends Error implements APIError {
+     readonly type = 'DAppConnectorAPIError';
+
+     constructor(
+       readonly code: ErrorCode,
+       readonly reason: string,
+     ) {
+       super(reason);
+       this.name = 'ConnectorError';
+     }
+   }
+
+   // Wallet SDK failures arrive as plain errors, which DApps can't tell apart from bugs.
+   export function toConnectorError(error: unknown): ConnectorError {
+     return error instanceof ConnectorError ? error : new ConnectorError(ErrorCodes.InternalError, String(error));
+   }
+
+   export function recordDecision(session: Session, asked: MethodName[], allowed: MethodName[]): void {
+     for (const method of asked) {
+       (allowed.includes(method) ? session.granted : session.rejected).add(method);
+     }
+   }
+
+   // Ask once per method. A refusal sticks for as long as the DApp's page is open.
+   export async function requireAccess(ctx: WalletContext, session: Session, method: MethodName): Promise<void> {
+     if (!session.connected) {
+       throw new ConnectorError(ErrorCodes.Disconnected, 'This connection has ended.');
+     }
+     if (!session.granted.has(method) && !session.rejected.has(method)) {
+       recordDecision(session, [method], await ctx.ui.approveMethods(session.origin, [method]));
+     }
+     if (!session.granted.has(method)) {
+       throw new ConnectorError(ErrorCodes.PermissionRejected, `${method} is not allowed for ${session.origin}.`);
+     }
+   }
+   ```
+
+3. Implement the methods that read wallet data. `getConfiguration` returns the endpoints you chose to report. This sample doesn't ask permission for `getConnectionStatus`, though the specification lets your wallet refuse any method.
+
+   ```typescript title="src/read-methods.ts"
+   import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import {
+     MidnightBech32m,
+     ShieldedCoinPublicKey,
+     ShieldedEncryptionPublicKey,
+   } from '@midnightntwrk/wallet-sdk/address-format';
+   import { firstValueFrom } from 'rxjs';
+   import { requireAccess } from './errors';
+   import type { Session, WalletContext } from './session';
+
+   type ReadMethods = Pick<
+     ConnectedAPI,
+     | 'getConfiguration'
+     | 'getConnectionStatus'
+     | 'getShieldedBalances'
+     | 'getUnshieldedBalances'
+     | 'getDustBalance'
+     | 'getShieldedAddresses'
+     | 'getUnshieldedAddress'
+     | 'getDustAddress'
+   >;
+
+   export function readMethods(ctx: WalletContext, session: Session): ReadMethods {
+     const state = () => firstValueFrom(ctx.facade.state());
+     const { networkId } = session;
+
+     return {
+       getConfiguration: async () => {
+         await requireAccess(ctx, session, 'getConfiguration');
+         return { ...ctx.services };
+       },
+       getConnectionStatus: async () =>
+         session.connected ? { status: 'connected', networkId } : { status: 'disconnected' },
+
+       // The SDK's balances getters count available coins only, which is what the specification asks for.
+       getShieldedBalances: async () => {
+         await requireAccess(ctx, session, 'getShieldedBalances');
+         return (await state()).shielded.balances;
+       },
+       getUnshieldedBalances: async () => {
+         await requireAccess(ctx, session, 'getUnshieldedBalances');
+         return (await state()).unshielded.balances;
+       },
+       getDustBalance: async () => {
+         await requireAccess(ctx, session, 'getDustBalance');
+         const { dust } = await state();
+         return {
+           balance: dust.balance(new Date()),
+           // Count only DUST whose backing NIGHT is unspent: the cap of the current NIGHT balance.
+           cap: dust.totalCoins
+             .filter((coin) => coin.dtime === undefined)
+             .reduce((sum, coin) => sum + coin.maxCap, 0n),
+         };
+       },
+
+       // Addresses and keys go out in Bech32m for the session's network.
+       getShieldedAddresses: async () => {
+         await requireAccess(ctx, session, 'getShieldedAddresses');
+         const { shielded } = await state();
+         return {
+           shieldedAddress: MidnightBech32m.encode(networkId, shielded.address).asString(),
+           shieldedCoinPublicKey: ShieldedCoinPublicKey.codec.encode(networkId, shielded.coinPublicKey).asString(),
+           shieldedEncryptionPublicKey: ShieldedEncryptionPublicKey.codec
+             .encode(networkId, shielded.encryptionPublicKey)
+             .asString(),
+         };
+       },
+       getUnshieldedAddress: async () => {
+         await requireAccess(ctx, session, 'getUnshieldedAddress');
+         return { unshieldedAddress: ctx.unshieldedKeystore.getBech32Address().asString() };
+       },
+       getDustAddress: async () => {
+         await requireAccess(ctx, session, 'getDustAddress');
+         const { dust } = await state();
+         return { dustAddress: MidnightBech32m.encode(networkId, dust.address).asString() };
+       },
+     };
+   }
+   ```
+
+   :::warning[Keep credentials out of getConfiguration]
+   If your wallet's endpoints carry a credential, such as a Blockfrost project token in the URL query, don't report those URLs. Every connected DApp would receive the token.
+   :::
+
+4. Implement the transaction methods. Each one turns the DApp's request into a Wallet SDK balancing recipe and shows the user what they're approving. It then signs, proves, and serializes the result. If the user declines or a step fails, `revert` releases the coins the Wallet SDK set aside for the transaction.
+
+   ```typescript title="src/transaction-methods.ts"
+   import { ErrorCodes, type ConnectedAPI, type DesiredOutput } from '@midnight-ntwrk/dapp-connector-api';
+   import * as ledger from '@midnight-ntwrk/ledger-v8';
+   import { MidnightBech32m, ShieldedAddress, UnshieldedAddress } from '@midnightntwrk/wallet-sdk/address-format';
+   import type {
+     BalancingRecipe,
+     CombinedSwapInputs,
+     CombinedTokenTransfer,
+   } from '@midnightntwrk/wallet-sdk/facade';
+   import { ConnectorError, requireAccess, toConnectorError } from './errors';
+   import type { MethodName, Session, WalletContext } from './session';
+
+   type TransactionMethods = Pick<
+     ConnectedAPI,
+     | 'balanceUnsealedTransaction'
+     | 'balanceSealedTransaction'
+     | 'makeTransfer'
+     | 'makeIntent'
+     | 'submitTransaction'
+   >;
+
+   // DApps send and receive serialized ledger transactions as hex strings.
+   const toHex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+
+   function invalidInput<T>(read: () => T): T {
+     try {
+       return read();
+     } catch (error) {
+       throw new ConnectorError(ErrorCodes.InvalidRequest, String(error));
+     }
+   }
+
+   function fromHex(hex: string): Uint8Array {
+     if (!/^(?:[0-9a-f]{2})+$/i.test(hex)) throw new Error('Expected a hex-encoded transaction.');
+     return Uint8Array.from(hex.match(/../g)!, (byte) => parseInt(byte, 16));
+   }
+
+   export function transactionMethods(ctx: WalletContext, session: Session): TransactionMethods {
+     const secretKeys = { shieldedSecretKeys: ctx.shieldedSecretKeys, dustSecretKey: ctx.dustSecretKey };
+     const ttl = () => new Date(Date.now() + 60 * 60 * 1000);
+     // payFees defaults to true. With payFees: false, leave DUST out so no DustSpend is added.
+     const tokenKinds = (payFees = true): 'all' | ('shielded' | 'unshielded')[] =>
+       payFees ? 'all' : ['shielded', 'unshielded'];
+
+     // Build the recipe, ask the user, then sign, prove, and serialize.
+     // Release the coins the SDK set aside if the user declines or a step fails.
+     async function settle(method: MethodName, build: () => Promise<BalancingRecipe>): Promise<{ tx: string }> {
+       const recipe = await build().catch((error: unknown) => {
+         throw toConnectorError(error);
+       });
+       if (!(await ctx.ui.approveTransaction(session.origin, recipe))) {
+         await ctx.facade.revert(recipe);
+         throw new ConnectorError(ErrorCodes.Rejected, `The user declined ${method}.`);
+       }
+       try {
+         const signed = await ctx.facade.signRecipe(recipe, (payload) => ctx.unshieldedKeystore.signData(payload));
+         const finalized = await ctx.facade.finalizeRecipe(signed);
+         return { tx: toHex(finalized.serialize()) };
+       } catch (error) {
+         await ctx.facade.revert(recipe);
+         throw toConnectorError(error);
+       }
+     }
+
+     // Recipients arrive as Bech32m strings and must belong to the session's network.
+     function toTransfers(outputs: DesiredOutput[]): CombinedTokenTransfer[] {
+       const parse = (recipient: string) => invalidInput(() => MidnightBech32m.parse(recipient));
+       const shielded = outputs
+         .filter((output) => output.kind === 'shielded')
+         .map(({ type, value, recipient }) => ({
+           type,
+           amount: value,
+           receiverAddress: invalidInput(() => parse(recipient).decode(ShieldedAddress, session.networkId)),
+         }));
+       const unshielded = outputs
+         .filter((output) => output.kind === 'unshielded')
+         .map(({ type, value, recipient }) => ({
+           type,
+           amount: value,
+           receiverAddress: invalidInput(() => parse(recipient).decode(UnshieldedAddress, session.networkId)),
+         }));
+       return [
+         ...(shielded.length > 0 ? [{ type: 'shielded' as const, outputs: shielded }] : []),
+         ...(unshielded.length > 0 ? [{ type: 'unshielded' as const, outputs: unshielded }] : []),
+       ];
+     }
+
+     return {
+       // A smart contract call from the DApp: proven, not yet bound.
+       balanceUnsealedTransaction: async (tx, options) => {
+         await requireAccess(ctx, session, 'balanceUnsealedTransaction');
+         const unbound = invalidInput(() =>
+           ledger.Transaction.deserialize<ledger.SignatureEnabled, ledger.Proof, ledger.PreBinding>(
+             'signature',
+             'proof',
+             'pre-binding',
+             fromHex(tx),
+           ),
+         );
+         return settle('balanceUnsealedTransaction', () =>
+           ctx.facade.balanceUnboundTransaction(unbound, secretKeys, {
+             ttl: ttl(),
+             tokenKindsToBalance: tokenKinds(options?.payFees),
+           }),
+         );
+       },
+
+       // A finished transaction, such as the other side of a swap.
+       balanceSealedTransaction: async (tx, options) => {
+         await requireAccess(ctx, session, 'balanceSealedTransaction');
+         const sealed = invalidInput(() =>
+           ledger.Transaction.deserialize<ledger.SignatureEnabled, ledger.Proof, ledger.Binding>(
+             'signature',
+             'proof',
+             'binding',
+             fromHex(tx),
+           ),
+         );
+         return settle('balanceSealedTransaction', () =>
+           ctx.facade.balanceFinalizedTransaction(sealed, secretKeys, {
+             ttl: ttl(),
+             tokenKindsToBalance: tokenKinds(options?.payFees),
+           }),
+         );
+       },
+
+       makeTransfer: async (desiredOutputs, options) => {
+         await requireAccess(ctx, session, 'makeTransfer');
+         const transfers = toTransfers(desiredOutputs);
+         return settle('makeTransfer', () =>
+           ctx.facade.transferTransaction(transfers, secretKeys, { ttl: ttl(), payFees: options?.payFees ?? true }),
+         );
+       },
+
+       makeIntent: async (desiredInputs, desiredOutputs, options) => {
+         await requireAccess(ctx, session, 'makeIntent');
+         // Wallet SDK 1.2.0 puts an unshielded swap intent in segment 1, so no other segment can be honored.
+         if (typeof options.intentId === 'number' && options.intentId !== 1) {
+           throw new ConnectorError(ErrorCodes.InvalidRequest, 'This wallet creates intents in segment 1 only.');
+         }
+         if (typeof options.payFees !== 'boolean') {
+           throw new ConnectorError(ErrorCodes.InvalidRequest, 'makeIntent needs a payFees option.');
+         }
+         // Pass both keys: in Wallet SDK 1.2.0, initSwap ignores the outputs of a kind with no inputs key.
+         const inputs: Required<CombinedSwapInputs> = { shielded: {}, unshielded: {} };
+         for (const { kind, type, value } of desiredInputs) {
+           inputs[kind][type] = (inputs[kind][type] ?? 0n) + value;
+         }
+         const outputs = toTransfers(desiredOutputs);
+         return settle('makeIntent', () =>
+           ctx.facade.initSwap(inputs, outputs, secretKeys, { ttl: ttl(), payFees: options.payFees }),
+         );
+       },
+
+       submitTransaction: async (tx) => {
+         await requireAccess(ctx, session, 'submitTransaction');
+         const sealed = invalidInput(() =>
+           ledger.Transaction.deserialize<ledger.SignatureEnabled, ledger.Proof, ledger.Binding>(
+             'signature',
+             'proof',
+             'binding',
+             fromHex(tx),
+           ),
+         );
+         await ctx.facade.submitTransaction(sealed).catch((error: unknown) => {
+           throw toConnectorError(error);
+         });
+       },
+     };
+   }
+   ```
+
+   :::warning[Show the whole transaction before signing]
+   `signRecipe` signs every unsigned unshielded input in the transaction, including inputs in the DApp's own intents. Unshielded coins are public, so a DApp can put the user's NIGHT into an intent of its own, and your wallet signs it away. Your approval prompt must show the net change to the user's balances across the whole transaction, not only what your wallet added.
+   :::
+
+   Once `finalizeRecipe` returns, the Wallet SDK tracks the transaction as pending. If the DApp never submits it, its coins stay set aside until the transaction expires. That's the earliest intent TTL or three hours after the wallet created it, the ledger's DUST grace period, whichever comes first. In this sample it's the one-hour TTL. The Wallet SDK releases the coins only while the wallet is running, because its pending-transaction tracker checks once a second.
+
+5. Implement `signData`. Decode the data as the `encoding` option says, then sign `midnight_signed_message:<size>:` followed by the decoded bytes, where `<size>` is their length in bytes. The 4.0.1 types don't say which form `data` takes in the result, and this sample returns the string the DApp sent. [MIP-0031](https://github.com/midnightntwrk/midnight-improvement-proposals/blob/main/mips/mip-0031-message-signing/mip-0031-message-signing.md), still a proposal, has `data` carry the whole prefixed message, hex-encoded, instead.
+
+   ```typescript title="src/sign-data.ts"
+   import { ErrorCodes, type ConnectedAPI, type SignDataOptions } from '@midnight-ntwrk/dapp-connector-api';
+   import { ConnectorError, requireAccess } from './errors';
+   import type { Session, WalletContext } from './session';
+
+   function decodeData(data: string, encoding: SignDataOptions['encoding']): Uint8Array {
+     try {
+       switch (encoding) {
+         case 'text':
+           return new TextEncoder().encode(data);
+         case 'base64':
+           return Uint8Array.from(atob(data), (char) => char.charCodeAt(0));
+         case 'hex':
+           if (!/^(?:[0-9a-f]{2})*$/i.test(data)) throw new Error('not hex');
+           return Uint8Array.from(data.match(/../g) ?? [], (byte) => parseInt(byte, 16));
+       }
+     } catch {
+       // Fall through to the error below.
+     }
+     throw new ConnectorError(ErrorCodes.InvalidRequest, `The data is not valid ${encoding}.`);
+   }
+
+   // The specification requires this prefix, so signData can never produce a transaction signature.
+   export function prefixMessage(data: Uint8Array): Uint8Array {
+     const header = new TextEncoder().encode(`midnight_signed_message:${data.length}:`);
+     const message = new Uint8Array(header.length + data.length);
+     message.set(header);
+     message.set(data, header.length);
+     return message;
+   }
+
+   export function signingMethods(ctx: WalletContext, session: Session): Pick<ConnectedAPI, 'signData'> {
+     return {
+       signData: async (data, options) => {
+         await requireAccess(ctx, session, 'signData');
+         const bytes = decodeData(data, options.encoding);
+         if (!(await ctx.ui.approveSignData(session.origin, bytes))) {
+           throw new ConnectorError(ErrorCodes.Rejected, 'The user declined to sign.');
+         }
+         return {
+           data,
+           signature: ctx.unshieldedKeystore.signData(prefixMessage(bytes)),
+           verifyingKey: ctx.unshieldedKeystore.getPublicKey(),
+         };
+       },
+     };
+   }
+   ```
+
+6. Implement delegated proving. This sample proves locally in WebAssembly. It reads the DApp's circuits through the DApp's `KeyMaterialProvider`. For Midnight's own Zswap and DUST circuits, it uses the key material that the Wallet SDK's prover client downloads on first use.
+
+   ```typescript title="src/proving.ts"
+   import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import { WasmProver } from '@midnightntwrk/wallet-sdk/prover-client/effect';
+   import { provingProvider, type KeyMaterialProvider } from '@midnight-ntwrk/zkir-v2';
+   import { requireAccess } from './errors';
+   import type { Session, WalletContext } from './session';
+
+   // Zswap and DUST keys and public parameters, downloaded on first use from a development bucket fixed in the SDK, with no status or hash check.
+   const builtInKeys = WasmProver.makeDefaultKeyMaterialProvider();
+
+   export function provingMethods(ctx: WalletContext, session: Session): Pick<ConnectedAPI, 'getProvingProvider'> {
+     return {
+       getProvingProvider: async (dappKeys) => {
+         await requireAccess(ctx, session, 'getProvingProvider');
+         const keys: KeyMaterialProvider = {
+           async lookupKey(keyLocation) {
+             // Midnight's own circuits, such as midnight/zswap/output, use the built-in keys.
+             if (keyLocation.startsWith('midnight/')) {
+               return builtInKeys.lookupKey(keyLocation);
+             }
+             const [ir, proverKey, verifierKey] = await Promise.all([
+               dappKeys.getZKIR(keyLocation),
+               dappKeys.getProverKey(keyLocation),
+               dappKeys.getVerifierKey(keyLocation),
+             ]);
+             return { ir, proverKey, verifierKey };
+           },
+           getParams: (k) => builtInKeys.getParams(k),
+         };
+         // Proves in WebAssembly in this context. The preimages contain the user's private inputs.
+         return provingProvider(keys);
+       },
+     };
+   }
+   ```
+
+   To prove on a proof server instead, send the key material with each request, as `httpClientProvingProvider` in Midnight.js does. The Wallet SDK's `WasmProver`, exported from `@midnightntwrk/wallet-sdk/prover-client/effect`, runs a WebAssembly prover in a Web Worker.
+
+   `WasmProver.makeDefaultKeyMaterialProvider` downloads its keys and parameters from a development S3 bucket, `midnight-s3-fileshare-dev-eu-west-1`, fixed in the Wallet SDK. It doesn't check that a download succeeded, and it doesn't verify hashes. For a production wallet, host or pin that material yourself and verify its hashes.
+
+7. Assemble the object and freeze it. This sample has no transaction history to report, so it declines `getTxHistory`.
+
+   ```typescript title="src/connected-api.ts"
+   import { ErrorCodes, type ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
+   import { ConnectorError, recordDecision } from './errors';
+   import { provingMethods } from './proving';
+   import { readMethods } from './read-methods';
+   import type { Session, WalletContext } from './session';
+   import { signingMethods } from './sign-data';
+   import { transactionMethods } from './transaction-methods';
+
+   export function createConnectedAPI(ctx: WalletContext, session: Session): ConnectedAPI {
+     return Object.freeze({
+       ...readMethods(ctx, session),
+       ...transactionMethods(ctx, session),
+       ...signingMethods(ctx, session),
+       ...provingMethods(ctx, session),
+
+       // This sample keeps no history to report, so it declines the call.
+       getTxHistory: async () => {
+         throw new ConnectorError(ErrorCodes.PermissionRejected, 'Transaction history is not available.');
+       },
+
+       // A chance to ask for several permissions at once. Resolve only after the user answers.
+       hintUsage: async (methodNames) => {
+         const undecided = methodNames.filter((m) => !session.granted.has(m) && !session.rejected.has(m));
+         if (undecided.length > 0) {
+           recordDecision(session, undecided, await ctx.ui.approveMethods(session.origin, undecided));
+         }
+       },
+     });
+   }
+   ```
+
+### Verification
+
+This test needs no network. It derives a real unshielded key and checks that `signData` signs the prefixed message. It checks that a refused permission sticks and that `hintUsage` grants the hinted methods. With a stub facade, it checks that `makeIntent` passes both input kinds to `initSwap` and that a Wallet SDK failure reaches the DApp as `InternalError`. It checks that `makeTransfer` decodes a real shielded Bech32m recipient, which fails without the `@scure/base` override. Finally, it checks the codes for bad input and a lost connection. A full transaction needs a synced, funded wallet, so this test doesn't build one.
+
+```typescript title="test/connected-api.test.ts"
+import * as ledger from '@midnight-ntwrk/ledger-v8';
+import {
+  MidnightBech32m,
+  ShieldedAddress,
+  ShieldedCoinPublicKey,
+  ShieldedEncryptionPublicKey,
+} from '@midnightntwrk/wallet-sdk/address-format';
+import type { CombinedTokenTransfer } from '@midnightntwrk/wallet-sdk/facade';
+import { HDWallet, Roles } from '@midnightntwrk/wallet-sdk/hd';
+import { createKeystore } from '@midnightntwrk/wallet-sdk/unshielded';
+import { describe, expect, it } from 'vitest';
+import { createConnectedAPI } from '../src/connected-api';
+import type { MethodName, Session, WalletContext } from '../src/session';
+import { prefixMessage } from '../src/sign-data';
+
+function unshieldedKey(): Uint8Array {
+  const seed = new Uint8Array(32).fill(7);
+  const hd = HDWallet.fromSeed(seed);
+  if (hd.type !== 'seedOk') throw new Error('bad seed');
+  const derived = hd.hdWallet.selectAccount(0).selectRole(Roles.NightExternal).deriveKeyAt(0);
+  if (derived.type !== 'keyDerived') throw new Error('derivation failed');
+  return derived.key;
+}
+
+function setup(denied: MethodName[] = [], facade: object = {}) {
+  const prompts: MethodName[][] = [];
+  const ctx = {
+    facade,
+    unshieldedKeystore: createKeystore(unshieldedKey(), 'preprod'),
+    ui: {
+      approveMethods: async (_origin: string, methods: MethodName[]) => {
+        prompts.push(methods);
+        return methods.filter((m) => !denied.includes(m));
+      },
+      approveSignData: async () => true,
+    },
+  } as unknown as WalletContext;
+  const session: Session = {
+    origin: 'https://dapp.example',
+    networkId: 'preprod',
+    granted: new Set(['getConfiguration']),
+    rejected: new Set(),
+    connected: true,
+  };
+  return { ctx, session, prompts, api: createConnectedAPI(ctx, session) };
+}
+
+describe('Connected API', () => {
+  it('signs the prefixed message, not the raw data', async () => {
+    const { api } = setup();
+    const result = await api.signData('hello midnight', { encoding: 'text', keyType: 'unshielded' });
+    const raw = new TextEncoder().encode('hello midnight');
+
+    expect(new TextDecoder().decode(prefixMessage(raw))).toBe('midnight_signed_message:14:hello midnight');
+    expect(result.data).toBe('hello midnight');
+    expect(ledger.verifySignature(result.verifyingKey, prefixMessage(raw), result.signature)).toBe(true);
+    expect(ledger.verifySignature(result.verifyingKey, raw, result.signature)).toBe(false);
+  });
+
+  it('keeps a refused permission for the rest of the session', async () => {
+    const { api, prompts } = setup(['getShieldedBalances']);
+    const rejected = { type: 'DAppConnectorAPIError', code: 'PermissionRejected' };
+
+    await expect(api.getShieldedBalances()).rejects.toMatchObject(rejected);
+    await expect(api.getShieldedBalances()).rejects.toMatchObject(rejected);
+    expect(prompts).toEqual([['getShieldedBalances']]);
+  });
+
+  it('grants hinted methods and returns Bech32m addresses for the session network', async () => {
+    const { api } = setup();
+    await expect(api.hintUsage(['getUnshieldedAddress'])).resolves.toBeUndefined();
+    const { unshieldedAddress } = await api.getUnshieldedAddress();
+    expect(unshieldedAddress.startsWith('mn_addr_preprod1')).toBe(true);
+  });
+
+  it('passes both input kinds to initSwap and wraps Wallet SDK failures', async () => {
+    let received: unknown;
+    const facade = {
+      initSwap: async (inputs: unknown) => {
+        received = inputs;
+        throw new Error('Insufficient funds');
+      },
+    };
+    const { api } = setup([], facade);
+    const night = ledger.unshieldedToken().raw;
+
+    const intent = api.makeIntent([{ kind: 'unshielded', type: night, value: 10n }], [], {
+      intentId: 'random',
+      payFees: true,
+    });
+
+    await expect(intent).rejects.toMatchObject({ type: 'DAppConnectorAPIError', code: 'InternalError' });
+    expect(received).toEqual({ shielded: {}, unshielded: { [night]: 10n } });
+  });
+
+  it('decodes a shielded Bech32m recipient for makeTransfer', async () => {
+    let received: CombinedTokenTransfer[] = [];
+    const facade = {
+      transferTransaction: async (transfers: CombinedTokenTransfer[]) => {
+        received = transfers;
+        throw new Error('Stop after the Wallet SDK call');
+      },
+    };
+    const { api } = setup([], facade);
+    const keys = ledger.ZswapSecretKeys.fromSeed(new Uint8Array(32).fill(3));
+    const address = new ShieldedAddress(
+      ShieldedCoinPublicKey.fromHexString(keys.coinPublicKey),
+      ShieldedEncryptionPublicKey.fromHexString(keys.encryptionPublicKey),
+    );
+    const recipient = MidnightBech32m.encode('preprod', address).asString();
+    const transfer = api.makeTransfer([{ kind: 'shielded', type: ledger.shieldedToken().raw, value: 5n, recipient }]);
+
+    await expect(transfer).rejects.toMatchObject({ code: 'InternalError' });
+    expect(received).toHaveLength(1);
+    expect(received[0].type).toBe('shielded');
+    expect((received[0].outputs[0].receiverAddress as ShieldedAddress).equals(address)).toBe(true);
+  });
+
+  it('rejects malformed transactions and reports a lost connection', async () => {
+    const { api, session } = setup();
+    await expect(api.balanceUnsealedTransaction('not-hex')).rejects.toMatchObject({ code: 'InvalidRequest' });
+    await expect(api.getTxHistory(0, 10)).rejects.toMatchObject({ code: 'PermissionRejected' });
+    await expect(api.makeIntent([], [], { intentId: 5, payFees: true })).rejects.toMatchObject({
+      code: 'InvalidRequest',
+    });
+    // @ts-expect-error A plain JavaScript DApp can leave payFees out.
+    await expect(api.makeIntent([], [], { intentId: 1 })).rejects.toMatchObject({ code: 'InvalidRequest' });
+
+    session.connected = false;
+    await expect(api.getUnshieldedAddress()).rejects.toMatchObject({ code: 'Disconnected' });
+    expect(await api.getConnectionStatus()).toEqual({ status: 'disconnected' });
+  });
+});
+```
+
+```text
+ ✓ test/connected-api.test.ts > Connected API > signs the prefixed message, not the raw data
+ ✓ test/connected-api.test.ts > Connected API > keeps a refused permission for the rest of the session
+ ✓ test/connected-api.test.ts > Connected API > grants hinted methods and returns Bech32m addresses for the session network
+ ✓ test/connected-api.test.ts > Connected API > passes both input kinds to initSwap and wraps Wallet SDK failures
+ ✓ test/connected-api.test.ts > Connected API > decodes a shielded Bech32m recipient for makeTransfer
+ ✓ test/connected-api.test.ts > Connected API > rejects malformed transactions and reports a lost connection
+
+ Test Files  2 passed (2)
+      Tests  9 passed (9)
+```
+
+{/* _mod-docs-content-type: CONCEPT */}
+## Network configuration and API versions
+
+DApps learn which network and services to use from your wallet, and which connector version you implement from your initial API.
+
+**Network IDs.** The specification fixes one network ID: `mainnet`. For other networks, accept the IDs that your Wallet SDK configuration uses, such as `preview`, `preprod`, and `undeployed`. Reject any network your wallet can't connect to.
+
+**Configuration.** `getConfiguration` returns `indexerUri`, `indexerWsUri`, `substrateNodeUri`, `networkId`, and an optional `proverServerUri`. Point them at deployments that match the network, preferably the ones your wallet uses, so DApps follow the user's choice of services. A DApp can compare `networkId` with the network it asked for. The package marks `proverServerUri` as deprecated, and the 4.0.0 release notes plan to remove it in 5.0.0. Some DApps still read it, so report it while the user has a proof server configured.
+
+**Connection status.** `getConnectionStatus` returns `{ status: 'connected', networkId }` while the session is live, and `{ status: 'disconnected' }` after it ends.
+
+**API versions.** Set `apiVersion` to the exact version of `@midnight-ntwrk/dapp-connector-api` you implemented, such as `4.0.1`. DApps check it against the semver range they support and skip wallets outside it. Pin the package to an exact version, and update `apiVersion` when you upgrade. Version 4.0.1 is a patch release that added `payFees` to `balanceUnsealedTransaction`, `balanceSealedTransaction`, and `makeTransfer`. `makeIntent` already had it.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Security checklist for wallet builders
+
+Work through this list before you ship your connector.
+
+- [ ] **Lock `window.midnight`.** If your wallet creates it, make it non-writable and non-configurable, so another extension can't replace it.
+- [ ] **Freeze what you install.** Freeze the initial API and every connected API object. Add your entry as a non-writable, non-configurable property under a fresh UUIDv4.
+- [ ] **Keep your identity stable.** Malicious extensions can install entries with a similar `rdns` or `name`, and DApps must warn users when they find them. A stable `rdns` helps DApps recognize your wallet.
+- [ ] **Treat every DApp as untrusted.** Ask before you connect, and check permission in every method. Take the DApp's origin from your own transport, not from data the page sends.
+- [ ] **Show the whole cost before you sign.** Prompt after balancing, and show the net change to the user's balances across the whole transaction. `signRecipe` also signs unsigned inputs in the DApp's own intents. Release set-aside coins with `revert` when the user declines.
+- [ ] **Prefix every `signData` message.** Sign `midnight_signed_message:<size>:` followed by the data, never the raw bytes. That way a DApp can't use `signData` to sign a transaction.
+- [ ] **Protect proving preimages.** They contain the user's private inputs, so don't log them or send them to a prover the user didn't choose.
+- [ ] **Keep credentials out of `getConfiguration`.** Report endpoints that carry no API keys or tokens.
+- [ ] **Keep keys out of the page.** Hold the seed and the Wallet SDK in a context the DApp's page can't reach.
+
+## Additional resources
+
+- [DApp Connector API specification, version 4.0.1](https://github.com/midnightntwrk/midnight-dapp-connector-api/blob/v4.0.1/SPECIFICATION.md)
+- [DApp Connector API reference](/api-reference/dapp-connector)
+- [DApp Connector API 4.0.1 release notes](/relnotes/dapp-connector-api/dapp-connector-api-4-0-1)
+- [Midnight Wallet SDK guide](/sdks/official/wallet-developer-guide)
+- [Running a wallet in a Node.js service](/guides/node-server-wallet)
+- [`DAppConnectorWalletAdapter` in testkit-js](/api-reference/testkit-js/classes/DAppConnectorWalletAdapter), a test wallet that implements the connected API on the Wallet SDK. It's a test helper, not a conformance reference: for example, its `signData` doesn't add the required prefix.
+- [Integrate a wallet](/sdks/community/wallets/community-wallets-integration), the DApp side of the connector
