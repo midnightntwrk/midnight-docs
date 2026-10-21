@@ -87,7 +87,6 @@ Create a Vite project, add the Midnight.js packages, compile the contract, and p
        exclude: [
          '@midnight-ntwrk/ledger-v8',
          '@midnight-ntwrk/onchain-runtime-v3',
-         '@midnight-ntwrk/zkir-v2',
        ],
      },
    });
@@ -162,16 +161,16 @@ Create a Vite project, add the Midnight.js packages, compile the contract, and p
 
 ### Verification
 
-The project builds, and the page loads the Midnight.js WebAssembly modules. Build it first:
+The project builds and the page loads. Build it first:
 
 ```bash
 npm run build
 ```
 
-Vite prints warnings that the `assert` module has been externalized for browser compatibility and that the `WebSocket` import from `isomorphic-ws` is undefined. The second one is harmless: with no WebSocket implementation passed in, the indexer client uses the browser's own. The build still succeeds:
+The build succeeds and ends with the time it took, which varies by machine:
 
 ```text
-✓ built in 1.31s
+✓ built in 19ms
 ```
 
 Then start the development server with `npm run dev` and open the URL it prints. The page shows `Ready`. The network ID defaults to `preprod`; to target another network, put it in a `.env.local` file, for example `VITE_NETWORK_ID=preview`, before you start the server.
@@ -252,7 +251,7 @@ Find the wallet, connect to it with the network ID you target, and give Midnight
 
 ### Verification
 
-Reload the page and select **Connect wallet**. The wallet asks you to approve the connection. After you approve, the page logs `Connected to`, the wallet's name, and your unshielded address, which starts with `mn_addr_` and the network name.
+Reload the page and select **Connect wallet**. The wallet asks you to approve the connection. After you approve, the page logs `Connected to`, the wallet's name, and your unshielded address. Except on Mainnet, the address starts with `mn_addr_` and the network name, such as `mn_addr_preprod1`. Mainnet addresses start with `mn_addr1`.
 
 If the wallet is set to a different network than `NETWORK_ID`, the connection fails instead. See [Browser DApp troubleshooting](#browser-dapp-troubleshooting).
 
@@ -280,7 +279,8 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
    export type CounterCircuits = 'increment';
    export const PRIVATE_STATE_ID = 'counterPrivateState';
    export type CounterProviders = MidnightProviders<CounterCircuits, typeof PRIVATE_STATE_ID, CounterPrivateState>;
-   // What both deployContract and findDeployedContract return.
+   // findDeployedContract returns this type. deployContract returns a DeployedContract,
+   // which is this type plus private data that only the deployer has.
    export type CounterContract = FoundContract<Counter.Contract<CounterPrivateState>>;
 
    const witnesses: Counter.Witnesses<CounterPrivateState> = {
@@ -292,6 +292,8 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
 
    export const compiledCounter = CompiledContract.make('counter', Counter.Contract<CounterPrivateState>).pipe(
      CompiledContract.withWitnesses(witnesses),
+     // The contract type requires an asset path. The browser fetches the ZK files from
+     // the base URL you give FetchZkConfigProvider, not from this value.
      CompiledContract.withCompiledFileAssets('/counter'),
    );
 
@@ -412,7 +414,9 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
 
 ### Verification
 
-Reload the page, enter a password that follows the rules in the warning above, and select **Connect wallet**. The page logs `Connected to` and the wallet's name, and the **Deploy** and **Join** buttons become active.
+Build the project again with `npm run build`. Now that the page imports Midnight.js, Vite prints warnings that the `assert` module has been externalized for browser compatibility and that the `WebSocket` import from `isomorphic-ws` is undefined. The second one is harmless: with no WebSocket implementation passed in, the indexer client uses the browser's own. The build still succeeds.
+
+Reload the page. It now loads the Midnight.js WebAssembly modules, `midnight_ledger_wasm_bg.wasm` and `midnight_onchain_runtime_wasm_bg.wasm`, and still shows `Ready`. Enter a password that follows the rules in the warning above, and select **Connect wallet**. The page logs `Connected to` and the wallet's name, and the **Deploy** and **Join** buttons become active.
 
 With a password that is too short, the providers are not built and nothing is sent to the network:
 
@@ -658,7 +662,7 @@ Failures you are likely to meet on this guide's path, and their fixes. The Lace 
 | `Password is shorter than 16 characters`, `Password contains sequential patterns`, or another `PasswordValidationError` | The private state password fails the store's rules | Use 16 or more characters with three of the four character classes, no more than three identical characters in a row, and no sequences such as `1234` or `abcd`. The error message names the rule that failed |
 | `OperationError` when joining | The password does not match the one that encrypted the stored private state | Ask for the password the user set when they first used the contract in this browser |
 | `No private state found at private state ID '<id>'` | `findDeployedContract` ran without `initialPrivateState` in a browser that has nothing stored for the contract | Pass `initialPrivateState` when the store returns `null`, as in [Joining a deployed contract](#joining-a-deployed-contract) |
-| `Failed to fetch` on **Read public state**, or after the wallet approved a deploy or call, with a console error for the indexer address | The page cannot reach the indexer it reads from, such as Lace 2.4.3's built-in `blockfrost.lw.iog.io` address. After a deploy or call, the wallet had already submitted the transaction | Set `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` to an indexer that answers, as in [Building the providers from the wallet](#building-the-providers-from-the-wallet) |
+| `Failed to fetch` on **Read public state** or **Increment**, or after the wallet approved a deploy, with a console error for the indexer address | The page cannot reach the indexer it reads from, such as Lace 2.4.3's built-in `blockfrost.lw.iog.io` address. After a deploy, the wallet had already submitted the transaction. A call or a read fails before the wallet sees a transaction, so the wallet submits nothing | Set `VITE_INDEXER_URI` and `VITE_INDEXER_WS_URI` to an indexer that answers, as in [Building the providers from the wallet](#building-the-providers-from-the-wallet) |
 | `Response not successful: Received status code 403` | Blockfrost refused the project ID in `.env.local`: it is missing, mistyped, or from a project for another network | Put the ID of a **Midnight Preprod** project in both lines, then restart the development server |
 | The join keeps waiting | No contract exists at that address on the network the wallet reports | Check the address and the network |
 
