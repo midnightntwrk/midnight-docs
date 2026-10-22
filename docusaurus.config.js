@@ -316,6 +316,10 @@ const config = {
     posthogApiHost: process.env.POSTHOG_API_HOST,
     posthogProjectId: process.env.POSTHOG_PROJECT_ID,
 
+    // "Was this page helpful?" in the doc footer. Off unless this is exactly
+    // "true", so having PostHog keys set is not enough to start collecting.
+    pageFeedbackEnabled: process.env.PAGE_FEEDBACK_ENABLED === 'true',
+
     // Typesense search-only API key (safe to expose in client)
     typesenseSearchApiKey: process.env.TYPESENSE_SEARCH_API_KEY,
     typesenseHost: process.env.TYPESENSE_HOST,
