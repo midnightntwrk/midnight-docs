@@ -70,14 +70,14 @@ Construct the six providers and assemble them into the object every deploy and c
      @midnight-ntwrk/midnight-js-http-client-proof-provider @midnight-ntwrk/midnight-js-utils
    ```
 
-2. Set the network ID before touching any provider, and polyfill `WebSocket` in Node.js so the wallet SDK's indexer connection works; the public data provider ships its own implementation. Midnight.js reads the network ID when it normalizes addresses and builds transactions:
+2. Set the network ID before touching any provider. Node.js 22 ships a global `WebSocket`, which the wallet SDK's indexer client uses; on older Node.js versions assign one from `ws` first. The public data provider ships its own implementation either way. Midnight.js reads the network ID when it normalizes addresses and builds transactions:
 
    ```typescript
    import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
    import { WebSocket } from 'ws';
 
    setNetworkId('undeployed'); // local network; 'preprod', 'preview', or 'mainnet' for public networks
-   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
+   globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket; // only needed before Node.js 22
    ```
 
 3. Create the private state provider. It persists private state and signing keys to an encrypted LevelDB store on the local device. Two of its options are enforced at runtime: `accountId` is required, so stored state is scoped to one wallet and cannot leak across accounts, and the encryption password must be at least 16 characters with at least three of the four character classes (uppercase, lowercase, digits, special characters):
@@ -193,7 +193,7 @@ Construct the six providers and assemble them into the object every deploy and c
    }
    ```
 
-   `getCoinPublicKey` and `getEncryptionPublicKey` expose the keys that receive and decrypt shielded outputs; `balanceTx` selects DUST to cover the fee, signs any unshielded inputs that balancing added with the unshielded keystore, and finalizes the transaction; `submitTx` sends it to the network. The private-bid circuits spend nothing but DUST, so `signRecipe` has nothing to sign here. The node rejects a transaction that moves NIGHT, for example into a contract, when those signatures are missing, which is why the example's wallet provider always includes the step. [Funding a wallet](./acquire-tokens) covers building and syncing the `WalletFacade` and deriving the secret keys. The wallet SDK ships under two names, `@midnightntwrk/wallet-sdk` and `@midnight-ntwrk/wallet-sdk`, both at 1.2.0. The example pins the hyphenated one, and its `src/wallet.ts` builds this class from a hex seed through the `FluentWalletBuilder` in `@midnight-ntwrk/testkit-js`, which also hands back the keystore and both secret keys.
+   `getCoinPublicKey` and `getEncryptionPublicKey` expose the keys that receive and decrypt shielded outputs; `balanceTx` selects DUST to cover the fee, signs any unshielded inputs that balancing added with the unshielded keystore, and finalizes the transaction; `submitTx` sends it to the network. The private-bid circuits spend nothing but DUST, so `signRecipe` has nothing to sign here. The node rejects a transaction that moves NIGHT, for example into a contract, when those signatures are missing, which is why the example's wallet provider always includes the step. [Funding a wallet](./acquire-tokens) covers building and syncing the `WalletFacade` and deriving the secret keys. The wallet SDK ships under two names, `@midnightntwrk/wallet-sdk` and `@midnight-ntwrk/wallet-sdk`, and both have a 1.2.0 release. The hyphenated name's `latest` tag still points at 1.1.0, so pin 1.2.0 explicitly. The example pins the hyphenated one at 1.2.0 in its `package.json` and in the repository's root `resolutions`. Its `src/wallet.ts` builds this class from a hex seed through the `FluentWalletBuilder` in `@midnight-ntwrk/testkit-js`, which also hands back the keystore and both secret keys.
 
 8. Assemble the object, passing the same instance as both `walletProvider` and `midnightProvider`:
 
@@ -212,7 +212,7 @@ Construct the six providers and assemble them into the object every deploy and c
 
 ### Verification
 
-The providers assemble against real compile artifacts and endpoints, and the private state provider enforces its `accountId` requirement. This file, like every test in this guide, runs inside the private-bid example in a clone of [midnight-examples](https://github.com/midnightntwrk/midnight-examples), which supplies the compiled contract, the wallet class from step 7 as `src/wallet.ts`, the endpoints as `src/config.ts`, and the local network. Set that up once, with Node.js 22 and Corepack enabled as the repository's README asks:
+The providers assemble against real compile artifacts and endpoints, and the private state provider enforces its `accountId` requirement. This file, like every test in this guide, runs inside the private-bid example in a clone of [midnight-examples](https://github.com/midnightntwrk/midnight-examples), which supplies the compiled contract, a fuller version of the wallet class from step 7 as `src/wallet.ts`, the endpoints as `src/config.ts`, and the local network. Set that up once, with Node.js 22 and Corepack enabled as the repository's README asks:
 
 ```bash
 git clone https://github.com/midnightntwrk/midnight-examples.git
@@ -249,7 +249,7 @@ import { MidnightWalletProvider, syncWallet } from '../wallet.js';
 import { zkConfigPath } from '../../contract/index.js';
 import { type PrivateBidPrivateState } from '../../contract/witnesses.js';
 
-// Node.js has no global WebSocket for the indexer subscriptions
+// Only needed on Node.js versions before 22, which have no global WebSocket
 globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket;
 
 export type PrivateBidCircuits = 'placeBid' | 'revealBid';
@@ -490,16 +490,17 @@ Promote the deploy you ran in [Deploying a contract](#deploying-a-contract) to P
 
 ### Procedure
 
-1. Fund a Preprod wallet: request tNIGHT from the faucet, then register it for DUST generation, following [Funding a wallet](./acquire-tokens). Without DUST, submission fails with `Wallet.InsufficientFunds`.
+1. Fund a Preprod wallet: request tNIGHT from the faucet, then register it for DUST generation, following [Funding a wallet](./acquire-tokens). Without DUST, balancing fails with `Wallet.InsufficientFunds`.
 
-2. Keep the wallet secret out of your source. Load the seed or mnemonic from an environment file that your version control ignores. The example reads `MIDNIGHT_PREPROD_SEED` or `MIDNIGHT_PREPROD_MNEMONIC` from a `.env.preprod` at the repository root, which its `yarn wallets:new` writes:
+2. Keep the wallet secret out of your source. Load the seed or mnemonic from an environment file that your version control ignores. The example reads its Alice wallet from `MIDNIGHT_PREPROD_ALICE_SEED` or `MIDNIGHT_PREPROD_ALICE_MNEMONIC` in a `.env.preprod` at the repository root. `yarn wallets:new` mints four wallets and writes their `_SEED` and `_BIRTHDAY` lines there. Preprod traffic goes through Blockfrost, so the same file needs your `BLOCKFROST_PROJECT_ID`; [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token) shows where to get one. Without it the example stops with `BLOCKFROST_PROJECT_ID is not set`:
 
    ```bash
    # .env.preprod  (listed in .gitignore; never commit or share it)
-   MIDNIGHT_PREPROD_SEED=...   # 64 hex characters, or a 24-word mnemonic variable
+   MIDNIGHT_PREPROD_ALICE_SEED=...   # 64 hex characters, or MIDNIGHT_PREPROD_ALICE_MNEMONIC with a 24-word phrase
+   BLOCKFROST_PROJECT_ID=...         # from your Blockfrost dashboard
    ```
 
-3. Point the configuration at Preprod: `setNetworkId('preprod')`, the Preprod indexer and node endpoints from the [environment reference](./networks-and-environments#environment-reference), and a proof server you run yourself, following [Run a proof server](./run-proof-server). The proof server sees witness data in the clear, so it stays local even when the network is public.
+3. Point the configuration at Preprod: `setNetworkId('preprod')`, the Preprod indexer and node endpoints from the [environment reference](./networks-and-environments#environment-reference), and a proof server you run yourself, following [Run the proof server](./run-proof-server). The proof server sees witness data in the clear, so it stays local even when the network is public.
 
 4. Run the same deploy code from [Deploying a contract](#deploying-a-contract) against the new configuration. The first sync of a fresh Preprod wallet walks the chain's history and takes substantially longer than the local network's.
 
@@ -749,7 +750,7 @@ describe('operating a maintenance authority', () => {
 {/* _mod-docs-content-type: REFERENCE */}
 ## Provider implementations
 
-Which implementation fills each provider slot, by environment. The Midnight.js packages live under the `@midnight-ntwrk/` scope. The wallet SDK ships as both `@midnightntwrk/wallet-sdk` and `@midnight-ntwrk/wallet-sdk`; the private-bid example uses the second. Take the versions from the [support matrix](../relnotes/support-matrix).
+Which implementation fills each provider slot, by environment. The Midnight.js packages live under the `@midnight-ntwrk/` scope. The wallet SDK ships as both `@midnightntwrk/wallet-sdk` and `@midnight-ntwrk/wallet-sdk`. The private-bid example uses the second, pinned to 1.2.0 because that name's `latest` tag still resolves to 1.1.0. Take the versions from the [support matrix](../relnotes/support-matrix).
 
 | Slot | Implementation | Package | Notes |
 |---|---|---|---|
@@ -815,9 +816,9 @@ Failures you are likely to hit on this guide's path, and their fixes. Every quot
 | `accountId is required. Provide an account identifier` | `levelPrivateStateProvider` called without `accountId` | Pass a per-account identifier, such as the wallet's Bech32m address |
 | `PasswordValidationError: Password must contain at least 3 of: uppercase letters, lowercase letters, digits, special characters` | The private-state encryption password is too weak | Provide a password with at least three of the four character classes |
 | `Password is shorter than 16 characters` | The private-state encryption password fails the length rule | Use 16 characters or more |
-| `Wallet.InsufficientFunds` | The wallet has NIGHT but no spendable DUST | Register NIGHT for DUST generation and wait for a spendable coin; see [Funding a wallet](./acquire-tokens) |
+| `Wallet.InsufficientFunds` | Balancing found no spendable DUST to pay the fee, even though the wallet holds NIGHT | Register NIGHT for DUST generation and wait for a spendable coin; see [Funding a wallet](./acquire-tokens) |
 | `failed assert: Bid is below the minimum` (or another `failed assert:` message) | An `assert` in the circuit failed while Midnight.js executed it locally, before proving, so nothing reached the network | Call with inputs the contract accepts; the message is the assert's own text |
-| tsc: `Types have separate declarations of a private property 'type_'` | Ledger types imported from the ledger package directly, clashing with the copies Midnight.js compiles against | Import `ZswapSecretKeys`, `DustSecretKey`, and transaction types from `@midnight-ntwrk/midnight-js-protocol/ledger` |
+| tsc: a ledger type is not assignable across two copies of `@midnight-ntwrk/ledger-v8`, for example `Types have separate declarations of a private property 'type_'` or `The types of 'encryptionSecretKey.test' are incompatible` | Ledger types imported from the ledger package directly, so a second copy sits beside the one Midnight.js compiles against | Import `ZswapSecretKeys`, `DustSecretKey`, and transaction types from `@midnight-ntwrk/midnight-js-protocol/ledger` |
 | tsc: `Argument of type 'Witnesses<PrivateBidPrivateState>' is not assignable to parameter of type 'never'` | `CompiledContract.withWitnesses` called in the nested form, with the compiled contract as its first argument | Chain the combinators with `pipe`, as in [Deploying a contract](#deploying-a-contract) |
 | `expected instance of ContractMaintenanceAuthority` (or another `expected instance of` error at deploy) | The generated contract module and Midnight.js resolve different copies of the runtime, so class checks fail across the trees | Keep the contract's `managed` output and Midnight.js in the same package tree with one `node_modules` |
 | `Operation 'revealBid' is undefined for contract state ...` | The circuit's verifier key was removed, or none exists at the current proof system version; the message ends with a dump of the contract state | Insert a verifier key for the circuit; see [Operating a maintenance authority](#operating-a-maintenance-authority) |
