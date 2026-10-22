@@ -10,7 +10,7 @@
 //  - Add or rename a column in `columns` (id must be unique, lowercase-dashed)
 //    and point `href` at its docs page.
 //  - Under each feature in `features`, add `"<column-id>": "x"` for a feature
-//    the example fully demonstrates, or `"?"` for partial / in-progress.
+//    the example demonstrates. Coverage is binary, so there is no partial mark.
 //
 // `group` buckets a column as a full "DApps" or a standalone "Contracts" example.
 
@@ -52,10 +52,10 @@ export const columns = [
     href: "/examples/contracts/battleship-simple"
   },
   {
-    id: "bboard",
-    name: "Bulletin board",
+    id: "leaderboard",
+    name: "Leaderboard",
     group: "DApps",
-    href: "/examples/dapps/bboard"
+    href: "/examples/dapps/leaderboard"
   },
   {
     id: "zkloan",
@@ -74,7 +74,7 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -85,7 +85,7 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -97,7 +97,7 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -110,7 +110,7 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -131,7 +131,6 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x",
       zkloan: "x"
     }
   },
@@ -141,7 +140,7 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x"
+      leaderboard: "x"
     }
   },
   {
@@ -156,7 +155,8 @@ export const features = [
     name: "Ledger Map",
     coverage: {
       election: "x",
-      "private-reserve-auction": "x"
+      "private-reserve-auction": "x",
+      leaderboard: "x"
     }
   },
   {
@@ -174,16 +174,9 @@ export const features = [
     }
   },
   {
-    name: "Standard library Maybe",
-    coverage: {
-      bboard: "x"
-    }
-  },
-  {
     name: "Opaque string on the ledger",
     coverage: {
-      election: "x",
-      bboard: "x"
+      election: "x"
     }
   },
   {
@@ -203,13 +196,13 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x"
+      leaderboard: "x"
     }
   },
   {
     name: "ZK proof of identity without revealing it",
     coverage: {
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
@@ -245,7 +238,6 @@ export const features = [
       election: "x",
       "private-reserve-auction": "x",
       battleship: "x",
-      bboard: "x",
       zkloan: "x"
     }
   },
@@ -259,21 +251,20 @@ export const features = [
   {
     name: "CLI tooling",
     coverage: {
-      bboard: "x",
       zkloan: "x"
     }
   },
   {
     name: "Web UI",
     coverage: {
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   },
   {
     name: "Wallet and proof server integration",
     coverage: {
-      bboard: "x",
+      leaderboard: "x",
       zkloan: "x"
     }
   }
