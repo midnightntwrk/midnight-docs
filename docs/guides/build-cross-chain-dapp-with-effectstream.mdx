@@ -18,7 +18,7 @@ Use this guide to build a DApp whose state lives on Midnight and an EVM chain at
 
 :::warning[Community-maintained, not officially supported]
 
-[EffectStream](https://github.com/effectstream/effectstream) maintains the template and the `@effectstream/*` packages this guide uses, not the Midnight Foundation. The template lives on the repository's default branch and its pinned versions change, so when the template and this guide disagree, follow the template. Report EffectStream problems on the [EffectStream tracker](https://github.com/effectstream/effectstream/issues), and problems with this page on the [Midnight docs repository](https://github.com/midnightntwrk/midnight-docs/issues).
+[EffectStream](https://github.com/effectstream/effectstream) maintains the template and the `@effectstream/*` packages this guide uses, not the Midnight Foundation. This guide uses the template at a tested commit on the `midnight-1` branch, which EffectStream maintains for the current Midnight networks. The default branch, `v-next`, targets the next ledger release, and its template does not start from a clean clone at the moment. See [effectstream#895](https://github.com/effectstream/effectstream/issues/895). Report EffectStream problems on the [EffectStream tracker](https://github.com/effectstream/effectstream/issues), and problems with this page on the [Midnight docs repository](https://github.com/midnightntwrk/midnight-docs/issues).
 
 :::
 
@@ -27,11 +27,11 @@ Use this guide to build a DApp whose state lives on Midnight and an EVM chain at
 These apply to every procedure in this guide:
 
 - [Git](https://git-scm.com/) for cloning the template repository.
-- A Linux x86-64 or Apple silicon machine. The orchestrator runs the Midnight node, indexer, and proof server as native binaries, and the node ships for only those two platforms, so the template does not start anywhere else. Docker is not required.
+- A Linux x86-64, Linux arm64, or Apple silicon machine. The orchestrator runs the Midnight node, indexer, and proof server as native binaries, so Docker is not required. The binary packages ship for only those three platforms. Anywhere else, such as an Intel Mac, the template stops with `Unsupported platform` before it downloads anything.
 - [Bun](https://bun.sh). See [Set up Bun for Midnight development](/how-to/bun-runtime-midnight).
 - [Foundry](https://www.getfoundry.sh/). `forge` compiles the Solidity artifacts, and the orchestrator checks for it on `PATH` before starting.
-- The Compact toolchain, which the orchestrator checks on `PATH` before starting. The template's build script selects toolchain `0.33.0-rc.2` explicitly, and `compact update` cannot install prereleases, so download `compactc_v0.33.0-rc.2_<target>.zip` from the [Compact releases](https://github.com/LFDT-Minokawa/compact/releases/tag/compactc-v0.33.0-rc.2) and unzip it into `~/.compact/versions/0.33.0-rc.2/<target>/`, using the same `<target>` as the zip name, for example `aarch64-darwin`. Your default toolchain stays as it is. Confirm with `compact compile +0.33.0-rc.2 --version`, which prints `0.33.0`.
-- Roughly 8 GB of free memory, and a raised Node heap for the frontend build. Vite transforms about 9000 modules and exceeds Node's default limit, so export `NODE_OPTIONS=--max-old-space-size=8192` before starting.
+- The Compact toolchain, which the orchestrator checks on `PATH` before starting. The template's build script selects toolchain `0.31.0` explicitly, so install it alongside your default with `compact update 0.31.0 --no-set-default`. Confirm with `compact compile +0.31.0 --version`, which prints `0.31.0`. Keep this version for the template only, and compile your own contracts with the toolchain in the [support matrix](../relnotes/support-matrix).
+- Enough memory for the frontend build, the heaviest step. Vite transforms about 9000 modules and uses about 3 GB. Node sizes its default heap from the machine's memory, so on a machine with less than 16 GB, export `NODE_OPTIONS=--max-old-space-size=4096` before starting.
 
 The template launches its own Midnight stack, so you need no separately running node or proof server.
 
@@ -42,11 +42,11 @@ Splitting a DApp across chains usually means a bridge: a message-passing contrac
 
 EffectStream targets the weaker requirement. When you need a consistent view of two chains rather than atomic execution across them, neither chain has to know the other exists. Both are ingested independently, and a state machine you write merges them into one database.
 
-The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight takes private inputs and discloses one resulting property, because the values behind it stay private. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The rollup joins on that key.
+The template splits an NFT along that line. An ERC-721 contract on the EVM chain owns transfers, because everyone needs to agree on who holds a token. A Compact circuit on Midnight records a property for a token. It takes the contract address, token ID, property name, and value as arguments, and writes each one to the public ledger with `disclose()`. The template's circuit keeps nothing private. In a real DApp, the circuit computes the disclosed value from private inputs. The two sides share a key, `(contract_address, token_id)`, which you supply to both. The database stores and links rows by that key. The template's merged API query joins on `token_id` alone, though, so its results mix up tokens from two contracts that share an ID.
 
 One consequence shapes the code you write. EffectStream reads Midnight's public ledger, so values a circuit discloses and writes to the ledger are what your state machine can see. Designing the circuit designs the sync surface.
 
-A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row, and you see it skip events while the two chains catch up.
+A second one shows up in the logs. Each chain syncs independently, so a Midnight property can arrive before the EVM transfer that created the token. The `midnightContractState` transition handles this by inserting a placeholder row with an empty owner. It also skips the freshly deployed contract, whose fields are all still empty, and logs `empty token_id, skipping`.
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Run the template
@@ -55,11 +55,13 @@ Start the whole stack and mint a token.
 
 ### Procedure
 
-1. Clone the repository and enter the template:
+1. Clone the repository, check out the tested commit, and enter the template:
 
    ```bash
-   git clone https://github.com/effectstream/effectstream.git
-   cd effectstream/templates/evm-midnight-v2
+   git clone --branch midnight-1 https://github.com/effectstream/effectstream.git
+   cd effectstream
+   git checkout 667173ac79aad6c51bf5d97e87355c3438a48be8
+   cd templates/evm-midnight-v2
    ```
 
 2. Install dependencies:
@@ -68,28 +70,40 @@ Start the whole stack and mint a token.
    bun install
    ```
 
-3. Start the stack. This compiles the Compact circuit, compiles and deploys the Solidity contracts, deploys the Midnight contract, then starts the database, sync node, batcher, and frontend:
+3. Start the stack. The `dev` script launches the database and the Midnight node, indexer, and proof server, and compiles the Compact circuit and the Solidity contracts. It then starts the local EVM chains, deploys both contracts, and starts the sync node, batcher, and frontend:
 
    ```bash
    bun run dev
    ```
 
-4. Open the DApp at `http://localhost:10599`, mint a token, and set a property on it.
+4. Open the DApp at `http://localhost:10599` and connect both wallets. Neither needs a browser extension. Select **Connect EVM**, then **Connect Local Wallet**, which uses an account the local EVM chain funds at startup. Then select **Connect Midnight**. The page builds a wallet from the local network's genesis seed and joins the deployed contract. The button shows the wallet address when it finishes.
+
+5. Enter a token ID next to **Mint #** and select **MINT**.
+
+6. Select the new token, enter a name under **Update Token Name**, and select **Save**.
 
 ### Verification
 
-The sync node runs independently of the frontend, so check it directly. The merged view returns each token with its EVM owner and its Midnight properties:
+The sync node runs independently of the frontend, and starts before the frontend build finishes, so check it directly. The merged view returns each token with its EVM owner and its Midnight properties:
 
 ```bash
 curl http://localhost:9999/api/erc721
 ```
 
+```json
+[{"token_id":"1","owner":"0x14dc79964da2c08b23698b3d3cc7ca32193d9955","block_height":348,"property_name":"Name","value":"Aurora","property_block_height":465}]
+```
+
+The owner comes from the EVM chain, and the property name and value come from Midnight. A token with no property yet shows `null` in the three property fields, and a new property can take several seconds to appear. Your values differ.
+
 The sync node's own logs show both chains advancing together, which is the rollup working:
 
 ```text
-INFO effectstream-sync-block-merge: finalized block 145 @ 0xdf3de2... | {"mainNtp":[145,145],"mainEvmRPC":[794,797]}
-[Midnight:undeployed] Fetching blocks from 32 to 32.
+INFO effectstream-sync-block-merge: finalized block 465 @ 0x8d64ba... | {"mainNtp":[465,465],"mainEvmRPC":[2136,2138],"parallelMidnight":[87,87]}
+[Midnight:undeployed] Fetching blocks from 89 to 89.
 ```
+
+`finalized block 465` is EffectStream's own block number, the same number as the `mainNtp` pair. Each other pair is the lowest and highest block of one chain merged into that EffectStream block. This one carried EVM blocks 2136 to 2138 and Midnight block 87. The `parallelMidnight` pair appears only on blocks that carried a Midnight block. The API reports these EffectStream block numbers too, so `property_block_height` above is 465, not 87.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Local service endpoints
@@ -134,7 +148,7 @@ Four files carry a chain event from the wire into your API. Read them in order t
 )
 ```
 
-`contract: { ledger: CounterContract.ledger }` hands the primitive the reader that `compact compile` generates. That reader decodes anything Compact can express, which is the difference from the declarative schema in [Index contract state with EffectStream](./index-state-with-effectstream#what-the-ledger-schema-can-read).
+`contract: { ledger: CounterContract.ledger }` hands the primitive the reader that `compact compile` generates. That reader decodes every exported ledger field, including struct fields, lists, and Merkle trees, which is the difference from the declarative schema in [Index contract state with EffectStream](./index-state-with-effectstream#what-the-ledger-schema-can-read).
 
 `packages/node/grammar.ts` maps each prefix to a parser. Both prefixes use builtin grammars, so the template writes none of its own.
 
@@ -179,7 +193,7 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
    }
    ```
 
-   Adding an argument changes the circuit's signature, so every caller needs the new value. Step 7 covers the two callers.
+   Adding an argument changes the circuit's signature, so every caller needs the new value. Step 7 covers the callers.
 
 2. Recompile the circuit so the generated ledger reader includes the new field:
 
@@ -195,7 +209,7 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
    bun run build:pgtypes
    ```
 
-5. Decode the field in the `midnightContractState` transition in `packages/node/state-machine.ts`. A `Bytes<32>` ledger field arrives as fixed-width bytes, so `decodeField` turns it back into a string. Add a line next to the existing ones:
+5. Decode the field in the `midnightContractState` transition in `packages/node/state-machine.ts`. A `Bytes<32>` ledger field arrives as fixed-width bytes, so `decodeField` turns it back into a string. Add `rarity` to the `payload` type at the top of the transition, then add a line next to the existing ones:
 
    ```typescript
    const contract_address = decodeField(payload.contract_address);
@@ -209,16 +223,32 @@ Carry one new value from the Compact circuit to the API. Nothing generates this 
 
 6. In `packages/node/api.ts`, add `rarity: Type.String()` to `ResponseSchema`. The `GET /api/erc721` handler returns whatever `getEvmMidnight` selects, so the schema is the only change the route needs.
 
-7. Pass the new argument from the two callers: the frontend in `packages/frontend/client/src/increment.ts`, and the batcher in `packages/batcher/midnight-balancing.ts`. Nothing in the template's build checks these files against the circuit, so a caller you forget fails at runtime, the first time it calls `increment`.
+7. Pass the new argument where the template calls the circuit, the `callTx.increment` call in `packages/frontend/client/src/increment.ts`. The frontend has no input for `rarity`, so pass a fixed value after the property value:
 
-8. Restart the stack and set a property from the frontend.
+   ```typescript
+   const finalizedTxData = await counterContract.callTx.increment(
+     toEncodedString(contractAddress, 64),
+     toEncodedString(tokenId, 64),
+     toEncodedString(propertyName, 32),
+     toEncodedString(propertyValue, 32),
+     toEncodedString("legendary", 32),        // added
+   );
+   ```
+
+   The end-to-end test in `packages/tests/stm/midnight-property.test.ts` makes the same call, so add a value there too if you run `bun run test`. Nothing in the template's build checks these calls against the circuit. A call you forget fails at runtime with `increment: expected 6 arguments (as invoked from Typescript), received 5`.
+
+8. Restart the stack, then mint a token and set a property from the frontend as before. A restart begins from an empty database, new local chains, and a new Midnight contract, so tokens from the earlier run are gone.
 
 ### Verification
 
-The endpoint returns the new field alongside the existing ones.
+The endpoint returns the new field alongside the existing ones:
 
 ```bash
 curl http://localhost:9999/api/erc721
+```
+
+```json
+[{"token_id":"1","owner":"0x14dc79964da2c08b23698b3d3cc7ca32193d9955","block_height":26,"property_name":"Name","value":"Aurora","rarity":"legendary","property_block_height":129}]
 ```
 
 {/* _mod-docs-content-type: REFERENCE */}
@@ -226,10 +256,23 @@ curl http://localhost:9999/api/erc721
 
 Press Ctrl+C in the terminal running `bun run dev`. The orchestrator stops every process it started and frees their ports, so nothing survives in the background.
 
-Some state survives on disk under `packages/contracts-midnight/`: the `midnight-level-db*` directories that hold private state, `contract.json`, and `contract-round-value.undeployed.json`, which records the deployed address. The next `bun run dev` runs the package's `midnight-contract:clean` script and deploys a fresh Midnight contract at a new address, so properties you set in an earlier run belong to a contract the new run no longer watches.
+Two things survive on disk under `packages/contracts-midnight/`: the `midnight-level-db-deploy` directory, which holds private state, and `contract-round-value.undeployed.json`, which records the deployed address. The database and the local chains do not survive. The next `bun run dev` starts them empty and deploys a fresh Midnight contract at a new address, so tokens and properties from an earlier run are gone.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Template troubleshooting
+
+Failures you are likely to hit on this guide's path, and their fixes. Every quoted message comes from a real run.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| The contract compile fails with `Couldn't find compiler for aarch64-darwin (0.33.0-rc.2)`, and `compact update 0.33.0-rc.2` fails with `Couldn't find version 0.33.0-rc.2` | You cloned the default branch, `v-next`. Its template compiles with a prerelease toolchain that `compact update` cannot install. See [effectstream#895](https://github.com/effectstream/effectstream/issues/895) | Clone the tested commit on `midnight-1`, as in [Run the template](#run-the-template) |
+| The frontend build stops with `JavaScript heap out of memory` | Node sizes its default heap from the machine's memory, and on a smaller machine that heap is too small for the build | Export `NODE_OPTIONS=--max-old-space-size=4096`, then run `bun run dev` again |
+| The frontend build warns `"WebSocket" is not exported by ".../isomorphic-ws/browser.js"` | The Midnight.js indexer provider imports a named `WebSocket` that the browser build of `isomorphic-ws` does not export. In the browser, the provider uses the browser's own `WebSocket` instead | None needed. **Connect Midnight** works with this warning |
+| The sync log shows `[STM:midnight] empty token_id, skipping` | The sync node read the freshly deployed contract, whose fields are all still empty | None needed. It appears before you set the first property |
+| A circuit call fails with `increment: expected 6 arguments (as invoked from Typescript), received 5` | A caller still passes the old arguments after you added `rarity` to the circuit | Add the new argument to every `callTx.increment` call, as in step 7 of [Add a field end to end](#add-a-field-end-to-end) |
 
 ## Additional resources
 
 - [Index contract state with EffectStream](./index-state-with-effectstream): the read path, one Midnight contract, no local stack.
-- [EffectStream documentation](https://effectstream.github.io/docs/): the full API surface, the batcher, and the other cross-chain templates.
+- [EffectStream documentation](https://effectstream.github.io/docs/): the project's own documentation, including the batcher and the other cross-chain templates.
 - [Security and best practices](./security-best-practices#on-chain-visibility): how `disclose()` permits private data to cross into public ledger state.
