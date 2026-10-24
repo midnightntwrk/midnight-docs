@@ -9,7 +9,7 @@
 > **ProvingProvider** = `object`
 
 Object abstracting the proving functionality
-It is compatible with Ledger's ProvingProvider (https://github.com/midnightntwrk/midnight-ledger/blob/main/ledger-wasm/ledger-v6.template.d.ts#L992)
+It is compatible with Ledger's ProvingProvider (https://github.com/midnightntwrk/midnight-ledger/blob/ledger-8.1.3/ledger-wasm/ledger-v8.template.d.ts#L1149)
 
 ## Methods
 
