@@ -192,6 +192,12 @@ const config = {
             ],
             to: '/getting-started/hello-world',
           },
+          // Temporary: the create-mn-app Quickstart is retired until the mnkit rewrite
+          // (https://github.com/midnightntwrk/midnight-docs/issues/1587) restores the page
+          {
+            from: '/getting-started/quickstart',
+            to: '/getting-started/hello-world',
+          },
           {
             from: '/category/examples',
             to: '/examples',
@@ -316,6 +322,10 @@ const config = {
     posthogApiKey: process.env.POSTHOG_API_KEY,
     posthogApiHost: process.env.POSTHOG_API_HOST,
     posthogProjectId: process.env.POSTHOG_PROJECT_ID,
+
+    // "Was this page helpful?" in the doc footer. Off unless this is exactly
+    // "true", so having PostHog keys set is not enough to start collecting.
+    pageFeedbackEnabled: process.env.PAGE_FEEDBACK_ENABLED === 'true',
 
     // Typesense search-only API key (safe to expose in client)
     typesenseSearchApiKey: process.env.TYPESENSE_SEARCH_API_KEY,
