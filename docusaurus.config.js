@@ -176,20 +176,26 @@ const config = {
             from: '/sdks/community/ai-tools/kapa-mcp-server',
             to: '/ai-integration/kapa-mcp-server',
           },
-          // Academy redirects (external)
+          // Midnight Academy is retired; old Academy links land on the Hello World quick start
           {
             from: [
-              '/academy', 
-              '/academy/module-1', 
-              '/academy/module-2', 
-              '/academy/module-3', 
-              '/academy/module-4', 
-              '/academy/module-5', 
-              '/academy/module-6', 
+              '/academy',
+              '/academy/module-1',
+              '/academy/module-2',
+              '/academy/module-3',
+              '/academy/module-4',
+              '/academy/module-5',
+              '/academy/module-6',
               '/academy/module-7',
               '/academy/module-8',
             ],
-            to: 'https://academy.midnight.network/',
+            to: '/getting-started/hello-world',
+          },
+          // Temporary: the create-mn-app Quickstart is retired until the mnkit rewrite
+          // (https://github.com/midnightntwrk/midnight-docs/issues/1587) restores the page
+          {
+            from: '/getting-started/quickstart',
+            to: '/getting-started/hello-world',
           },
           {
             from: '/category/examples',
@@ -207,25 +213,23 @@ const config = {
             from: '/category/dapps',
             to: '/examples/dapps',
           },
+          // Retired Counter and Bulletin board tutorials and DApp examples
           {
-            from: ['/category/counter', '/tutorials/counter'],
-            to: '/tutorials/bboard',
-          },
-          {
-            from: '/tutorials/counter/smart-contract',
-            to: '/tutorials/bboard/smart-contract',
-          },
-          {
-            from: '/tutorials/counter/counter-cli',
-            to: '/tutorials/bboard/bboard-cli',
-          },
-          {
-            from: '/examples/dapps/counter',
-            to: '/examples/dapps/bboard',
-          },
-          {
-            from: '/category/bulletin-board',
-            to: '/tutorials/bboard',
+            from: [
+              '/category/counter',
+              '/tutorials/counter',
+              '/tutorials/counter/smart-contract',
+              '/tutorials/counter/counter-cli',
+              '/examples/dapps/counter',
+              '/category/bulletin-board',
+              '/tutorials/bboard',
+              '/tutorials/bboard/smart-contract',
+              '/tutorials/bboard/bboard-cli',
+              '/tutorials/bboard/bboard-api-implementation',
+              '/tutorials/bboard/bboard-cli-implementation',
+              '/examples/dapps/bboard',
+            ],
+            to: '/tutorials',
           },
           {
             from: '/category/battleship',
@@ -317,6 +321,10 @@ const config = {
     posthogApiKey: process.env.POSTHOG_API_KEY,
     posthogApiHost: process.env.POSTHOG_API_HOST,
     posthogProjectId: process.env.POSTHOG_PROJECT_ID,
+
+    // "Was this page helpful?" in the doc footer. Off unless this is exactly
+    // "true", so having PostHog keys set is not enough to start collecting.
+    pageFeedbackEnabled: process.env.PAGE_FEEDBACK_ENABLED === 'true',
 
     // Typesense search-only API key (safe to expose in client)
     typesenseSearchApiKey: process.env.TYPESENSE_SEARCH_API_KEY,
