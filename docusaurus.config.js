@@ -140,7 +140,8 @@ const config = {
         },
         // Optional advanced settings
         pretty: true,
-        
+        // 1.39.0 added anonymous usage telemetry that runs on every graphql-to-doc call; opt out.
+        telemetry: false,
       },
     ],
 
@@ -189,6 +190,12 @@ const config = {
               '/academy/module-7',
               '/academy/module-8',
             ],
+            to: '/getting-started/hello-world',
+          },
+          // Temporary: the create-mn-app Quickstart is retired until the mnkit rewrite
+          // (https://github.com/midnightntwrk/midnight-docs/issues/1587) restores the page
+          {
+            from: '/getting-started/quickstart',
             to: '/getting-started/hello-world',
           },
           {
