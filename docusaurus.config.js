@@ -191,6 +191,12 @@ const config = {
             ],
             to: '/getting-started/hello-world',
           },
+          // Temporary: the create-mn-app Quickstart is retired until the mnkit rewrite
+          // (https://github.com/midnightntwrk/midnight-docs/issues/1587) restores the page
+          {
+            from: '/getting-started/quickstart',
+            to: '/getting-started/hello-world',
+          },
           {
             from: '/category/examples',
             to: '/examples',
