@@ -71,23 +71,29 @@ Create `app/lib/selectWallet.ts` first so the button stays wallet-agnostic. Wall
 ```typescript
 import type { InitialAPI } from "@midnight-ntwrk/dapp-connector-api";
 
+// The DApp Connector API major version this DApp was written against.
+const SUPPORTED_API_MAJOR = 4;
+
+const isSupported = (wallet: InitialAPI): boolean =>
+  Number(wallet.apiVersion.split(".")[0]) === SUPPORTED_API_MAJOR;
+
 export const listWallets = (): InitialAPI[] => {
   const injected = window.midnight;
-  return injected ? Object.values(injected) : [];
+  return injected ? Object.values(injected).filter(isSupported) : [];
 };
 
 export const selectWallet = (): InitialAPI => {
   const wallets = listWallets();
 
   if (wallets.length === 0) {
-    throw new Error("No Midnight wallet found. Please install a Midnight wallet extension.");
+    throw new Error("No compatible Midnight wallet found. Please install a Midnight wallet extension.");
   }
 
   return wallets[0];
 };
 ```
 
-The `selectWallet` function returns the first installed wallet, which keeps this example focused on the connection flow. When more than one wallet is available, the DApp Connector API specification expects you to let the user choose rather than picking for them. The specification also expects you to check each wallet's `apiVersion` and skip any wallet whose version your DApp doesn't support. Use `listWallets` to render the options, and render each wallet's `name` and `icon` safely to prevent XSS.
+`listWallets` keeps only the wallets whose `apiVersion` major matches the one the DApp was written against, 4 for this guide. The DApp Connector API specification requires a DApp to check `apiVersion` against the versions it supports and never connect to, or show the user, a wallet outside that range. The `selectWallet` function returns the first compatible wallet, which keeps this example focused on the connection flow. When more than one wallet is available, the specification expects you to let the user choose rather than picking for them. Use `listWallets` to render the options, and render each wallet's `name` and `icon` safely to prevent XSS.
 
 Then create `app/components/ConnectWalletButton.tsx`:
 
