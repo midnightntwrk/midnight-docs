@@ -38,7 +38,7 @@ Do not rely on a fixed key. The v4 specification has each wallet install its Ini
 
 ## Connect and the ConnectedAPI surface
 
-`connect(networkId)` prompts you to authorize, then resolves to a ConnectedAPI that spans Midnight's three asset kinds (shielded, unshielded, and DUST). Only `'mainnet'` is standardized by the connector spec; every other network id is wallet-defined and they differ. The CLI connector, for example, expects capitalized `'Preview'`, `'PreProd'`, and `'Undeployed'`, which is why the [CLI snippet](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) uses `networkId: "Preview"`. Check your target wallet's docs for the exact strings.
+`connect(networkId)` prompts you to authorize, then resolves to a ConnectedAPI that spans Midnight's three asset kinds (shielded, unshielded, and DUST). Only `'mainnet'` is fixed by the connector spec. For the other networks, pass the ids the SDK and Lace use: `'preview'`, `'preprod'`, and `'undeployed'` for a local network. The spec requires a wallet to reject a connect request for a network it cannot reach. Use these exact strings, then reconcile the DApp with `getConnectionStatus().networkId`.
 
 | Method | Purpose |
 |--------|---------|
@@ -46,7 +46,8 @@ Do not rely on a fixed key. The v4 specification has each wallet install its Ini
 | `getShieldedBalances()` / `getUnshieldedBalances()` | Per-token balances |
 | `getDustBalance()` | `{ balance, cap }`: DUST regenerates toward `cap` |
 | `makeTransfer(outputs, {payFees})` / `makeIntent(inputs, outputs, {...})` | Build a transfer or an unbalanced intent |
-| `balanceUnsealedTransaction(tx)` / `balanceSealedTransaction(tx)` | Balance and pay fees for a contract-built transaction |
+| `balanceUnsealedTransaction(tx, {payFees})` | Balance an unsealed, contract-built transaction (proofs, no signatures, pre-binding) by adding inputs and outputs to its existing intent, and pay fees |
+| `balanceSealedTransaction(tx, {payFees})` | Balance a sealed transaction (proofs, signatures, bound) in a separate intent, and pay fees. It cannot balance a transaction with fallible sections, so use the unsealed method for those |
 | `signData(data, {encoding, keyType})` | Sign arbitrary data with the unshielded key |
 | `submitTransaction(tx)` | Broadcast a sealed transaction (the wallet acts as relayer) |
 | `getProvingProvider(keyMaterialProvider)` | Delegate ZK proving to the wallet |
@@ -74,7 +75,7 @@ Every Midnight transaction needs a ZK proof. Who generates that proof is the mai
 
 ## Fees and DUST
 
-You pay fees in DUST, which a wallet generates by holding NIGHT and regenerates over time. `getDustBalance()` returns `{ balance, cap }`, and `submitTransaction` uses the wallet as a relayer with a `payFees` option. A wallet can therefore sponsor fees, but sponsorship is a capability the connector allows, not a guarantee that any given wallet ships. On a fresh wallet, DUST takes time to generate: about 12 hours on Lace mainnet or testnet, and about 5 minutes on a local network. Overspending surfaces as `BalanceCheckOverspend` (138) (see [Troubleshooting](./reference.mdx#troubleshooting-and-error-reference)).
+You pay fees in DUST, which a wallet generates by holding NIGHT and regenerates over time. `getDustBalance()` returns `{ balance, cap }`. `submitTransaction(tx)` takes only the sealed transaction and uses the wallet as a relayer; it has no `payFees` option. `payFees` belongs to `makeTransfer`, `makeIntent`, and the two balance methods. It defaults to `true`, except on `makeIntent`, where you set it explicitly. A wallet can therefore sponsor fees, but sponsorship is a capability the connector allows, not a guarantee that any given wallet ships. On a fresh wallet, DUST takes time to generate: about 12 hours on Lace mainnet or testnet, and about 5 minutes on a local network. Overspending surfaces as `BalanceCheckOverspend` (138) (see [Troubleshooting](./reference.mdx#troubleshooting-and-error-reference)).
 
 ## The portable integration code
 
@@ -89,7 +90,7 @@ const wallets = Object.values(window.midnight ?? {})
   .filter((w): w is InitialAPI => !!w?.name && !!w?.apiVersion);
 
 // 2. Connect: MUST be synchronous in the click handler (pop-up blocking)
-//    networkId: only 'mainnet' is standard; others are wallet-defined (CLI uses 'Preview' etc.)
+//    networkId: 'mainnet', 'preview', 'preprod', or 'undeployed' (local); only 'mainnet' is fixed by the spec
 async function connect(w: InitialAPI, networkId = "preprod"): Promise<ConnectedAPI> {
   const api = await w.connect(networkId);             // user authorizes here
   const status = await api.getConnectionStatus();

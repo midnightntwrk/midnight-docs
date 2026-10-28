@@ -156,7 +156,7 @@ object resolving prover and verifier keys, as well as the ZKIR representation of
 
 `Promise`\<[`ProvingProvider`](ProvingProvider.md)\>
 
-A `ProvingProvider` instance, compatible with Ledger's ProvingProvider (https://github.com/midnightntwrk/midnight-ledger/blob/main/ledger-wasm/ledger-v6.template.d.ts#L992)
+A `ProvingProvider` instance, compatible with Ledger's ProvingProvider (https://github.com/midnightntwrk/midnight-ledger/blob/ledger-8.1.3/ledger-wasm/ledger-v8.template.d.ts#L1149)
 
 ***
 
