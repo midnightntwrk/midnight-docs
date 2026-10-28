@@ -7,7 +7,7 @@ What raises additional concern to this API is potential presence of multiple bro
 ## API Design
 
 > [!note]
-> Code snippets below are defined in TypeScript, this enables easy consistency check between the specification here, and definition in the DApp Connector API package: https://github.com/input-output-hk/midnight-dapp-connector-api / https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api
+> Code snippets below are defined in TypeScript, this enables easy consistency check between the specification here, and definition in the DApp Connector API package: https://github.com/midnightntwrk/midnight-dapp-connector-api / https://www.npmjs.com/package/@midnight-ntwrk/dapp-connector-api
 
 > [!note] 
 > In certain ways, the design of this API borrows from the [Cardano DApp Connector API defined in CIP-30](https://cips.cardano.org/cip/CIP-0030). This is a deliberate decision, to make the API look familiar to Cardano DApp developers.

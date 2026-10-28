@@ -140,7 +140,8 @@ const config = {
         },
         // Optional advanced settings
         pretty: true,
-        
+        // 1.39.0 added anonymous usage telemetry that runs on every graphql-to-doc call; opt out.
+        telemetry: false,
       },
     ],
 
