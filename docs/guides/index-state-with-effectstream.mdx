@@ -32,16 +32,16 @@ These apply to every procedure in this guide:
 
 These procedures read from a hosted indexer over HTTPS, so they need no Docker, no Midnight node, no proof server, and no Compact toolchain.
 
-:::note The compatibility matrix does not cover EffectStream
+:::note[Keep the pinned SDK version]
 
-The EffectStream packages depend on no `@midnight-ntwrk/*` package, so the [support matrix](../relnotes/support-matrix) governs the contract half of a project and not this half.
+This guide pins `@effectstream/node-sdk` to `0.104.3`, the version npm's `midnight-1` tag points to. That release builds on the ledger 8 packages in the [support matrix](../relnotes/support-matrix), such as Midnight.js 4.1.1. The newest release on npm, the `0.200` line, depends on ledger 9 prereleases, and Preview, Preprod, and Mainnet run ledger 8.
 
 :::
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## Why a DApp needs an indexer
 
-A Midnight contract stores its current public state and nothing else. Who holds the top score? What changed in the last hour? The chain answers neither. It keeps no history you can query, and it computes no totals.
+A Midnight contract stores its current state: its public ledger, the verifier keys for its circuits, its maintenance authority, and its token balances. Who holds the top score? What changed in the last hour? The chain answers neither. Midnight's own indexer can return a contract's state as of a past block, but it computes no totals and no per-field changes.
 
 An indexer answers them. It watches state changes, applies a function you write to each one, and can store the result in a database you control. It handles changes in chain order, so replaying the same history produces the same result.
 
@@ -66,7 +66,7 @@ Build and run a node that watches a Midnight contract and prints each state chan
        "start": "bun index.ts"
      },
      "dependencies": {
-       "@effectstream/node-sdk": "0.104.0"
+       "@effectstream/node-sdk": "0.104.3"
      }
    }
    ```
@@ -109,11 +109,11 @@ Build and run a node that watches a Midnight contract and prints each state chan
    bun start
    ```
 
-5. Read the decoded state in the transition, which receives an object with `state`, `blockHeight`, `blockTimestamp`, `network`, and `address`. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number. Byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
+5. Read the decoded state in the transition, which receives an object with `state`, `blockHeight`, `blockTimestamp`, `network`, and `address`. `blockHeight` is EffectStream's own block number, not the Midnight height. With the in-memory database it starts at 1 on every run. With a `dataDir`, the node reads the last block it recorded from the database and carries on from there. Unsigned integers arrive as decimal strings, because a `uint128` does not fit in a JavaScript number. Byte fields and map keys arrive as `0x`-prefixed hex strings. Convert with `BigInt(state.round)` when you need arithmetic.
 
 :::tip Replay history instead of waiting for a call
 
-A transition fires on state changes, not on blocks, so a quiet contract prints nothing. `startBlockHeight` takes a block number to replay from that height instead of starting at the tip. Keep the replay short: the node fetches a few blocks per second, and the hosted indexer answers `403 Forbidden` to a client that fetches too much, too fast. Find the block of the contract's most recent call with the indexer's [`contractAction` query](/api-reference/midnight-indexer/operations/queries/contract-action) and start a little below it. The counter used in this guide was last called at block 377864.
+A transition fires on state changes, not on blocks, so a quiet contract prints nothing. `startBlockHeight` takes a block number to replay from that height instead of starting at the tip. The node then fetches every block from that height to the tip, in batches of ten with one indexer request per block, before the first transition fires. Replay therefore only suits a call made recently. The hosted indexer answers `403 Forbidden` to a client that fetches too much, too fast, which a long replay does. Find the block of a contract's most recent call with the indexer's [`contractAction` query](/api-reference/midnight-indexer/operations/queries/contract-action). The counter used in this guide was last called at block 377864, which is too far behind the tip to replay. To watch a transition, point the node at a contract you can call yourself.
 
 :::
 
@@ -129,7 +129,7 @@ Paima Engine HTTP server running on http://127.0.0.1:9999
 10:20:21 INFO effectstream-sync-block-merge: finalized block 3 @ undefined... | {"clock":[3,3],"midnight-counter":[788014,788014]}
 ```
 
-The `finalized block` numbers are EffectStream's own clock, which starts at 1 on every run, and `@ undefined` fills the slot where a merged block hash would go. The Midnight height is the `midnight-counter` pair, which appears on the ticks that carried a Midnight block. Your heights differ.
+The `finalized block` numbers are EffectStream's own clock, which starts at 1 on an empty database, and `@ undefined` fills the slot where a merged block hash would go. The Midnight height is the `midnight-counter` pair, which appears on the ticks that carried a Midnight block. Your heights differ.
 
 A `round N at block M` line appears whenever the contract's state changes. A contract nobody is calling produces no such line, which is the case the tip above covers.
 
@@ -146,15 +146,15 @@ EffectStream matches schema keys to ledger fields by position. The first key rea
 - `{ type: "map", value: <type> }`, nesting arbitrarily, with keys as `0x` hex strings
 - `{ type: "option", value: <type> }`, decoding to `null` when absent
 
-A `struct`, `Vector`, or `enum` fails at parse time. Because the match is positional, one unreadable field blocks every field after it. A struct sitting third in a ledger costs you the fourth field and the fifth as well.
+A `List`, `MerkleTree`, or `HistoricMerkleTree` fails at parse time. A `struct`, `Vector`, or `enum` reads without error, but a schema cannot split a struct into named fields. Read a struct or `Vector` as `"bytes"` to get its raw bytes as one hex string, and an enum as `"uint8"`. Read a struct as a number and you get a wrong value, with no error. Because the match is positional, one unreadable field blocks every field after it. A `List` sitting third in a ledger costs you the fourth field and the fifth as well.
 
 :::caution Some contracts need the compiler-generated decoder instead
 
-A schema cannot express structs, enums, or wrapped types, and Compact contracts use all three. When your contract's ledger holds one near the top, use EffectStream's full configuration API instead. It takes the decoder the Compact compiler generates and reads anything the language can express. See the [EffectStream documentation](https://effectstream.github.io/docs/home/chains/midnight).
+A schema cannot read lists or Merkle trees, or split a struct into named fields. When your contract's ledger holds a list or tree near the top, or you need a struct's fields, use EffectStream's full configuration API instead. It takes the decoder the Compact compiler generates, which reads every exported ledger field. See the [EffectStream documentation](https://effectstream.github.io/docs/home/chains/midnight).
 
 :::
 
-When you control the contract, you can design its ledger so a schema reads it. Put the fields an indexer needs at the top, and structs and digests at the bottom. Flatten a struct that needs indexing into sibling top-level declarations keyed the same way. A `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations. The trade is four ledger containers and four writes per update instead of one, so weigh it against how often the values change.
+When you control the contract, you can design its ledger so a schema reads it. Put the fields an indexer needs at the top, and lists, Merkle trees, structs, and digests at the bottom. Flatten a struct that needs indexing into sibling top-level declarations keyed the same way. A `Map<Bytes<32>, GameState>` holding four small numbers becomes four `Map<Bytes<32>, Uint<8>>` declarations. The trade is four ledger containers and four writes per update instead of one, so weigh it against how often the values change.
 
 ```compact
 // An indexer reads these, in this order.
@@ -222,7 +222,7 @@ Expose what the node records so the rest of your application can read it. `runNo
 
 :::caution Choose the database mode deliberately
 
-`pglite()` holds data in memory by default, so every run starts at the chain tip and misses whatever happened while the node was down. Passing `pglite({ dataDir: "./data" })` persists the database, and the node then resumes from the block height it recorded.
+`pglite()` holds data in memory by default, so every run starts at the chain tip and misses whatever happened while the node was down. Passing `pglite({ dataDir: "./data" })` stores the database on disk, so a restart can resume from the block height it recorded. With `0.104.3`, the first restart after the node creates the directory still starts at the tip, and later restarts resume. Confirm that your node resumes before you rely on it.
 
 :::
 
@@ -248,8 +248,8 @@ This table lists the failures you may hit on this guide's path, with their fixes
 | Install fails resolving a package that imports itself by name | Bun's auto-install cache created no `node_modules` anchor | Run `bun install` before `bun start` |
 | The first transition takes far longer than expected | EffectStream holds each change for several blocks of confirmation | Wait. The delay keeps the database consistent with settled state |
 | A comparison against a decoded number never matches | Unsigned integers decode to decimal strings, not numbers | Convert with `BigInt(state.field)` before comparing |
-| The node stops with `Unable to read the Midnight preview tip: 403 Forbidden` | The hosted indexer is refusing your client, which happens when a replay fetches too many blocks too fast | Wait before retrying, and start the replay a little below the height you need rather than at block 1 |
-| Parse error naming an array where a scalar belongs | A `struct`, `enum`, or `Vector` sits at a schema position | Use the compiler-generated decoder, or reorder the ledger if you control the contract; see [What the ledger schema can read](#what-the-ledger-schema-can-read) |
+| The node stops with `Unable to read the Midnight preview tip: 403 Forbidden` | The hosted indexer is refusing your client, which happens when a replay fetches too many blocks too fast | Wait before retrying, and replay only from a height close to the tip |
+| Parse error naming an array where a scalar belongs | A `List`, `MerkleTree`, or `HistoricMerkleTree` sits at a schema position | Use the compiler-generated decoder, or reorder the ledger if you control the contract; see [What the ledger schema can read](#what-the-ledger-schema-can-read) |
 
 ## Additional resources
 
@@ -257,4 +257,4 @@ This table lists the failures you may hit on this guide's path, with their fixes
 - [Deploying and operating a contract](./deploy-and-operate): the providers a DApp uses to reach the Midnight indexer directly, and how to deploy a contract of your own to index.
 - [Networks and environments](./networks-and-environments): every endpoint, network ID, and the local stack.
 - [Security and best practices](./security-best-practices): what a chain observer sees, and how `disclose()` decides it.
-- [Support matrix](../relnotes/support-matrix): the versions governing the contract half of a project.
+- [Support matrix](../relnotes/support-matrix): the Midnight versions each network runs.
