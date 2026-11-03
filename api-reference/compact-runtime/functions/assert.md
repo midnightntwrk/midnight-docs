@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0-rc.0**](../README.md)
 
 ***
 
@@ -7,7 +7,7 @@
 # Function: assert()
 
 ```ts
-function assert(b, s): void;
+function assert(b, s): [];
 ```
 
 **`Internal`**
@@ -26,4 +26,4 @@ Compiler internal for assertions
 
 ## Returns
 
-`void`
+\[\]

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0-rc.0**](../README.md)
 
 ***
 
@@ -12,7 +12,6 @@ type Module = {
   Contract: ContractCtor;
   declaredInterfaces: DeclaredInterfaces;
   expectedVk: Readonly<Record<CircuitId, string>>;
-  pureCircuits: PureCircuits;
 };
 ```
 
@@ -56,15 +55,3 @@ readonly expectedVk: Readonly<Record<CircuitId, string>>;
 ```
 
 Verifier-key fingerprints by external circuit name, compared against what is deployed.
-
-***
-
-### pureCircuits
-
-```ts
-readonly pureCircuits: PureCircuits;
-```
-
-Read nowhere: a pure circuit in a contract type cannot be called, so nothing dispatches through
-this, and it is absent from the runtime's required exports so a module need not carry one.
-TODO: drop it, unless pure cross-contract calls are made sound — see `PureInterfaceCircuit`.

@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0-rc.0**](../README.md)
 
 ***
 
@@ -10,9 +10,6 @@
 type ModuleResolutionFailure = 
   | {
   kind: "ModuleProviderAbsent";
-}
-  | {
-  kind: "PureInterfaceCircuit";
 }
   | {
   kind: "OperationAbsent";
@@ -70,25 +67,6 @@ readonly kind: "ModuleProviderAbsent";
 ```
 
 The circuit context carries no module provider.
-
-```ts
-{
-  kind: "PureInterfaceCircuit";
-}
-```
-
-### kind
-
-```ts
-readonly kind: "PureInterfaceCircuit";
-```
-
-The contract type declares the called circuit `pure`, so it has no
- verifier key and is never a deployed operation. The compiler accepts the
- declaration and the call, so this is where one stops.
-
- TODO: reject the declaration at compile time instead. A pure call has no
- transcript, so its result reaches the caller's proof unconstrained.
 
 ```ts
 {

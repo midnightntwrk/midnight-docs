@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0-rc.0**](../README.md)
 
 ***
 
@@ -28,6 +28,24 @@ type SignatureType =
 }
   | {
   tag: "Secp256k1Point";
+}
+  | {
+  tag: "Secp256r1Base";
+}
+  | {
+  tag: "Secp256r1Scalar";
+}
+  | {
+  tag: "Secp256r1Point";
+}
+  | {
+  tag: "Curve25519Base";
+}
+  | {
+  tag: "Curve25519Scalar";
+}
+  | {
+  tag: "Curve25519Point";
 }
   | {
   maxval: string;
@@ -159,6 +177,78 @@ readonly tag: "Secp256k1Scalar";
 
 ```ts
 readonly tag: "Secp256k1Point";
+```
+
+```ts
+{
+  tag: "Secp256r1Base";
+}
+```
+
+### tag
+
+```ts
+readonly tag: "Secp256r1Base";
+```
+
+```ts
+{
+  tag: "Secp256r1Scalar";
+}
+```
+
+### tag
+
+```ts
+readonly tag: "Secp256r1Scalar";
+```
+
+```ts
+{
+  tag: "Secp256r1Point";
+}
+```
+
+### tag
+
+```ts
+readonly tag: "Secp256r1Point";
+```
+
+```ts
+{
+  tag: "Curve25519Base";
+}
+```
+
+### tag
+
+```ts
+readonly tag: "Curve25519Base";
+```
+
+```ts
+{
+  tag: "Curve25519Scalar";
+}
+```
+
+### tag
+
+```ts
+readonly tag: "Curve25519Scalar";
+```
+
+```ts
+{
+  tag: "Curve25519Point";
+}
+```
+
+### tag
+
+```ts
+readonly tag: "Curve25519Point";
 ```
 
 ```ts

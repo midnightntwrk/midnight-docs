@@ -1,8 +1,8 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0-rc.0**](README.md)
 
 ***
 
-# @midnight-ntwrk/compact-runtime v0.20.0
+# @midnight-ntwrk/compact-runtime v0.21.0-rc.0
 
 ## Classes
 
@@ -104,8 +104,6 @@
 - [ProvableCircuit](type-aliases/ProvableCircuit.md)
 - [ProvableCircuits](type-aliases/ProvableCircuits.md)
 - [PublicAddress](type-aliases/PublicAddress.md)
-- [PureCircuit](type-aliases/PureCircuit.md)
-- [PureCircuits](type-aliases/PureCircuits.md)
 - [QualifiedShieldedCoinInfo](type-aliases/QualifiedShieldedCoinInfo.md)
 - [RawTokenType](type-aliases/RawTokenType.md)
 - [RunningCost](type-aliases/RunningCost.md)
