@@ -16,9 +16,27 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 
 const releases = [
+  // SHIP ONLY IF FINAL AT FORK
+  {
+    version: '3.0.0',
+    status: 'LATEST',
+    date: 'TBD-L9[release date]',
+    summary: 'Major release for the ledger 9 network upgrade on Mainnet, used by Midnight.js 5. TBD-L9[verify against final release notes]',
+    details: [
+      'Runs contracts on Mainnet after the ledger 9 network upgrade.',
+      'Built against compact-runtime TBD-L9[compact-runtime version, 0.20.0 or 0.21.0].',
+      'Requires Compact toolchain TBD-L9[Compact toolchain 0.35.0 or 0.36.0].',
+      'Preview and Preprod stay on 2.5.x until a later upgrade.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/3.0.0' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-sdk/releases/tag/compact-js-v3.0.0' },
+    ],
+    link: '/relnotes/compact-js/compact-js-3-0-0',
+  },
   {
     version: '2.5.3',
-    status: 'LATEST',
+    status: 'SUPPORTED',
     date: '9 July 2026',
     summary: 'Maintenance release from the migrated midnight-sdk repository with a CommonJS exports fix.',
     details: [

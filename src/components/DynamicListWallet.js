@@ -18,9 +18,28 @@ import { useLocation } from '@docusaurus/router';
 
 // CURRENT releases (shown on Canary/next and future versions)
 const releases = [
+  // SHIP ONLY IF FINAL AT FORK
+  {
+    version: '2.0.0',
+    status: 'LATEST',
+    date: 'TBD-L9[release date]',
+    summary: 'Major release for the ledger 9 network upgrade on Mainnet; wallet SDK 1.x stops working on Mainnet after the upgrade. TBD-L9[verify against final release notes]',
+    details: [
+      'Runs ledger 8 before the upgrade and ledger 9 from it; balances, coins, and history carry across the switch.',
+      'Detects the switch at `protocolVersion` 2000000 or higher; `FacadeState.protocol` moves from `Crossing` to `Settled`.',
+      'Refuses a transaction for the wrong protocol version with `ProtocolVersionMismatchError`.',
+      'Renames `startWithSecretKeys` to `startWithKeys` and `startWithSecretKey` to `startWithSeed`; start with `facade.start(seeds)` (breaking).',
+      'Removes the `secretKeys` parameter from methods that build transactions (breaking).',
+      'Needs a 4.4.x indexer. Preview and Preprod stay on 1.2.0 until a later upgrade.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/wallet-sdk/v/2.0.0' },
+    ],
+    link: '/relnotes/wallet/wallet-sdk-2-0-0',
+  },
   {
     version: '1.2.0',
-    status: 'LATEST',
+    status: 'SUPPORTED',
     date: '1 July 2026',
     summary: 'DUST registration fee hardening and a helper to wait for DUST accrual; first release under the @midnightntwrk npm scope.',
     details: [

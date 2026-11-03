@@ -23,9 +23,9 @@ const releases = [
   compactVersion: '0.27.0',
   status: 'LATEST',
   date: '29 September 2026',
-  summary: 'Release for ledger 9: P256, Curve25519, Ed25519, and SHA-512 support, `kernel.caller()`, run-time resolution of cross-contract calls; not for the current public networks',
+  summary: 'Release for ledger 9: P256, Curve25519, Ed25519, and SHA-512 support, `kernel.caller()`, run-time resolution of cross-contract calls; ledger 9 runs on Mainnet, while Preview and Preprod use 0.31.x until their upgrade',
   details: [
-    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`), which is not yet deployed on the public networks; use `compact update 0.31` for contracts deployed today',
+    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`). Ledger 9 runs on Mainnet; the Mainnet toolchain is TBD-L9[Compact toolchain 0.35.0 or 0.36.0]. Preview and Preprod still run ledger 8, so use `compact update 0.31` for those networks until their upgrade',
     'Language version 0.27.0 and Compact runtime 0.20.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.20.x',
     'With `--feature-zkir-v3`: secp256r1 (P256) and Curve25519 types, `secp256r1EcdsaVerify`, `ed25519Verify`, and `sha512`',
     'New `kernel.caller()` ledger operation and `PublicAddress` type; read the caller only where the call is known to come from a contract',
@@ -43,12 +43,12 @@ const releases = [
   compactVersion: '0.26.0',
   status: 'UNSUPPORTED',
   date: '25 August 2026',
-  summary: 'Major release for ledger 9: cross-contract calls, events, Compact value serialization, ZKIR v3; not for the current public networks',
+  summary: 'Major release for ledger 9: cross-contract calls, events, Compact value serialization, ZKIR v3; ledger 9 runs on Mainnet, while Preview and Preprod use 0.31.x until their upgrade',
   details: [
     'Builds on 0.33.0: ledger version 9, cross-contract calls, events, serialization of Compact values, ZKIR version 3',
     'Cross-contract callees can perform shielded (Zswap) coin operations',
     'Language version 0.26.0 and Compact runtime 0.19.0',
-    'Targets ledger 9, which is not yet deployed on the public networks; use `compact update 0.31` for contracts deployed today',
+    'Targets ledger 9, which runs on Mainnet; Mainnet uses toolchain TBD-L9[Compact toolchain 0.35.0 or 0.36.0]. Preview and Preprod still run ledger 8, so use `compact update 0.31` for those networks until their upgrade',
   ],
   artifacts: [
     { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.34.0' },
@@ -64,7 +64,7 @@ const releases = [
   details: [
     'Fixed code generation for certain unsigned downcasts',
     'Language version 0.23.0 and Compact runtime 0.16.0 unchanged; compiles against the same runtime as 0.31.0',
-    'Toolchain version listed in the compatibility matrix for the public networks',
+    'Toolchain version listed in the compatibility matrix for Preview and Preprod, which run ledger 8 until their upgrade',
   ],
   artifacts: [
     { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.31.1' },

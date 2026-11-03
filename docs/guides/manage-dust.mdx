@@ -240,7 +240,7 @@ describe('reading DUST parameters from a network', () => {
 {/* _mod-docs-content-type: CONCEPT */}
 ## Registration rules
 
-Registration is the transaction that makes NIGHT UTXOs generate DUST for a DUST address. [Registering NIGHT for DUST generation with the wallet SDK](./acquire-tokens#registering-night-for-dust-generation-with-the-wallet-sdk) shows the first one. These rules decide what a registration covers, whether there is a minimum amount, what it needs, and what your wallet looks like afterwards.
+Registration is the transaction that makes NIGHT UTXOs generate DUST for a DUST address. [Registering NIGHT for DUST generation with the wallet SDK](./acquire-tokens#registering-night-for-dust-generation-with-the-wallet-sdk) shows the first one. These rules decide what a registration covers, whether there is a minimum amount, what it needs, and what your wallet looks like afterwards. For what the ledger 9 upgrade changes on Mainnet, see [DUST after the ledger 9 upgrade](#dust-after-the-ledger-9-upgrade).
 
 **Registration covers the NIGHT UTXOs you pass.** A NIGHT UTXO that you leave out of the call stays unregistered. NIGHT that arrives later at a registered address generates DUST with no further call.
 
@@ -1239,10 +1239,35 @@ The Preprod indexer returned this for one address on 2026-09-30, with the addres
 
 `nightBalance` is in STAR, `generationRate` in SPECK per second, and both capacities in SPECK. The amounts can cover a single backing UTXO and not the address's total, and `currentCapacity` is computed from elapsed time with no fee payments subtracted. Treat the result as an indication, not as a spendable balance. For the spendable figure, see [Reading the DUST balance](#reading-the-dust-balance).
 
+{/* _mod-docs-content-type: CONCEPT */}
+## DUST after the ledger 9 upgrade
+
+TBD-L9[approved DUST wording: replace or confirm this section]
+
+The [ledger 9 network upgrade](../relnotes/ledger-9#dust-and-fees) resets DUST on Mainnet. Preview and Preprod stay on ledger 8 for now, so this section applies only to Mainnet.
+
+**DUST state resets at the upgrade.** The ledger clears every DUST UTXO and its generation tracking. It also clears the registrations made on Midnight for NIGHT held on Midnight.
+
+**DUST from cNIGHT comes back on its own.** The network replays DUST generation for every registered cNIGHT UTXO, so you don't register again. Your registration on Cardano stays in place, and the DUST goes to the same DUST address. Each replayed DUST UTXO starts at its full cap of 5 DUST per NIGHT, even when its cNIGHT UTXO is less than a week old. Balances end where they were before the upgrade, or slightly higher.
+
+**For about three minutes, user transactions don't go through.** The network rebuilds DUST in the first blocks after the upgrade, and those blocks carry no user transactions. If your DApp submits a transaction in that window, show a message that the network is upgrading, then retry.
+
+**Your wallet needs wallet SDK 2 to see the rebuilt DUST.** Wallet SDK 1.x can't sync or submit transactions on Mainnet after the upgrade. A wallet shows the replayed DUST only on wallet SDK 2, connected to a ledger 9 indexer that has finished syncing. The snippets in this guide use wallet SDK 1.x, which still matches Preview and Preprod. TBD-L9[wallet SDK 2 versions of this guide's snippets]
+
+**Drop cached DUST tree indices.** If your DApp caches indices into the DUST Merkle tree, drop them at the upgrade. The indexer sends no separate reset event.
+
+**NIGHT that arrives on Midnight after the upgrade needs a first-time registration.** The replay covers only registered cNIGHT. Register NIGHT held on Midnight with `registerNightUtxosForDustGeneration`, as in [Registration rules](#registration-rules). TBD-L9[bridge enabled at fork?]
+
+**The DUST parameters don't change.** The cap stays at 5 DUST per NIGHT, a DUST UTXO still takes about a week to reach it, and the grace period stays at 3 hours. See [DUST generation parameters](#dust-generation-parameters).
+
+When Preview and Preprod move to ledger 9 later, wallets there must register their tNIGHT again. TBD-L9[testnet upgrade date]
+
+TBD-L9[approved DUST wording: end of section]
+
 {/* _mod-docs-content-type: REFERENCE */}
 ## DUST troubleshooting
 
-Consult this table when a call that pays a fee fails. The wallet SDK rejects some calls before it submits anything, and the node rejects others after `wallet.submitTransaction` sends the transaction. A node rejection arrives as `(FiberFailure) SubmissionError` with the message `Transaction submission error`. Read `String(error)`, which in most cases includes the node's text, `1010: Invalid Transaction: Custom error: N`. Each row shows the `N` that a local network returned and names the variant in parentheses. `N` can change between node releases, so look up the variant for your node's `N` in [Node error codes](../nodes/error-codes#error-tables-by-code-range), then match the row on the variant. The table lists the failures reproduced for this guide.
+Consult this table when a call that pays a fee fails. The wallet SDK rejects some calls before it submits anything, and the node rejects others after `wallet.submitTransaction` sends the transaction. A node rejection arrives as `(FiberFailure) SubmissionError` with the message `Transaction submission error`. Read `String(error)`, which in most cases includes the node's text, `1010: Invalid Transaction: Custom error: N`. Each row shows the `N` that a local network returned and names the variant in parentheses. `N` can change between node releases, so look up the variant for your node's `N` in [Node error codes](../nodes/error-codes#error-tables-by-code-range), then match the row on the variant. The table lists the failures reproduced for this guide, plus one expected failure in the first minutes after the ledger 9 upgrade on Mainnet.
 
 | Symptom | What it means | Fix |
 |---|---|---|
@@ -1256,6 +1281,7 @@ Consult this table when a call that pays a fee fails. The wallet SDK rejects som
 | `Insufficient generated dust to cover registration fee (have X, need Y). Use WalletFacade.waitForGeneratedDust(utxos, Y) before retrying.` | The NIGHT UTXO that pays for its own registration has not yet generated the registration fee plus `additionalFeeOverhead`. `X` and `Y` are SPECK amounts, and the error is a plain `Error` thrown before the wallet signs or submits anything. | Call `wallet.estimateRegistration(utxos)`, wait with `wallet.waitForGeneratedDust(utxos, fee)`, then register. See [Registration rules](#registration-rules). |
 | `TimeoutError: Timeout has occurred` from `wallet.waitForGeneratedDust` | No unregistered NIGHT UTXO in the call reached the amount before the timeout. Either the UTXOs are already registered, which the call does not wait on, the cap of the largest UTXO is below the amount, or the UTXOs need longer than the timeout to generate it. | For registered NIGHT, skip the wait, as in [Redirecting or stopping DUST generation](#redirecting-or-stopping-dust-generation). Otherwise compare the UTXO's cap with the amount from `wallet.estimateRegistration`, which includes `additionalFeeOverhead`. If the cap is above the amount, call `wallet.waitForGeneratedDust` again, or pass a longer `timeoutMs` in its third argument. |
 | `1010: Invalid Transaction: Custom error: 138` (`BalanceCheckOverspend`), on a registration change for NIGHT that is already registered | The transaction reached the node with less DUST than its fee. A change to NIGHT that is already registered cannot pay its own fee, and you finalized the recipe without a DUST spend. | Before `wallet.finalizeRecipe`, call `wallet.balanceUnprovenTransaction(recipe.transaction, { shieldedSecretKeys, dustSecretKey }, { ttl, tokenKindsToBalance: ['dust'] })`. See [Redirecting or stopping DUST generation](#redirecting-or-stopping-dust-generation). |
+| No DUST in the wallet, or a fee payment that fails, in the first minutes after the ledger 9 upgrade on Mainnet. TBD-L9[exact symptom text after the upgrade] | For about three minutes, the network rebuilds DUST and accepts no user transactions. After that, a wallet on wallet SDK 1.x, or one whose indexer has not finished syncing, still shows no DUST. NIGHT that arrives on Midnight after the upgrade generates no DUST until you register it. | Wait a few minutes and retry. Use wallet SDK 2 with a ledger 9 indexer, and wait for the wallet to finish syncing. Register NIGHT that arrived on Midnight after the upgrade. See [DUST after the ledger 9 upgrade](#dust-after-the-ledger-9-upgrade). |
 | `(FiberFailure) Wallet.Proving` with the message `Failed to prove transaction`, from `wallet.finalizeRecipe`. `String(error)` contains `Failed to connect to Proof Server: Transport error`. | The transaction carries a DUST spend, which needs a zero-knowledge proof, and the proof server did not answer. A first registration of unregistered NIGHT has no DUST spend and finalizes without the proof server. | Start the [proof server](./run-proof-server#start-the-proof-server), confirm `CONFIG.proofServer` points at it, and build the transaction again. |
 
 ## Additional resources

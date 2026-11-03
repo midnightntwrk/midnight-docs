@@ -1,0 +1,186 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Ledger 9 upgrade
+sidebar_label: "Ledger 9 upgrade"
+description: What the ledger 9 network upgrade changes on Midnight Mainnet, and what DApp developers, wallet and indexer operators, and node operators need to do.
+keywords: [ledger 9, network upgrade, mainnet, hard fork, wallet sdk 2, midnight.js 5, indexer, dust, node]
+displayed_sidebar: sidebar
+sidebar_position: 12
+toc_max_heading_level: 2
+---
+
+# Ledger 9 upgrade
+
+On TBD-L9[fork date], Midnight Mainnet moved from ledger 8 to ledger 9 in the ledger 9 network upgrade. Preview and Preprod stay on ledger 8 until a later upgrade, which has no date yet.
+
+This page explains what changes on Mainnet and what you need to do, whether you build DApps, run a wallet or an indexer, or run a node. For the exact component versions, see the [compatibility matrix](./support-matrix).
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Ledger version on each network
+
+| Network | Ledger | Node | What to use |
+| --- | --- | --- | --- |
+| Mainnet | TBD-L9[ledger version, expected 9.1.0.0] | TBD-L9[node version, expected 2.1.100] | Wallet SDK 2, Midnight.js 5, and indexer 4.4.x. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
+| Preprod | 8.1.3 | 1.0.400 | Wallet SDK 1.2.0, Midnight.js 4.1.1, Compact toolchain 0.31.1 (`language_version` 0.23), Compact runtime 0.16.0, and proof server 8.1.3. |
+| Preview | 8.1.3 | 1.0.400 | Same as Preprod. |
+
+Until Preview and Preprod move to ledger 9, you can't test a ledger 9 DApp on a public testnet. TBD-L9[where developers can test ledger 9 before Preprod upgrades]
+
+The network IDs and endpoints don't change. TBD-L9[confirm endpoints unchanged]
+
+{/* _mod-docs-content-type: CONCEPT */}
+## What changes in ledger 9
+
+TBD-L9[verify against final ledger release notes]
+
+Ledger 9 adds these features:
+
+- **Contract-to-contract calls.** A contract can call another contract. This is the first phase of the feature.
+- **Event emission.** Contracts can emit events. This is also a first phase.
+- **New signature and hash support.** Ed25519 and P-256 ECDSA signature verification, secp256k1 with Keccak, and SHA-512. TBD-L9[confirm Ed25519 and P-256 ship in ledger 9, not ledger 10]
+- **On-chain contract IR**, with a size cap on the metadata for each entry point.
+- **New NIGHT transfer types**: transfers from locked NIGHT to the treasury and to the reserve.
+- **Registration time tied to block time** for DUST registrations.
+- **ECDSA multisig approvals.** TBD-L9[confirm ECDSA multisig approvals are in ledger 9]
+
+Ledger 9 also changes how the network calculates fees. See [DUST and fees](#dust-and-fees).
+
+Ledger 9 adds a protocol bridge for NIGHT, which stays off until governance enables it. TBD-L9[bridge enabled at fork?] Don't rely on bridging NIGHT until it's announced as available.
+
+Block production rewards aren't part of ledger 9.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## What DApp developers need to do
+
+After the upgrade, Mainnet rejects ledger 8 transactions. A DApp that still uses wallet SDK 1.x or Midnight.js 4 can't sync or submit transactions on Mainnet.
+
+### Move to the ledger 9 SDK set
+
+1. Update your DApp to the Mainnet versions in the [compatibility matrix](./support-matrix#mainnet-support-matrix):
+
+   | Component | Mainnet version |
+   | --- | --- |
+   | Wallet SDK | TBD-L9[wallet SDK version, expected 2.0.0] |
+   | Midnight.js and testkit-js | TBD-L9[Midnight.js version, expected 5.0.0] |
+   | Indexer | TBD-L9[indexer version, expected 4.4.0] |
+   | Proof server | TBD-L9[proof server tag] |
+   | Compact toolchain | TBD-L9[Compact toolchain 0.35.0 or 0.36.0] |
+   | Compact runtime | TBD-L9[Compact runtime 0.20.0 or 0.21.0] |
+   | `language_version` | TBD-L9[language_version] |
+
+   TBD-L9[can proof server 8.1.x prove for ledger 9, or must Mainnet users run 9.x?]
+
+2. Update your code for the API changes in Midnight.js 5 and wallet SDK 2. TBD-L9[verify against final Midnight.js 5 and wallet SDK 2 releases]
+   - Midnight.js 5 needs `providers.config: { networkId, ttlSeconds }`.
+   - `queryContractState` returns a tagged `{ version, ... }` object.
+   - The wallet SDK renames `startWithSecretKeys` to `startWithKeys`, and `startWithSecretKey` to `startWithSeed`.
+   - The methods that build transactions no longer take a `secretKeys` argument.
+3. Handle the new error types. Midnight.js 5 throws `EraMismatchError` with the reason `ledger8-transaction-on-ledger9-network` when you try to submit a ledger 8 transaction to Mainnet. Wallet SDK 2 refuses a transaction built for the wrong protocol version with `ProtocolVersionMismatchError`.
+
+### Check your deployed contracts
+
+TBD-L9[confirm after fork-survival test]
+
+Contracts deployed before the upgrade keep their verifier keys. Whether you need to recompile depends on the Compact toolchain that built them:
+
+| Built with | After the upgrade |
+| --- | --- |
+| `compactc` 0.31.1 | Keeps working without a recompile. Configure your ZK config provider with `verify: 'warn'`, because 0.31.1 doesn't emit a `contract-manifest.json` file. |
+| `compactc` 0.30.0 | Refused with `EraArtifactMismatchError`. Recompile the contract with the Mainnet Compact toolchain, TBD-L9[Compact toolchain 0.35.0 or 0.36.0]. |
+
+Contracts built with 0.31.1 have these limits after the upgrade:
+
+- The network refuses a call that spends a shielded coin the contract already holds.
+- Contract maintenance, such as updating a verifier key, needs a recompile.
+- You can't deploy a new contract from ledger 8 artifacts. Compile new contracts with the Mainnet Compact toolchain.
+
+For the compiler changes in the Mainnet toolchain, see the [Compact release notes](./compact).
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## What wallet and indexer operators need to do
+
+### Re-index the indexer
+
+Ledger 9 needs indexer 4.4.x, TBD-L9[indexer version, expected 4.4.0], and a full re-index from genesis. Moving from indexer 4.3.x to 4.4.x isn't an in-place upgrade.
+
+1. Deploy the ledger 9 indexer release.
+2. Wipe the indexer database and the ledger database together.
+3. Finish the re-index from genesis before the upgrade. Syncing against a local archive node is much faster than syncing against a public RPC endpoint.
+
+Without the re-index, the indexer reports wrong DUST capacity and registration data. An indexer database that is already past the upgrade also needs a re-index.
+
+### Detect the upgrade in your wallet or DApp
+
+1. Use wallet SDK 2. It runs ledger 8 rules before the upgrade and ledger 9 rules after it, and keeps balances, coins, and history across the switch.
+2. Treat `protocolVersion >= 2000000` as the signal that the network has crossed to ledger 9. In wallet SDK 2, `FacadeState.protocol` moves from `Crossing` to `Settled`.
+3. Drop any cached DUST tree indices when you see the crossing. The indexer doesn't send a dedicated reset event.
+4. Rebuild and resubmit transactions that were pending at the crossing. The network cancels them, and wallet SDK 2 marks them `Orphaned`.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## What node operators need to do
+
+Every Mainnet validator and RPC node must run node TBD-L9[node version, expected 2.1.100] before the governance upgrade. A node that still runs 1.0.400 stops following Mainnet at the upgrade block.
+
+The upgrade happens through governance, not at a set block height. The Council and the Technical Committee approve a runtime upgrade, and the new runtime takes effect at the block that applies the upgrade.
+
+1. Install node TBD-L9[node version, expected 2.1.100] from the [node release notes](./node). TBD-L9[node image and tarball names]
+2. Restart the node with the new image or binary.
+3. If your node missed the upgrade, follow TBD-L9[recovery steps for a node that missed the upgrade].
+
+If you run an indexer against your node, also follow [Re-index the indexer](#re-index-the-indexer).
+
+{/* _mod-docs-content-type: CONCEPT */}
+## DUST and fees
+
+TBD-L9[approved DUST wording: replace or confirm this paragraph]
+
+At the upgrade, the DUST state resets. This clears every DUST UTXO, DUST tree, and record of DUST generation, and the NIGHT-to-DUST registrations on the Midnight side.
+
+On Mainnet, you don't need to do anything for cNIGHT you hold on Cardano. The network replays DUST generation for every registered cNIGHT holding automatically, to its full cap, at the same DUST address. Your DUST balance ends where it was or slightly higher. A wallet shows the refilled balance only when it runs wallet SDK 2 against an indexer that has re-indexed.
+
+NIGHT that arrives on Midnight after the upgrade needs a first-time registration for DUST generation, with `registerNightUtxosForDustGeneration`. See [Manage DUST](../guides/manage-dust).
+
+When Preview and Preprod upgrade later, testnet wallets will need to register their tNIGHT for DUST again.
+
+The DUST parameters stay the same: 5 DUST per NIGHT at the cap, and about 7 days to reach the cap.
+
+TBD-L9[approved DUST wording: replace or confirm this paragraph]
+
+Ledger 9 also changes fees:
+
+- A new per-block price floor, the ledger parameter `min_block_price`, is set to 10.
+- A new cost heuristic and changed parallelism multipliers change the fee for each transaction.
+
+Don't hard-code fee amounts from ledger 8. Let the wallet SDK estimate fees against the current ledger parameters.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## What to expect during the switch
+
+1. At the upgrade block, the runtime upgrade takes effect, and the next block translates the ledger state from ledger 8 to ledger 9.
+2. For about 3 minutes, the network rebuilds DUST from the cNIGHT registrations. During this window, blocks carry only system operations, and no user transactions go through.
+3. After the rebuild, the network accepts ledger 9 transactions again.
+
+The network cancels transactions that were pending at the switch. Show users a message such as "Network upgrading, please retry" and let them retry after the rebuild.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Confirm the upgrade
+
+1. Call `midnight_ledgerVersion` on a Mainnet node. It reports a 9.x version. TBD-L9[confirm midnight_ledgerVersion switches at the upgrade block, not when the node binary is upgraded]
+
+   ```shell
+   curl -s -H "Content-Type: application/json" \
+     -d '{"jsonrpc":"2.0","id":1,"method":"midnight_ledgerVersion","params":[]}' \
+     "https://rpc.midnight-mainnet.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID"
+   ```
+
+2. Query the `system.lastRuntimeUpgrade` storage item, for example in a Substrate block explorer or Polkadot.js Apps. It shows the new runtime spec version, TBD-L9[runtime specVersion].
+3. In a wallet or DApp on wallet SDK 2, check that `FacadeState.protocol` is `Settled`.
+
+## Related pages
+
+- [Compatibility matrix](./support-matrix)
+- [Environments and endpoints](./network)
+- [Manage DUST](../guides/manage-dust)
+- [Node release notes](./node)
+- [Ledger release notes](./ledger)

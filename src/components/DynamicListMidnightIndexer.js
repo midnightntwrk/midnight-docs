@@ -16,6 +16,30 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 
 const releases = [
+  // SHIP ONLY IF FINAL AT FORK
+  {
+    version: '4.4.0',
+    status: 'LATEST',
+    note: 'Mainnet only, for the ledger 9 network upgrade. Preview and Preprod stay on the 4.3.x line. TBD-L9[verify against final release notes]',
+    date: 'TBD-L9[release date]',
+    summary: 'Indexer line for the ledger 9 network upgrade on Mainnet. Requires a full re-index from genesis.',
+    details: [
+      'Indexes the chain across the switch from ledger 8 to ledger 9',
+      'Requires a full re-index from genesis; wipe the indexer and ledger databases together',
+      '4.3.800 to 4.4.x is not an upgrade path',
+      'Serves post-upgrade state for contracts untouched since the switch (breaking, adds a migration)',
+      'Required by wallet SDK 2.x',
+      'Pairs with node TBD-L9[node version, expected 2.1.100] and ledger TBD-L9[ledger version, expected 9.1.0.0]',
+    ],
+    artifacts: [
+      { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
+      { name: 'Indexer API Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-api' },
+      { name: 'Wallet Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/wallet-indexer' },
+      { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
+      { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
+    ],
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-4-0',
+  },
   {
     version: '4.3.7',
     status: 'SUPPORTED',
@@ -43,7 +67,7 @@ const releases = [
   },
   {
     version: '4.3.3',
-    status: 'LATEST',
+    status: 'SUPPORTED',
     date: '4 June 2026',
     summary: 'Subscription quotas, @beta directive, per-tree end indexes, and dustGenerations fix.',
     details: [

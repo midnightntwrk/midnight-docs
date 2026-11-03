@@ -17,11 +17,32 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '1.0.400',
+    version: '2.1.100',
     status: 'LATEST',
+    date: 'TBD-L9[release date]',
+    summary: 'Node release for the ledger 9 network upgrade on Mainnet. Every Mainnet validator and RPC node must run it before the governance upgrade. Preview and Preprod stay on 1.0.400.',
+    details: [
+      'Upgrade every Mainnet validator and RPC node to v2.1.100 before the governance upgrade on TBD-L9[fork date]. A node on v1.0.400 cannot run the new runtime and stops importing blocks at the upgrade block.',
+      'Binary first, then runtime: replacing the binary is a restart with no reset or resync. A governance action then moves Mainnet to the new runtime and ledger 9. TBD-L9[runtime spec_version]',
+      'Added the `SafeMode` and `C2MBridge` pallets. The bridge pallet ships turned off until a governance action enables it. TBD-L9[bridge enabled at fork?]',
+      'Removed the `smart-contracts`, `sign-address-association`, and `sign-block-producer-metadata` subcommands. The node connects to Cardano db-sync over TLS only. TBD-L9[confirm operator changes against the 2.1.100 release]',
+      'After the upgrade, Mainnet rejects ledger 8 transactions. DApps and wallets need wallet SDK 2, Midnight.js 5, and the ledger 9 indexer (4.4.x). See the ledger 9 upgrade page at /relnotes/ledger-9.',
+      'Preview and Preprod keep running node v1.0.400 until a later upgrade.',
+    ],
+    artifacts: [
+      { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
+      { name: 'Node toolkit', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.100' },
+    ],
+    link: '/relnotes/node/node-2-1-100',
+  },
+  {
+    version: '1.0.400',
+    status: 'SUPPORTED',
     date: '6 October 2026',
     summary: 'Security patch that moves the node to ledger 8.1.3 for the critical advisory GHSA-wr7g-rr4v-jmj8 and lets a node that syncs Mainnet from genesis get past block 1788979. The runtime stays at 1.0.300.',
     details: [
+      'Use v1.0.400 on Preview and Preprod until their ledger 9 upgrade. On Mainnet, upgrade to v2.1.100 before the ledger 9 network upgrade. TBD-L9[1.0.400 status: SUPPORTED or UNSUPPORTED]',
       'Security fix: moved the ledger 8 dependency from 8.1.2 to 8.1.3, which fixes the critical advisory GHSA-wr7g-rr4v-jmj8. A v1.0.400 node rejects contract calls whose transcripts contain non-canonical values or operations.',
       'Upgrade every node, starting with block producers. A v1.0.300 node accepts some contract calls that a v1.0.400 node rejects, so block producers on different versions can disagree about which blocks are valid.',
       'Binary-only upgrade: the runtime stays at 1.0.300 (`spec_version` `1_000_300`), so there is no runtime upgrade, governance action, reset, or resync. No RPC methods, configuration settings, or chain specifications change.',

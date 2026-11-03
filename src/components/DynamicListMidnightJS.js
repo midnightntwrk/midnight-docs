@@ -16,9 +16,29 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 
 const releases = [
+  // SHIP ONLY IF FINAL AT FORK
+  {
+    version: '5.0.0',
+    status: 'LATEST',
+    date: 'TBD-L9[release date]',
+    summary: 'Major release for the ledger 9 network upgrade on Mainnet, with breaking provider and contract state changes. TBD-L9[verify against final release notes]',
+    details: [
+      'Builds and submits ledger 9 transactions for Mainnet after the upgrade',
+      'Throws `EraMismatchError` for a ledger 8 transaction on a ledger 9 network, before submission',
+      'Requires `providers.config` with `networkId` and `ttlSeconds` (breaking)',
+      '`queryContractState` returns a result tagged with the ledger version (breaking)',
+      'Adds `ContractModuleProvider` for cross-contract calls',
+      'Calls contracts built with Compact toolchain 0.31.1 before the upgrade without a recompile; 0.30.0 artifacts must be recompiled. TBD-L9[confirm after fork-survival test]',
+      'Preview and Preprod stay on 4.1.1 until a later upgrade',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-5-0-0',
+  },
   {
     version: '4.1.1',
-    status: 'LATEST',
+    status: 'SUPPORTED',
     date: '2 June 2026',
     summary: 'Breaking error handling changes, security hardening, qanet support',
     details: [

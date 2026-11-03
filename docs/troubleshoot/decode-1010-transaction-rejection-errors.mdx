@@ -97,20 +97,22 @@ Find the `u8` in the [error tables](../nodes/error-codes.mdx#error-tables-by-cod
 </StepsProvider>
 
 :::caution Variant codes change between releases
-The Midnight node defines the variant numbering, which may change across releases. The error tables list the codes for node version 1.0.x. Always cross-reference the variant against the [release notes](../relnotes/node.mdx) for the node version your network is running.
+The Midnight node defines the variant numbering, which may change across releases. The error tables list the codes for node version 1.0.x, which Preview and Preprod run. After the [ledger 9 network upgrade](../relnotes/ledger-9.mdx), Mainnet runs node 2.1.x, which retires seven codes and adds 42. For Mainnet, check [Node 2.1.x codes on Mainnet](../nodes/error-codes.mdx#node-21x-codes-on-mainnet) first. Always cross-reference the variant against the [release notes](../relnotes/node.mdx) for the node version your network is running.
 :::
 
 ## Common causes and fixes
 
-The following variants are common causes of `1010` errors.
+The following variants are common causes of `1010` errors. Where node 2.1.x on Mainnet uses different codes, the entry gives both. TBD-L9[re-diff at final node tag]
 
 <details>
-<summary><strong>168 FeeCalculation / 155 FeeCalculationError</strong>: fee calculation failed for the submitted transaction</summary>
+<summary><strong>168 FeeCalculation (231 and 232 on Mainnet) / 155 FeeCalculationError</strong>: fee calculation failed for the submitted transaction</summary>
 
 The ledger can't calculate a fee in two cases:
 
-- One cost dimension of the transaction is above its block limit.
-- Validating the transaction and applying its guaranteed part would take longer than the ledger allows for a transaction of that size.
+- One cost dimension of the transaction is above its block limit. On Mainnet, node 2.1.x returns `232` for this case.
+- Validating the transaction and applying its guaranteed part would take longer than the ledger allows for a transaction of that size. On Mainnet, node 2.1.x returns `231` for this case.
+
+Node 1.0.x on Preview and Preprod returns `168` for both cases. Both node versions can also return `155`.
 
 Split the work across smaller transactions. An underpaid fee doesn't cause these codes. The node rejects a transaction that pays less than its fee with `138 BalanceCheckOverspend`.
 
@@ -124,9 +126,15 @@ Reduce the number of intents, calls, or similar in the transaction. For batched 
 </details>
 
 <details>
-<summary><strong>108 ReplayCounterMismatch / 193 ReplayProtectionViolation</strong>: replay protection rejected the transaction</summary>
+<summary><strong>108 ReplayCounterMismatch / 193 ReplayProtectionViolation (242 to 244 on Mainnet)</strong>: replay protection rejected the transaction</summary>
 
-`108` means that the counter in a contract maintenance update doesn't match the contract's current maintenance counter. Read the contract's current state and rebuild the update. `193` means that the ledger has already applied the same intent, so don't resubmit a transaction that might already be in a block. The node rejects a transaction that arrives after its TTL, or with a TTL too far in the future, with `182 TransactionApplicationError`.
+`108` means that the counter in a contract maintenance update doesn't match the contract's current maintenance counter. Read the contract's current state and rebuild the update. `193` means that the ledger has already applied the same intent, so don't resubmit a transaction that might already be in a block. Node 1.0.x rejects a transaction that arrives after its TTL, or with a TTL too far in the future, with `182 TransactionApplicationError`.
+
+On Mainnet, node 2.1.x doesn't return `193` or `182`. It reports each case with its own code instead:
+
+- `228` or `242`: the intent's TTL has passed.
+- `229` or `243`: the intent's TTL is too far in the future.
+- `230` or `244`: the ledger has already applied the intent.
 
 </details>
 
