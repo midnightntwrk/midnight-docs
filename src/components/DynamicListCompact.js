@@ -19,9 +19,30 @@ import { useLocation } from '@docusaurus/router';
 // elements is used to assign a numeric `id`.
 const releases = [
   {
+  version: '0.36.0',
+  compactVersion: '0.28.0',
+  status: 'LATEST',
+  date: '4 November 2026',
+  summary: 'Release for ledger 9: ZKIR version 3 is the only backend, `--feature-zkir-v3` is removed, circuits in a contract type cannot be `pure`; not for the current public networks',
+  details: [
+    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`), which is not yet deployed on the public networks; use `compact update 0.31` for contracts deployed today',
+    'Language version 0.28.0 and Compact runtime 0.21.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.21.x',
+    'The ZKIR version 2 backend is removed; `sha512`, secp256r1 (P256), Curve25519, `secp256r1EcdsaVerify`, and `ed25519Verify` no longer need a flag',
+    'Passing `--feature-zkir-v3` is now an error; remove it from build scripts',
+    'Circuits declared in a contract type cannot be `pure`, and the arguments of every cross-contract call must be disclosed',
+    'Purity is removed from the Compact runtime cross-contract API (`PureInterfaceCircuit`, the `Purity` check, and `pureCircuits` are gone)',
+    'Contracts that make cross-contract calls must be recompiled; casting a non-native field to `Boolean` is a type error',
+    'Fixes a number of compiler internal errors (many involving foreign field types) and Compact runtime defects',
+  ],
+  artifacts: [
+    { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.36.0' },
+  ],
+  link: '/relnotes/compact/toolchain-0.36.0',
+},
+  {
   version: '0.35.0',
   compactVersion: '0.27.0',
-  status: 'LATEST',
+  status: 'UNSUPPORTED',
   date: '29 September 2026',
   summary: 'Release for ledger 9: P256, Curve25519, Ed25519, and SHA-512 support, `kernel.caller()`, run-time resolution of cross-contract calls; not for the current public networks',
   details: [
