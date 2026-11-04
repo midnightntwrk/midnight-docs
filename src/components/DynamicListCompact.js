@@ -19,9 +19,19 @@ import { useLocation } from '@docusaurus/router';
 // elements is used to assign a numeric `id`.
 const releases = [
   {
+  version: '0.36.0',
+  compactVersion: '0.28.0',
+  status: 'LATEST',
+  date: '04 November 2026',
+  summary: 'Summary of Release 0.36.0',
+  details: [],
+  artifacts: [],
+  link: '/relnotes/compact/toolchain-0.36.0',
+},
+  {
   version: '0.35.0',
   compactVersion: '0.27.0',
-  status: 'LATEST',
+  status: 'UNSUPPORTED',
   date: '29 September 2026',
   summary: 'Release for ledger 9: P256, Curve25519, Ed25519, and SHA-512 support, `kernel.caller()`, run-time resolution of cross-contract calls; not for the current public networks',
   details: [
