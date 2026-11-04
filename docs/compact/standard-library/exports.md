@@ -454,6 +454,8 @@ circuit right<A, B>(value: B): Either<A, B>;
 
 ### `transientHash`
 
+This is a native circuit.
+
 Builtin transient hash compression function
 
 This function is a circuit-efficient compression function from arbitrary values
@@ -472,6 +474,8 @@ circuit transientHash<T>(value: T): Field;
 ```
 
 ### `transientCommit`
+
+This is a native circuit.
 
 Builtin transient commitment function
 
@@ -494,6 +498,8 @@ circuit transientCommit<T>(value: T, rand: Field): Field;
 
 ### `persistentHash`
 
+This is a native circuit.
+
 Builtin persistent hash compression function
 
 This function is a non-circuit-optimised compression function from arbitrary values
@@ -509,6 +515,8 @@ circuit persistentHash<T>(value: T): Bytes<32>;
 ```
 
 ### `persistentCommit`
+
+This is a native circuit.
 
 Builtin persistent commitment function
 
@@ -526,6 +534,8 @@ circuit persistentCommit<T>(value: T, rand: Bytes<32>): Bytes<32>;
 
 ### `degradeToTransient`
 
+This is a native circuit.
+
 This function "degrades" the output of a [`persistentHash`](#persistenthash)
 or [`persistentCommit`](#persistentcommit) to a field element, which can then
 be used in [`transientHash`](#transienthash) or
@@ -536,6 +546,9 @@ circuit degradeToTransient(x: Bytes<32>) : Field;
 ```
 
 ### `upgradeFromTransient`
+
+This is a native circuit.
+
 This function "upgrades" a field element to the output of a
 [`persistentHash`](#persistenthash) or [`persistentCommit`](#persistentcommit).
 
@@ -546,6 +559,8 @@ circuit upgradeFromTransient(x: Field): Bytes<32>;
 
 ### `keccak256`
 
+This is a native circuit.
+
 This function hashes its input using the Keccak-256 algorithm.  It returns the
 32-byte digest.
 
@@ -554,6 +569,8 @@ circuit keccak256<T>(value: T): Bytes<32>;
 ```
 
 ### `sha512`
+
+This is a native circuit.
 
 This function hashes its input using the SHA-512 algorithm.  It returns the
 64-byte digest.
@@ -806,6 +823,8 @@ circuit curve25519PointY(pt: Curve25519Point): Curve25519Base;
 
 ### `ecAdd`
 
+This is a native circuit.
+
 This function adds two elliptic curve points. It is polymorphic for the
 following types:
 * [`JubjubPoint`](#jubjubpoint)s
@@ -822,6 +841,8 @@ circuit ecAdd(a: Curve25519Point, b: Curve25519Point): Curve25519Point;
 
 ### `ecNeg`
 
+This is a native circuit.
+
 This function negates an elliptic [`JubjubPoint`](#jubjubpoint). On the JubJub
 twisted Edwards curve, the negation of `(x, y)` is `(-x, y)`.
 
@@ -830,6 +851,8 @@ circuit ecNeg(a: JubjubPoint): JubjubPoint;
 ```
 
 ### `ecMul`
+
+This is a native circuit.
 
 This function multiplies an elliptic curve point by a scalar. It is polymorphic for the
 following types:
@@ -847,6 +870,8 @@ circuit ecMul(a: Curve25519Point, b: Curve25519Scalar): Curve25519Point;
 
 ### `ecMulGenerator`
 
+This is a native circuit.
+
 This function multiplies the primary group generator of a curve by a
 scalar. It is polymorphic for the following types:
 * [`JubjubPoint`](#jubjubpoint)s
@@ -862,6 +887,8 @@ circuit ecMulGenerator(b: Curve25519Scalar): Curve25519Point;
 ```
 
 ### `neg`
+
+This is a native circuit.
 
 Negates a field element, i.e. returns the value `y` such that
 `add(x, y)` is `0` in the field. Polymorphic function
@@ -884,6 +911,8 @@ circuit neg(s: Curve25519Scalar): Curve25519Scalar;
 
 ### `inv`
 
+This is a native circuit.
+
 Returns the multiplicative inverse of a field element, i.e. the value
 `y` such that `mul(x, y)` is `1` in the field. Polymorphic function
 that works over types: 
@@ -904,6 +933,8 @@ circuit inv(s: Curve25519Scalar): Curve25519Scalar;
 ```
 
 ### `hashToCurve`
+
+This is a native circuit.
 
 This function maps arbitrary types to [`JubjubPoint`](#jubjubpoint)s.
 
@@ -1146,6 +1177,8 @@ circuit mergeCoinImmediate(
 
 ### `ownPublicKey`
 
+This is a native witness.
+
 Returns the [`ZswapCoinPublicKey`](#zswapcoinpublickey) of the end-user
 creating this transaction.
 
@@ -1154,6 +1187,8 @@ witness ownPublicKey(): ZswapCoinPublicKey;
 ```
 
 ### `createZswapInput`
+
+This is a native witness.
 
 Notifies the context to create a new Zswap input originating from this call.
 Should typically not be called manually, prefer [`sendShielded`](#sendshielded) and
@@ -1167,6 +1202,8 @@ witness createZswapInput(coin: QualifiedShieldedCoinInfo): [];
 ```
 
 ### `createZswapOutput`
+
+This is a native witness.
 
 Notifies the context to create a new Zswap output originating from this call.
 Should typically not be called manually, prefer [`sendShielded`](#sendshielded) and
