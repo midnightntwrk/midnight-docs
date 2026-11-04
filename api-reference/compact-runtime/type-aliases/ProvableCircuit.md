@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0**](../README.md)
 
 ***
 
@@ -10,7 +10,10 @@
 type ProvableCircuit = (context, ...args) => Promise<CircuitResults>;
 ```
 
-A circuit that threads the circuit context and produces proof data. `any[]` per [PureCircuit](PureCircuit.md).
+A circuit that threads the circuit context and produces proof data.
+
+`any[]` because parameters are contravariant: `unknown[]` accepts no real circuit and `never[]`
+can't be called. The result is `any` to match.
 
 ## Parameters
 
