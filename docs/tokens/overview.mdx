@@ -54,6 +54,12 @@ The DApp calls the circuit like any other, with only the arguments the circuit d
 
 The [Private Party tutorial](/tutorials/private-party/smart-contract#check-in-crossing-the-boundary) takes an entry fee in NIGHT this way and pays the organizer with `sendUnshielded`.
 
+:::caution[Receiving NIGHT fails on Mainnet today]
+
+`payEntryFee` works on Preview, Preprod, and a local network, but fails on Mainnet. Most Mainnet NIGHT is still held on Cardano as cNIGHT, so the caller's wallet has no NIGHT on Midnight to pay into the contract, and a contract holds none to pay out with `sendUnshielded`. For details, see the caution in the [token transfers example](/examples/contracts/token-transfers).
+
+:::
+
 ### Shielded tokens
 
 A circuit receives a shielded coin as a `ShieldedCoinInfo` argument and calls `receiveShielded` on it. That argument is not one of the caller's wallet coins. It describes a new coin that the transaction creates for the contract:
@@ -70,14 +76,14 @@ import { encodeShieldedCoinInfo } from '@midnight-ntwrk/midnight-js-protocol/com
 import { createShieldedCoinInfo } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 
 // providers, compiledContract, and contractAddress come from your DApp's
-// setup. Pass privateStateId only if the contract has private state. tokenColorHex is the token's color as a hex string.
+// setup. tokenColorHex is the token's color as a hex string.
 // createShieldedCoinInfo picks a fresh random nonce.
 const coin = encodeShieldedCoinInfo(createShieldedCoinInfo(tokenColorHex, 40n));
 
+// If the contract has private state, also pass privateStateId.
 await submitCallTx(providers, {
   compiledContract,
   contractAddress,
-  privateStateId,
   circuitId: 'deposit',
   args: [coin],
 });
@@ -92,7 +98,7 @@ A shielded coin has no public balance, so a contract that wants to spend a coin 
 - `insertCoin(key, coin, recipient)` on a `Map<K, QualifiedShieldedCoinInfo>`, or `insertCoin(coin, recipient)` on a `Set<QualifiedShieldedCoinInfo>`.
 - `writeCoin(coin, recipient)` on a single `QualifiedShieldedCoinInfo` field.
 
-The recipient is the contract itself, `right<ZswapCoinPublicKey, ContractAddress>(kernel.self())`. At runtime, these operations look up the `mt_index` the ledger assigns to the coin's output, so they only work for a coin created in the current transaction: a coin received with `receiveShielded`, a coin the contract mints to itself, or the change from a partial `sendShielded`. You don't need the indexer to find the index.
+The recipient is the contract itself, `right<ZswapCoinPublicKey, ContractAddress>(kernel.self())`. At runtime, these operations look up the `mt_index` the ledger assigns to the coin's output, so they only work for a coin created in the current transaction: a coin received with `receiveShielded`, a coin the contract mints to itself, or the change from a partial `sendShielded`. For any other coin, the call throws `Coin commitment not found. Check the coin has been received (or call 'createZswapOutput')`. You don't need the indexer to find the index.
 
 ```compact
 export ledger tokenColor: Bytes<32>;
@@ -129,7 +135,7 @@ export circuit withdraw(key: Bytes<32>): [] {
 
 This `withdraw` has no access control, so any caller can name a vault key and take that coin. Before you use the pattern, restrict who can withdraw, for example by having the caller prove knowledge of a secret whose hash the contract stores, as the Private Tip Jar's owner check does. Never authorize with `ownPublicKey()`: the caller supplies it, and nothing proves it.
 
-The `sendShielded` circuit doesn't create the coin ciphertext that tells a recipient about the coin. Midnight.js adds it when it builds the transaction, and only for a recipient whose encryption public key it knows: by default, the calling wallet. To pay anyone else, the DApp passes their key in the `additionalCoinEncPublicKeyMappings` option of the call, and the call fails if Midnight.js can't find one. In practice, a contract pays shielded value to the caller, `ownPublicKey()`. The [Private Tip Jar tutorial](/tutorials/private-tip-jar/smart-contract#tipping) builds this pattern in full, with an owner check on withdrawal and tests that run on a local network.
+The `sendShielded` circuit doesn't create the coin ciphertext that tells a recipient about the coin. Midnight.js adds it when it builds the transaction, and only for a recipient whose encryption public key it knows. By default, that is the calling wallet, plus the shielded burn address, which is why burns need no extra setup. To pay anyone else, the DApp passes their key in the `additionalCoinEncPublicKeyMappings` option of the call. Without it, Midnight.js throws `Unable to resolve encryption public key for recipient …`. In practice, a contract pays shielded value to the caller, `ownPublicKey()`. The [Private Tip Jar tutorial](/tutorials/private-tip-jar/smart-contract#tipping) builds this pattern in full, with an owner check on withdrawal and tests that run on a local network.
 
 ## Fees
 
