@@ -28,7 +28,7 @@ const releases = [
     'Targets ledger 9 (`ledger-9.1.0.0-rc.3`), which is not yet deployed on the public networks; use `compact update 0.31` for contracts deployed today',
     'Language version 0.28.0 and Compact runtime 0.21.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.21.x',
     'The ZKIR version 2 backend is removed; `sha512`, secp256r1 (P256), Curve25519, `secp256r1EcdsaVerify`, and `ed25519Verify` no longer need a flag',
-    'Passing `--feature-zkir-v3` is now an error; remove it from build scripts',
+    'Passing `--feature-zkir-v3` is now an error (the compiler only prints its usage line); remove it from build scripts',
     'Circuits declared in a contract type cannot be `pure`, and the arguments of every cross-contract call must be disclosed',
     'Purity is removed from the Compact runtime cross-contract API (`PureInterfaceCircuit`, the `Purity` check, and `pureCircuits` are gone)',
     'Contracts that make cross-contract calls must be recompiled; casting a non-native field to `Boolean` is a type error',
