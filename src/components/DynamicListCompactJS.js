@@ -21,11 +21,12 @@ const releases = [
     version: '3.0.0',
     status: 'LATEST',
     date: 'TBD-L9[release date]',
-    summary: 'Major release for the ledger 9 network upgrade on Mainnet, used by Midnight.js 5. TBD-L9[verify against final release notes]',
+    summary: 'Major release for the ledger 9 network upgrade on Mainnet, used by Midnight.js 5.',
     details: [
       'Runs contracts on Mainnet after the ledger 9 network upgrade.',
-      'Built against compact-runtime TBD-L9[compact-runtime version, 0.20.0 or 0.21.0].',
-      'Requires Compact toolchain TBD-L9[Compact toolchain 0.35.0 or 0.36.0].',
+      'Built against compact-runtime 0.21.0.',
+      'Requires Compact toolchain 0.36.0.',
+      'Type surfaces are aware of the ledger era; select the era explicitly (breaking).',
       'Preview and Preprod stay on 2.5.x until a later upgrade.',
     ],
     artifacts: [

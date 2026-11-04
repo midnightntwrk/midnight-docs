@@ -18,18 +18,19 @@ import { useLocation } from '@docusaurus/router';
 const releases = [
   // SHIP ONLY IF FINAL AT FORK
   {
-    version: '4.4.0',
+    version: '4.4.100',
     status: 'LATEST',
-    note: 'Mainnet only, for the ledger 9 network upgrade. Preview and Preprod stay on the 4.3.x line. TBD-L9[verify against final release notes]',
+    note: 'Mainnet only, for the ledger 9 network upgrade. Preview and Preprod stay on the 4.3.x line.',
     date: 'TBD-L9[release date]',
     summary: 'Indexer line for the ledger 9 network upgrade on Mainnet. Requires a full re-index from genesis.',
     details: [
-      'Indexes the chain across the switch from ledger 8 to ledger 9',
+      'Indexes the chain across the switch from ledger 8 to ledger 9 and follows the chain across the upgrade',
       'Requires a full re-index from genesis; wipe the indexer and ledger databases together',
-      '4.3.800 to 4.4.x is not an upgrade path',
-      'Serves post-upgrade state for contracts untouched since the switch (breaking, adds a migration)',
-      'Required by wallet SDK 2.x',
-      'Pairs with node TBD-L9[node version, expected 2.1.100] and ledger TBD-L9[ledger version, expected 9.1.0.0]',
+      '4.3.800 to 4.4.100 is not an upgrade path',
+      'Serves post-upgrade state for contracts untouched since the switch (breaking)',
+      'A contract action subscription without an offset delivers only new actions; pass an offset such as height 0 to replay history (breaking)',
+      'Reports DUST capacity correctly after the DUST reset; required by wallet SDK 2.0.0',
+      'Pairs with node 2.1.100 and ledger 9.1.0.1',
     ],
     artifacts: [
       { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },
@@ -38,7 +39,7 @@ const releases = [
       { name: 'Indexer Standalone Docker image', url: 'https://hub.docker.com/r/midnightntwrk/indexer-standalone' },
       { name: 'SPO Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/spo-indexer' },
     ],
-    link: '/relnotes/midnight-indexer/midnight-indexer-4-4-0',
+    link: '/relnotes/midnight-indexer/midnight-indexer-4-4-100',
   },
   {
     version: '4.3.7',

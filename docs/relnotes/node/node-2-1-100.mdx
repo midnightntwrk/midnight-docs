@@ -6,9 +6,9 @@ description: Release notes for Midnight node 2.1.100, the node release that ever
 displayed_sidebar: sidebar
 ---
 
-- **Version**: v2.1.100 TBD-L9[node version, expected 2.1.100]
+- **Version**: v2.1.100
 - **Date**: TBD-L9[release date]
-- **Components**: `node-2.1.100`, TBD-L9[toolkit version], TBD-L9[runtime version and spec_version]
+- **Components**: `node-2.1.100`, node toolkit 2.1.100, runtime 2.1.100 TBD-L9[runtime spec_version], ledger 9.1.0.1
 
 ---
 
@@ -16,9 +16,10 @@ displayed_sidebar: sidebar
 
 ```shell
 docker pull midnightntwrk/midnight-node:2.1.100
+docker pull midnightntwrk/midnight-node-toolkit:2.1.100
 ```
 
-TBD-L9[confirm node image tag and toolkit image tag]
+TBD-L9[confirm public release URL]
 
 ---
 
@@ -26,9 +27,9 @@ TBD-L9[confirm node image tag and toolkit image tag]
 
 Node v2.1.100 is the node release for the [ledger 9 network upgrade](/relnotes/ledger-9) on Mainnet. The binary runs ledger 8 for blocks before the upgrade and ledger 9 for blocks after it.
 
-Every Mainnet validator and RPC node must run v2.1.100 before the governance upgrade. A node that still runs [v1.0.400](/relnotes/node/node-1-0-400) cannot run the new runtime and stops importing blocks at the upgrade block.
+Every Mainnet validator and RPC node must run v2.1.100 before the governance upgrade. Upgrade from [v1.0.400](/relnotes/node/node-1-0-400) directly to v2.1.100. The v2.1.0 release candidates aren't a supported upgrade step. A node that still runs v1.0.400 stops at the upgrade block.
 
-The upgrade has two steps. First, node operators replace the binary. Then a governance action moves the on-chain runtime to ledger 9. The governance upgrade date is TBD-L9[fork date].
+The upgrade has two steps. First, node operators replace the binary across the network. Then a governance action applies the on-chain runtime upgrade, which moves the chain to ledger 9.1.0.1. The governance upgrade date is TBD-L9[fork date].
 
 Preview and Preprod stay on node v1.0.400 and ledger 8.1.3 until a later upgrade. TBD-L9[Preview and Preprod upgrade date]
 
@@ -50,7 +51,7 @@ If you run a node only on Preview or Preprod, keep running v1.0.400 for now.
 
 The updates below describe the key changes introduced in this release. They come from the release candidates and need checking against the final release. TBD-L9[confirm every item against the 2.1.100 release body]
 
-- Added ledger 9 support. The node keeps ledger 8 for blocks before the upgrade and switches to ledger 9 at the governance upgrade.
+- Added ledger 9 support (ledger 9.1.0.1). The node keeps ledger 8 for blocks before the upgrade and switches to ledger 9 at the governance upgrade.
 - Removed ledger 7 support from the binary.
 - Added a new runtime for the ledger 9 network upgrade. TBD-L9[runtime spec_version and transaction_version]
 - Added two pallets: `SafeMode` and `C2MBridge`. The bridge pallet ships turned off until a governance action enables it. TBD-L9[bridge enabled at fork?]
@@ -77,17 +78,18 @@ The runtime adds the `C2MBridge` pallet for transfers from Cardano to Midnight. 
 
 The node binary and the on-chain runtime upgrade separately:
 
-- **Binary upgrade:** you replace v1.0.400 with v2.1.100. This is a restart with no reset or resync. Until the governance upgrade, the node keeps running the current runtime and ledger 8.
-- **Runtime upgrade:** a governance action moves Mainnet to the new runtime and ledger 9. The governance upgrade runs only after every validator runs v2.1.100. TBD-L9[confirm public wording of the validator gate]
+- **Binary upgrade:** you replace v1.0.400 with v2.1.100. Until the governance upgrade, the node keeps running the current runtime and ledger 8, and nothing changes on chain. This upgrade is one-way: once v2.1.100 has opened a data directory, v1.0.400 can't start on it. Snapshot the data directory before you swap binaries. To return to v1.0.400, restore that snapshot, or wipe the data directory and resync.
+- **Runtime upgrade:** a governance action moves Mainnet to the new runtime and ledger 9. It runs after node binaries across the network have moved to v2.1.100.
 
 A node that has not moved to v2.1.100 when the governance upgrade runs stops importing blocks at the upgrade block.
 
 To upgrade your node:
 
-1. Pull `midnightntwrk/midnight-node:2.1.100`, or download the node tarball for your architecture from the [node-2.1.100 release](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.100) and check it against the `SHA256SUMS` file. TBD-L9[confirm release tag and tarball names]
-2. Check your configuration against the operator changes in the next section.
-3. Restart the node with the new image or binary.
-4. If you use the toolkit, switch to the toolkit version from the same release. TBD-L9[toolkit version]
+1. Snapshot the node data directory.
+2. Pull `midnightntwrk/midnight-node:2.1.100`, or download the node tarball for your architecture (`midnight-node-2.1.100-linux-amd64.tar.gz` or `midnight-node-2.1.100-linux-arm64.tar.gz`) from the [node-2.1.100 release](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.100) and check it against the `SHA256SUMS` file. TBD-L9[confirm public release URL]
+3. Check your configuration against the operator changes in the next section. Keep the default `separate` storage layout. For the reason, see [Known issues](#known-issues).
+4. Restart the node with the new image or binary.
+5. If you use the toolkit, switch to node toolkit 2.1.100 from the same release.
 
 Do this before TBD-L9[operator deadline before the fork].
 
@@ -101,6 +103,8 @@ To confirm the runtime upgrade after the governance action:
 - `state_getRuntimeVersion` returns the new `specVersion`. TBD-L9[runtime spec_version]
 - `midnight_ledgerVersion` reports a ledger 9 version. TBD-L9[exact midnight_ledgerVersion output after the upgrade]
 
+After the runtime upgrade, the node replays DUST registrations for about 48 blocks. Don't restore a snapshot or warp-sync a node until the `DustReapplyCompleted` event.
+
 ### Operator changes
 
 These changes affect how you run the node. They come from the release candidates. TBD-L9[confirm operator changes against the 2.1.100 release]
@@ -108,13 +112,13 @@ These changes affect how you run the node. They come from the release candidates
 - **Removed subcommands:** the `smart-contracts`, `sign-address-association`, and `sign-block-producer-metadata` subcommands no longer exist. Remove them from your scripts. The `wizards` subcommand stays.
 - **db-sync connection:** the node connects to the Cardano db-sync PostgreSQL database over TLS only. The node ignores the `ALLOW_NON_SSL` setting. Set `ssl_root_cert` to turn on certificate checks. A node pointed at a PostgreSQL server without TLS exits at startup.
 - **New flags:** `--no-hardware-benchmarks`, `--rpc-max-finality-subscriptions` (default 512), and `--ipfs-bootnodes`.
-- **New configuration settings:** `storage_separation` (`separate` or `unified`, fixed at first start, environment variable `STORAGE_SEPARATION`) and `chainspec_c2m_bridge_config`.
+- **New configuration settings:** `storage_separation` (`separate` or `unified`, environment variable `STORAGE_SEPARATION`) and `chainspec_c2m_bridge_config`. The default is `separate`, the same layout as v1.0.400. Keep it for this upgrade.
 - **Changed defaults:** `block_stability_margin` moves from 10 to 30, and `storage_cache_size` moves from 10000 to 100000.
 - **Startup hardware benchmark:** the node runs a hardware benchmark at startup. Validators below the reference hardware profile get a warning. Use `--no-hardware-benchmarks` to skip it.
 
 ### Ledger 8 transactions stop working on Mainnet
 
-After the governance upgrade, Mainnet rejects transactions built for ledger 8. Wallet SDK 1.x cannot sync or submit transactions on Mainnet. DApps and wallets need wallet SDK 2, Midnight.js 5, and the ledger 9 indexer (4.4.x). For the full version set, see the [support matrix](/relnotes/support-matrix). TBD-L9[final Mainnet versions in the support matrix]
+After the governance upgrade, the ledger 8 transaction format doesn't decode on Mainnet, so Mainnet rejects transactions built for ledger 8. Wallets on wallet SDK 1.x can't transact on Mainnet. DApps and wallets need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.100. For the full version set, see the [support matrix](/relnotes/support-matrix).
 
 Clients that read runtime metadata must fetch it again after the upgrade, because the runtime adds pallets and changes pallet error enums.
 
@@ -124,22 +128,22 @@ Clients that read runtime metadata must fetch it again after the upgrade, becaus
 
 You do not run a node, but your DApp talks to Mainnet through one. Before the governance upgrade:
 
-- Move your DApp to wallet SDK 2 and Midnight.js 5, and point it at an indexer on the 4.4.x line.
-- Contracts that you deployed before the upgrade with Compact toolchain 0.31.1 keep working without a recompile. Use a ZK config provider with `verify: 'warn'`. TBD-L9[confirm after fork-survival test]
-- The network refuses artifacts built with Compact toolchain 0.30.0 with `EraArtifactMismatchError`. Recompile those contracts.
-- Expect a short pause in user transactions right after the upgrade. Show your users a message that the network is upgrading and that they can retry.
+- Move your DApp to wallet SDK 2.0.0 and Midnight.js 5.0.0, and point it at indexer 4.4.100. In Midnight.js 5.0.0 and Compact.js 3.0.0, the types are aware of the ledger era, so select the era explicitly.
+- Compile new contracts with Compact toolchain 0.36.0 (language version 0.28.0).
+- The tested upgrade rehearsal checks that a contract deployed before the upgrade can still be called. In an earlier devnet test, contracts built with Compact toolchain 0.31.1 kept working without a recompile when the ZK config provider uses `verify: 'warn'`. TBD-L9[confirm after fork-survival test]
+- In the same devnet test, artifacts built with Compact toolchain 0.30.0 failed with `EraArtifactMismatchError`. Recompile those contracts.
+- A contract action subscription that you open without an offset now delivers only new actions. To replay history, pass an explicit offset, such as height `0`. Midnight.js 5.0.0 does this. Midnight.js 4.x doesn't, and receives no history.
+- A fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly. Update your fee estimation before the upgrade.
 
 For the full list of steps, see the [ledger 9 upgrade page](/relnotes/ledger-9).
 
-TBD-L9[approved DUST wording: replace or confirm this paragraph]
-
-At the upgrade, Mainnet resets its DUST state. The network replays DUST generation for cNIGHT automatically, at full cap, so Mainnet NIGHT holders do not need to register again. For about 3 minutes after the upgrade, the network rebuilds DUST and accepts no user transactions. NIGHT that you bridge to Midnight after the upgrade needs a first-time registration before it generates DUST.
+At the upgrade, DUST state resets once, and NIGHT balances don't change. Every DUST registration on Mainnet is backed by cNIGHT, and the network replays all of them automatically, straight to their full cap, so Mainnet users don't need to do anything. The replay takes about 48 blocks, under five minutes on a recent Mainnet snapshot, and ends with a `DustReapplyCompleted` event. Transactions submitted while it runs wait in the transaction pool and are included once it ends.
 
 ---
 
 ## What indexer operators do
 
-The ledger 9 indexer (4.4.x) needs a full re-index from genesis. Plan the re-index before the governance upgrade. A local archive node on v2.1.100 syncs the indexer faster than a public RPC endpoint. For details, see the [ledger 9 upgrade page](/relnotes/ledger-9).
+Indexer 4.4.100 stores contract state in a new layout and needs a full re-index from genesis. Plan the re-index before the governance upgrade. The indexer then follows the chain across the upgrade by itself. Indexers must run 4.4.100 to report DUST capacity correctly after the upgrade. A local archive node on v2.1.100 syncs the indexer faster than a public RPC endpoint. For details, see the [ledger 9 upgrade page](/relnotes/ledger-9).
 
 ---
 
@@ -151,7 +155,11 @@ TBD-L9[bug fixes from the 2.1.100 release body]
 
 ## Known issues
 
-TBD-L9[known issues from the 2.1.100 release body]
+### Switching to unified storage on an existing data directory stops block import
+
+Node v2.1.100 defaults to the `separate` storage layout, the same as v1.0.400. A node set to `storage_separation=unified` that keeps its v1.0.400 data directory stops importing blocks. The process keeps running with no crash and no peers, so liveness checks don't flag it.
+
+Keep the default `separate` layout for this upgrade. To move to `unified`, stop the node, delete the whole data directory (`chains/` and `ledger_storage/`), and resync.
 
 If you find a problem with v2.1.100, report it in the [midnight-node issue tracker](https://github.com/midnightntwrk/midnight-node/issues).
 
@@ -159,9 +167,10 @@ If you find a problem with v2.1.100, report it in the [midnight-node issue track
 
 ## Links and references
 
-- [GitHub release: node-2.1.100](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.100) TBD-L9[confirm release tag]
+- [GitHub release: node-2.1.100](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.100) TBD-L9[confirm public release URL]
 - [Ledger 9 network upgrade](/relnotes/ledger-9)
 - [Support matrix](/relnotes/support-matrix)
 - [Midnight node on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node)
 - [Node toolkit on Docker Hub](https://hub.docker.com/r/midnightntwrk/midnight-node-toolkit)
+- [Ledger v9.1.0.1 release notes](/relnotes/ledger/ledger-9-1-0-1)
 - [Node v1.0.400 release notes](/relnotes/node/node-1-0-400)

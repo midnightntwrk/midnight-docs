@@ -11,17 +11,15 @@ displayed_sidebar: sidebar
 * **Version**: v5.0.0
 * **Date**: TBD-L9[release date]
 * **Environment**: Mainnet
-* **Node.js requirement**: TBD-L9[Node.js requirement]
+* **Node.js requirement**: 22.12 or later
 
 ---
 
 ## High-level summary
 
-Midnight.js 5.0.0 is the major release for the [ledger 9 network upgrade](/relnotes/ledger-9). After the upgrade, Mainnet accepts only ledger 9 transactions, so a DApp on Mainnet needs Midnight.js 5, wallet SDK 2, and a 4.4.x indexer.
+Midnight.js 5.0.0 is the major release for the [ledger 9 network upgrade](/relnotes/ledger-9). After the upgrade, Mainnet accepts only ledger 9 transactions, so a DApp on Mainnet needs Midnight.js 5, wallet SDK 2.0.0, and indexer 4.4.100.
 
 Midnight.js 5 works across both ledger eras. It can still call contracts deployed before the upgrade. Preview and Preprod stay on ledger 8 until a later upgrade. For those networks, keep using Midnight.js 4.1.1.
-
-TBD-L9[verify against final release notes]
 
 ## Audience
 
@@ -29,14 +27,17 @@ This release note is relevant for developers who:
 
 - Run a DApp on Mainnet
 - Call contracts deployed on Mainnet before the ledger 9 network upgrade
-- Use cross-contract calls
+- Use contract-to-contract calls
+- Subscribe to contract actions through the indexer
 
 ## Summary of updates
 
 - Builds and submits ledger 9 transactions for Mainnet after the upgrade.
 - Refuses a ledger 8 transaction on a ledger 9 network before it submits. It throws `EraMismatchError` with the reason `ledger8-transaction-on-ledger9-network`.
 - Calls contracts deployed before the upgrade through a retained ledger 8 path. After the upgrade, it refuses to deploy a new contract on that path.
-- Adds a `ContractModuleProvider` for cross-contract calls.
+- Adds a `ContractModuleProvider` for contract-to-contract calls. In this first phase, calls between contracts are bounded to unshielded data.
+- Replays contract history by passing an explicit offset to contract action subscriptions on indexer 4.4.100.
+- Tested together with Compact.js 3.0.0, Compact runtime 0.21.0, on-chain runtime 4.0.1, and wallet SDK 2.0.0.
 
 TBD-L9[full change list from the v5.0.0 release body]
 
@@ -52,9 +53,25 @@ Pass `providers.config` with `networkId` and `ttlSeconds` when you build your pr
 
 `queryContractState` returns an object tagged with the ledger version, in the shape `{ version, ... }`. Read `version` before you decode the state.
 
-### Cross-contract calls use `ContractModuleProvider`
+### Ledger 9 transaction format
 
-A DApp that makes cross-contract calls supplies a `ContractModuleProvider`. TBD-L9[package name and setup for the contract module provider]
+Transactions built in the ledger 8 format don't decode on ledger 9. Rebuild your DApp against Midnight.js 5 before Mainnet upgrades.
+
+### Type surfaces are aware of the ledger era
+
+Type surfaces that depend on the ledger now carry the ledger era. Code that assumed a single ledger era must select the era explicitly. Rebuild against the new API surface.
+
+### Contract action subscriptions start at their offset
+
+On indexer 4.4.100, a contract action subscription opened without an offset delivers only new actions. Midnight.js 5.0.0 passes an explicit offset, so it still replays a contract's history. Midnight.js 4.x does not pass an offset and receives no history.
+
+### On-chain runtime package name
+
+The on-chain runtime moves from the v3 line to the v4 line. The major version is carried in the package name rather than in a version range. If you depend on the on-chain runtime directly, change the dependency to `@midnight-ntwrk/onchain-runtime-v4`.
+
+### Contract-to-contract calls use `ContractModuleProvider`
+
+A DApp that makes contract-to-contract calls supplies a `ContractModuleProvider`. The `@midnight-ntwrk/midnight-js-bundled-contract-module-provider` package builds one from the compiled contract modules that your DApp ships, keyed by contract address. Pass it as `contractModuleProvider` in your providers. TBD-L9[confirm the package name against the final release]
 
 ### Exports named after their ledger
 
@@ -62,7 +79,7 @@ Public exports bound to a ledger version carry that ledger in their name. TBD-L9
 
 ## Contracts deployed before the upgrade
 
-Contracts built with Compact toolchain 0.31.1 keep working after the upgrade without a recompile. Configure your ZK config provider with `verify: 'warn'`, because 0.31.1 output has no contract manifest. TBD-L9[confirm after fork-survival test]
+Contracts built with Compact toolchain 0.31.1 keep working after the upgrade without a recompile. Configure your ZK config provider with `verify: 'warn'`, because 0.31.1 output has no contract manifest. The upgrade rehearsal includes calling a contract deployed before the fork and deploying a contract compiled with Compact toolchain 0.36.0. TBD-L9[confirm after fork-survival test]
 
 Midnight.js refuses contracts built with Compact toolchain 0.30.0 and throws `EraArtifactMismatchError`. Recompile these contracts before you call them on Mainnet.
 
@@ -79,6 +96,6 @@ TBD-L9[known issues from the v5.0.0 release body]
 ## Links and references
 
 - **GitHub**: [Midnight.js repository](https://github.com/midnightntwrk/midnight-js)
-- **Release**: [v5.0.0 on GitHub](https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.0)
+- **Release**: [v5.0.0 on GitHub](https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.0) TBD-L9[confirm public release URL]
 - **Ledger 9 upgrade**: [Ledger 9 network upgrade](/relnotes/ledger-9)
 - **Wallet SDK**: [Wallet SDK v2.0.0 release notes](/relnotes/wallet/wallet-sdk-2-0-0)

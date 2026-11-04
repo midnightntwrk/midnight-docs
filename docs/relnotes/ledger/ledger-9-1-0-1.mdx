@@ -1,0 +1,139 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Ledger v9.1.0.1 release notes
+description: Release notes for Ledger 9.1.0.1 and proof server 9.0.0, the ledger that Mainnet runs after the ledger 9 network upgrade.
+displayed_sidebar: sidebar
+---
+
+* **Version**: v9.1.0.1 (the builder packages carry 9.1.0.0)
+* **Date**: TBD-L9[release date]
+
+---
+
+## High-level summary
+
+Ledger 9.1.0.1 is the first ledger 9 release on Mainnet. The node embeds ledger 9.1.0.1, and the packages that DApp and wallet builders use carry ledger 9.1.0.0. Mainnet moves to ledger 9 at the ledger 9 network upgrade on TBD-L9[fork date]. Preview and Preprod stay on ledger 8.1.3 until a later upgrade, which has no date yet.
+
+Ledger 9 is a new ledger version, not a patch. Its transaction format changes, and a transaction built for ledger 8 doesn't decode on ledger 9. DApps, wallets, indexers, and nodes that use Mainnet must move to the ledger 9 versions. Proof server 9.0.0 is the matching proof server. For what each role must do, and in what order, see the [ledger 9 upgrade page](/relnotes/ledger-9).
+
+## Audience
+
+This release note is most relevant for:
+
+- Node operators and validators on Mainnet.
+- DApp developers who deploy to or call smart contracts on Mainnet.
+- Wallet developers and indexer operators who serve Mainnet.
+- Developers who run the proof server against Mainnet.
+- Developers who use the `ledger-v9` or `onchain-runtime-v4` npm packages directly, or the ledger Rust crates.
+
+## Summary of updates
+
+- Network: Mainnet runs ledger 9 after the ledger 9 network upgrade. Preview and Preprod run ledger 8.1.3 until a later upgrade.
+- Compatibility: ledger 8 transactions don't decode on ledger 9. After the upgrade, wallets on wallet SDK 1.x can't transact on Mainnet, and Mainnet rejects transactions built with Midnight.js 4.x.
+- Contracts: contract-to-contract calls and event emission, both in a first phase that covers unshielded data only.
+- Cryptography: ECDSA signature support with public-key recovery, native Keccak hashing, and native secp256k1, all available to Compact smart contracts.
+- Proving: version 3 of the zero-knowledge intermediate representation (ZKIR 3.2.0) across the proving stack and the Compact toolchain.
+- Fees: a fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly.
+- DUST: DUST state resets once at the upgrade. On Mainnet, every DUST registration is replayed automatically to its full cap, so Mainnet users don't need to do anything.
+- Proof server: proof server 9.0.0 is the proof server for ledger 9. Its default job capacity is now 10.
+- Packages: `@midnightntwrk/ledger-v9` TBD-L9[ledger-v9 npm version, expected 1.0.0] and `@midnightntwrk/onchain-runtime-v4` 4.0.1. TBD-L9[npm publish of SDK packages]
+
+---
+
+## New features
+
+### Contract-to-contract calls and events
+
+A smart contract on ledger 9 can call another smart contract in the same transaction. A smart contract can also emit events, which DApps can observe through the indexer API. Both features are in a first phase and cover unshielded data only. Events need ledger 9, indexer 4.4.100, Compact toolchain 0.36.0, and Midnight.js 5.0.0 together.
+
+To use these features, compile your smart contract with Compact toolchain 0.36.0, which uses language version 0.28.0 and Compact runtime 0.21.0.
+
+### New cryptographic primitives
+
+Ledger 9 adds ECDSA signature support with public-key recovery in the Compact runtime, native Keccak hashing, and native secp256k1. Compact smart contracts can use all three as primitives.
+
+### ZKIR version 3
+
+Ledger 9 uses version 3 of the zero-knowledge intermediate representation (ZKIR 3.2.0). The proving stack and the Compact toolchain both move to it.
+
+### Protocol token bridge
+
+Ledger 9 carries support for the cNIGHT to mNIGHT protocol token bridge, which spans the node, the ledger, and the indexer. This release note doesn't cover using the bridge. TBD-L9[bridge enabled at fork?]
+
+### Proof server 9.0.0
+
+The proof server image for ledger 9 is `midnightntwrk/proof-server:9.0.0`. Pin it by image digest. The port stays 6300. The default job capacity changes from 0 (no limit) in proof server 8.1.3 to 10, so a busy proof server returns HTTP 429 when its job queue is full. To change the limit, set `--job-capacity` or the `MIDNIGHT_PROOF_SERVER_JOB_CAPACITY` environment variable.
+
+On Mainnet, use proof server 9.0.0. On Preview and Preprod, keep using proof server 8.1.3. TBD-L9[can proof server 8.1.3 prove for ledger 9?]
+
+## New features requiring configuration updates
+
+None in this release.
+
+## Deprecations
+
+Ledger 8 is no longer accepted on Mainnet after the ledger 9 network upgrade. It stays in use on Preview and Preprod until their upgrade.
+
+---
+
+## Breaking changes or required actions
+
+The ledger 9 network upgrade changes the ledger that Mainnet runs. Each role has its own steps, and the [ledger 9 upgrade page](/relnotes/ledger-9) lists them in order. In short:
+
+- **Node operators and validators**: upgrade every Mainnet validator and RPC node from node 1.0.400 directly to node 2.1.100 before the governance upgrade. A node on 1.0.400 stops at the upgrade block. For the steps, see the [node 2.1.100 release notes](/relnotes/node/node-2-1-100).
+- **DApp developers**: move to wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.100. Midnight.js 5.0.0 refuses to submit a ledger 8 transaction to a ledger 9 network with `EraMismatchError`, and wallet SDK 2.0.0 refuses a mismatched transaction with `ProtocolVersionMismatchError`. A ledger 8 transaction that is still pending at the upgrade ends in the `Orphaned` state.
+- **Smart contract developers**: compile new smart contracts with Compact toolchain 0.36.0 (language version 0.28.0). The tested upgrade rehearsal checks that a smart contract deployed before the upgrade can still be called and that a smart contract compiled with 0.36.0 deploys. In an earlier devnet test, smart contracts built with Compact toolchain 0.31.1 kept working without a recompile when the ZK config provider uses `verify: 'warn'`, and artifacts built with toolchain 0.30.0 failed with `EraArtifactMismatchError`, so recompile those smart contracts. Contract maintenance after the upgrade also needs a recompile. TBD-L9[confirm after fork-survival test]
+- **Indexer operators**: run indexer 4.4.100 and re-index from genesis. This indexer stores contract state in a new layout, and you can't upgrade an existing database in place. The indexer then follows the chain across the upgrade by itself.
+- **Wallet developers**: move to wallet SDK 2.0.0. Wallets detect the upgrade when `protocolVersion` reaches 2000000 or higher. Drop any cached DUST tree indices at that point, because the indexer sends no dedicated reset event.
+- **Proof server users**: on Mainnet, run proof server 9.0.0, pinned by image digest.
+- **Package users**: the ledger 9 npm packages are `@midnightntwrk/ledger-v9` and `@midnightntwrk/onchain-runtime-v4`. The on-chain runtime moves from the v3 line to the v4 line, and the major version is in the package name, not in a version range, so change the dependency to `@midnightntwrk/onchain-runtime-v4` 4.0.1. The npm version of `ledger-v9` doesn't match the ledger version: ledger 9.1.0.0 is `ledger-v9` TBD-L9[ledger-v9 npm version, expected 1.0.0]. Pin exact versions. Don't rely on the `latest` dist-tags of these packages, which have pointed to release candidates.
+
+### Ledger era in the Midnight.js and Compact.js types
+
+The types in Midnight.js 5.0.0 and Compact.js 3.0.0 are aware of the ledger era. Code that assumed a single ledger era must now select one explicitly. Rebuild against the new API and select the era.
+
+### Contract action subscriptions
+
+An indexer subscription to contract actions that you open without an offset now delivers only new actions. It no longer replays the history of the smart contract. To replay history, pass an explicit offset, such as height `0`. Midnight.js 5.0.0 does this. Midnight.js 4.x doesn't, and receives no history.
+
+The indexer also serves state from after the upgrade for smart contracts that no transaction has touched since the upgrade.
+
+### DUST at the upgrade
+
+DUST state resets once at the ledger 9 network upgrade. NIGHT balances don't change.
+
+- **Mainnet**: every DUST registration on Mainnet is backed by cNIGHT, and the network replays all of them automatically after the upgrade, straight to their full DUST cap. Mainnet users don't need to do anything.
+- **Transactions during the replay**: the replay takes about 48 blocks, under five minutes on a recent Mainnet snapshot, and ends with a `DustReapplyCompleted` event. Transactions submitted while it runs wait in the transaction pool and are included once it ends.
+- **Wallets and indexers**: wallets must run wallet SDK 2.0.0, because wallets on wallet SDK 1.x can't transact after the upgrade. Indexers must run 4.4.100 to report DUST capacity correctly.
+- **Preview and Preprod**: when these networks upgrade later, DUST registrations that cNIGHT doesn't back are cleared, and wallets and the faucet register their DUST address again. Expect a gap in faucet service on each test network during its upgrade window.
+
+### Fees
+
+Ledger 9 adds a fee floor, `min_block_price`, which ledger parameters govern. It applies from the first block after the upgrade, so fees rise slightly. Ledger 9 also uses a new cost model. Update fee estimation in wallets and DApps to respect the floor before the upgrade.
+
+### Ledger error changes
+
+If you match on ledger error names, `GenerationInfoAlreadyPresent` is now `InitialNonceAlreadyPresent`, and `BackingNightNotFound` is removed. New errors include `ZeroValueUtxo`. TBD-L9[confirm ledger error changes against final release]
+
+---
+
+## Known issues
+
+- Wallets and DApps that haven't moved to wallet SDK 2.0.0 can't transact on Mainnet after the upgrade. Check with your wallet provider for a ledger 9 release.
+- Bridging NIGHT between Cardano and Midnight isn't covered by this release note. TBD-L9[bridge enabled at fork?]
+- Block production rewards aren't part of ledger 9.
+
+---
+
+## Links and references
+
+- [Ledger 9 upgrade page](/relnotes/ledger-9)
+- [Compatibility matrix](/relnotes/support-matrix)
+- [Node v2.1.100 release notes](/relnotes/node/node-2-1-100)
+- [GitHub release: ledger-9.1.0.1](https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-9.1.0.1) TBD-L9[confirm public release URL]
+- [GitHub release: proof-server-9.0.0](https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-9.0.0) TBD-L9[confirm public release URL]
+- [`midnightntwrk/proof-server` on Docker Hub](https://hub.docker.com/r/midnightntwrk/proof-server)
+- [`@midnightntwrk/ledger-v9` on npm](https://www.npmjs.com/package/@midnightntwrk/ledger-v9)
+- [`@midnightntwrk/onchain-runtime-v4` on npm](https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v4)
+- [Ledger v8.1.3 release notes](/relnotes/ledger/ledger-8-1-3)

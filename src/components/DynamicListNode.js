@@ -22,11 +22,13 @@ const releases = [
     date: 'TBD-L9[release date]',
     summary: 'Node release for the ledger 9 network upgrade on Mainnet. Every Mainnet validator and RPC node must run it before the governance upgrade. Preview and Preprod stay on 1.0.400.',
     details: [
-      'Upgrade every Mainnet validator and RPC node to v2.1.100 before the governance upgrade on TBD-L9[fork date]. A node on v1.0.400 cannot run the new runtime and stops importing blocks at the upgrade block.',
-      'Binary first, then runtime: replacing the binary is a restart with no reset or resync. A governance action then moves Mainnet to the new runtime and ledger 9. TBD-L9[runtime spec_version]',
+      'Upgrade every Mainnet validator and RPC node from v1.0.400 directly to v2.1.100 before the governance upgrade on TBD-L9[fork date]. The v2.1.0 release candidates are not a supported upgrade step. A node on v1.0.400 stops at the upgrade block.',
+      'Binary first, then runtime: the chain keeps running ledger 8 until a governance action applies the runtime upgrade and moves Mainnet to ledger 9.1.0.1. The binary upgrade is one-way, so snapshot the data directory first. TBD-L9[runtime spec_version]',
+      'Known issue: keep the default `separate` storage layout. Setting `storage_separation=unified` on an existing v1.0.400 data directory silently stops block import. To move to `unified`, stop the node, delete `chains/` and `ledger_storage/`, and resync.',
       'Added the `SafeMode` and `C2MBridge` pallets. The bridge pallet ships turned off until a governance action enables it. TBD-L9[bridge enabled at fork?]',
       'Removed the `smart-contracts`, `sign-address-association`, and `sign-block-producer-metadata` subcommands. The node connects to Cardano db-sync over TLS only. TBD-L9[confirm operator changes against the 2.1.100 release]',
-      'After the upgrade, Mainnet rejects ledger 8 transactions. DApps and wallets need wallet SDK 2, Midnight.js 5, and the ledger 9 indexer (4.4.x). See the ledger 9 upgrade page at /relnotes/ledger-9.',
+      'After the upgrade, ledger 8 transactions do not decode on Mainnet. DApps and wallets need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.100, and indexers re-index from genesis. See the ledger 9 upgrade page at /relnotes/ledger-9.',
+      'DUST resets once at the upgrade and every Mainnet registration is replayed to its full cap, so Mainnet users do not need to do anything. Transactions submitted during the replay wait in the transaction pool and are included once it ends.',
       'Preview and Preprod keep running node v1.0.400 until a later upgrade.',
     ],
     artifacts: [
