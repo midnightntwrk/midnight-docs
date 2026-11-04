@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0**](../README.md)
 
 ***
 
@@ -9,12 +9,11 @@
 ```ts
 type InterfaceCircuitDeclaration = {
   argumentTypes: readonly SignatureType[];
-  pure: boolean;
   resultType: SignatureType;
 };
 ```
 
-One circuit as *declared* in a `contract T { }` block. `pure` is the declared keyword, not inferred purity.
+One circuit as *declared* in a `contract T { }` block: a circuit with this signature and a proof.
 
 ## Properties
 
@@ -22,14 +21,6 @@ One circuit as *declared* in a `contract T { }` block. `pure` is the declared ke
 
 ```ts
 readonly argumentTypes: readonly SignatureType[];
-```
-
-***
-
-### pure
-
-```ts
-readonly pure: boolean;
 ```
 
 ***

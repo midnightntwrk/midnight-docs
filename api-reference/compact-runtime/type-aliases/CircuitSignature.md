@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0**](../README.md)
 
 ***
 
@@ -9,6 +9,7 @@
 ```ts
 type CircuitSignature = InterfaceCircuitDeclaration & {
   provable: boolean;
+  pure: boolean;
 };
 ```
 
@@ -21,4 +22,10 @@ One circuit as *implemented*. `pure` is inferred purity; `provable` means a proo
 
 ```ts
 readonly provable: boolean;
+```
+
+### pure
+
+```ts
+readonly pure: boolean;
 ```

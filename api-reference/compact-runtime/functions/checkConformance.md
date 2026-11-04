@@ -1,4 +1,4 @@
-[**@midnight-ntwrk/compact-runtime v0.20.0**](../README.md)
+[**@midnight-ntwrk/compact-runtime v0.21.0**](../README.md)
 
 ***
 
@@ -14,8 +14,8 @@ Check a resolved module against the contract type its caller declared, returning
 that went wrong, or `Conformant`.
 
 A module may implement more circuits than the declaration names, but not fewer and not
-differently. A declared-`pure` circuit must be implemented pure, and a declared-impure one must be
-provable — which a pure circuit is not.
+differently. A declared circuit must have a proof, so its implementation must be provable; a pure
+implementation is not.
 
 Only the implementation is screened for readability; the declaration comes from the caller's own
 module, which is version-locked to this runtime.
