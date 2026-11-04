@@ -30,7 +30,7 @@ const releases = [
     'The ZKIR version 2 backend is removed; `sha512`, secp256r1 (P256), Curve25519, `secp256r1EcdsaVerify`, and `ed25519Verify` no longer need a flag',
     'Passing `--feature-zkir-v3` is now an error (the compiler only prints its usage line); remove it from build scripts',
     'Circuits declared in a contract type cannot be `pure`, and the arguments of every cross-contract call must be disclosed',
-    'Purity is removed from the Compact runtime cross-contract API (`PureInterfaceCircuit`, the `Purity` check, and `pureCircuits` are gone)',
+    'Purity is removed from the Compact runtime cross-contract API (`PureInterfaceCircuit`, the `Purity` check, and the `pureCircuits` field of `Module` are gone)',
     'Contracts that make cross-contract calls must be recompiled; casting a non-native field to `Boolean` is a type error',
     'Fixes a number of compiler internal errors (many involving foreign field types) and Compact runtime defects',
   ],
