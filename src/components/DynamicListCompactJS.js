@@ -20,7 +20,7 @@ const releases = [
   {
     version: '3.0.0',
     status: 'LATEST',
-    date: 'TBD-L9[release date]',
+    date: '2026-11-05',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet, used by Midnight.js 5.',
     details: [
       'Runs contracts on Mainnet after the ledger 9 network upgrade.',
