@@ -33,11 +33,15 @@ This release note is most relevant for:
 - Compatibility: ledger 8 transactions don't decode on ledger 9. After the upgrade, wallets on wallet SDK 1.x can't transact on Mainnet, and Mainnet rejects transactions built with Midnight.js 4.x.
 - Contracts: contract-to-contract calls and event emission, both in a first phase that covers unshielded data only.
 - Cryptography: ECDSA signature support with public-key recovery, native Keccak hashing, and native secp256k1, all available to Compact smart contracts.
-- Proving: version 3 of the zero-knowledge intermediate representation (ZKIR 3.2.0) across the proving stack and the Compact toolchain.
-- Fees: a fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly.
+- Proving: version 3 of the zero-knowledge intermediate representation (ZKIR 3.2.0) across the proving stack and the Compact toolchain. Proofs move to `midnight-zk-stdlib` v2 and `midnight-circuits` v7, and proofs and verifier keys made with zk-stdlib v1 stay verifiable.
+- Verifier keys: the verifier keys of some circuits change, so affected smart contracts need their keys regenerated.
+- Contract maintenance: maintenance updates can insert and remove the IR of a contract operation.
+- Treasury: a new `UnlockToTreasury` system transaction moves funds from the locked pool to the treasury.
+- Fees: a fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly. Separate cost factors for validation, guaranteed application, and fallible application replace `parallelism_factor`.
+- Security: ledger 9 carries forward the security fixes released to Mainnet as ledger 8.1.2 and 8.1.3.
 - DUST: DUST state resets once at the upgrade. On Mainnet, every DUST registration is replayed automatically to its full cap, so Mainnet users don't need to do anything.
 - Proof server: proof server 9.0.0 is the proof server for ledger 9. Its default job capacity is now 10.
-- Packages: `@midnightntwrk/ledger-v9` TBD-L9[ledger-v9 npm version, expected 1.0.0] and `@midnightntwrk/onchain-runtime-v4` 4.0.1. TBD-L9[npm publish of SDK packages]
+- Packages: `@midnightntwrk/ledger-v9` 1.0.0 and `@midnightntwrk/onchain-runtime-v4` 4.0.1. TBD-L9[Nick: network ledger 9.1.0.1 / onchain 4.0.1 vs public ledger-9.1.0.0 / onchain-runtime-v4 4.0.0; which to cite?]
 
 ---
 
@@ -57,9 +61,21 @@ Ledger 9 adds ECDSA signature support with public-key recovery in the Compact ru
 
 Ledger 9 uses version 3 of the zero-knowledge intermediate representation (ZKIR 3.2.0). The proving stack and the Compact toolchain both move to it.
 
+### Proving with zk-stdlib v2
+
+Ledger 9 generates proofs against `midnight-zk-stdlib` v2 and `midnight-circuits` v7. Proofs and verifier keys made with zk-stdlib v1 stay verifiable, and Zswap verification keeps accepting v1 proofs.
+
+### Contract maintenance of circuit IR
+
+A contract maintenance update can insert or remove the IR of a contract operation. In the ledger WASM bindings these updates are `IrInsert` and `IrRemove`. Ledger 9 adds the `IrAlreadyPresent` and `IrNotFound` errors for these updates.
+
+### Treasury unlock
+
+The `UnlockToTreasury` system transaction moves funds from the locked pool to the treasury.
+
 ### Protocol token bridge
 
-Ledger 9 carries support for the cNIGHT to mNIGHT protocol token bridge, which spans the node, the ledger, and the indexer. This release note doesn't cover using the bridge. TBD-L9[bridge enabled at fork?]
+Ledger 9 carries support for the cNIGHT to mNIGHT protocol token bridge, which spans the node, the ledger, and the indexer. The bridge ships in this release but stays off until governance enables it, and its rollout will be announced separately, so don't treat bridging as available. This release note doesn't cover using the bridge.
 
 ### Proof server 9.0.0
 
@@ -69,7 +85,7 @@ On Mainnet, use proof server 9.0.0. On Preview and Preprod, keep using proof ser
 
 ## New features requiring configuration updates
 
-None in this release.
+Ledger parameters gain the price floor and the `validation_factor`, `guaranteed_factor`, and `fallible_factor` fields, and lose `parallelism_factor`. Tooling that constructs or serializes `LedgerParameters` must supply the new fields. The initial `validation_factor` of 1/4 carries over the previous `parallelism_factor` of 4.
 
 ## Deprecations
 
@@ -87,7 +103,20 @@ The ledger 9 network upgrade changes the ledger that Mainnet runs. Each role has
 - **Indexer operators**: run indexer 4.4.100 and re-index from genesis. This indexer stores contract state in a new layout, and you can't upgrade an existing database in place. The indexer then follows the chain across the upgrade by itself.
 - **Wallet developers**: move to wallet SDK 2.0.0. Wallets detect the upgrade when `protocolVersion` reaches 2000000 or higher. Drop any cached DUST tree indices at that point, because the indexer sends no dedicated reset event.
 - **Proof server users**: on Mainnet, run proof server 9.0.0, pinned by image digest.
-- **Package users**: the ledger 9 npm packages are `@midnightntwrk/ledger-v9` and `@midnightntwrk/onchain-runtime-v4`. The on-chain runtime moves from the v3 line to the v4 line, and the major version is in the package name, not in a version range, so change the dependency to `@midnightntwrk/onchain-runtime-v4` 4.0.1. The npm version of `ledger-v9` doesn't match the ledger version: ledger 9.1.0.0 is `ledger-v9` TBD-L9[ledger-v9 npm version, expected 1.0.0]. Pin exact versions. Don't rely on the `latest` dist-tags of these packages, which have pointed to release candidates.
+- **Package users**: the ledger 9 npm packages are `@midnightntwrk/ledger-v9` and `@midnightntwrk/onchain-runtime-v4`. The on-chain runtime moves from the v3 line to the v4 line, and the major version is in the package name, not in a version range, so change the dependency to `@midnightntwrk/onchain-runtime-v4` 4.0.1. TBD-L9[Nick: network ledger 9.1.0.1 / onchain 4.0.1 vs public ledger-9.1.0.0 / onchain-runtime-v4 4.0.0; which to cite?] The npm version of `ledger-v9` doesn't match the ledger version: ledger 9.1.0.0 is `ledger-v9` 1.0.0. Pin exact versions. Don't rely on the `latest` dist-tags of these packages, which have pointed to release candidates.
+
+### Verifier keys
+
+`midnight-circuits` 7.3.0 and `midnight-zk-stdlib` 2.4.0 change the verifier keys of ZKIR v2 circuits that use `hash_to_curve`, and of ZKIR v3 circuits that encode a Jubjub scalar. V0 and V1 keys don't change. Smart contracts with affected circuits need their verifier keys regenerated.
+
+### Ledger parameters and Rust APIs
+
+- `parallelism_factor` is removed from the ledger parameters, and `validation_cost` returns a cost with the factor applied.
+- Signing envelopes now share one construction. Code that builds them by hand must move to it.
+- The default `IrMinorVersion` is now `V2`, and `VersionedInnerPK` is removed.
+- In `onchain-vm`, `Key::Value` and `Op::Push` hold `AlignedValueChecked` in place of `AlignedValue`. Rust code that constructs them directly must convert with `AlignedValueChecked::try_from`.
+- Decoding and validation are stricter, and reject data and contract calls that earlier ledger 9 release candidates accepted.
+- The npm packages are published under the `@midnightntwrk` scope. The legacy `@midnight-ntwrk` scope still receives releases for now.
 
 ### Ledger era in the Midnight.js and Compact.js types
 
@@ -110,19 +139,21 @@ DUST state resets once at the ledger 9 network upgrade. NIGHT balances don't cha
 
 ### Fees
 
-Ledger 9 adds a fee floor, `min_block_price`, which ledger parameters govern. It applies from the first block after the upgrade, so fees rise slightly. Ledger 9 also uses a new cost model. Update fee estimation in wallets and DApps to respect the floor before the upgrade.
+Ledger 9 adds a fee floor, `min_block_price`, which ledger parameters govern. It applies from the first block after the upgrade, so fees rise slightly. Ledger 9 also uses a new cost model: `validation_factor`, `guaranteed_factor`, and `fallible_factor` replace `parallelism_factor` and apply to compute cost only, and `validation_cost` now returns the cost with the factor applied. Update fee estimation in wallets and DApps to respect the floor before the upgrade.
 
 ### Ledger error changes
 
-If you match on ledger error names, `GenerationInfoAlreadyPresent` is now `InitialNonceAlreadyPresent`, and `BackingNightNotFound` is removed. New errors include `ZeroValueUtxo`. TBD-L9[confirm ledger error changes against final release]
+If you match on ledger error names, `GenerationInfoAlreadyPresent` is now `InitialNonceAlreadyPresent`, and `DustLocalStateError` no longer has a `BackingNightNotFound` variant. New errors are `ZeroValueUtxo`, `ContractMetadataTooLarge`, `ContractAuthorityMetadataTooLarge`, `IrAlreadyPresent`, `IrNotFound`, `MetadataTooLarge`, `AuthorityMetadataTooLarge`, and `UnknownVerifierKeyVersion`. For the details, see the [ledger error reference](/api-reference/error-reference/ledger-errors).
 
 ---
 
 ## Known issues
 
 - Wallets and DApps that haven't moved to wallet SDK 2.0.0 can't transact on Mainnet after the upgrade. Check with your wallet provider for a ledger 9 release.
-- Bridging NIGHT between Cardano and Midnight isn't covered by this release note. TBD-L9[bridge enabled at fork?]
+- Bridging NIGHT between Cardano and Midnight isn't available at the upgrade. The protocol token bridge stays off until governance enables it, and its rollout will be announced separately.
 - Block production rewards aren't part of ledger 9.
+- A contract call that spends a shielded coin the contract already holds and writes the change back with `writeCoin` can be rejected with `Custom error: 104` (`ran out of gas budget`) on a chain whose commitment tree isn't empty. This is tracked in [midnight-ledger#839](https://github.com/midnightntwrk/midnight-ledger/issues/839).
+- A contract call paid with exactly one DUST spend can fail with `OutsideTimeToDismiss`, while the same call with zero, two, or more DUST spends is accepted. To avoid it, pay with two or more DUST spends. This is tracked in [midnight-ledger#838](https://github.com/midnightntwrk/midnight-ledger/issues/838).
 
 ---
 
@@ -131,8 +162,8 @@ If you match on ledger error names, `GenerationInfoAlreadyPresent` is now `Initi
 - [Ledger 9 upgrade page](/relnotes/ledger-9)
 - [Compatibility matrix](/relnotes/support-matrix)
 - [Node v2.1.100 release notes](/relnotes/node/node-2-1-100)
-- [GitHub release: ledger-9.1.0.1](https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-9.1.0.1) TBD-L9[confirm public release URL]
-- [GitHub release: proof-server-9.0.0](https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-9.0.0) TBD-L9[confirm public release URL]
+- [GitHub release: ledger-9.1.0.1](https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-9.1.0.1) TBD-L9[Nick: network ledger 9.1.0.1 / onchain 4.0.1 vs public ledger-9.1.0.0 / onchain-runtime-v4 4.0.0; which to cite?]
+- [GitHub release: proof-server-9.0.0](https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-9.0.0)
 - [`midnightntwrk/proof-server` on Docker Hub](https://hub.docker.com/r/midnightntwrk/proof-server)
 - [`@midnightntwrk/ledger-v9` on npm](https://www.npmjs.com/package/@midnightntwrk/ledger-v9)
 - [`@midnightntwrk/onchain-runtime-v4` on npm](https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v4)
