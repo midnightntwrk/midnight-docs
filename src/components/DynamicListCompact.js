@@ -22,6 +22,16 @@ const releases = [
   version: '0.36.0',
   compactVersion: '0.28.0',
   status: 'LATEST',
+  date: '05 November 2026',
+  summary: 'Summary of Release 0.36.0',
+  details: [],
+  artifacts: [],
+  link: '/relnotes/compact/toolchain-0.36.0',
+},
+  {
+  version: '0.36.0',
+  compactVersion: '0.28.0',
+  status: 'UNSUPPORTED',
   date: '4 November 2026',
   summary: 'Release for ledger 9: ZKIR version 3 is the only backend, `--feature-zkir-v3` is removed, circuits in a contract type cannot be `pure`; not for the current public networks',
   details: [
