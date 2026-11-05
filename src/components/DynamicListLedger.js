@@ -31,7 +31,7 @@ const releases = [
       'A fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly. Update fee estimation before the upgrade.',
       'Contract action subscriptions opened without an offset now deliver only new actions. Pass an explicit offset, such as height `0`, to replay history. Midnight.js 5.0.0 does this.',
       'Proof server 9.0.0 is the proof server for ledger 9. Pin it by image digest. Its default job capacity is now 10 instead of 0 (no limit).',
-      'npm packages: `@midnightntwrk/ledger-v9` 1.0.0 and `@midnightntwrk/onchain-runtime-v4` 4.0.1. TBD-L9[Nick: network ledger 9.1.0.1 / onchain 4.0.1 vs public ledger-9.1.0.0 / onchain-runtime-v4 4.0.0; which to cite?] The on-chain runtime major version is in the package name.',
+      'npm packages: `@midnightntwrk/ledger-v9` 1.0.0 and `@midnightntwrk/onchain-runtime-v4` 4.0.1. TBD-L9[confirm npm publish of onchain-runtime-v4 4.0.1] The on-chain runtime major version is in the package name.',
     ],
     artifacts: [
       { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnightntwrk/ledger-v9' },
