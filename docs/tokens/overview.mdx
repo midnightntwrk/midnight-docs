@@ -50,13 +50,30 @@ export circuit payEntryFee(amount: Uint<128>): [] {
 }
 ```
 
-The DApp calls the circuit like any other, with only the arguments the circuit declares. Nothing in the call mentions NIGHT: the caller's wallet adds the inputs that cover the amount when it balances the transaction. The payment and the contract's balance are public. To pay out, check the balance with `unshieldedBalanceGte` and send with `sendUnshielded`.
+The DApp calls the circuit like any other, with only the arguments the circuit declares. Nothing in the call mentions NIGHT: the caller's wallet adds the inputs that cover the amount when it balances the transaction.
+
+The wallet must also sign the unshielded inputs it adds. A `balanceTx` that goes straight from `balanceUnboundTransaction` to `finalizeRecipe` leaves them unsigned, and the node rejects the transaction with `1010: Invalid Transaction: Custom error: 192` (`InputsSignaturesLengthMismatch`). Sign the recipe with `signRecipe` before you finalize it, as the Private Party tutorial's [`wallet.ts`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/private-party/src/wallet.ts) does:
+
+```typescript
+const recipe = await this.wallet.balanceUnboundTransaction(
+  tx,
+  { shieldedSecretKeys: this.zswapSecretKeys, dustSecretKey: this.dustSecretKey },
+  { ttl },
+);
+const signed = await this.wallet.signRecipe(
+  recipe,
+  (payload) => this.unshieldedKeystore.signData(payload),
+);
+return await this.wallet.finalizeRecipe(signed);
+```
+
+The payment and the contract's balance are public. To pay out, check the balance with `unshieldedBalanceGte` and send with `sendUnshielded`.
 
 The [Private Party tutorial](/tutorials/private-party/smart-contract#check-in-crossing-the-boundary) takes an entry fee in NIGHT this way and pays the organizer with `sendUnshielded`.
 
 :::caution[Receiving NIGHT fails on Mainnet today]
 
-`payEntryFee` works on Preview, Preprod, and a local network, but fails on Mainnet. Most Mainnet NIGHT is still held on Cardano as cNIGHT, so the caller's wallet has no NIGHT on Midnight to pay into the contract, and a contract holds none to pay out with `sendUnshielded`. For details, see the caution in the [token transfers example](/examples/contracts/token-transfers).
+With a wallet that signs its unshielded inputs, `payEntryFee` works on Preview, Preprod, and a local network, but it fails on Mainnet. Most Mainnet NIGHT is still held on Cardano as cNIGHT, so the caller's wallet has no NIGHT on Midnight to pay into the contract, and a contract holds none to pay out with `sendUnshielded`. For details, see the caution in the [token transfers example](/examples/contracts/token-transfers).
 
 :::
 
