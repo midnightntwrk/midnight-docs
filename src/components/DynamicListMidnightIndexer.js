@@ -30,7 +30,7 @@ const releases = [
       'Serves post-upgrade state for contracts untouched since the switch (breaking)',
       'A contract action subscription without an offset delivers only new actions; pass an offset such as height 0 to replay history (breaking)',
       'Reports DUST capacity correctly after the DUST reset; required by wallet SDK 2.0.0',
-      'Pairs with node 2.1.100 and ledger 9.1.0.1',
+      'Pairs with node 2.1.101 and ledger 9.1.0.1',
     ],
     artifacts: [
       { name: 'Chain Indexer Docker image', url: 'https://hub.docker.com/r/midnightntwrk/chain-indexer' },

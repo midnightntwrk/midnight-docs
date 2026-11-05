@@ -21,7 +21,7 @@ This page explains what changes on Mainnet and what you need to do, whether you 
 
 | Network | Ledger | Node | What to use |
 | --- | --- | --- | --- |
-| Mainnet | 9.1.0.1 | 2.1.100 | Wallet SDK 2.0.0, Midnight.js 5.0.0, Compact toolchain 0.36.0 (`language_version` 0.28.0), Compact runtime 0.21.0, proof server 9.0.0, and indexer 4.4.100. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
+| Mainnet | 9.1.0.1 | 2.1.101 | Wallet SDK 2.0.0, Midnight.js 5.0.0, Compact toolchain 0.36.0 (`language_version` 0.28.0), Compact runtime 0.21.0, proof server 9.0.0, and indexer 4.4.100. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
 | Preprod | 8.1.3 | 1.0.400 | Wallet SDK 1.2.0, Midnight.js 4.1.1, Compact toolchain 0.31.1 (`language_version` 0.23), Compact runtime 0.16.0, and proof server 8.1.3. |
 | Preview | 8.1.3 | 1.0.400 | Same as Preprod. |
 
@@ -41,7 +41,7 @@ Ledger 9 adds these features:
 
 Ledger 9 also changes how the network calculates fees. See [DUST and fees](#dust-and-fees).
 
-Ledger 9 adds a protocol token bridge from cNIGHT to mNIGHT, which spans the node, the ledger, and the indexer. The bridge ships with ledger 9 but stays off until governance enables it, and its rollout will be announced separately. Don't rely on bridging NIGHT until then.
+The upgrade doesn't turn on the cNIGHT to mNIGHT protocol token bridge on Mainnet. Turning it on is a separate governance action, and its rollout will be announced separately. Don't rely on bridging NIGHT until then.
 
 Block production rewards aren't part of ledger 9.
 
@@ -60,7 +60,7 @@ After the upgrade, Mainnet can't decode transactions in the ledger 8 format. A w
    | Midnight.js | 5.0.0 |
    | testkit-js | TBD-L9[testkit-js version, expected 5.0.0] |
    | Compact.js | 3.0.0 |
-   | On-chain runtime | 4.0.1 |
+   | On-chain runtime | 4.0.0 |
    | Indexer | 4.4.100 |
    | Proof server | 9.0.0 |
    | Compact toolchain | 0.36.0 |
@@ -86,7 +86,7 @@ TBD-L9[confirm after fork-survival test]
 
 The upgrade rehearsal checks that a contract deployed before the upgrade can still be called, and that a contract compiled with Compact toolchain 0.36.0 deploys and can be called.
 
-Contracts deployed before the upgrade keep their verifier keys. Whether you need to recompile depends on the Compact toolchain that built them:
+Contracts deployed before the upgrade keep their verifier keys. Whether you can keep calling them with their existing artifacts depends on the Compact toolchain that built them:
 
 | Built with | After the upgrade |
 | --- | --- |
@@ -95,11 +95,20 @@ Contracts deployed before the upgrade keep their verifier keys. Whether you need
 
 Contracts built with 0.31.1 have these limits after the upgrade:
 
-- The network refuses a call that spends a shielded coin the contract already holds and writes the change back with `writeCoin`. The node rejects it with `Custom error: 104` (`ran out of gas budget`). This is a known issue, tracked in [midnight-ledger#839](https://github.com/midnightntwrk/midnight-ledger/issues/839), and the fix ships in a follow-up node upgrade.
-- Contract maintenance, such as updating a verifier key, needs a recompile.
+- The network refuses a call that spends a shielded coin the contract already holds and writes the change back with `writeCoin`. The node rejects it with `Custom error: 104` (`ran out of gas budget`). This is a known issue with no workaround in this release. See [Known issues](#known-issues).
+- Moving the contract to the current toolchain changes its verifier keys. See [Recompiling a contract changes its verifier keys](#recompiling-a-contract-changes-its-verifier-keys).
 - You can't deploy a new contract from ledger 8 artifacts. Compile new contracts with Compact toolchain 0.36.0.
 
-Compact toolchain 0.36.0 generates only ZKIR version 3. If you compiled a contract that makes cross-contract calls with an earlier toolchain, such as 0.35.0, recompile it with 0.36.0. For the other compiler changes, see the [Compact release notes](./compact).
+### Recompiling a contract changes its verifier keys
+
+Compact toolchain 0.36.0 generates only ZKIR version 3. If you recompile a contract that an earlier toolchain built, its circuits get different verifier keys, even when the source hasn't changed. The new artifacts no longer match the deployed contract, so Midnight.js refuses to attach to it with a verifier key mismatch. This is expected, and later releases don't change it.
+
+- **To keep calling a contract deployed before the upgrade**, keep its deployed artifacts and the toolchain version that built them.
+- **To move the contract to Compact toolchain 0.36.0**, have its maintenance authority insert the new verifier keys with a maintenance update, then attach with the recompiled artifacts. A contract deployed without a maintenance authority can't be moved. Deploy it again as a new contract.
+
+We recommend moving to the current toolchain, because future fixes ship against the current verifier keys.
+
+If a contract makes cross-contract calls, Compact toolchain 0.36.0 asks you to recompile it to pick up a fix. For a contract deployed before the upgrade without a maintenance authority, that means deploying it again. For the other compiler changes, see the [Compact release notes](./compact).
 
 {/* _mod-docs-content-type: PROCEDURE */}
 ## What wallet and indexer operators need to do
@@ -126,12 +135,12 @@ After the upgrade, the indexer serves post-upgrade state for contracts that no t
 {/* _mod-docs-content-type: PROCEDURE */}
 ## What node operators need to do
 
-Every Mainnet validator and RPC node must run node 2.1.100 before the governance upgrade. Upgrade directly from node 1.0.400. The node 2.1.0 release candidates aren't a supported upgrade step. A node that still runs 1.0.400 stops at the upgrade block.
+Every Mainnet validator and RPC node must run node 2.1.101 before the governance upgrade, and block producers upgrade together. Upgrade directly from node 1.0.400 or 2.1.100. The node 2.1.0 release candidates aren't a supported upgrade step. A node that still runs 1.0.400 stops at the upgrade block.
 
-The upgrade happens through governance, not at a set block height. The Council and the Technical Committee approve a runtime upgrade, and the new runtime takes effect at the block that applies the upgrade. Until then, a node on 2.1.100 keeps running ledger 8.
+The upgrade happens through governance, not at a set block height. The Council and the Technical Committee approve a runtime upgrade, and the new runtime takes effect at the block that applies the upgrade. Until then, a node on 2.1.101 keeps running ledger 8.
 
-1. Snapshot the node data directory. The binary upgrade is one-way: once node 2.1.100 has opened a data directory, node 1.0.400 can't start on it. To go back to 1.0.400, restore the snapshot, or wipe the data directory and resync.
-2. Install node 2.1.100 from the [node release notes](./node), either the `midnightntwrk/midnight-node:2.1.100` container image or the `midnight-node-2.1.100-linux-amd64.tar.gz` or `midnight-node-2.1.100-linux-arm64.tar.gz` binary. The release is published at [node-2.1.100](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.100). TBD-L9[confirm public release URL]
+1. Snapshot the node data directory. The binary upgrade is one-way: once node 2.1.101 has opened a data directory, node 1.0.400 can't start on it. To go back to 1.0.400, restore the snapshot, or wipe the data directory and resync.
+2. Install node 2.1.101 from the [node release notes](./node), either the `midnightntwrk/midnight-node:2.1.101` container image or the `midnight-node-2.1.101-linux-amd64.tar.gz` or `midnight-node-2.1.101-linux-arm64.tar.gz` binary. The release is published at [node-2.1.101](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.101). TBD-L9[confirm public release URL]
 3. Keep the default `separate` storage layout. A node set to `storage_separation=unified` that keeps its 1.0.400 data directory silently stops importing blocks. The process keeps running with no crash and no peers, so liveness checks don't flag it. To move to `unified` later, stop the node, delete the whole data directory (`chains/` and `ledger_storage/`), and resync.
 4. Restart the node with the new image or binary.
 5. After the upgrade, don't restore a snapshot or warp-sync a node until the DUST replay has ended with the `DustReapplyCompleted` event.
@@ -181,8 +190,27 @@ Transactions built in the ledger 8 format don't decode on ledger 9, so rebuild t
      "https://rpc.midnight-mainnet.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID"
    ```
 
-2. Query the `system.lastRuntimeUpgrade` storage item, for example in a Substrate block explorer or Polkadot.js Apps. It shows the new runtime spec version, TBD-L9[runtime specVersion].
+2. Query the `system.lastRuntimeUpgrade` storage item, for example in a Substrate block explorer or Polkadot.js Apps. It shows the new runtime spec version, `2001100`.
 3. In a wallet or DApp on wallet SDK 2, check that `FacadeState.protocol` is `Settled`.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Known issues
+
+### Spending a held shielded coin and writing the change back fails
+
+A contract call that spends a shielded coin the contract already holds and stores the change with `writeCoin` is rejected with `Custom error: 104` (`ran out of gas budget`). This happens on a chain whose commitment tree isn't empty, which includes Mainnet. There's no workaround in this release. A fix is planned in a follow-up release. Track it in the [ledger issue for the `writeCoin` gas error](https://github.com/midnightntwrk/midnight-ledger/issues/839).
+
+### A fee paid with a single DUST spend can be rejected
+
+A contract call whose fee is paid with exactly one DUST spend can be rejected with `OutsideTimeToDismiss`. The same call is accepted with zero, two, or more DUST spends. The size estimate before proving can report that the transaction fits even when the node rejects it. Pay the fee with two or more DUST spends. A fix is planned in a follow-up release. Track it in the [ledger issue for single DUST spend rejections](https://github.com/midnightntwrk/midnight-ledger/issues/838).
+
+### Removing a verifier key in a maintenance update is rejected
+
+On node 2.1.101, a maintenance transaction that removes a verifier key (`VerifierKeyRemove`) is rejected with `BalanceCheckOverspend`, even though the ledger reports it as paid. Maintenance transactions that insert a verifier key or replace the maintenance authority are accepted. There's no workaround in this release. A fix is planned in a follow-up release. Track it in the [node issue for verifier key removal](https://github.com/midnightntwrk/midnight-node/issues/2375).
+
+### Switching to unified storage on an existing data directory stops block import
+
+Keep the default `separate` storage layout for this upgrade. For details, see [What node operators need to do](#what-node-operators-need-to-do). Track it in the [node issue for unified storage](https://github.com/midnightntwrk/midnight-node/issues/2143).
 
 ## Related pages
 
