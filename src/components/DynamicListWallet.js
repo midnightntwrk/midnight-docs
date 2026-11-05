@@ -22,7 +22,7 @@ const releases = [
   {
     version: '2.0.0',
     status: 'LATEST',
-    date: 'TBD-L9[release date]',
+    date: '2026-11-05',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet; wallet SDK 1.x can\'t transact on Mainnet after the upgrade.',
     details: [
       'Runs ledger 8 before the upgrade and ledger 9 from it; balances, coins, and history carry across the switch.',
