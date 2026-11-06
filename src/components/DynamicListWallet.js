@@ -19,31 +19,8 @@ import { useLocation } from '@docusaurus/router';
 // CURRENT releases (shown on Canary/next and future versions)
 const releases = [
   {
-    version: '2.0.0',
-    status: 'LATEST',
-    date: '2026-11-05',
-    summary: 'Major release for the ledger 9 network upgrade on Mainnet; wallet SDK 1.x can\'t transact on Mainnet after the upgrade.',
-    details: [
-      'Runs ledger 8 before the upgrade and ledger 9 from it; balances, coins, and history carry across the switch.',
-      'Detects the switch at `protocolVersion` 2000000 or higher; `FacadeState.protocol` moves from `Crossing` to `Settled`.',
-      'Refuses a transaction for the wrong protocol version with `ProtocolVersionMismatchError`.',
-      'Starts wallets and the facade from seeds (`WalletSeeds.fromMasterSeed`) or from each ledger version\'s keys; no transacting method takes secret keys (breaking).',
-      'Transactions are `WalletTransaction` handles that carry their protocol version; signers are asynchronous (`SignSegment`) (breaking).',
-      '`FacadeState.lifecycle` and `transactionLifecycleService` replace the pending-transactions service (breaking).',
-      'Configures the upgrade with `forks: { v9 }` and per-ledger proving with `provers: { v8?, v9 }`.',
-      'ledger-v8 now comes from `@midnightntwrk/ledger-v8`; every dependency installs from public npm (breaking).',
-      'Shows replayed DUST after the upgrade\'s one-time DUST reset; Mainnet users don\'t need to act.',
-      'Needs indexer 4.4.101. Preview and Preprod stay on 1.2.0 until a later upgrade.',
-    ],
-    artifacts: [
-      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-wallet/releases/tag/%40midnightntwrk%2Fwallet-sdk%402.0.0' },
-      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/wallet-sdk/v/2.0.0' },
-    ],
-    link: '/relnotes/wallet/wallet-sdk-2-0-0',
-  },
-  {
     version: '1.2.0',
-    status: 'SUPPORTED',
+    status: 'LATEST',
     date: '1 July 2026',
     summary: 'DUST registration fee hardening and a helper to wait for DUST accrual; first release under the @midnightntwrk npm scope.',
     details: [

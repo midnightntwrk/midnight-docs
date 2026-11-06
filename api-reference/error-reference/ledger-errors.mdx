@@ -11,14 +11,6 @@ toc_max_heading_level: 3
 
 The `midnight-ledger` crate defines the full taxonomy of transaction validation, execution, and state management errors. These are the Rust-level error types behind the numeric `LedgerApiError` codes that the node surfaces.
 
-:::note Ledger versions
-
-After the [ledger 9 network upgrade](/relnotes/ledger-9), Mainnet runs ledger 9 (9.1.0.1). Preview and Preprod run ledger 8 (8.1.3) until a later upgrade. Most error variants are the same in both versions. Where a variant exists in only one version, its entry says **Ledger 8 only** or **Ledger 9 only**. Entries without a label apply to both.
-
-The ledger 9 entries are checked against the source of the public `ledger-9.1.0.0` release.
-
-:::
-
 ## Error hierarchy
 
 Understanding the chain from top-level to low-level is essential when reading nested error output. A `MalformedTransaction::InvalidProof` near the top of a chain might trace back to a deep `OnchainProgramError::Decode` inside a contract transcript execution.
@@ -63,7 +55,6 @@ These errors indicate violations of canonical form or transaction structure rule
 | `TooManyZswapEntries` | The transaction contains more Zswap entries than the protocol allows. | Split Zswap operations across multiple transactions. |
 | `TransactionTooLarge` | The serialized transaction exceeds the maximum allowed byte size. | Split into smaller transactions or reduce payload size. |
 | `VerifierKeyTooLarge` | A verifier key in the transaction exceeds the size limit. | Check that the correct (non-debug) verifier key is in use. |
-| `ZeroValueUtxo` | **Ledger 9 only.** An unshielded offer contains an output with a value of zero. | Remove zero-value outputs from the unshielded offer. |
 
 #### Claims errors
 
@@ -156,26 +147,21 @@ These errors occur when transaction inputs or outputs violate canonical ordering
 
 ### `TransactionInvalid`
 
-These state-application errors occur when the ledger applies a structurally valid transaction to the current state but rejects it due to state inconsistencies. This enum is `#[non_exhaustive]`. It defines 19 variants in ledger 8 and 23 in ledger 9.
+These state-application errors occur when the ledger applies a structurally valid transaction to the current state but rejects it due to state inconsistencies. This enum is `#[non_exhaustive]` and defines 19 variants.
 
 | Variant | Description | Fix |
 |---------|-------------|-----|
 | `BalanceCheckOutOfBounds` | A balance value is out of valid range during state application. | Verify token amounts are within bounds after accounting for current state. |
 | `ContractAlreadyDeployed` | A contract deployment targets an address that already has a contract. | Deploy to a different address or verify deployment uniqueness. |
-| `ContractAuthorityMetadataTooLarge` | **Ledger 9 only.** The authority metadata of a contract exceeds the size limit. The error reports the contract address, the size, and the limit. | Reduce the size of the contract's authority metadata. |
-| `ContractMetadataTooLarge` | **Ledger 9 only.** The metadata of a contract entry point exceeds the size limit. The error reports the contract address, the entry point, the size, and the limit. | Reduce the size of the metadata for that entry point. |
 | `ContractNotPresent` | A transaction calls a contract that does not exist at the given address. | Verify the contract address and confirm the contract exists at that address. |
 | `DivideByZero` | A division by zero occurred during transaction processing. | Indicates a bug in transaction value computation. |
 | `DustDeregistrationNotRegistered` | The transaction attempts to deregister a DUST key that has no active registration. | Confirm the key has an active registration before deregistering it. |
 | `DustDoubleSpend` | A DUST coin the transaction attempts to spend is already spent. | Check current DUST UTXO state; the coin has already been spent. |
 | `EffectsMismatch` | The actual effects of applying the transaction differ from the declared effects. | Declared effects must exactly match what contract execution produces. |
-| `GenerationInfoAlreadyPresent` | **Ledger 8 only.** Generation info for this epoch/key is already recorded on-chain. Ledger 9 replaces this variant with `InitialNonceAlreadyPresent`. | You can only submit generation info once per epoch. |
-| `InitialNonceAlreadyPresent` | **Ledger 9 only.** The transaction tries to record a DUST initial nonce that already exists on-chain. Replaces `GenerationInfoAlreadyPresent`. | An earlier transaction already recorded this nonce. Fetch fresh state and do not resubmit the same transaction. |
+| `GenerationInfoAlreadyPresent` | Generation info for this epoch/key is already recorded on-chain. | You can only submit generation info once per epoch. |
 | `InputNotInUtxos` | A transaction input references a UTXO that does not exist in the current state. | The UTXO may already be spent; fetch fresh state before building the transaction. |
 | `InsufficientClaimable` | The transaction attempts to claim more than is available in the claimable pool. | Reduce the claim amount or wait for more claimable funds to become available. |
 | `InvariantViolation` | The ledger detected an internal invariant violation. | Report as a bug; this should not occur with a correctly implemented node or SDK. |
-| `IrAlreadyPresent` | **Ledger 9 only.** A contract maintenance update tries to insert the IR of an entry point that already has one. The error reports the entry point. | Remove the existing IR in an earlier update before inserting a new one. |
-| `IrNotFound` | **Ledger 9 only.** A contract maintenance update tries to remove the IR of an entry point that the contract doesn't have. The error reports the entry point. | Check the entry point name against the contract's current operations. |
 | `MerkleTreeError` | A Merkle tree operation failed during state application. | For more details, see the [`merkle_tree::InvalidUpdate`](#merkle_treeinvalidupdate) section. |
 | `ReplayCounterMismatch` | The replay protection counter does not match the expected value. | Fetch the current replay counter from the node and use it in the transaction. |
 | `ReplayProtectionViolation` | The transaction violates replay protection constraints. | Ensure the transaction is not a duplicate or out-of-sequence. |
@@ -305,9 +291,7 @@ Errors specific to contract deployment transactions, checked before state applic
 
 | Variant | Description |
 |---------|-------------|
-| `AuthorityMetadataTooLarge` | **Ledger 9 only.** The contract's authority metadata exceeds the size limit. The error reports the size and the limit. |
 | `IncorrectChargedState` | The contract deployment contains an incorrectly computed map of charged keys. |
-| `MetadataTooLarge` | **Ledger 9 only.** The metadata of a contract entry point exceeds the size limit. The error reports the entry point, the size, and the limit. |
 | `NonZeroBalance` | The contract deployment carries a non-zero token balance. Contract deployments must not include pre-existing balances. |
 
 #### `SystemTransactionError`
@@ -317,10 +301,9 @@ These errors arise in protocol-level system transactions, such as epoch transiti
 | Variant | Description |
 |---------|-------------|
 | `CommitmentAlreadyPresent` | A coin commitment already exists in the tree; this is a double-spend attempt. |
-| `GenerationInfoAlreadyPresent` | **Ledger 8 only.** DUST generation info for this epoch already exists; the ledger rejects the duplicate insertion. Ledger 9 replaces this variant with `InitialNonceAlreadyPresent`. |
+| `GenerationInfoAlreadyPresent` | DUST generation info for this epoch already exists; the ledger rejects the duplicate insertion. |
 | `IllegalPayout` | The payout or bridge amount exceeds the remaining native token supply or bridge pool. |
 | `IllegalReserveDistribution` | The distribution amount exceeds the remaining reserve token supply. |
-| `InitialNonceAlreadyPresent` | **Ledger 9 only.** A DUST initial nonce already exists; the ledger rejects the duplicate insertion. Replaces `GenerationInfoAlreadyPresent`. |
 | `InsufficientTreasuryFunds` | The treasury does not hold enough tokens of the requested type to fulfil the request. |
 | `InvalidBasisPoints` | The `cardano_to_midnight_bridge_fee_basis_points` value is 10,000 or greater, which is outside the valid range. |
 | `InvariantViolation` | The total NIGHT supply implied by the transaction exceeds `MAX_SUPPLY`. |
@@ -356,7 +339,6 @@ The `Proving` variant wraps `ProvingError`, which is an opaque `anyhow::Error` a
 | `Proving` | The underlying proving backend returned an error (wraps `ProvingError`). |
 | `RanOutOfEntries` | The transcript for a contract operation ran out of entries before the proof completed. |
 | `Tokio` | An I/O error occurred during async proof generation (wraps `std::io::Error`). |
-| `UnknownVerifierKeyVersion` | **Ledger 9 only.** The verifier key carries a version tag that the prover does not recognize. |
 
 #### `EventReplayError`
 
@@ -375,7 +357,7 @@ The following errors occur in local DUST state management on the client side.
 
 | Variant | Description |
 |---------|-------------|
-| `BackingNightNotFound` | **Ledger 8 only.** No generation info exists for the given backing NIGHT nonce. Ledger 9 removes this variant. |
+| `BackingNightNotFound` | No generation info exists for the given backing NIGHT nonce. |
 | `CommitmentIndexNotFound` | No commitment exists for the given commitment index. |
 | `GenerationIndexNotFound` | No generation info exists for the given generation index. |
 | `MerkleTreeError` | A Merkle tree operation failed during local state management. For more details, see the [`merkle_tree::InvalidUpdate`](#merkle_treeinvalidupdate) section. |
