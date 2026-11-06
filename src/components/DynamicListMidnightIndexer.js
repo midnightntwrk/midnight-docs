@@ -16,12 +16,11 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 
 const releases = [
-  // SHIP ONLY IF FINAL AT FORK
   {
     version: '4.4.101',
     status: 'LATEST',
     note: 'Mainnet only, for the ledger 9 network upgrade. Preview and Preprod stay on the 4.3.x line.',
-    date: 'TBD-L9[release date]',
+    date: '6 November 2026',
     summary: 'Indexer line for the ledger 9 network upgrade on Mainnet. Requires a full re-index from genesis.',
     details: [
       'Indexes the chain across the switch from ledger 8 to ledger 9 and follows the chain across the upgrade',

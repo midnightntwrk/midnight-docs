@@ -19,14 +19,14 @@ const releases = [
   {
     version: '9.1.0.1',
     status: 'LATEST',
-    date: 'TBD-L9[release date]',
+    date: '6 November 2026',
     summary: 'First ledger 9 release: Mainnet runs it after the ledger 9 network upgrade, with proof server 9.0.0. Builder packages carry ledger 9.1.0.0',
     details: [
-      'Mainnet moves to ledger 9 at the ledger 9 network upgrade. Preview and Preprod stay on ledger 8.1.3 until a later upgrade.',
+      'Mainnet moved to ledger 9 at the ledger 9 network upgrade on 6 November 2026. Preview and Preprod stay on ledger 8.1.3 until a later upgrade.',
       'Ledger 8 transactions do not decode on ledger 9. DApps need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.101. Indexer operators must re-index from genesis.',
       'Every Mainnet validator and RPC node must upgrade from node 1.0.400 (or from 2.1.100) directly to node 2.1.101 before the governance upgrade. A node on 1.0.400 stops at the upgrade block.',
       'Adds contract-to-contract calls and event emission (first phase, unshielded data only), ECDSA signature support with public-key recovery, native Keccak hashing, native secp256k1, and ZKIR 3.2.0. Compile with Compact toolchain 0.36.0 (language version 0.28.0, Compact runtime 0.21.0).',
-      'The tested upgrade rehearsal checks that a smart contract deployed before the upgrade can still be called. In an earlier devnet test, artifacts from toolchain 0.31.1 kept working with the ZK config provider set to `verify: \'warn\'`, and Midnight.js 5.0.0 refuses artifacts from other toolchains, such as 0.30.0, with `EraMismatchError`. TBD-L9[confirm after fork-survival test]',
+      'The tested upgrade rehearsal checks that a smart contract deployed before the upgrade can still be called. In an earlier devnet test, artifacts from toolchain 0.31.1 kept working with the ZK config provider set to `verify: \'warn\'`, and Midnight.js 5.0.0 refuses artifacts from other toolchains, such as 0.30.0, with `EraMismatchError`.',
       'DUST state resets once at the upgrade and NIGHT balances do not change. On Mainnet, every registration is replayed automatically to its full cap, so Mainnet users do not need to do anything. Transactions submitted during the replay (about 48 blocks) wait in the transaction pool and are included once it ends.',
       'A fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly. Update fee estimation before the upgrade.',
       'Contract action subscriptions opened without an offset now deliver only new actions. Pass an explicit offset, such as height `0`, to replay history. Midnight.js 5.0.0 does this.',
@@ -48,7 +48,7 @@ const releases = [
     date: '2 October 2026',
     summary: 'Security patch for critical advisory GHSA-wr7g-rr4v-jmj8: stricter validity rules for contract call transcripts',
     details: [
-      'Preview and Preprod run ledger 8.1.3 until their ledger 9 upgrade. Mainnet runs ledger 9.1.0.1 after the ledger 9 network upgrade. TBD-L9[8.1.3 status: SUPPORTED or UNSUPPORTED]',
+      'Preview and Preprod run ledger 8.1.3 until their ledger 9 upgrade. Mainnet runs ledger 9.1.0.1 after the ledger 9 network upgrade.',
       'Before this release, an attacker could get past the one-time checks of a smart contract, for example to claim the same payout more than once.',
       'Contract call transcripts must use canonical field values in `push`, `pushs`, and `idx`-style path keys. A Merkle tree in `push` or `pushs` must be empty, and transcripts cannot contain `noop` with a count of 0.',
       'A node on 8.1.3 rejects some contract calls that a node on 8.1.2 accepts, so every block producer should run 8.1.3. Node 1.0.400 includes it.',
