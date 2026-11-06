@@ -33,7 +33,7 @@ Fresh coins and committed coins are spent differently:
 
 A freshly minted coin has no Merkle tree position yet, so it cannot be spent with `sendShielded`. Once the ledger commits it on-chain, it gains an `mt_index` and becomes a `QualifiedShieldedCoinInfo`, which is what `sendShielded` requires. This tutorial mints and spends a coin in the *same* transaction, which keeps you on the fresh-coin path and avoids tracking Merkle positions across transactions. [Go further](#go-further-with-committed-transfers-and-burns) covers the committed path.
 
-One more constraint shapes what a contract-mediated shielded transfer can do today. The `sendShielded` primitive does not currently create coin ciphertexts, so sending shielded value to a user other than the current caller will not notify that user of the coin. In practice that means a contract can reliably deliver shielded value to the **caller** (the person signing the transaction). That is the transfer this tutorial demonstrates.
+One more constraint shapes what a contract-mediated shielded transfer can do today. The `sendShielded` primitive does not create coin ciphertexts. Midnight.js adds the ciphertext that tells a recipient about the coin, and by default it can only do that for the current caller. Paying another user needs that user's encryption public key, passed in the call's `additionalCoinEncPublicKeyMappings` option. In practice that means a contract can reliably deliver shielded value to the **caller** (the person signing the transaction). That is the transfer this tutorial demonstrates.
 
 ## Set up
 
@@ -497,9 +497,9 @@ You should see the contract address, `initialized` flipping to true after the mi
 
 ## Go further with committed transfers and burns
 
-The flow above mints and spends a coin in one transaction, which keeps you on the fresh-coin path. Two common operations need the committed path or a special recipient. Their primitives are part of the same standard library; the signatures below are exact, but wiring them end-to-end on a live node involves managing Merkle positions across transactions, so treat them as the next thing to build rather than copy-paste-ready.
+The flow above mints and spends a coin in one transaction, which keeps you on the fresh-coin path. Two common operations need the committed path or a special recipient. Their primitives are part of the same standard library, and the signatures below are exact. To spend a coin in a later transaction, the contract needs the coin's Merkle tree position, so treat the snippets as the next thing to build and test rather than copy-paste-ready.
 
-1. **Transferring a coin the contract already holds.** Once the ledger commits a minted coin on-chain, it becomes a `QualifiedShieldedCoinInfo` (it gains a Merkle tree index, `mt_index`), and you spend it with `sendShielded`:
+1. **Transferring a coin the contract already holds.** A coin the ledger has committed is spent as a `QualifiedShieldedCoinInfo`, which adds the coin's Merkle tree index (`mt_index`). You spend it with `sendShielded`:
 
 ```compact
 circuit sendShielded(
@@ -509,9 +509,35 @@ circuit sendShielded(
 ): ShieldedSendResult;
 ```
 
-`sendShielded` returns a `ShieldedSendResult { change: Maybe<ShieldedCoinInfo>; sent: ShieldedCoinInfo; }`. If you send less than the coin's value, `change` holds a new coin for the remainder. This is the consume-and-recreate pattern, and your application must persist that change coin, wait for it to commit, and spend it later as its own `QualifiedShieldedCoinInfo`.
+`sendShielded` returns a `ShieldedSendResult { change: Maybe<ShieldedCoinInfo>; sent: ShieldedCoinInfo; }`. If you send less than the coin's value, `change` holds a new coin for the remainder. This is the consume-and-recreate pattern: the contract has to keep that change coin so it can spend it later as its own `QualifiedShieldedCoinInfo`.
 
-The hard part on a live network is obtaining the `mt_index` for the committed coin and supplying it to the circuit, typically from the indexer; that is the piece to work out and test carefully. Remember too that delivering shielded value to a user other than the caller will not notify them today.
+The hard part is the `mt_index`. How you get it depends on which transaction created the coin:
+
+**Store the coin in the circuit that creates it.** Use `writeCoin` on a `QualifiedShieldedCoinInfo` ledger field, or `insertCoin` on a `Map` or `Set` of them, in that same circuit. The runtime fills in the `mt_index` the ledger assigns to the coin's output, so you don't need the indexer. This works for a coin the contract mints to itself, a coin it receives with `receiveShielded`, and the change from a partial send. For example, to mint into a treasury that the contract spends later:
+
+```compact
+export ledger treasury: QualifiedShieldedCoinInfo;
+
+export circuit mint_to_treasury(amount: Uint<64>, nonceIndex: Uint<128>): [] {
+  assert(minter == deriveMinterKey(minterSecretKey()), "not authorized to mint");
+  const nonce = disclose(evolveNonce(disclose(nonceIndex), localNonceSeed()));
+  const coin = mintShieldedToken(
+    pad(32, "tutorial:shielded:token"),
+    disclose(amount),
+    nonce,
+    right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  );
+  treasury.writeCoin(coin, right<ZswapCoinPublicKey, ContractAddress>(kernel.self()));
+}
+```
+
+`mint_to_treasury` and `mint_and_send` derive nonces from the same seed, so they share one `nonceIndex` sequence: never pass an index that either circuit has already used.
+
+A single `QualifiedShieldedCoinInfo` field holds one coin. Writing a second coin to it replaces the first, and the contract can no longer spend the coin it replaced. Spend the stored coin before you write another, or keep several coins in a `Map` or `Set` with `insertCoin`. The same applies to the change from a partial send: when `result.change.is_some` is true, store `result.change.value` with `writeCoin` or `insertCoin` in a slot that is free. For the receive side, see [Hold a shielded coin to spend later](/tokens/overview#hold-a-shielded-coin-to-spend-later).
+
+**Look up the index for a coin from an earlier transaction.** `writeCoin` and `insertCoin` fail for a coin whose output isn't in the current transaction. You have to find the committed coin's `mt_index` yourself, typically from the indexer, and supply it to the circuit. That is the piece to work out and test carefully.
+
+Remember too that Midnight.js only encrypts a coin for the calling wallet (or the burn address), unless the DApp passes the recipient's key in `additionalCoinEncPublicKeyMappings`. Without that key, sending to another user fails with `Unable to resolve encryption public key for recipient …`. See [Hold a shielded coin to spend later](/tokens/overview#hold-a-shielded-coin-to-spend-later).
 
 2. **Burning shielded value.** Burning is a send to a special recipient that destroys the value, returned by `shieldedBurnAddress()`:
 

@@ -2,7 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Tokens on Midnight
-description: "Understand NIGHT, DUST, shielded and unshielded tokens, custom tokens, and fees on the Midnight Network."
+description: "Understand NIGHT, DUST, shielded and unshielded tokens, custom tokens, fees, and how a contract receives and holds tokens on Midnight."
 sidebar_label: Overview
 sidebar_position: 1
 tags: [tokens, night, dust, shielded, unshielded, fees, custom-tokens]
@@ -32,9 +32,127 @@ A token's privacy comes from its token type, not from the address that holds it.
 
 ## Custom tokens
 
-You can create your own fungible and non-fungible tokens in Compact. The standard library provides `mintShieldedToken` (and its unshielded counterpart) to mint new tokens, and `sendShielded` / `receiveShielded` to transfer them. Token standards on Midnight will come through the MIP (Midnight Improvement Proposal) process. In the meantime, the [OpenZeppelin contracts for Compact](/sdks/community/openzeppelin-compact-contracts) library provides reusable access control and security primitives modeled on the Solidity originals.
+You can create your own fungible and non-fungible tokens in Compact. The standard library provides `mintShieldedToken` and `mintUnshieldedToken` to mint new tokens, `sendShielded` and `sendUnshielded` to pay tokens out of a contract, and `receiveShielded` and `receiveUnshielded` to take payment into one (see [Receive tokens in a contract](#receive-tokens-in-a-contract)). Token standards on Midnight will come through the MIP (Midnight Improvement Proposal) process. In the meantime, the [OpenZeppelin contracts for Compact](/sdks/community/openzeppelin-compact-contracts) library provides reusable access control and security primitives modeled on the Solidity originals.
 
 To build and move your own tokens end to end, follow the two-part tutorial: [Create and transfer an unshielded token](/tokens/unshielded-token) and [Create and transfer a shielded token](/tokens/shielded-token).
+
+## Receive tokens in a contract
+
+A contract takes a payment by calling a receive function in a circuit. The receive function doesn't move any funds itself. It adds a condition that the transaction must pay the contract, and the caller's wallet meets that condition when it balances the transaction. The DApp never selects the caller's coins. For an unshielded payment it passes no token data at all. For a shielded payment it passes a description of the new coin, as shown below.
+
+### Unshielded tokens
+
+`receiveUnshielded(color, amount)` makes the transaction pay `amount` of the unshielded token `color` into the contract. For NIGHT, the color is `nativeToken()` and the amount is in STAR:
+
+```compact
+export circuit payEntryFee(amount: Uint<128>): [] {
+  receiveUnshielded(nativeToken(), disclose(amount));
+}
+```
+
+The DApp calls the circuit like any other, with only the arguments the circuit declares. Nothing in the call mentions NIGHT: the caller's wallet adds the inputs that cover the amount when it balances the transaction.
+
+The wallet must also sign the unshielded inputs it adds. A `balanceTx` that goes straight from `balanceUnboundTransaction` to `finalizeRecipe` leaves them unsigned, and the node rejects the transaction with `1010: Invalid Transaction: Custom error: 192` (`InputsSignaturesLengthMismatch`). Sign the recipe with `signRecipe` before you finalize it, as the Private Party tutorial's [`wallet.ts`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/private-party/src/wallet.ts) does:
+
+```typescript
+const recipe = await this.wallet.balanceUnboundTransaction(
+  tx,
+  { shieldedSecretKeys: this.zswapSecretKeys, dustSecretKey: this.dustSecretKey },
+  { ttl },
+);
+const signed = await this.wallet.signRecipe(
+  recipe,
+  (payload) => this.unshieldedKeystore.signData(payload),
+);
+return await this.wallet.finalizeRecipe(signed);
+```
+
+The payment and the contract's balance are public. To pay out, check the balance with `unshieldedBalanceGte` and send with `sendUnshielded`.
+
+The [Private Party tutorial](/tutorials/private-party/smart-contract#check-in-crossing-the-boundary) takes an entry fee in NIGHT this way and pays the organizer with `sendUnshielded`.
+
+:::caution[Receiving NIGHT fails on Mainnet today]
+
+With a wallet that signs its unshielded inputs, `payEntryFee` works on Preview, Preprod, and a local network, but it fails on Mainnet. Most Mainnet NIGHT is still held on Cardano as cNIGHT, so the caller's wallet has no NIGHT on Midnight to pay into the contract, and a contract holds none to pay out with `sendUnshielded`. For details, see the caution in the [token transfers example](/examples/contracts/token-transfers).
+
+:::
+
+### Shielded tokens
+
+A circuit receives a shielded coin as a `ShieldedCoinInfo` argument and calls `receiveShielded` on it. That argument is not one of the caller's wallet coins. It describes a new coin that the transaction creates for the contract:
+
+1. The DApp builds the coin from the token's color, the amount, and a fresh random nonce, and passes it as a circuit argument.
+2. `receiveShielded(coin)` requires the transaction to contain a Zswap output that creates that coin for the contract. Midnight.js adds that output to the transaction.
+3. The caller's wallet pays for the output when it balances the transaction, spending whichever coins of that color it selects and taking the change back under new nonces. The caller doesn't need a coin of the exact amount.
+
+On the DApp side, build the coin with the ledger's `createShieldedCoinInfo` and pass it to the circuit:
+
+```typescript
+import { submitCallTx } from '@midnight-ntwrk/midnight-js-contracts';
+import { encodeShieldedCoinInfo } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { createShieldedCoinInfo } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+
+// providers, compiledContract, and contractAddress come from your DApp's
+// setup. tokenColorHex is the token's color as a hex string.
+// createShieldedCoinInfo picks a fresh random nonce.
+const coin = encodeShieldedCoinInfo(createShieldedCoinInfo(tokenColorHex, 40n));
+
+// If the contract has private state, also pass privateStateId.
+await submitCallTx(providers, {
+  compiledContract,
+  contractAddress,
+  circuitId: 'deposit',
+  args: [coin],
+});
+```
+
+Never build the argument from one of the wallet's coins. Its nonce is also in that wallet coin's commitment, so publishing it links the payment to the wallet coin, and whoever minted or sent that coin already knows the nonce.
+
+#### Hold a shielded coin to spend later
+
+A shielded coin has no public balance, so a contract that wants to spend a coin later has to record it. `sendShielded` takes a `QualifiedShieldedCoinInfo`, which adds the coin's Merkle tree index (`mt_index`) to the `ShieldedCoinInfo`. Store the coin in a ledger field of that type, in the same circuit that creates it:
+
+- `insertCoin(key, coin, recipient)` on a `Map<K, QualifiedShieldedCoinInfo>`, or `insertCoin(coin, recipient)` on a `Set<QualifiedShieldedCoinInfo>`.
+- `writeCoin(coin, recipient)` on a single `QualifiedShieldedCoinInfo` field.
+
+The recipient is the contract itself, `right<ZswapCoinPublicKey, ContractAddress>(kernel.self())`. At runtime, these operations look up the `mt_index` the ledger assigns to the coin's output, so they only work for a coin created in the current transaction: a coin received with `receiveShielded`, a coin the contract mints to itself, or the change from a partial `sendShielded`. For any other coin, the call throws `Coin commitment not found. Check the coin has been received (or call 'createZswapOutput')`. You don't need the indexer to find the index.
+
+```compact
+export ledger tokenColor: Bytes<32>;
+export ledger vault: Map<Bytes<32>, QualifiedShieldedCoinInfo>;
+
+constructor(color: Bytes<32>) {
+  tokenColor = disclose(color);
+}
+
+export circuit deposit(coin: ShieldedCoinInfo): [] {
+  assert(coin.color == tokenColor, "Wrong token");
+  assert(coin.value > 0, "Deposit must be worth something");
+  // Keys are public and the caller picks the nonce. Without this check, a
+  // second coin with the same nonce would overwrite the first one's entry.
+  assert(!vault.member(disclose(coin.nonce)), "Nonce already used");
+
+  receiveShielded(disclose(coin));
+  vault.insertCoin(
+    disclose(coin.nonce),
+    disclose(coin),
+    right<ZswapCoinPublicKey, ContractAddress>(kernel.self())
+  );
+}
+
+// Unsafe as written: anyone can withdraw any coin. Add an owner check.
+export circuit withdraw(key: Bytes<32>): [] {
+  const k = disclose(key);
+  assert(vault.member(k), "No such coin");
+  const coin = vault.lookup(k);
+  sendShielded(coin, left<ZswapCoinPublicKey, ContractAddress>(ownPublicKey()), coin.value);
+  vault.remove(k);
+}
+```
+
+This `withdraw` has no access control, so any caller can name a vault key and take that coin. Before you use the pattern, restrict who can withdraw, for example by having the caller prove knowledge of a secret whose hash the contract stores, as the Private Tip Jar's owner check does. Never authorize with `ownPublicKey()`: the caller supplies it, and nothing proves it.
+
+The `sendShielded` circuit doesn't create the coin ciphertext that tells a recipient about the coin. Midnight.js adds it when it builds the transaction, and only for a recipient whose encryption public key it knows. By default, that is the calling wallet, plus the shielded burn address, which is why burns need no extra setup. To pay anyone else, the DApp passes their key in the `additionalCoinEncPublicKeyMappings` option of the call. Without it, Midnight.js throws `Unable to resolve encryption public key for recipient …`. In practice, a contract pays shielded value to the caller, `ownPublicKey()`. The [Private Tip Jar tutorial](/tutorials/private-tip-jar/smart-contract#tipping) builds this pattern in full, with an owner check on withdrawal and tests that run on a local network.
 
 ## Fees
 
@@ -49,4 +167,6 @@ Every transaction on Midnight requires DUST. On a fresh wallet, DUST generation 
 - [DUST architecture](/concepts/dust-architecture): generation, decay, registration, and protocol parameters
 - [Ledgers](/concepts/ledgers): the UTXO-based ledger and how it represents tokens
 - [Token transfers example](/examples/contracts/token-transfers): shielded and unshielded transfer code in Compact
+- [Private Party tutorial](/tutorials/private-party): a contract that takes NIGHT entry fees with `receiveUnshielded` and pays them out with `sendUnshielded`
+- [Private Tip Jar tutorial](/tutorials/private-tip-jar): a contract that receives shielded tips, stores them with `insertCoin`, and spends them later with `sendShielded`
 - [Compact standard library](/compact/standard-library/): token management functions
