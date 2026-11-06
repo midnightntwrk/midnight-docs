@@ -1,0 +1,233 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Ledger 9 upgrade
+sidebar_label: "Ledger 9 upgrade"
+description: What the ledger 9 network upgrade changes on Midnight Mainnet, and what DApp developers, wallet and indexer operators, and node operators need to do.
+keywords: [ledger 9, network upgrade, mainnet, hard fork, wallet sdk 2, midnight.js 5, indexer, dust, node]
+displayed_sidebar: sidebar
+sidebar_position: 12
+toc_max_heading_level: 2
+---
+
+# Ledger 9 upgrade
+
+On 6 November 2026, Midnight Mainnet moved from ledger 8 to ledger 9 in the ledger 9 network upgrade. On the same day, Preview was reset as a new chain that runs ledger 9. Preprod stays on ledger 8 until a later upgrade.
+
+This page explains what changes on Mainnet and what you need to do, whether you build DApps, run a wallet or an indexer, or run a node. For the exact component versions, see the [compatibility matrix](./support-matrix).
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Ledger version on each network
+
+| Network | Ledger | Node | What to use |
+| --- | --- | --- | --- |
+| Mainnet | 9.1.0.1 | 2.1.101 | Wallet SDK 2.0.0, Midnight.js 5.0.0, Compact toolchain 0.36.0 (`language_version` 0.28.0), Compact runtime 0.21.0, proof server 9.0.0, and indexer 4.4.101. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
+| Preview | 9.1.0.1 | 2.1.101 | Reset as a new ledger 9 chain. Same versions as Mainnet. |
+| Preprod | 8.1.3 | 1.0.400 | Wallet SDK 1.2.0, Midnight.js 4.1.1, Compact toolchain 0.31.1 (`language_version` 0.23), Compact runtime 0.16.0, and proof server 8.1.3. |
+
+To test a ledger 9 DApp on a public network before Mainnet, use Preview.
+
+The network IDs and endpoints don't change.
+
+### Preview reset
+
+On 6 November 2026, Preview was reset as a new chain that runs ledger 9. This wasn't a hard fork, so nothing carries over from the old ledger 8 chain. Its contracts, balances, DUST registrations, and transaction history are gone.
+
+Preview keeps the same endpoints and the same network ID, `preview`. To keep using Preview:
+
+1. Request tNIGHT from the Preview faucet again.
+2. Register for DUST generation again.
+3. Recompile your contracts with Compact toolchain 0.36.0 and deploy them again.
+4. Sync your wallet again against the new chain.
+
+The Mainnet upgrade steps on this page, such as the DUST replay, keeping ledger 8 contracts with `verify: 'require-if-present'`, and re-indexing from genesis, don't apply to Preview.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## What changes in ledger 9
+
+Ledger 9 adds these features:
+
+- **Contract-to-contract calls.** A contract can call another contract within a single transaction. This first phase is limited to unshielded data.
+- **Event emission.** Contracts can emit events, and you can observe them through the indexer API. This first phase covers unshielded events only.
+- **New signature and hash support.** ECDSA signature verification in the Compact runtime, native Keccak hashing, and native secp256k1, all available to Compact contracts.
+- **ZKIR version 3.** Version 3 of the zero-knowledge intermediate representation, across the proving stack and the Compact toolchain.
+
+Ledger 9 also changes how the network calculates fees. See [DUST and fees](#dust-and-fees).
+
+The upgrade doesn't turn on the cNIGHT to mNIGHT protocol token bridge on Mainnet. Turning it on is a separate governance action, and its rollout will be announced separately. Don't rely on bridging NIGHT until then.
+
+Block production rewards aren't part of ledger 9.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## What DApp developers need to do
+
+After the upgrade, Mainnet can't decode transactions in the ledger 8 format. A wallet on wallet SDK 1.x can't transact on Mainnet, and a DApp built against the ledger 8 interface must be rebuilt against ledger 9.
+
+### Move to the ledger 9 SDK set
+
+1. Update your DApp to the Mainnet versions in the [compatibility matrix](./support-matrix#mainnet-support-matrix):
+
+   | Component | Mainnet version |
+   | --- | --- |
+   | Wallet SDK | 2.0.0 |
+   | Midnight.js | 5.0.0 |
+   | testkit-js | 5.0.0 |
+   | Compact.js | 3.0.0 |
+   | On-chain runtime | 4.0.0 |
+   | Indexer | 4.4.101 |
+   | Proof server | 9.0.0 |
+   | Compact toolchain | 0.36.0 |
+   | Compact runtime | 0.21.0 |
+   | `language_version` | 0.28.0 |
+
+2. Update your code for the API changes in Midnight.js 5 and wallet SDK 2. For the full lists, see the [Midnight.js 5.0.0](/relnotes/midnight-js/midnight-js-5-0-0) and [wallet SDK 2.0.0](/relnotes/wallet/wallet-sdk-2-0-0) release notes.
+   - Midnight.js 5 and Compact.js 3 publish as ESM only.
+   - Midnight.js 5 needs `providers.config: { networkId, ttlSeconds }`, and `setNetworkId()` is removed.
+   - Transactions and on-chain state carry their ledger era. State reads return serialized records that you decode with your own runtime.
+   - Wallets start from seeds, for example `facade.start(WalletSeeds.fromMasterSeed(masterSeed))`. The methods that build transactions no longer take a `secretKeys` argument.
+   - The Midnight.js and Compact.js types are now aware of the ledger era. Code that assumed a single ledger era must select one explicitly.
+   - The on-chain runtime moves to the v4 line, which carries its major version in the package name. Change your dependency to the v4 package name instead of widening a version range.
+3. Replay contract history explicitly. A contract action subscription opened without an offset now delivers only new actions, not the contract's history. To replay history, pass an explicit offset, such as block height `0`. Midnight.js 5.0.0 does this for you. Midnight.js 4.x receives no history.
+4. Update your fee estimation for the new fee floor before the upgrade. See [DUST and fees](#dust-and-fees).
+5. Handle the new error types. Midnight.js 5 throws `EraMismatchError` with the reason `ledger8-transaction-on-ledger9-network` when you try to submit a ledger 8 transaction to Mainnet. Wallet SDK 2 refuses a transaction built for the wrong protocol version with `ProtocolVersionMismatchError`.
+
+### Check your deployed contracts
+
+The upgrade rehearsal checks that a contract deployed before the upgrade can still be called, and that a contract compiled with Compact toolchain 0.36.0 deploys and can be called.
+
+Contracts deployed before the upgrade keep their verifier keys. Whether you can keep calling them with their existing artifacts depends on the Compact toolchain that built them:
+
+| Built with | After the upgrade |
+| --- | --- |
+| `compactc` 0.31.1 | Keeps working without a recompile. Configure your ZK config provider with `verify: 'require-if-present'`, because 0.31.1 doesn't emit a `contract-manifest.json` file. |
+| `compactc` 0.30.0 | Refused by Midnight.js 5 with `EraMismatchError` (reason `unknown-artifact-runtime-version`). Move the contract to Compact toolchain 0.36.0 through its maintenance authority, or redeploy it. See [Recompiling a contract changes its verifier keys](#recompiling-a-contract-changes-its-verifier-keys). |
+
+Contracts built with 0.31.1 have these limits after the upgrade:
+
+- The network refuses a call that spends a shielded coin the contract already holds and writes the change back with `writeCoin`. The node rejects it with `Custom error: 104` (`ran out of gas budget`). This is a known issue with no workaround in this release. See [Known issues](#known-issues).
+- Moving the contract to the current toolchain changes its verifier keys. See [Recompiling a contract changes its verifier keys](#recompiling-a-contract-changes-its-verifier-keys).
+- You can't deploy a new contract from ledger 8 artifacts. Compile new contracts with Compact toolchain 0.36.0.
+
+### Recompiling a contract changes its verifier keys
+
+Compact toolchain 0.36.0 generates only ZKIR version 3. If you recompile a contract that an earlier toolchain built, its circuits get different verifier keys, even when the source hasn't changed. The new artifacts no longer match the deployed contract, so Midnight.js refuses to attach to it with a verifier key mismatch. This is expected, and later releases don't change it.
+
+- **To keep calling a contract deployed before the upgrade**, keep its deployed artifacts and the toolchain version that built them.
+- **To move the contract to Compact toolchain 0.36.0**, have its maintenance authority insert the new verifier keys with a maintenance update, then attach with the recompiled artifacts. A contract deployed without a maintenance authority can't be moved. Deploy it again as a new contract.
+
+We recommend moving to the current toolchain, because future fixes ship against the current verifier keys.
+
+If a contract makes cross-contract calls, Compact toolchain 0.36.0 asks you to recompile it to pick up a fix. For a contract deployed before the upgrade without a maintenance authority, that means deploying it again. For the other compiler changes, see the [Compact release notes](./compact).
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## What wallet and indexer operators need to do
+
+### Re-index the indexer
+
+Ledger 9 needs indexer 4.4.101 and a full re-index from genesis. Indexer 4.4.101 stores contract state in a new layout, and data indexed by earlier versions can't be converted, so moving from indexer 4.3.x isn't an in-place upgrade. Once re-indexed, the indexer follows the chain across the upgrade by itself.
+
+1. Deploy the ledger 9 indexer release.
+2. Wipe the indexer database and the ledger database together.
+3. Finish the re-index from genesis before the upgrade. Syncing against a local archive node is much faster than syncing against a public RPC endpoint.
+
+An indexer older than 4.4.101 reports DUST capacity incorrectly after the upgrade. An indexer database that is already past the upgrade also needs a re-index.
+
+After the upgrade, the indexer serves post-upgrade state for contracts that no transaction has touched since the upgrade. Contract action subscriptions opened without an offset deliver only new actions. Clients that need a contract's history must pass an explicit offset, such as block height `0`.
+
+### Detect the upgrade in your wallet or DApp
+
+1. Use wallet SDK 2.0.0. A wallet on wallet SDK 1.x can't transact after the upgrade. Wallet SDK 2.0.0 runs ledger 8 rules before the upgrade and ledger 9 rules after it, and keeps balances, coins, and history across the switch.
+2. Treat `protocolVersion >= 2000000` as the signal that the network has crossed to ledger 9. In wallet SDK 2, `FacadeState.protocol` moves from `Crossing` to `Settled`.
+3. Drop any cached DUST tree indices when you see the crossing. The indexer doesn't send a dedicated reset event.
+4. Rebuild and resubmit any transaction that was built in the ledger 8 format and not yet included at the crossing. Ledger 9 can't decode it, and wallet SDK 2 marks it `Orphaned`. Transactions built for ledger 9 and submitted during the DUST replay aren't affected. They wait in the transaction pool until the replay ends. See [What to expect during the switch](#what-to-expect-during-the-switch).
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## What node operators need to do
+
+Every Mainnet validator and RPC node must run node 2.1.101 before the governance upgrade, and block producers upgrade together. Upgrade directly from node 1.0.400 or 2.1.100. The node 2.1.0 release candidates aren't a supported upgrade step. A node that still runs 1.0.400 stops at the upgrade block.
+
+The upgrade happens through governance, not at a set block height. The Council and the Technical Committee approve a runtime upgrade, and the new runtime takes effect at the block that applies the upgrade. Until then, a node on 2.1.101 keeps running ledger 8.
+
+1. Snapshot the node data directory. The binary upgrade is one-way: once node 2.1.101 has opened a data directory, node 1.0.400 can't start on it. To go back to 1.0.400, restore the snapshot, or wipe the data directory and resync.
+2. Install node 2.1.101 from the [node release notes](./node), either the `midnightntwrk/midnight-node:2.1.101` container image or the `midnight-node-2.1.101-linux-amd64.tar.gz` or `midnight-node-2.1.101-linux-arm64.tar.gz` binary. The public GitHub release and images follow in the next few days.
+3. Keep the default `separate` storage layout. A node set to `storage_separation=unified` that keeps its 1.0.400 data directory silently stops importing blocks. The process keeps running with no crash and no peers, so liveness checks don't flag it. To move to `unified` later, stop the node, delete the whole data directory (`chains/` and `ledger_storage/`), and resync.
+4. Restart the node with the new image or binary.
+5. After the upgrade, don't restore a snapshot or warp-sync a node until the DUST replay has ended with the `DustReapplyCompleted` event.
+
+If you run an indexer against your node, also follow [Re-index the indexer](#re-index-the-indexer).
+
+{/* _mod-docs-content-type: CONCEPT */}
+## DUST and fees
+
+At the upgrade, the network resets DUST once. This is a one-time measure. It clears the DUST state, and NIGHT balances aren't affected.
+
+On Mainnet, you don't need to do anything. Every Mainnet DUST registration is backed by cNIGHT, and after the upgrade the network replays every live registration automatically, straight to its full DUST cap, at the same DUST address. A wallet shows the refilled balance only when it runs wallet SDK 2.0.0 against an indexer on 4.4.101.
+
+NIGHT that arrives on Midnight after the upgrade needs a first-time registration for DUST generation, with `registerNightUtxosForDustGeneration`. See [Manage DUST](../guides/manage-dust).
+
+On Preview, the reset started a new chain, so register for DUST generation again. See [Preview reset](#preview-reset).
+
+When Preprod upgrades later, the upgrade clears DUST registrations that aren't backed by cNIGHT, and Preprod wallets and the faucet register their DUST address again. Registering again loses nothing: DUST generation is credited from when the NIGHT was created, up to the cap. Expect a gap in faucet service on Preprod during its upgrade window.
+
+The DUST parameters stay the same: 5 DUST per NIGHT at the cap, and about 7 days to reach the cap.
+
+Ledger 9 also changes fees:
+
+- A new fee floor, the ledger parameter `min_block_price`, is set to 10. It takes effect from the first block after the upgrade, so fees rise slightly.
+- A new cost heuristic and changed parallelism multipliers change the fee for each transaction.
+
+Update your fee estimation to respect the floor before the upgrade. Don't hard-code fee amounts from ledger 8. Let the wallet SDK estimate fees against the current ledger parameters.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## What to expect during the switch
+
+1. At the upgrade block, the runtime upgrade takes effect, and the next block translates the ledger state from ledger 8 to ledger 9.
+2. The network replays the cNIGHT-backed DUST registrations. On a recent Mainnet snapshot, the replay takes about 48 blocks, under five minutes.
+3. The replay ends with a `DustReapplyCompleted` event.
+
+Transactions submitted during the replay aren't rejected or cancelled. They wait in the transaction pool and are included once the replay ends. Expect them to take a few minutes longer than usual, and consider telling users that the network is upgrading and their transaction will go through shortly.
+
+Transactions built in the ledger 8 format don't decode on ledger 9, so rebuild them with the ledger 9 SDK set.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Confirm the upgrade
+
+1. Call `midnight_ledgerVersion` on a Mainnet node. It reports a value that names `crate-ledger-9.1.0.1`.
+
+   ```shell
+   curl -s -H "Content-Type: application/json" \
+     -d '{"jsonrpc":"2.0","id":1,"method":"midnight_ledgerVersion","params":[]}' \
+     "https://rpc.midnight-mainnet.blockfrost.io?project_id=$BLOCKFROST_PROJECT_ID"
+   ```
+
+2. Query the `system.lastRuntimeUpgrade` storage item, for example in a Substrate block explorer or Polkadot.js Apps. It shows the new runtime spec version, `2001100`.
+3. In a wallet or DApp on wallet SDK 2, check that `FacadeState.protocol` is `Settled`.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Known issues
+
+### Spending a held shielded coin and writing the change back fails
+
+A contract call that spends a shielded coin the contract already holds and stores the change with `writeCoin` is rejected with `Custom error: 104` (`ran out of gas budget`). This happens on a chain whose commitment tree isn't empty, which includes Mainnet. There's no workaround in this release. A fix is planned in a follow-up release. Track it in the [ledger issue for the `writeCoin` gas error](https://github.com/midnightntwrk/midnight-ledger/issues/839).
+
+### A fee paid with a single DUST spend can be rejected
+
+A contract call whose fee is paid with exactly one DUST spend can be rejected with `OutsideTimeToDismiss`. The same call is accepted with zero, two, or more DUST spends. The size estimate before proving can report that the transaction fits even when the node rejects it. Pay the fee with two or more DUST spends. A fix is planned in a follow-up release. Track it in the [ledger issue for single DUST spend rejections](https://github.com/midnightntwrk/midnight-ledger/issues/838).
+
+### Removing a verifier key in a maintenance update is rejected
+
+On node 2.1.101, a maintenance transaction that removes a verifier key (`VerifierKeyRemove`) is rejected with `BalanceCheckOverspend` when the client packages use ledger 9.1.0.0, even though the client reports it as paid. Node 2.1.101 runs ledger 9.1.0.1, which changes the fee for transactions whose fallible part deletes state, so clients on ledger 9.1.0.0 underestimate that fee. Maintenance transactions that insert a verifier key or replace the maintenance authority are accepted.
+
+Most contracts aren't affected. A contract with ZKIR version 2 keys moves to Compact toolchain 0.36.0 by inserting its new keys, and inserts are accepted. Only a contract that makes cross-contract calls and takes the cross-contract call fix in Compact toolchain 0.36.0 needs to remove its old keys. Until your client packages move to ledger 9.1.0.1, redeploy that contract instead. Track it in the [node issue for verifier key removal](https://github.com/midnightntwrk/midnight-node/issues/2375).
+
+### Switching to unified storage on an existing data directory stops block import
+
+Keep the default `separate` storage layout for this upgrade. For details, see [What node operators need to do](#what-node-operators-need-to-do). Track it in the [node issue for unified storage](https://github.com/midnightntwrk/midnight-node/issues/2143).
+
+## Related pages
+
+- [Compatibility matrix](./support-matrix)
+- [Environments and endpoints](./network)
+- [Manage DUST](../guides/manage-dust)
+- [Node release notes](./node)
+- [Ledger release notes](./ledger)

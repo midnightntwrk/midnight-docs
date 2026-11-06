@@ -120,6 +120,19 @@ These errors occur after tokenization, while the compiler builds the AST.
 pragma language_version >= 0.23;
 ```
 
+### Language version mismatch
+
+**Message**: `"language version <version> mismatch"`
+
+**Triggers**: The `pragma language_version` line in your contract doesn't accept the language version that your toolchain implements. For example, toolchain 0.31.1 implements language version 0.23.0, so `pragma language_version 0.27;` fails with `language version 0.23.0 mismatch`. Toolchain 0.36.0 implements language version 0.28.0, so `pragma language_version 0.23;` fails with `language version 0.28.0 mismatch`.
+
+**Fix**: Use the toolchain for your target network, and set the pragma to match its language version:
+
+- Preprod: toolchain 0.31.1, language version 0.23.
+- Mainnet and Preview: toolchain 0.36.0, language version 0.28.
+
+Check the [compatibility matrix](../relnotes/support-matrix) for the current versions. To select a toolchain version for one compile, run `compact compile +<version>`.
+
 ### File I/O errors
 
 The compiler returns the following messages:
@@ -130,6 +143,23 @@ The compiler returns the following messages:
 **Triggers**: The compiler encounters an error opening or reading the specified source file, or the path points to a directory.
 
 **Fix**: Verify the file path is correct, the file exists, and it has a `.compact` extension. Do not pass a directory path where the compiler expects a file.
+
+## Name resolution errors
+
+These errors occur when the compiler can't match a name in your source to a declaration.
+
+### Unbound identifier
+
+**Message**: `"unbound identifier <name>"`
+
+**Triggers**: The contract uses a name that isn't declared in your contract, isn't imported, or doesn't exist in the standard library of your toolchain. A common cause is a standard library function or type that only ledger 9 toolchains include. For example, toolchain 0.31.1 reports `unbound identifier` for `keccak256`.
+
+**Fix**: Check the spelling and check that you import `CompactStandardLibrary`. If the name comes from the standard library, check that your toolchain includes it:
+
+- Preprod runs ledger version 8 and uses toolchain 0.31.1. Restructure the contract to avoid the missing function or type.
+- Mainnet and Preview run ledger version 9. Mainnet moved to it in the [ledger 9 network upgrade](../relnotes/ledger-9). Compile with Compact toolchain 0.36.0. It needs no extra compiler flag.
+
+Check the [compatibility matrix](../relnotes/support-matrix) for the toolchain each network uses.
 
 ## Witness and disclosure errors
 
@@ -153,7 +183,7 @@ The `disclose()` wrapper declares private data as safe to write to the public le
 
 **Message**: `"invalid type <T> for witness <W> return value: witness return values cannot include contract values"`
 
-**Triggers**: A witness function declares a return type that includes a contract-typed value.
+**Triggers**: A witness function declares a return type that includes a contract-typed value, and you compile with toolchain 0.31.x or earlier. These toolchains target ledger version 8, which Preprod runs. Toolchains 0.35.0 and 0.36.0 accept a witness that returns a contract-typed value.
 
 **Fix**: Remove any contract-typed values from the witness return type. Witnesses can return structs, enums, and other regular types, but not contract values. Pass any contract-related information as individual fields instead.
 
@@ -165,9 +195,9 @@ These errors occur when the compiler generates the ZK Intermediate Representatio
 
 **Message**: `"cross-contract calls are not yet supported"`
 
-**Triggers**: The contract makes a cross-contract call while compiling for a ledger version earlier than 9, or with ZKIR v2 output. Cross-contract calls arrived with ledger version 9 and ZKIR v3 (toolchain 0.33.0 and later).
+**Triggers**: The contract makes a cross-contract call, and you compile with toolchain 0.31.x or earlier. These toolchains target ledger version 8, which has no cross-contract calls.
 
-**Fix**: Check which ledger version your target network runs in the [compatibility matrix](../relnotes/support-matrix). If it is earlier than 9, restructure the contract to avoid cross-contract calls. If it is 9 or later, use a toolchain that supports it and compile with `--feature-zkir-v3`; see [Cross-contract calls](../compact/reference/compact-reference#cross-contract-calls) in the language reference and the [Compact release notes](../relnotes/compact).
+**Fix**: Check which ledger version your target network runs in the [compatibility matrix](../relnotes/support-matrix). Preprod runs ledger version 8, so restructure the contract to avoid cross-contract calls if you target Preprod. Mainnet and Preview run ledger version 9. Mainnet moved to it in the [ledger 9 network upgrade](../relnotes/ledger-9). To target Mainnet or Preview, compile with Compact toolchain 0.36.0. It compiles cross-contract calls with no extra flag, and passing `--feature-zkir-v3` to it is an error, so remove that flag from your build scripts. In 0.36.0, a circuit declared in a contract type can't be `pure`, and the arguments of every cross-contract call must be disclosed. For the syntax, see [Cross-contract calls](../compact/reference/compact-reference#cross-contract-calls) in the language reference and the [Compact release notes](../relnotes/compact).
 
 ### ZKIR non-zero exit status
 
@@ -210,6 +240,14 @@ These errors originate from compiled contracts executing in the Midnight runtime
 **Triggers**: You compiled the smart contract with one version of the Compact compiler but run it against a different version of `@midnight-ntwrk/compact-runtime`.
 
 **Fix**: Update `@midnight-ntwrk/compact-runtime` in your project to match the compiler version used to build the contract. Alternatively, recompile the contract with the compiler version that matches your runtime.
+
+### Contract artifacts refused after the ledger 9 upgrade
+
+**Class**: `EraMismatchError`, with the reason `unknown-artifact-runtime-version`
+
+**Triggers**: Midnight.js 5.0.0 accepts contract artifacts built for Compact runtime 0.16 (toolchain 0.31.x) or 0.21 (toolchain 0.36.0) only. It refuses artifacts from any other toolchain, such as 0.30.0 or 0.35.0. Artifacts built with toolchain 0.31.x keep working for contracts deployed before the [ledger 9 network upgrade](../relnotes/ledger-9) when the ZK config provider uses `verify: 'require-if-present'`.
+
+**Fix**: For a new contract, compile it with Compact toolchain 0.36.0. For a contract that is already deployed, recompiling changes its verifier keys, so move it to toolchain 0.36.0 through its maintenance authority or redeploy it. See [Recompiling a contract changes its verifier keys](../relnotes/ledger-9#recompiling-a-contract-changes-its-verifier-keys).
 
 :::info[Version compatibility]
 Always refer to the [compatibility matrix](../relnotes/support-matrix) to verify which versions work together.
