@@ -17,8 +17,26 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.0.1',
+    version: '4.1.0',
     status: 'LATEST',
+    date: '5 November 2026',
+    summary: 'Minor release: new `@midnightntwrk` npm scope, ECDSA signatures in `signData`, the `InsufficientFunds` error code, and type resolution fixes',
+    details: [
+      'Published under the `@midnightntwrk` npm scope. The legacy `@midnight-ntwrk` scope is mirrored as a transitional alias.',
+      'Added an optional `scheme` field (`ecdsa_secp256k1_sha256` or `schnorr_bip340`) to the `signData` `Signature` type. It defaults to `schnorr_bip340`.',
+      'Added `ErrorCodes.InsufficientFunds` for well-formed requests the wallet cannot fund.',
+      'Added the `./globals` export path and typed `globalThis.midnight`.',
+      'Fixed the `types` entry point and `NodeNext` type resolution.',
+    ],
+    artifacts: [
+      { name: 'NPM package', url: 'https://www.npmjs.com/package/@midnightntwrk/dapp-connector-api/v/4.1.0' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-dapp-connector-api/releases/tag/v4.1.0' },
+    ],
+    link: '/relnotes/dapp-connector-api/dapp-connector-api-4-1-0',
+  },
+  {
+    version: '4.0.1',
+    status: 'SUPPORTED',
     date: '17 February 2026',
     summary: 'Patch release adding the `payFees` option to all transacting methods for sponsored-fee flows',
     details: [

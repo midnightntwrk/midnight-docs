@@ -45,8 +45,10 @@
 // happening the run fails until the entry is removed, so the list stays
 // short and true.
 //
-// The pin is the Compact toolchain row of the matrix, using the Mainnet column
-// when the networks differ. Every compile runs
+// The pin is the Compact toolchain row of the matrix, using the Preprod column
+// by default, so the samples follow the toolchain that developers build and
+// test with. Pick another column with --network, or skip the matrix with
+// --toolchain. Every compile runs
 // `compact compile +VERSION --skip-zk`, so that toolchain must already be
 // installed (`compact update VERSION`).
 //
@@ -63,6 +65,9 @@
 //                      of known failures changes, every sample counts as
 //                      changed.
 //   --toolchain <ver>  Compiler version to use instead of the matrix pin.
+//   --network <name>   Matrix column to read the pin from: preprod (the
+//                      default), preview, or mainnet. Also read from env
+//                      SAMPLES_NETWORK.
 //   --list             Print what would be compiled, without compiling.
 //   --json <file>      Write the results as JSON.
 //   --jobs <n>         Parallel compiles (default: up to 4).
@@ -87,6 +92,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCAN_ROOTS = ["docs", "sdks", "blog"];
 const EXCLUDED = ["docs/compact/"];
 const MATRIX = "docs/relnotes/support-matrix.json";
+const NETWORKS = ["preprod", "preview", "mainnet"];
+const DEFAULT_NETWORK = "preprod";
 const KNOWN_FAILURES = "scripts/compile-doc-samples.known-failures.json";
 const CHECKER_FILES = [
   "scripts/compile-doc-samples.mjs",
@@ -116,6 +123,7 @@ function parseArgs(argv) {
     };
     if (arg === "--base") opts.base = value();
     else if (arg === "--toolchain") opts.toolchain = value();
+    else if (arg === "--network") opts.network = value().toLowerCase();
     else if (arg === "--json") opts.json = value();
     else if (arg === "--keep") opts.keep = value();
     else if (arg === "--jobs") opts.jobs = Math.max(1, Number(value()) || 1);
@@ -125,6 +133,13 @@ function parseArgs(argv) {
     else opts.paths.push(arg);
   }
   if (!opts.base && process.env.BASE_SHA) opts.base = process.env.BASE_SHA;
+  opts.network ??=
+    process.env.SAMPLES_NETWORK?.toLowerCase() || DEFAULT_NETWORK;
+  if (!NETWORKS.includes(opts.network)) {
+    throw new SetupError(
+      `--network must be one of ${NETWORKS.join(", ")}, not ${opts.network}`
+    );
+  }
   return opts;
 }
 
@@ -172,8 +187,10 @@ function walk(dir, out) {
 
 // ------------------------------------------------------------- toolchain pin
 
-// The toolchain row of the matrix. Mainnet wins when the networks differ.
-function toolchainFromMatrix(text) {
+// The toolchain row of the matrix, read from the chosen network's column.
+// When that column has no version, the other columns are tried in order, and
+// the column that gave the version is returned with it.
+function toolchainFromMatrix(text, network = DEFAULT_NETWORK) {
   let matrix;
   try {
     matrix = JSON.parse(text);
@@ -183,10 +200,11 @@ function toolchainFromMatrix(text) {
   const row = (matrix.components ?? []).find((c) =>
     /^compact toolchain$/i.test(c.component ?? "")
   );
-  for (const network of ["mainnet", "preprod", "preview"]) {
-    const tag = row?.versions?.[network]?.tag ?? "";
+  const order = [network, ...NETWORKS.filter((n) => n !== network)];
+  for (const column of order) {
+    const tag = row?.versions?.[column]?.tag ?? "";
     const version = /(\d+\.\d+\.\d+(?:-[\w.]+)?)$/.exec(tag)?.[1];
-    if (version) return version;
+    if (version) return { version, column };
   }
   throw new SetupError(`no Compact toolchain version found in ${MATRIX}`);
 }
@@ -433,13 +451,16 @@ function plan(opts) {
   const scans = pages.map((p) =>
     scanPage(p, fs.readFileSync(path.join(ROOT, p), "utf8"))
   );
-  const headPin = toolchainFromMatrix(
-    fs.readFileSync(path.join(ROOT, MATRIX), "utf8")
+  const head = toolchainFromMatrix(
+    fs.readFileSync(path.join(ROOT, MATRIX), "utf8"),
+    opts.network
   );
+  const headPin = head.version;
   const result = {
     scans,
     pages: new Set(pages),
     toolchain: opts.toolchain ?? headPin,
+    pinColumn: head.column,
     mode: "all",
     reason: ""
   };
@@ -461,7 +482,9 @@ function plan(opts) {
       ...git(["ls-files", "--others", "--exclude-standard", "-z"]).split("\0")
     ].filter(Boolean);
     const baseMatrix = gitShow(mergeBase, MATRIX);
-    const basePin = baseMatrix ? toolchainFromMatrix(baseMatrix) : null;
+    const basePin = baseMatrix
+      ? toolchainFromMatrix(baseMatrix, opts.network).version
+      : null;
     const checkerChanged = changed.some((f) => CHECKER_FILES.includes(f));
     result.base = mergeBase;
     if (checkerChanged || basePin !== headPin) {
@@ -658,7 +681,9 @@ function headerLines(p, opts) {
   const { c } = overview(p);
   const source = opts.toolchain
     ? "set with --toolchain"
-    : `pinned in ${MATRIX}`;
+    : p.pinColumn === opts.network
+      ? `pinned in ${MATRIX}, ${opts.network} column`
+      : `pinned in ${MATRIX}, ${p.pinColumn} column, because the ${opts.network} column has no version`;
   return [
     `Compact toolchain ${p.toolchain} (${source})`,
     `Scope: ${p.reason || "every sample"}.`,

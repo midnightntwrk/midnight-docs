@@ -17,8 +17,31 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '4.1.1',
+    version: '5.0.0',
     status: 'LATEST',
+    date: '2026-11-06',
+    summary: 'Major release for the ledger 9 network upgrade on Mainnet. Works across both ledger eras, with breaking provider and contract state changes.',
+    details: [
+      'Deploys, finds, calls, and maintains contracts of both ledger eras; pre-upgrade contracts keep their ledger 8 artifacts',
+      'Packages are ESM only and need Node.js 22.12 or later (breaking)',
+      'Requires `providers.config` with `networkId` and `ttlSeconds`; `setNetworkId()` is removed (breaking)',
+      'Transactions and on-chain state are era-tagged handles and serialized records (breaking)',
+      'ZK artifacts are checked against their contract manifest by default (breaking)',
+      'Adds contract-to-contract calls, contract events, predefined network endpoints, and DApp Connector providers',
+      'Every error has a stable `code` and `category`',
+      'Needs indexer 4.4.101, proof server 9.0.0, Compact.js 3.0.0, and wallet SDK 2.0.0',
+      'Accepts artifacts for Compact runtime 0.16 (toolchain 0.31.x) and 0.21 (toolchain 0.36.0) only',
+      'Mainnet and Preview need 5.0.0; Preprod stays on 4.1.1 until a later upgrade',
+    ],
+    artifacts: [
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.0' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/midnight-js/v/5.0.0' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-5-0-0',
+  },
+  {
+    version: '4.1.1',
+    status: 'SUPPORTED',
     date: '2 June 2026',
     summary: 'Breaking error handling changes, security hardening, qanet support',
     details: [

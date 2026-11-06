@@ -25,7 +25,13 @@ If your error came from a wallet or SDK call, such as `SubmissionError: Transact
 
 Below is a list of the Midnight node specific errors categorized by type and status code. The error tables group errors by code range to help you identify the error types.
 
-The tables list the codes that node version 1.0.x returns. Code numbers can change between node releases. To find the node version that your network runs, see the [compatibility matrix](../relnotes/support-matrix.mdx).
+The tables list the codes that node version 1.0.x returns. Preprod runs node 1.0.x. Code numbers can change between node releases. To find the node version that your network runs, see the [compatibility matrix](../relnotes/support-matrix.mdx).
+
+:::note[Mainnet and Preview run node 2.1.x]
+After the [ledger 9 network upgrade](../relnotes/ledger-9.mdx), Mainnet nodes run node 2.1.101. Preview has run node 2.1.101 since its reset on 6 November 2026. Node 2.1.x no longer returns seven of the codes in these tables, narrows three, and adds 42 new ones. If you submit to Mainnet or Preview, check [Node 2.1.x codes on Mainnet](#node-21x-codes-on-mainnet) first.
+
+A transaction built in the ledger 8 format doesn't decode on ledger 9. To submit to Mainnet or Preview, build with Midnight.js 5.0.0 and Wallet SDK 2.0.0.
+:::
 
 ### Deserialization errors (0–11)
 
@@ -198,6 +204,83 @@ Errors that occur when the node encounters errors from the host API.
 |------|------|-------------|-------|
 | 255 | `HostApiError` | Error in host API processing | Internal runtime error; check node logs |
 
+## Node 2.1.x codes on Mainnet
+
+Node 2.1.x splits several broad error variants into specific ones, each with its own code. The rest of the codes in the [error tables](#error-tables-by-code-range) keep their meaning. Mainnet runs node 2.1.x after the [ledger 9 network upgrade](../relnotes/ledger-9.mdx), and Preview has run node 2.1.x since its reset on 6 November 2026, so these codes apply to both. Preprod runs node 1.0.x, so the 1.0.x tables still apply there.
+
+### Retired codes
+
+Node 2.1.x doesn't return these codes. The codes in the last column replace each one.
+
+| Code | 1.0.x name | Replaced by |
+|------|------------|-------------|
+| 168 | `FeeCalculation` | 231, 232 |
+| 182 | `TransactionApplicationError` | 228, 229, 230 |
+| 186 | `EffectsCheckFailure` | 212 to 218 |
+| 187 | `DisjointCheckFailure` | 225, 226, 227 |
+| 188 | `SequencingCheckFailure` | 219 to 224 |
+| 193 | `ReplayProtectionViolation` | 242, 243, 244 |
+| 205 | `ReplayProtectionFailure` | 245, 246, 247 |
+
+### Narrowed codes
+
+These codes keep their number, but node 2.1.x returns them only when no specific code matches.
+
+| Code | Name | Specific codes in 2.1.x |
+|------|------|-------------------------|
+| 103 | `Zswap` (invalid) | 239, 240, 241, 250 |
+| 127 | `Zswap` (malformed) | 235, 236, 237, 238 |
+| 174 | `MalformedContractDeploy` | 233, 234 |
+
+### New codes
+
+| Code | Name | Description | How to fix |
+|------|------|-------------|------------|
+| 140 | `SystemTransaction::NotAllowedForCaller` | The node doesn't allow this system transaction type from this caller | System transaction error; check node logs |
+| 156 | `ContractNotPresent` | A contract state query found no contract at the address | Verify the contract address and the network |
+| 157 | `BeneficiaryNotFound` | A balance query for a NIGHT address found no entry | Verify the address |
+| 212 | `EffectsCheck::RealCallsSubsetCheckFailure` | The effects check found a contract call that the transaction's effects don't account for | Rebuild the transaction with the SDK |
+| 213 | `EffectsCheck::AllCommitmentsSubsetCheckFailure` | The effects check found a coin commitment that the transaction's effects don't account for | Rebuild the transaction with the SDK |
+| 214 | `EffectsCheck::RealUnshieldedSpendsSubsetCheckFailure` | The effects check found an unshielded spend that the transaction's effects don't account for | Rebuild the transaction with the SDK |
+| 215 | `EffectsCheck::ClaimedUnshieldedSpendsUniquenessFailure` | The effects claim the same unshielded spend more than once | Rebuild the transaction with the SDK |
+| 216 | `EffectsCheck::ClaimedCallsUniquenessFailure` | The effects claim the same contract call more than once | Rebuild the transaction with the SDK |
+| 217 | `EffectsCheck::NullifiersNeqClaimedNullifiers` | The transaction's nullifiers don't match the nullifiers its effects claim | Rebuild the transaction with the SDK |
+| 218 | `EffectsCheck::CommitmentsNeqClaimedShieldedReceives` | The transaction's coin commitments don't match the shielded receives its effects claim | Rebuild the transaction with the SDK |
+| 219 | `SequencingCheck::CallSequencingViolation` | Contract calls are out of order | Contract calls must respect ordering constraints |
+| 220 | `SequencingCheck::SequencingCorrelationViolation` | The sequencing check found a correlation violation between contract calls | Contract calls must respect ordering constraints |
+| 221 | `SequencingCheck::GuaranteedInFallibleContextViolation` | A guaranteed call appears in a fallible context | Check which section each call belongs to |
+| 222 | `SequencingCheck::FallibleInGuaranteedContextViolation` | A fallible call appears in a guaranteed context | Check which section each call belongs to |
+| 223 | `SequencingCheck::CausalityConstraintViolation` | Contract calls break a causality constraint | Contract calls must respect ordering constraints |
+| 224 | `SequencingCheck::CallHasEmptyTranscripts` | A contract call has no transcripts | Rebuild the transaction with the SDK |
+| 225 | `DisjointCheck::ShieldedInputsDisjointFailure` | Shielded inputs overlap | Remove the duplicate shielded input |
+| 226 | `DisjointCheck::ShieldedOutputsDisjointFailure` | Shielded outputs overlap | Remove the duplicate shielded output |
+| 227 | `DisjointCheck::UnshieldedInputsDisjointFailure` | Unshielded inputs overlap | Remove the duplicate unshielded input |
+| 228 | `TransactionApplication::IntentTtlExpired` | The intent's TTL has passed | Rebuild the transaction with a new TTL and submit it before the TTL passes |
+| 229 | `TransactionApplication::IntentTtlTooFarInFuture` | The intent's TTL is too far in the future | Rebuild the transaction with a shorter TTL |
+| 230 | `TransactionApplication::IntentAlreadyExists` | The ledger has already applied this intent | Don't resubmit a transaction that might already be in a block |
+| 231 | `FeeCalculation::OutsideTimeToDismiss` | Validating the transaction and applying its guaranteed part would take longer than the ledger allows for a transaction of that size | Split the work across smaller transactions |
+| 232 | `FeeCalculation::BlockLimitExceeded` | One cost dimension of the transaction is above its block limit | Split the work across smaller transactions |
+| 233 | `MalformedContractDeploy::NonZeroBalance` | The contract deploy has a non-zero balance | Deploy the contract with a zero balance |
+| 234 | `MalformedContractDeploy::IncorrectChargedState` | The contract deploy has an incorrect charged state | Rebuild the deploy with the SDK |
+| 235 | `MalformedZswap::InvalidProof` | A Zswap offer proof failed to verify | Regenerate the proof. Check that the proof server matches the network |
+| 236 | `MalformedZswap::ContractSentCiphertext` | A contract sent a Zswap output with a ciphertext | Rebuild the Zswap offer |
+| 237 | `MalformedZswap::NonDisjointCoinMerge` | A Zswap offer merge has overlapping coins | Rebuild the Zswap offer |
+| 238 | `MalformedZswap::NotNormalized` | The Zswap offer isn't in normal form | Rebuild the Zswap offer with the SDK |
+| 239 | `ZswapInvalid::NullifierAlreadyPresent` | A coin's nullifier is already spent | Let the wallet sync, then rebuild the transaction |
+| 240 | `ZswapInvalid::CommitmentAlreadyPresent` | A new coin commitment already exists | Let the wallet sync, then rebuild the transaction |
+| 241 | `ZswapInvalid::UnknownMerkleRoot` | The proof refers to a coin tree root that the node doesn't recognize | Let the wallet sync, then rebuild and prove the transaction again |
+| 242 | `ReplayProtectionViolation::IntentTtlExpired` | Replay protection rejected the intent because its TTL has passed | Rebuild the transaction with a new TTL |
+| 243 | `ReplayProtectionViolation::IntentTtlTooFarInFuture` | Replay protection rejected the intent because its TTL is too far in the future | Rebuild the transaction with a shorter TTL |
+| 244 | `ReplayProtectionViolation::IntentAlreadyExists` | The ledger has already applied this intent | Don't resubmit a transaction that might already be in a block |
+| 245 | `SystemTransaction::ReplayProtectionFailure::IntentTtlExpired` | A system transaction's TTL has passed | System transaction error; check node logs |
+| 246 | `SystemTransaction::ReplayProtectionFailure::IntentTtlTooFarInFuture` | A system transaction's TTL is too far in the future | System transaction error; check node logs |
+| 247 | `SystemTransaction::ReplayProtectionFailure::IntentAlreadyExists` | The ledger has already applied this system transaction | Duplicate system transaction |
+| 248 | `DivideByZero` | A division by zero happened while the ledger applied the transaction | Check contract logic; check node logs |
+| 249 | `MerkleTreeError` | A Merkle tree update failed while the ledger applied the transaction | Internal ledger error; check node logs |
+| 250 | `ZswapInvalid::MerkleTreeError` | A Merkle tree update failed in the shielded (Zswap) part of the transaction | Internal ledger error; check node logs |
+
+Node 2.1.x also changes the error enums of several pallets, so the [pallet tables](#pallet-dispatch-errors) apply to node 1.0.x only. Decode a `DispatchError::Module` from the runtime metadata at the block where the error happened, not from a fixed table.
+
 ## Pallet dispatch errors
 
 When a transaction fails inside a Substrate pallet, the error surfaces as `DispatchError::Module { index, error }`. 
@@ -353,7 +436,7 @@ The following table lists the messages you might see when a submission fails, th
 
 ### Common submission codes
 
-The following node codes often appear inside submission errors. The meanings apply to node version 1.0.x.
+The following node codes often appear inside submission errors. The meanings apply to node version 1.0.x, which Preprod runs. On Mainnet and Preview, node 2.1.x returns 196 with the same meaning, but reports each cause of 103 with its own code: 239 for a spent nullifier, 240 for an existing coin commitment, 241 for an unknown coin tree root, and 250 for a failed Merkle tree update. See [Node 2.1.x codes on Mainnet](#node-21x-codes-on-mainnet).
 
 | Code | Name | Description | How to fix |
 |------|------|-------------|------------|
