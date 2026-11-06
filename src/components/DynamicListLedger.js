@@ -17,11 +17,38 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '8.1.3',
+    version: '9.1.0.1',
     status: 'LATEST',
+    date: '6 November 2026',
+    summary: 'First ledger 9 release: Mainnet runs it after the ledger 9 network upgrade, with proof server 9.0.0. Builder packages carry ledger 9.1.0.0',
+    details: [
+      'Mainnet moved to ledger 9 at the ledger 9 network upgrade on 6 November 2026. Preview and Preprod stay on ledger 8.1.3 until a later upgrade.',
+      'Ledger 8 transactions do not decode on ledger 9. DApps need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.101. Indexer operators must re-index from genesis.',
+      'Every Mainnet validator and RPC node must upgrade from node 1.0.400 (or from 2.1.100) directly to node 2.1.101 before the governance upgrade. A node on 1.0.400 stops at the upgrade block.',
+      'Adds contract-to-contract calls and event emission (first phase, unshielded data only), ECDSA signature support with public-key recovery, native Keccak hashing, native secp256k1, and ZKIR 3.2.0. Compile with Compact toolchain 0.36.0 (language version 0.28.0, Compact runtime 0.21.0).',
+      'The tested upgrade rehearsal checks that a smart contract deployed before the upgrade can still be called. In an earlier devnet test, artifacts from toolchain 0.31.1 kept working with the ZK config provider set to `verify: \'warn\'`, and Midnight.js 5.0.0 refuses artifacts from other toolchains, such as 0.30.0, with `EraMismatchError`.',
+      'DUST state resets once at the upgrade and NIGHT balances do not change. On Mainnet, every registration is replayed automatically to its full cap, so Mainnet users do not need to do anything. Transactions submitted during the replay (about 48 blocks) wait in the transaction pool and are included once it ends.',
+      'A fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly. Update fee estimation before the upgrade.',
+      'Contract action subscriptions opened without an offset now deliver only new actions. Pass an explicit offset, such as height `0`, to replay history. Midnight.js 5.0.0 does this.',
+      'Proof server 9.0.0 is the proof server for ledger 9. Pin it by image digest. Its default job capacity is now 10 instead of 0 (no limit).',
+      'npm packages: `@midnightntwrk/ledger-v9` 1.0.0 and `@midnightntwrk/onchain-runtime-v4` 4.0.0. The on-chain runtime major version is in the package name.',
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnightntwrk/ledger-v9' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v4' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server' },
+      { name: 'Proof server GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-9.0.0' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-9.1.0.0' },
+    ],
+    link: '/relnotes/ledger/ledger-9-1-0-1',
+  },
+  {
+    version: '8.1.3',
+    status: 'SUPPORTED',
     date: '2 October 2026',
     summary: 'Security patch for critical advisory GHSA-wr7g-rr4v-jmj8: stricter validity rules for contract call transcripts',
     details: [
+      'Preview and Preprod run ledger 8.1.3 until their ledger 9 upgrade. Mainnet runs ledger 9.1.0.1 after the ledger 9 network upgrade.',
       'Before this release, an attacker could get past the one-time checks of a smart contract, for example to claim the same payout more than once.',
       'Contract call transcripts must use canonical field values in `push`, `pushs`, and `idx`-style path keys. A Merkle tree in `push` or `pushs` must be empty, and transcripts cannot contain `noop` with a count of 0.',
       'A node on 8.1.3 rejects some contract calls that a node on 8.1.2 accepts, so every block producer should run 8.1.3. Node 1.0.400 includes it.',
@@ -46,7 +73,7 @@ const releases = [
     date: '24 August 2026',
     summary: 'Security patch hardening deserialization: non-canonical encodings and invariant-violating values are rejected',
     details: [
-      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Preview and Preprod nodes should run ledger 8.1.3 (node 1.0.400). Mainnet runs ledger 9.',
       'Hardens low-level deserialization across `serialize`, `base-crypto`, `storage`, `onchain-state`, `onchain-vm`, and `transient-crypto`: non-canonical encodings and values violating type invariants no longer decode.',
       'An 8.1.2 node rejects data an 8.1.1 node accepts; the change is breaking only for environments containing maliciously formed transactions.',
       'Delivered to mainnet nodes prior to the public release.',
@@ -65,7 +92,7 @@ const releases = [
     date: '31 July 2026',
     summary: 'Patch release with array-handling test coverage and an npm scope change to `@midnightntwrk`',
     details: [
-      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Preview and Preprod nodes should run ledger 8.1.3 (node 1.0.400). Mainnet runs ledger 9.',
       'No protocol, serialization, or API behavior changes for well-formed transactions.',
       'Added test coverage for array handling.',
       'Clippy 1.97 lint cleanups across the workspace.',
@@ -83,7 +110,7 @@ const releases = [
     date: '13 May 2026',
     summary: 'Storage layer improvements, deadlock fixes, and enhanced wallet WASM bindings',
     details: [
-      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Preview and Preprod nodes should run ledger 8.1.3 (node 1.0.400). Mainnet runs ledger 9.',
       'Added incremental garbage collector in `storage-core` with time-bounded execution',
       'Allowed ParityDB to use existing instance and share backends through generic `Deref`',
       'Fixed race condition in `force_as_arc` that could cause deadlocks',
@@ -105,7 +132,7 @@ const releases = [
     date: '20 March 2026',
     summary: 'Summary of v8.0.3',
     details: [
-      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Preview and Preprod nodes should run ledger 8.1.3 (node 1.0.400). Mainnet runs ledger 9.',
       'Fixed transcript partitioning issues in transaction construction.',
       'Corrected accounting of unshielded inputs and outputs so they are not incorrectly treated as gas usage.',
       'Accounted for proof verification time in processing budget calculations.',
@@ -126,7 +153,7 @@ const releases = [
     date: '12 March 2026',
     summary: 'Summary of v8.0.2',
     details: [
-      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Nodes should run ledger 8.1.3 (node 1.0.400).',
+      'Affected by the critical advisory GHSA-wr7g-rr4v-jmj8, which ledger 8.1.3 fixes. Preview and Preprod nodes should run ledger 8.1.3 (node 1.0.400). Mainnet runs ledger 9.',
       'Fixed DUST change computation for DUST spent during registration.',
       'Fixed Merkle tree canonicity behavior.',
       'Added last block time context variable.',
