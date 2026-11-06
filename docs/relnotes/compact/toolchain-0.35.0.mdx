@@ -2,7 +2,7 @@
 SPDX-License-Identifier: Apache-2.0
 copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 title: Compact toolchain 0.35.0 release notes
-description: Compact toolchain 0.35.0 targets ledger 9 and adds P256, Curve25519, Ed25519, sha512, kernel.caller(), and run-time cross-contract module resolution.
+description: Compact toolchain 0.35.0 targets ledger 9, adds sha512 and kernel.caller(), and changes the Compact runtime's cross-contract API.
 displayed_sidebar: sidebar
 ---
 
@@ -21,7 +21,7 @@ Toolchain 0.35.0 targets ledger version 9. After the [ledger 9 network upgrade](
 
 Version 0.35.0 of the Compact toolchain is a major release.  It targets Midnight ledger 9, which runs on Mainnet after the [ledger 9 network upgrade](/relnotes/ledger-9).  Preview and Preprod still run ledger 8, so use Compact toolchain 0.31.x for contracts you deploy to those networks until their upgrade.
 
-This release builds on 0.34.0.  It adds the secp256r1 (P256) and Curve25519 curves, ECDSA verification over P256, Ed25519 signature verification and `sha512` hashing, all of which require the flag `--feature-zkir-v3`.  It also adds the `kernel.caller()` ledger operation, and cross-contract calls now resolve their callee's implementation at run time, which changes the Compact runtime's cross-contract API.  Several changes are breaking; the entries below mark them.
+This release builds on 0.34.0.  It adds `sha512` hashing, which requires the flag `--feature-zkir-v3`.  It also adds the `kernel.caller()` ledger operation, and changes the Compact runtime's cross-contract API.  Several changes are breaking; the entries below mark them.
 
 You can update to version 0.35.0 using the Compact devtools.  `compact update` will update to the latest released version, and `compact update 0.35` will specifically update to the latest patch release of toolchain 0.35.  You can also switch back to toolchain version 0.31.x (for a Midnight ledger 8 blockchain) with `compact update 0.31`.
 
@@ -49,32 +49,6 @@ There is a new generic standard library circuit `sha512<T>` that uses the SHA-51
 
 **This feature requires the flag `--feature-zkir-v3`.**
 
-### Secp256r1 (P256) and Curve25519 foreign curves and fields
-
-The standard library now has support for `Secp256r1Point` and `Curve25519Point` foreign curve points, and the accompanying field types `Secp256r1Base`, `Secp256r1Scalar`, `Curve25519Base`, and `Curve25519Scalar`.  They behave analogously with the secp256k1 cure and fields.
-
-The field types support equals and not-equals comparisons and the full set of Compact arithmetic operations `+`, (binary) `-`, `*`, `neg`, and `inv`.  The field types also support casting to and from `Bytes<32>` byte vectors.  The byte representation is the 32-byte little-endian binary encoding of the value.  Casting to a byte vector and back always gives the original field value.  Casting from a byte vector that represents an out of range unsigned integer will not fail, it will instead reduce the number modulo the field modulus.  `Curve25519Scalar` (only) also supports casting to and from `Bytes<64>` with the same rules as `Bytes<32>`.  The 64-byte representation of a Curve25519 scalar is the same little-endian encoding as `Bytes<32>`, padded with zeros.
-
-The point types cannot be constructed in Compact code.  The have accessors for the X- and Y-coordinates.  The point types support equals and not-equals comparisons, `ecAdd`, `ecMul`, and `ecMulGenerator`.
-
-The Compact runtime exports interfaces `Secp256r1Point` and `Curve25519Point` to use in TypeScript code.  There are also type descriptors and arithmetic operations in the Compact runtime, and constants for the field moduluses and maximum field values.
-
-**This feature requires the flag `--feature-zkir-v3`.**
-
-### ECDSA signature verification over secp256r1 (P256)
-
-The Compact standard library exports a new circuit `secp256r1EcdsaVerify` that verifies an ECDSA signature over the secp256r1 (also known as P256) curve, and returns a boolean value telling whether the verification succeeded.  Like `secp256k1EcdsaVerify`, it asserts that the public key is not the identity point.
-
-The Compact runtime has a new function `secp256r1EcdsaRecover` that can be used to recover a public key can be recovered off-circuit in a DApp's JavaScript or TypeScript code.
-
-**This feature requires the flag `--feature-zkir-v3`.**
-
-### Ed25519 signature verification
-
-The Compact standard library exports a new generic circuit `ed25519Verify<#n>` that verifies an Ed25519 (RFC 8032) signature of an `n`-byte message and returns a boolean value telling whether the verification succeeded.  The challenge is hashed in circuit using `sha512`.  The circuit asserts that the public key is not the identity.
-
-**This feature requires the flag `--feature-zkir-v3`.**
-
 ### The compiler now generates ZKIR 3.1
 
 When the feature flag `--feature-zkir-v3` is passed, the compiler will now generate ZKIR 3.1 instead of ZKIR 3.0.  This version of the ZKIR format has new instructions to support the new language features introduced in this Compact release.  It requires a proof server that can support the ZKIR 3.1 format.
@@ -83,15 +57,9 @@ Note that ZKIR 3.1 is a minor version release and so it contains only non-breaki
 
 ## Improvements
 
-### Cross-contract calls resolve the callee at runtime
+### Changes to the cross-contract call runtime API
 
-Cross-contract calls now resolve the called contract's implementation at the DApp's run time, rather than importing it at TypeScript compile time.  This is a substantial and **breaking** change to the cross-contract call runtime APIs.
-
-Every generated contract module has two new tables: `declaredInterfaces` for each called contract type, and `circuitSignatures` for each exported circuit.  These appear in the generated `.d.ts` interface file.  They are used for runtime type checks of cross-contract calls.
-
-There are new runtime APIs to support these more flexible cross-contract calls.  Most important for DApp developers is `ContractModuleProvider`, a TypeScript interface with a (user-supplied) `resolve` method that maps a `ContractAddress` to a `ModuleThunk`.
-
-There are a large number of improvements to cross-contract calls, some of which are breaking changes.  For details, see the Compact [`CHANGELOG.md`](https://github.com/LFDT-Minokawa/compact/blob/main/CHANGELOG.md) entry for toolchain version 0.24.101 where these changes were introduced.
+This release makes **breaking** changes to the Compact runtime's cross-contract call API.  For details, see the Compact [`CHANGELOG.md`](https://github.com/LFDT-Minokawa/compact/blob/main/CHANGELOG.md) entry for toolchain version 0.24.101 where these changes were introduced.
 
 ### Improvements to encoding and decoding public state
 

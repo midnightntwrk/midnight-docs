@@ -84,37 +84,6 @@ struct Secp256k1EcdsaSignature {
 }
 ```
 
-### `Secp256r1EcdsaSignature`
-
-An ECDSA signature over the secp256r1 (also known as P256) curve, used with
-[`secp256r1EcdsaVerify`](#secp256r1ecdsaverify). The `r` and `s` components are
-`Secp256r1Scalar`s.
-
-```compact
-struct Secp256r1EcdsaSignature {
-  r: Secp256r1Scalar;
-  s: Secp256r1Scalar;
-}
-```
-
-### `Ed25519Signature`
-
-An Ed25519 signature, used with [`ed25519Verify`](#ed25519verify): the
-commitment point `r` (a [`Curve25519Point`](#curve25519point)) and the response
-scalar `s` (a [`Curve25519Scalar`](#curve25519scalar)).
-
-A standard 64-byte Ed25519 signature is the 32-byte encoding of `r` followed by
-`s` as a 32-byte little-endian integer (RFC 8032 section 5.1.6).
-
-A public key is decoded the same way as `r`, from its 32 bytes.
-
-```compact
-struct Ed25519Signature {
-  r: Curve25519Point;
-  s: Curve25519Scalar;
-}
-```
-
 ### `MerkleTreeDigest`
 
 The root hash of a Merkle tree, represented by a single `Field`.
@@ -454,6 +423,8 @@ circuit right<A, B>(value: B): Either<A, B>;
 
 ### `transientHash`
 
+This is a native circuit.
+
 Builtin transient hash compression function
 
 This function is a circuit-efficient compression function from arbitrary values
@@ -472,6 +443,8 @@ circuit transientHash<T>(value: T): Field;
 ```
 
 ### `transientCommit`
+
+This is a native circuit.
 
 Builtin transient commitment function
 
@@ -494,6 +467,8 @@ circuit transientCommit<T>(value: T, rand: Field): Field;
 
 ### `persistentHash`
 
+This is a native circuit.
+
 Builtin persistent hash compression function
 
 This function is a non-circuit-optimised compression function from arbitrary values
@@ -509,6 +484,8 @@ circuit persistentHash<T>(value: T): Bytes<32>;
 ```
 
 ### `persistentCommit`
+
+This is a native circuit.
 
 Builtin persistent commitment function
 
@@ -526,6 +503,8 @@ circuit persistentCommit<T>(value: T, rand: Bytes<32>): Bytes<32>;
 
 ### `degradeToTransient`
 
+This is a native circuit.
+
 This function "degrades" the output of a [`persistentHash`](#persistenthash)
 or [`persistentCommit`](#persistentcommit) to a field element, which can then
 be used in [`transientHash`](#transienthash) or
@@ -536,6 +515,9 @@ circuit degradeToTransient(x: Bytes<32>) : Field;
 ```
 
 ### `upgradeFromTransient`
+
+This is a native circuit.
+
 This function "upgrades" a field element to the output of a
 [`persistentHash`](#persistenthash) or [`persistentCommit`](#persistentcommit).
 
@@ -546,6 +528,8 @@ circuit upgradeFromTransient(x: Field): Bytes<32>;
 
 ### `keccak256`
 
+This is a native circuit.
+
 This function hashes its input using the Keccak-256 algorithm.  It returns the
 32-byte digest.
 
@@ -554,6 +538,8 @@ circuit keccak256<T>(value: T): Bytes<32>;
 ```
 
 ### `sha512`
+
+This is a native circuit.
 
 This function hashes its input using the SHA-512 algorithm.  It returns the
 64-byte digest.
@@ -680,147 +666,23 @@ This function extracts the affine y-coordinate from a
 circuit secp256k1PointY(pt: Secp256k1Point): Secp256k1Base;
 ```
 
-### `Secp256r1Point`
-
-This is a native type.
-
-The type of points on the secp256r1 elliptic curve.  It represents a pair of
-affine x- and y-coordinates.  The coordinates are `Secp256r1Base` values.
-Secp256r1 points cannot be created in Compact, but they can be passed as circuit
-arguments and returned from witness functions.  The behavior of operating on an
-invalid secp256r1 curve point is undefined.  You will not normally be able to
-construct proofs involving invalid secp256r1 curve points.
-
-The (additive) identity point does not have a representation as a pair of
-coordinates.  It is represented in Compact as `default<Secp256r1Point>`.
-
-### `Secp256r1Base`
-
-This is a native type.
-
-The type of values between 0 (inclusive) and the order of the base field of the
-secp256r1 elliptic curve (exclusive).  It is the type of the affine coordinates
-of a point on that curve.
-
-The maximum value (one less than the field order) is (decimal)
-115792089210356248762697446949407573530086143415290314195533631308867097853950
-and (hexadecimal)
-0xffffffff00000001000000000000000000000000fffffffffffffffffffffffe.
-
-### `Secp256r1Scalar`
-
-This is a native type.
-
-The type of numeric values betwen 0 (inclusive) and the order of the secp256r1
-group (exclusive).  This is the type of the scalars used to multiply secp256r1
-curve points.
-
-The maximum value (one less than the field order) is (decimal)
-115792089210356248762697446949407573529996955224135760342422259061068512044368
-and (hexadecimal)
-0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632550.
-
-### `secp256r1PointX`
-
-This is a native circuit.
-
-This function extracts the affine x-coordinate from a
-[`Secp256r1Point`](#secp256r1point).
-
-```compact
-circuit secp256r1PointX(pt: Secp256r1Point): Secp256r1Base;
-```
-
-### `secp256r1PointY`
-
-This is a native circuit.
-
-This function extracts the affine y-coordinate from a
-[`Secp256r1Point`](#secp256r1point).
-
-```compact
-circuit secp256r1PointY(pt: Secp256r1Point): Secp256r1Base;
-```
-
-### `Curve25519Point`
-
-This is a native type.
-
-The type of points on Curve25519 in its twisted Edwards form (the curve of
-Ed25519).  It represents a pair of affine x- and y-coordinates.  The coordinates
-are `Curve25519Base` values.  Curve25519 points cannot be created in Compact,
-but they can be passed as circuit arguments and returned from witness functions.
-The behavior of operating on an invalid Curve25519 point is undefined.  You will
-not normally be able to construct proofs involving invalid Curve25519 points,
-nor points outside the prime-order subgroup.
-
-The (additive) identity point is `(0, 1)`.
-
-### `Curve25519Base`
-
-This is a native type.
-
-The type of values between 0 (inclusive) and the order of the base field of
-Curve25519, 2^255 - 19 (exclusive).  It is the type of the affine coordinates
-of a point on that curve.
-
-The maximum value (one less than the field order) is (decimal)
-57896044618658097711785492504343953926634992332820282019728792003956564819948
-and (hexadecimal)
-0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffec.
-
-### `Curve25519Scalar`
-
-This is a native type.
-
-The type of numeric values between 0 (inclusive) and the order of the
-prime-order subgroup of Curve25519 (exclusive).  This is the type of the scalars
-used to multiply Curve25519 points.
-
-The maximum value (one less than the subgroup order) is (decimal)
-7237005577332262213973186563042994240857116359379907606001950938285454250988
-and (hexadecimal)
-0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ec.
-
-### `curve25519PointX`
-
-This is a native circuit.
-
-This function extracts the affine x-coordinate from a
-[`Curve25519Point`](#curve25519point).
-
-```compact
-circuit curve25519PointX(pt: Curve25519Point): Curve25519Base;
-```
-
-### `curve25519PointY`
-
-This is a native circuit.
-
-This function extracts the affine y-coordinate from a
-[`Curve25519Point`](#curve25519point).
-
-```compact
-circuit curve25519PointY(pt: Curve25519Point): Curve25519Base;
-```
-
 ### `ecAdd`
+
+This is a native circuit.
 
 This function adds two elliptic curve points. It is polymorphic for the
 following types:
 * [`JubjubPoint`](#jubjubpoint)s
 * [`Secp256k1Point`](#secp256k1point)s.
-* [`Secp256r1Point`](#secp256r1point)s.
-* [`Curve25519Point`](#curve25519point)s.
 
 ```compact
 circuit ecAdd(a: JubjubPoint, b: JubjubPoint): JubjubPoint;
 circuit ecAdd(a: Secp256k1Point, b: Secp256k1Point): Secp256k1Point;
-circuit ecAdd(a: Secp256r1Point, b: Secp256r1Point): Secp256r1Point;
-circuit ecAdd(a: Curve25519Point, b: Curve25519Point): Curve25519Point;
 ```
 
 ### `ecNeg`
+
+This is a native circuit.
 
 This function negates an elliptic [`JubjubPoint`](#jubjubpoint). On the JubJub
 twisted Edwards curve, the negation of `(x, y)` is `(-x, y)`.
@@ -831,79 +693,65 @@ circuit ecNeg(a: JubjubPoint): JubjubPoint;
 
 ### `ecMul`
 
+This is a native circuit.
+
 This function multiplies an elliptic curve point by a scalar. It is polymorphic for the
 following types:
 * [`JubjubPoint`](#jubjubpoint)s
 * [`Secp256k1Point`](#secp256k1point)s.
-* [`Secp256r1Point`](#secp256r1point)s.
-* [`Curve25519Point`](#curve25519point)s.
 
 ```compact
 circuit ecMul(a: JubjubPoint, b: JubjubScalar): JubjubPoint;
 circuit ecMul(a: Secp256k1Point, b: Secp256k1Scalar): Secp256k1Point;
-circuit ecMul(a: Secp256r1Point, b: Secp256r1Scalar): Secp256r1Point;
-circuit ecMul(a: Curve25519Point, b: Curve25519Scalar): Curve25519Point;
 ```
 
 ### `ecMulGenerator`
+
+This is a native circuit.
 
 This function multiplies the primary group generator of a curve by a
 scalar. It is polymorphic for the following types:
 * [`JubjubPoint`](#jubjubpoint)s
 * [`Secp256k1Point`](#secp256k1point)s.
-* [`Secp256r1Point`](#secp256r1point)s.
-* [`Curve25519Point`](#curve25519point)s.
 
 ```compact
 circuit ecMulGenerator(b: JubjubScalar): JubjubPoint;
 circuit ecMulGenerator(b: Secp256k1Scalar): Secp256k1Point;
-circuit ecMulGenerator(b: Secp256r1Scalar): Secp256r1Point;
-circuit ecMulGenerator(b: Curve25519Scalar): Curve25519Point;
 ```
 
 ### `neg`
+
+This is a native circuit.
 
 Negates a field element, i.e. returns the value `y` such that
 `add(x, y)` is `0` in the field. Polymorphic function
 that works over types: 
 * `Secp256k1Base`
 * `Secp256k1Scalar`
-* `Secp256r1Base`
-* `Secp256r1Scalar`
-* `Curve25519Base`
-* `Curve25519Scalar`
 
 ```compact
 circuit neg(s: Secp256k1Base): Secp256k1Base;
 circuit neg(s: Secp256k1Scalar): Secp256k1Scalar;
-circuit neg(s: Secp256r1Base): Secp256r1Base;
-circuit neg(s: Secp256r1Scalar): Secp256r1Scalar;
-circuit neg(s: Curve25519Base): Curve25519Base;
-circuit neg(s: Curve25519Scalar): Curve25519Scalar;
 ```
 
 ### `inv`
+
+This is a native circuit.
 
 Returns the multiplicative inverse of a field element, i.e. the value
 `y` such that `mul(x, y)` is `1` in the field. Polymorphic function
 that works over types: 
 * `Secp256k1Base`
 * `Secp256k1Scalar`
-* `Secp256r1Base`
-* `Secp256r1Scalar`
-* `Curve25519Base`
-* `Curve25519Scalar`
 
 ```compact
 circuit inv(s: Secp256k1Base): Secp256k1Base;
 circuit inv(s: Secp256k1Scalar): Secp256k1Scalar;
-circuit inv(s: Secp256r1Base): Secp256r1Base;
-circuit inv(s: Secp256r1Scalar): Secp256r1Scalar;
-circuit inv(s: Curve25519Base): Curve25519Base;
-circuit inv(s: Curve25519Scalar): Curve25519Scalar;
 ```
 
 ### `hashToCurve`
+
+This is a native circuit.
 
 This function maps arbitrary types to [`JubjubPoint`](#jubjubpoint)s.
 
@@ -969,43 +817,6 @@ low 20 bytes of the Keccak-256 hash of the [`Secp256k1Point`](#secp256k1point).
 
 ```compact
 circuit secp256k1EthereumAddress(pk: Secp256k1Point): Bytes<20>;
-```
-
-### `secp256r1EcdsaVerify`
-
-Verifies an ECDSA signature over the secp256r1 (also known as P256) curve. Takes
-a 32-byte message hash, a [`Secp256r1EcdsaSignature`](#secp256r1ecdsasignature),
-and a public key (a [`Secp256r1Point`](#secp256r1point)).
-Asserts that the verification key is not the identity (default) Secp256r1Point.
-Returns true if the signature is valid; false otherwise.
-
-As for [`secp256k1EcdsaVerify`](#secp256k1ecdsaverify), the circuit takes
-`msgHash` as given and does not constrain it to any message, and a wider digest
-is verified by passing its leading 32 bytes.
-
-To actually enforce that a signature is valid in a Compact circuit, use an
-`assert` that the result is true.
-
-```compact
-circuit secp256r1EcdsaVerify(msgHash: Bytes<32>, sig: Secp256r1EcdsaSignature, pk: Secp256r1Point): Boolean;
-```
-
-### `ed25519Verify`
-
-Verifies an Ed25519 signature (RFC 8032) over a message of `n` bytes. Takes the
-message, an [`Ed25519Signature`](#ed25519signature), and a public key (a
-[`Curve25519Point`](#curve25519point)). The message is hashed in-circuit with
-SHA-512, as the standard prescribes.
-This is plain Ed25519 only: signatures made with the Ed25519ctx or Ed25519ph
-(pre-hashed) variants of RFC 8032 do not verify.
-Asserts that the verification key is not the identity Curve25519Point.
-Returns true if the signature is valid; false otherwise.
-
-To actually enforce that a signature is valid in a Compact circuit, use an
-`assert` that the result is true.
-
-```compact
-circuit ed25519Verify<#n>(msg: Bytes<n>, sig: Ed25519Signature, pk: Curve25519Point): Boolean;
 ```
 
 ### `merkleTreePathRoot`
@@ -1146,6 +957,8 @@ circuit mergeCoinImmediate(
 
 ### `ownPublicKey`
 
+This is a native witness.
+
 Returns the [`ZswapCoinPublicKey`](#zswapcoinpublickey) of the end-user
 creating this transaction.
 
@@ -1154,6 +967,8 @@ witness ownPublicKey(): ZswapCoinPublicKey;
 ```
 
 ### `createZswapInput`
+
+This is a native witness.
 
 Notifies the context to create a new Zswap input originating from this call.
 Should typically not be called manually, prefer [`sendShielded`](#sendshielded) and
@@ -1167,6 +982,8 @@ witness createZswapInput(coin: QualifiedShieldedCoinInfo): [];
 ```
 
 ### `createZswapOutput`
+
+This is a native witness.
 
 Notifies the context to create a new Zswap output originating from this call.
 Should typically not be called manually, prefer [`sendShielded`](#sendshielded) and
