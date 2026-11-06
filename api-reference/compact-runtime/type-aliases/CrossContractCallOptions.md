@@ -68,7 +68,7 @@ The caller's circuit context. Mutated in place for the duration of the sub-call.
 readonly declaration: InterfaceDescriptor;
 ```
 
-The caller's `declaredInterfaces[interfaceName]`.
+The caller's declaration of the called contract type.
 
 ***
 

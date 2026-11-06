@@ -8,7 +8,6 @@
 
 ```ts
 type CrossContractInputs = {
-  moduleProvider: ContractModuleProvider;
   stateProvider: ContractStateProvider;
 };
 ```
@@ -17,15 +16,6 @@ The inputs that let an execution make cross-contract calls.
 
 ## Properties
 
-### moduleProvider
-
-```ts
-readonly moduleProvider: ContractModuleProvider;
-```
-
-The [ContractModuleProvider](../interfaces/ContractModuleProvider.md).
-
-***
 
 ### stateProvider
 

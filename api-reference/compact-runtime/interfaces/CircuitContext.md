@@ -103,16 +103,6 @@ The gas limit for this circuit.
 
 ***
 
-### moduleProvider?
-
-```ts
-optional moduleProvider: ContractModuleProvider;
-```
-
-The [ContractModuleProvider](ContractModuleProvider.md). Absent unless the execution can make cross-contract calls;
-reaching [crossContractCall](../functions/crossContractCall.md) without one is a `ModuleProviderAbsent` failure.
-
-***
 
 ### queryContexts
 
