@@ -16,7 +16,6 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 
 const releases = [
-  // SHIP ONLY IF FINAL AT FORK
   {
     version: '3.0.0',
     status: 'LATEST',
@@ -24,14 +23,16 @@ const releases = [
     summary: 'Major release for the ledger 9 network upgrade on Mainnet, used by Midnight.js 5.',
     details: [
       'Runs contracts on Mainnet after the ledger 9 network upgrade.',
-      'Built against compact-runtime 0.21.0.',
-      'Requires Compact toolchain 0.36.0.',
+      'Built against compact-runtime 0.21.0 and on-chain runtime 4.0.0.',
+      'Requires Compact toolchain 0.36.0 for ledger 9 contracts; recompiling changes a deployed contract\'s verifier keys (breaking).',
+      'Adds `/v8` and `/v9` entry points so you pick the ledger era at import.',
+      'Publishes as ESM only (breaking).',
       'Type surfaces are aware of the ledger era; select the era explicitly (breaking).',
       'Preview and Preprod stay on 2.5.x until a later upgrade.',
     ],
     artifacts: [
       { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/3.0.0' },
-      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-sdk/releases/tag/compact-js-v3.0.0' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact-js/releases/tag/compact-js-v3.0.0' },
     ],
     link: '/relnotes/compact-js/compact-js-3-0-0',
   },

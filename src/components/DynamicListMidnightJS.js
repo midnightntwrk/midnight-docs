@@ -16,27 +16,26 @@ import Link from '@docusaurus/Link';
 import { useLocation } from '@docusaurus/router';
 
 const releases = [
-  // SHIP ONLY IF FINAL AT FORK
   {
     version: '5.0.0',
     status: 'LATEST',
-    date: 'TBD-L9[release date]',
-    summary: 'Major release for the ledger 9 network upgrade on Mainnet, with breaking provider and contract state changes.',
+    date: '2026-11-06',
+    summary: 'Major release for the ledger 9 network upgrade on Mainnet. Works across both ledger eras, with breaking provider and contract state changes.',
     details: [
-      'Builds and submits ledger 9 transactions for Mainnet after the upgrade',
-      'Throws `EraMismatchError` for a ledger 8 transaction on a ledger 9 network, before submission',
-      'Requires `providers.config` with `networkId` and `ttlSeconds` (breaking)',
-      '`queryContractState` returns a result tagged with the ledger version (breaking)',
-      'Adds `ContractModuleProvider` for contract-to-contract calls, bounded to unshielded data in this first phase',
-      'Type surfaces are aware of the ledger era; select the era explicitly (breaking)',
-      'Passes an explicit offset to contract action subscriptions so history still replays on indexer 4.4.100; 4.x receives no history',
-      'Requires Node.js 22.12 or later',
-      'Tested together with Compact.js 3.0.0, wallet SDK 2.0.0, and indexer 4.4.100',
-      'Calls contracts built with Compact toolchain 0.31.1 before the upgrade without a recompile; 0.30.0 artifacts must be recompiled. TBD-L9[confirm after fork-survival test]',
+      'Deploys, finds, calls, and maintains contracts of both ledger eras; pre-upgrade contracts keep their ledger 8 artifacts',
+      'Packages are ESM only and need Node.js 22.12 or later (breaking)',
+      'Requires `providers.config` with `networkId` and `ttlSeconds`; `setNetworkId()` is removed (breaking)',
+      'Transactions and on-chain state are era-tagged handles and serialized records (breaking)',
+      'ZK artifacts are checked against their contract manifest by default (breaking)',
+      'Adds contract-to-contract calls, contract events, predefined network endpoints, and DApp Connector providers',
+      'Every error has a stable `code` and `category`',
+      'Needs indexer 4.4.101, proof server 9.0.0, Compact.js 3.0.0, and wallet SDK 2.0.0',
+      'Accepts artifacts for Compact runtime 0.16 (toolchain 0.31.x) and 0.21 (toolchain 0.36.0) only',
       'Preview and Preprod stay on 4.1.1 until a later upgrade',
     ],
     artifacts: [
-      { name: 'NPM Package', url: 'https://www.npmjs.com/search?q=midnight-ntwrk' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.0' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/midnight-js/v/5.0.0' },
     ],
     link: '/relnotes/midnight-js/midnight-js-5-0-0',
   },

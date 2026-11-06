@@ -6,8 +6,6 @@ displayed_sidebar: sidebar
 description: Release notes for the Midnight Wallet SDK 2.0.0, the major release for the ledger 9 network upgrade on Mainnet.
 ---
 
-{/* SHIP ONLY IF FINAL AT FORK */}
-
 * **Version**: v2.0.0
 * **Date**: 2026-11-05
 * **Environment**: Mainnet
@@ -16,7 +14,7 @@ description: Release notes for the Midnight Wallet SDK 2.0.0, the major release 
 
 ## High-level summary
 
-Wallet SDK 2.0.0 is the major release for the [ledger 9 network upgrade](/relnotes/ledger-9). Wallet SDK 1.x can't transact on Mainnet after the upgrade, so every Mainnet wallet and DApp needs 2.0.0 and indexer 4.4.100.
+Wallet SDK 2.0.0 is the major release for the [ledger 9 network upgrade](/relnotes/ledger-9). Wallet SDK 1.x can't transact on Mainnet after the upgrade, so every Mainnet wallet and DApp needs 2.0.0 and indexer 4.4.101.
 
 Wallet SDK 2 runs ledger 8 before the upgrade and ledger 9 from it, so balances, coins, and history carry across the switch. Preview and Preprod stay on ledger 8 until a later upgrade. For those networks, keep using wallet SDK 1.2.0.
 
@@ -33,23 +31,29 @@ This release is relevant for developers who:
 
 ## What changed (Summary of updates)
 
-- Detects the switch to ledger 9 when the chain reports `protocolVersion` 2000000 or higher. `FacadeState.protocol` moves from `Crossing` to `Settled`.
+- Runs `@midnightntwrk/ledger-v8` below the chain's `forks.v9` and `@midnightntwrk/ledger-v9` from it. The default fork version is 2000000, the value a 2.x node reports. `FacadeState.protocol` reports `Crossing` while the wallets catch up and `Settled` once they're on one ledger.
 - Tags each transaction with its protocol version and refuses a mismatch with `ProtocolVersionMismatchError`.
 - Fails a transaction if the chain changes version while it proves the transaction, and releases the coins it reserved.
-- Adds configuration for the upgrade schedule, per-ledger provers, and a chain version probe. TBD-L9[final configuration field names]
-
-TBD-L9[full change list from the 2.0.0 release body]
+- Adds configuration for the upgrade and for proving:
+  - `forks: { v9 }` sets the protocol version from which the wallets read ledger 9. Leave it out to use the default.
+  - `provers: { v8?, v9 }` names a proving backend per ledger version, each `{ kind: 'server', url }` or `{ kind: 'wasm' }`. Or set one proof server for both with `provingServerUrl`.
+- `FacadeState.isSynced` and `waitForSyncedState()` also wait until the indexer's reported tip is checked against a node's finalized head, and keep waiting while the indexer is behind or on another network.
+- Adds `./ledger/v8` and `./ledger/v9` subpaths for applications that build their own transactions.
+- Every Midnight package the SDK depends on installs from the public npm registry, without credentials.
 
 ---
 
 ## Breaking changes or required actions
 
-TBD-L9[verify against final release notes]. The API was still changing in the release candidates, so check each item below against the final release.
+The `@midnightntwrk/wallet-sdk-facade` 5.0.0 release notes carry the full migration guide.
 
-- Rename calls to `startWithSecretKeys` to `startWithKeys`.
-- Rename calls to `startWithSecretKey` to `startWithSeed`.
-- Start a wallet with `facade.start(seeds)`.
-- Methods that build transactions no longer take a `secretKeys` parameter.
+- Start wallets and the facade from seeds or from each ledger version's keys. For example, `facade.start(WalletSeeds.fromMasterSeed(masterSeed))` replaces `facade.start(shieldedSecretKeys, dustSecretKey)`.
+- Methods that build transactions, such as `transferTransaction`, `initSwap`, and the `balance*Transaction` methods, no longer take a `secretKeys` argument.
+- Transactions are `WalletTransaction` handles that carry the protocol version they were built for. If you build your own transactions, import the ledger from `./ledger/v8` or `./ledger/v9` and seal them with `WalletTransaction.adopt`.
+- Signers are asynchronous (`SignSegment`), and keys and signatures are tagged `{ tag, value }` objects.
+- `FacadeState.lifecycle` and `facade.transactionLifecycleService` replace `FacadeState.pending` and the pending-transactions service.
+- `Roles.Metadata` is now `Roles.EcdsaUnshielded`.
+- ledger-v8 now comes from `@midnightntwrk/ledger-v8`. If your application builds ledger 8 objects and passes them to the wallet, import them from `@midnightntwrk/ledger-v8` too. The wallet doesn't accept objects from `@midnight-ntwrk/ledger-v8`.
 - Package versions move together: `wallet-sdk` 2.0.0 uses `wallet-sdk-facade` 5.0.0, `wallet-sdk-shielded` 4.0.0, `wallet-sdk-unshielded-wallet` 4.0.0, and `wallet-sdk-dust-wallet` 5.0.0.
 
 ### DUST after the upgrade
@@ -58,7 +62,7 @@ The upgrade resets DUST state once, at the switch to ledger 9. NIGHT balances ar
 
 On Mainnet, every DUST registration is backed by cNIGHT. The network replays these registrations automatically after the switch, straight to their full DUST cap, so Mainnet users don't need to do anything. While the replay runs, transactions that users submit wait in the transaction pool and are included once it ends. On a recent Mainnet snapshot, the replay takes about 48 blocks, under five minutes. It ends with a `DustReapplyCompleted` event.
 
-Wallets show the replayed DUST only on wallet SDK 2.0.0 with indexer 4.4.100, which reports DUST capacity correctly.
+Wallets show the replayed DUST only on wallet SDK 2.0.0 with indexer 4.4.101, which reports DUST capacity correctly.
 
 The protocol token bridge from cNIGHT to mNIGHT ships with ledger 9 but stays off until governance enables it, and its rollout will be announced separately. The replay covers cNIGHT-backed registrations only, and Mainnet holds no mNIGHT at the upgrade. NIGHT bridged to mNIGHT later needs its own DUST registration with `registerNightUtxosForDustGeneration`.
 
@@ -70,13 +74,13 @@ Ledger 9 introduces an explicit fee floor, `min_block_price`, set by the ledger 
 
 ## Known issues
 
-TBD-L9[known issues from the 2.0.0 release body]
+The 2.0.0 release notes list no known issues. For network known issues that affect wallets after the upgrade, such as fees paid with a single DUST spend, see the [ledger 9 upgrade page](/relnotes/ledger-9#known-issues).
 
 ---
 
 ## Links and references
 
-- [GitHub release: Wallet SDK 2.0.0](https://github.com/midnightntwrk/midnight-wallet/releases/tag/%40midnightntwrk%2Fwallet-sdk%402.0.0) TBD-L9[confirm public release URL]
+- [GitHub release: Wallet SDK 2.0.0](https://github.com/midnightntwrk/midnight-wallet/releases/tag/%40midnightntwrk%2Fwallet-sdk%402.0.0)
 - [`@midnightntwrk/wallet-sdk` on npm](https://www.npmjs.com/package/@midnightntwrk/wallet-sdk/v/2.0.0)
 - [Ledger 9 network upgrade](/relnotes/ledger-9)
 - [Midnight.js v5.0.0 release notes](/relnotes/midnight-js/midnight-js-5-0-0)

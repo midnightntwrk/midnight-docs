@@ -18,7 +18,6 @@ import { useLocation } from '@docusaurus/router';
 
 // CURRENT releases (shown on Canary/next and future versions)
 const releases = [
-  // SHIP ONLY IF FINAL AT FORK
   {
     version: '2.0.0',
     status: 'LATEST',
@@ -28,12 +27,16 @@ const releases = [
       'Runs ledger 8 before the upgrade and ledger 9 from it; balances, coins, and history carry across the switch.',
       'Detects the switch at `protocolVersion` 2000000 or higher; `FacadeState.protocol` moves from `Crossing` to `Settled`.',
       'Refuses a transaction for the wrong protocol version with `ProtocolVersionMismatchError`.',
-      'Renames `startWithSecretKeys` to `startWithKeys` and `startWithSecretKey` to `startWithSeed`; start with `facade.start(seeds)` (breaking).',
-      'Removes the `secretKeys` parameter from methods that build transactions (breaking).',
+      'Starts wallets and the facade from seeds (`WalletSeeds.fromMasterSeed`) or from each ledger version\'s keys; no transacting method takes secret keys (breaking).',
+      'Transactions are `WalletTransaction` handles that carry their protocol version; signers are asynchronous (`SignSegment`) (breaking).',
+      '`FacadeState.lifecycle` and `transactionLifecycleService` replace the pending-transactions service (breaking).',
+      'Configures the upgrade with `forks: { v9 }` and per-ledger proving with `provers: { v8?, v9 }`.',
+      'ledger-v8 now comes from `@midnightntwrk/ledger-v8`; every dependency installs from public npm (breaking).',
       'Shows replayed DUST after the upgrade\'s one-time DUST reset; Mainnet users don\'t need to act.',
-      'Needs indexer 4.4.100. Preview and Preprod stay on 1.2.0 until a later upgrade.',
+      'Needs indexer 4.4.101. Preview and Preprod stay on 1.2.0 until a later upgrade.',
     ],
     artifacts: [
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-wallet/releases/tag/%40midnightntwrk%2Fwallet-sdk%402.0.0' },
       { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/wallet-sdk/v/2.0.0' },
     ],
     link: '/relnotes/wallet/wallet-sdk-2-0-0',

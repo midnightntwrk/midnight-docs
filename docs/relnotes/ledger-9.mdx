@@ -21,7 +21,7 @@ This page explains what changes on Mainnet and what you need to do, whether you 
 
 | Network | Ledger | Node | What to use |
 | --- | --- | --- | --- |
-| Mainnet | 9.1.0.1 | 2.1.101 | Wallet SDK 2.0.0, Midnight.js 5.0.0, Compact toolchain 0.36.0 (`language_version` 0.28.0), Compact runtime 0.21.0, proof server 9.0.0, and indexer 4.4.100. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
+| Mainnet | 9.1.0.1 | 2.1.101 | Wallet SDK 2.0.0, Midnight.js 5.0.0, Compact toolchain 0.36.0 (`language_version` 0.28.0), Compact runtime 0.21.0, proof server 9.0.0, and indexer 4.4.101. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
 | Preprod | 8.1.3 | 1.0.400 | Wallet SDK 1.2.0, Midnight.js 4.1.1, Compact toolchain 0.31.1 (`language_version` 0.23), Compact runtime 0.16.0, and proof server 8.1.3. |
 | Preview | 8.1.3 | 1.0.400 | Same as Preprod. |
 
@@ -61,7 +61,7 @@ After the upgrade, Mainnet can't decode transactions in the ledger 8 format. A w
    | testkit-js | TBD-L9[testkit-js version, expected 5.0.0] |
    | Compact.js | 3.0.0 |
    | On-chain runtime | 4.0.0 |
-   | Indexer | 4.4.100 |
+   | Indexer | 4.4.101 |
    | Proof server | 9.0.0 |
    | Compact toolchain | 0.36.0 |
    | Compact runtime | 0.21.0 |
@@ -69,11 +69,11 @@ After the upgrade, Mainnet can't decode transactions in the ledger 8 format. A w
 
    TBD-L9[can proof server 8.1.x prove for ledger 9, or must Mainnet users run 9.x?]
 
-2. Update your code for the API changes in Midnight.js 5 and wallet SDK 2. TBD-L9[verify against final Midnight.js 5 and wallet SDK 2 releases]
-   - Midnight.js 5 needs `providers.config: { networkId, ttlSeconds }`.
-   - `queryContractState` returns a tagged `{ version, ... }` object.
-   - The wallet SDK renames `startWithSecretKeys` to `startWithKeys`, and `startWithSecretKey` to `startWithSeed`.
-   - The methods that build transactions no longer take a `secretKeys` argument.
+2. Update your code for the API changes in Midnight.js 5 and wallet SDK 2. For the full lists, see the [Midnight.js 5.0.0](/relnotes/midnight-js/midnight-js-5-0-0) and [wallet SDK 2.0.0](/relnotes/wallet/wallet-sdk-2-0-0) release notes.
+   - Midnight.js 5 and Compact.js 3 publish as ESM only.
+   - Midnight.js 5 needs `providers.config: { networkId, ttlSeconds }`, and `setNetworkId()` is removed.
+   - Transactions and on-chain state carry their ledger era. State reads return serialized records that you decode with your own runtime.
+   - Wallets start from seeds, for example `facade.start(WalletSeeds.fromMasterSeed(masterSeed))`. The methods that build transactions no longer take a `secretKeys` argument.
    - The Midnight.js and Compact.js types are now aware of the ledger era. Code that assumed a single ledger era must select one explicitly.
    - The on-chain runtime moves to the v4 line, which carries its major version in the package name. Change your dependency to the v4 package name instead of widening a version range.
 3. Replay contract history explicitly. A contract action subscription opened without an offset now delivers only new actions, not the contract's history. To replay history, pass an explicit offset, such as block height `0`. Midnight.js 5.0.0 does this for you. Midnight.js 4.x receives no history.
@@ -91,7 +91,7 @@ Contracts deployed before the upgrade keep their verifier keys. Whether you can 
 | Built with | After the upgrade |
 | --- | --- |
 | `compactc` 0.31.1 | Keeps working without a recompile. Configure your ZK config provider with `verify: 'warn'`, because 0.31.1 doesn't emit a `contract-manifest.json` file. |
-| `compactc` 0.30.0 | Refused with `EraArtifactMismatchError`. Recompile the contract with Compact toolchain 0.36.0. |
+| `compactc` 0.30.0 or 0.35.0 | Refused by Midnight.js 5 with `EraMismatchError` (reason `unknown-artifact-runtime-version`). Move the contract to Compact toolchain 0.36.0 through its maintenance authority, or redeploy it. See [Recompiling a contract changes its verifier keys](#recompiling-a-contract-changes-its-verifier-keys). |
 
 Contracts built with 0.31.1 have these limits after the upgrade:
 
@@ -115,13 +115,13 @@ If a contract makes cross-contract calls, Compact toolchain 0.36.0 asks you to r
 
 ### Re-index the indexer
 
-Ledger 9 needs indexer 4.4.100 and a full re-index from genesis. Indexer 4.4.100 stores contract state in a new layout, and data indexed by earlier versions can't be converted, so moving from indexer 4.3.x isn't an in-place upgrade. Once re-indexed, the indexer follows the chain across the upgrade by itself.
+Ledger 9 needs indexer 4.4.101 and a full re-index from genesis. Indexer 4.4.101 stores contract state in a new layout, and data indexed by earlier versions can't be converted, so moving from indexer 4.3.x isn't an in-place upgrade. Once re-indexed, the indexer follows the chain across the upgrade by itself.
 
 1. Deploy the ledger 9 indexer release.
 2. Wipe the indexer database and the ledger database together.
 3. Finish the re-index from genesis before the upgrade. Syncing against a local archive node is much faster than syncing against a public RPC endpoint.
 
-An indexer older than 4.4.100 reports DUST capacity incorrectly after the upgrade. An indexer database that is already past the upgrade also needs a re-index.
+An indexer older than 4.4.101 reports DUST capacity incorrectly after the upgrade. An indexer database that is already past the upgrade also needs a re-index.
 
 After the upgrade, the indexer serves post-upgrade state for contracts that no transaction has touched since the upgrade. Contract action subscriptions opened without an offset deliver only new actions. Clients that need a contract's history must pass an explicit offset, such as block height `0`.
 
@@ -153,7 +153,7 @@ If you run an indexer against your node, also follow [Re-index the indexer](#re-
 
 At the upgrade, the network resets DUST once. This is a one-time measure. It clears the DUST state, and NIGHT balances aren't affected.
 
-On Mainnet, you don't need to do anything. Every Mainnet DUST registration is backed by cNIGHT, and after the upgrade the network replays every live registration automatically, straight to its full DUST cap, at the same DUST address. A wallet shows the refilled balance only when it runs wallet SDK 2.0.0 against an indexer on 4.4.100.
+On Mainnet, you don't need to do anything. Every Mainnet DUST registration is backed by cNIGHT, and after the upgrade the network replays every live registration automatically, straight to its full DUST cap, at the same DUST address. A wallet shows the refilled balance only when it runs wallet SDK 2.0.0 against an indexer on 4.4.101.
 
 NIGHT that arrives on Midnight after the upgrade needs a first-time registration for DUST generation, with `registerNightUtxosForDustGeneration`. See [Manage DUST](../guides/manage-dust).
 
@@ -206,7 +206,9 @@ A contract call whose fee is paid with exactly one DUST spend can be rejected wi
 
 ### Removing a verifier key in a maintenance update is rejected
 
-On node 2.1.101, a maintenance transaction that removes a verifier key (`VerifierKeyRemove`) is rejected with `BalanceCheckOverspend`, even though the ledger reports it as paid. Maintenance transactions that insert a verifier key or replace the maintenance authority are accepted. There's no workaround in this release. A fix is planned in a follow-up release. Track it in the [node issue for verifier key removal](https://github.com/midnightntwrk/midnight-node/issues/2375).
+On node 2.1.101, a maintenance transaction that removes a verifier key (`VerifierKeyRemove`) is rejected with `BalanceCheckOverspend` when the client packages use ledger 9.1.0.0, even though the client reports it as paid. Node 2.1.101 runs ledger 9.1.0.1, which changes the fee for transactions whose fallible part deletes state, so clients on ledger 9.1.0.0 underestimate that fee. Maintenance transactions that insert a verifier key or replace the maintenance authority are accepted.
+
+Most contracts aren't affected. A contract with ZKIR version 2 keys moves to Compact toolchain 0.36.0 by inserting its new keys, and inserts are accepted. Only a contract that makes cross-contract calls and takes the cross-contract call fix in Compact toolchain 0.36.0 needs to remove its old keys. Until your client packages move to ledger 9.1.0.1, redeploy that contract instead. Track it in the [node issue for verifier key removal](https://github.com/midnightntwrk/midnight-node/issues/2375).
 
 ### Switching to unified storage on an existing data directory stops block import
 

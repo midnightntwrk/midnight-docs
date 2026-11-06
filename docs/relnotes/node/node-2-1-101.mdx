@@ -118,7 +118,7 @@ These changes affect how you run the node. They come from the release candidates
 
 ### Ledger 8 transactions stop working on Mainnet
 
-After the governance upgrade, the ledger 8 transaction format doesn't decode on Mainnet, so Mainnet rejects transactions built for ledger 8. Wallets on wallet SDK 1.x can't transact on Mainnet. DApps and wallets need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.100. For the full version set, see the [support matrix](/relnotes/support-matrix).
+After the governance upgrade, the ledger 8 transaction format doesn't decode on Mainnet, so Mainnet rejects transactions built for ledger 8. Wallets on wallet SDK 1.x can't transact on Mainnet. DApps and wallets need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.101. For the full version set, see the [support matrix](/relnotes/support-matrix).
 
 Clients that read runtime metadata must fetch it again after the upgrade, because the runtime adds pallets and changes pallet error enums.
 
@@ -128,10 +128,10 @@ Clients that read runtime metadata must fetch it again after the upgrade, becaus
 
 You do not run a node, but your DApp talks to Mainnet through one. Before the governance upgrade:
 
-- Move your DApp to wallet SDK 2.0.0 and Midnight.js 5.0.0, and point it at indexer 4.4.100. In Midnight.js 5.0.0 and Compact.js 3.0.0, the types are aware of the ledger era, so select the era explicitly.
+- Move your DApp to wallet SDK 2.0.0 and Midnight.js 5.0.0, and point it at indexer 4.4.101. In Midnight.js 5.0.0 and Compact.js 3.0.0, the types are aware of the ledger era, so select the era explicitly.
 - Compile new contracts with Compact toolchain 0.36.0 (language version 0.28.0).
 - The tested upgrade rehearsal checks that a contract deployed before the upgrade can still be called. In an earlier devnet test, contracts built with Compact toolchain 0.31.1 kept working without a recompile when the ZK config provider uses `verify: 'warn'`. TBD-L9[confirm after fork-survival test]
-- In the same devnet test, artifacts built with Compact toolchain 0.30.0 failed with `EraArtifactMismatchError`. Recompile those contracts.
+- Midnight.js 5.0.0 refuses artifacts built with Compact toolchain 0.30.0 or 0.35.0, with `EraMismatchError`. Move those contracts to Compact toolchain 0.36.0 through their maintenance authority, or redeploy them.
 - A contract action subscription that you open without an offset now delivers only new actions. To replay history, pass an explicit offset, such as height `0`. Midnight.js 5.0.0 does this. Midnight.js 4.x doesn't, and receives no history.
 - A fee floor, `min_block_price`, applies from the first block after the upgrade, so fees rise slightly. Update your fee estimation before the upgrade.
 
@@ -143,7 +143,7 @@ At the upgrade, DUST state resets once, and NIGHT balances don't change. Every D
 
 ## What indexer operators do
 
-Indexer 4.4.100 stores contract state in a new layout and needs a full re-index from genesis. Plan the re-index before the governance upgrade. The indexer then follows the chain across the upgrade by itself. Indexers must run 4.4.100 to report DUST capacity correctly after the upgrade. A local archive node on v2.1.101 syncs the indexer faster than a public RPC endpoint. For details, see the [ledger 9 upgrade page](/relnotes/ledger-9).
+Indexer 4.4.101 stores contract state in a new layout and needs a full re-index from genesis. Plan the re-index before the governance upgrade. The indexer then follows the chain across the upgrade by itself. Indexers must run 4.4.101 to report DUST capacity correctly after the upgrade. A local archive node on v2.1.101 syncs the indexer faster than a public RPC endpoint. For details, see the [ledger 9 upgrade page](/relnotes/ledger-9).
 
 ---
 
@@ -163,7 +163,9 @@ Keep the default `separate` layout for this upgrade. To move to `unified`, stop 
 
 ### Removing a verifier key in a maintenance update is rejected
 
-A maintenance transaction that removes a verifier key (`VerifierKeyRemove`) is rejected with `BalanceCheckOverspend`, even though the ledger reports it as paid. Maintenance transactions that insert a verifier key or replace the maintenance authority are accepted. There's no workaround in this release. A fix is planned in a follow-up release. Track it in the [node issue for verifier key removal](https://github.com/midnightntwrk/midnight-node/issues/2375).
+A maintenance transaction that removes a verifier key (`VerifierKeyRemove`) is rejected with `BalanceCheckOverspend` when the client packages use ledger 9.1.0.0, even though the client reports it as paid. Node 2.1.101 runs ledger 9.1.0.1, which changes the fee for transactions whose fallible part deletes state, so clients on ledger 9.1.0.0 underestimate that fee. Maintenance transactions that insert a verifier key or replace the maintenance authority are accepted.
+
+Most contracts aren't affected. A contract with ZKIR version 2 keys moves to Compact toolchain 0.36.0 by inserting its new keys, and inserts are accepted. Only a contract that makes cross-contract calls and takes the cross-contract call fix in Compact toolchain 0.36.0 needs to remove its old keys. Until your client packages move to ledger 9.1.0.1, redeploy that contract instead. Track it in the [node issue for verifier key removal](https://github.com/midnightntwrk/midnight-node/issues/2375).
 
 If you find a problem with v2.1.101, report it in the [midnight-node issue tracker](https://github.com/midnightntwrk/midnight-node/issues).
 
