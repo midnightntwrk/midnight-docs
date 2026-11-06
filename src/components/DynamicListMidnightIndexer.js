@@ -19,7 +19,7 @@ const releases = [
   {
     version: '4.4.101',
     status: 'LATEST',
-    note: 'Mainnet only, for the ledger 9 network upgrade. Preview and Preprod stay on the 4.3.x line.',
+    note: 'Mainnet and Preview, for the ledger 9 network upgrade and the Preview reset. Preprod stays on the 4.3.x line.',
     date: '6 November 2026',
     summary: 'Indexer line for the ledger 9 network upgrade on Mainnet. Requires a full re-index from genesis.',
     details: [
