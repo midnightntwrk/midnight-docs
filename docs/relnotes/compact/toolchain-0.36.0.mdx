@@ -23,7 +23,7 @@ These release notes are intended for Compact smart-contract developers and for D
 
 ### ZKIR version 3 is the default and only backend
 
-The compiler now always generates ZKIR version 3.  The ZKIR version 2 backend is removed.  As a result, the features added in toolchain 0.35.0 that required `--feature-zkir-v3` are available without a flag: `sha512`, the secp256r1 (P256) and Curve25519 curves and fields, `secp256r1EcdsaVerify`, and `ed25519Verify`.
+The compiler now always generates ZKIR version 3.  The ZKIR version 2 backend is removed.  As a result, the features added in toolchain 0.35.0 that required `--feature-zkir-v3` are available without a flag, including `sha512`.
 
 Passing `--feature-zkir-v3` is now an error; see [Breaking changes](#the---feature-zkir-v3-flag-is-removed).
 
@@ -39,11 +39,11 @@ In generated JavaScript, a successful `assert` now produces the value `[]`, as t
 
 ### `serialize` and `deserialize` support type aliases
 
-The built-in `serialize` and `deserialize` circuits now work for values whose types are or contain structural or nominal type aliases.  They raise a not-yet-implemented exception for values whose types are or contain `Secp256k1Point`, `Secp256r1Point`, or `Curve25519Point`.
+The built-in `serialize` and `deserialize` circuits now work for values whose types are or contain structural or nominal type aliases.  They raise a not-yet-implemented exception for values whose types are or contain a foreign curve point type, such as `Secp256k1Point`.
 
 ### Identity points have a single encoding
 
-The Compact runtime now encodes every `Secp256k1Point` and `Secp256r1Point` identity point the same way, with both coordinates 0, whatever coordinates the JavaScript value carries.
+The Compact runtime now encodes every `Secp256k1Point` identity point the same way, with both coordinates 0, whatever coordinates the JavaScript value carries.
 
 ## Breaking changes
 
@@ -69,14 +69,7 @@ The arguments of every cross-contract call must now be disclosed.  The exemption
 
 ### Purity is removed from the Compact runtime's cross-contract API
 
-Conformance of a resolved module now checks that every declared circuit is implemented by a provable circuit (the `Provability` check), and nothing about purity.
-
-- The `PureInterfaceCircuit` failure kind and the `Purity` conformance check are removed.
-- The `pure` field of `InterfaceCircuitDeclaration` is removed.
-- The never-read `pureCircuits` field of `Module` is removed, together with the `PureCircuit` and `PureCircuits` types.
-- `CircuitSignature` keeps its `pure` field, for information only.
-
-The compiler no longer emits `pure` for the circuits of a contract type in `declaredInterfaces` or in `contract-info.json`.
+The Compact runtime's cross-contract API no longer tracks purity, and the compiler no longer emits `pure` for the circuits of a contract type in `contract-info.json`.  For the removed types and fields, see the Compact [`CHANGELOG.md`](https://github.com/LFDT-Minokawa/compact/blob/main/CHANGELOG.md).
 
 ### Contracts that make cross-contract calls must be recompiled and their keys replaced
 
@@ -94,15 +87,13 @@ Casting any field type other than `Field` to `Boolean` is now always a type erro
 
 The following defects are fixed by updating to Compact toolchain 0.36.
 
-- The compiler failed with an internal error on a cast to a foreign field type (`Secp256k1Base`, `Secp256k1Scalar`, `Secp256r1Base`, `Secp256r1Scalar`, `Curve25519Base`, or `Curve25519Scalar`) when the cast is a constant, such as `(1 as Bytes<32>) as Secp256k1Base`, or when its result is never used, such as a struct field that is never read ([#891](https://github.com/LFDT-Minokawa/compact/issues/891)).  This is fixed.
+- The compiler failed with an internal error on a cast to a foreign field type, such as `Secp256k1Base`, when the cast is a constant, such as `(1 as Bytes<32>) as Secp256k1Base`, or when its result is never used, such as a struct field that is never read ([#891](https://github.com/LFDT-Minokawa/compact/issues/891)).  This is fixed.
 - The compiler failed with an internal error when a circuit subtracts a foreign field value from itself, such as `k - k` for a `Secp256k1Scalar` `k`, including when the two operands become the same only after inlining ([#866](https://github.com/LFDT-Minokawa/compact/issues/866)).  This is fixed.
 - The compiler failed with an internal error for `*` or `+` on operands of a nominal `Uint` type whose result range equals the type's own range, such as `x * y` where `x` and `y` have type `Bit` declared by `new type Bit = Uint<1>` ([#881](https://github.com/LFDT-Minokawa/compact/issues/881)).  This is fixed.
-- Casting `Secp256k1Base`, `Secp256k1Scalar`, `Secp256r1Base`, `Secp256r1Scalar`, `Curve25519Base`, or `Curve25519Scalar` to a `Uint` type failed with an internal error ([#880](https://github.com/LFDT-Minokawa/compact/issues/880)).  It is now reported as a type error.
+- Casting a foreign field type, such as `Secp256k1Base` or `Secp256k1Scalar`, to a `Uint` type failed with an internal error ([#880](https://github.com/LFDT-Minokawa/compact/issues/880)).  It is now reported as a type error.
 - Casting any field type other than `Field`, including `JubjubScalar`, to an enum type failed with an internal error.  It is now reported as a type error.
 - An exported circuit whose only public effect is a cross-contract call on an address that is not read from the ledger (for example, an argument) got no ZKIR or verifier key, so the circuit could not be submitted or called.  This is fixed.
 - A program that declares a contract type had to import `CompactStandardLibrary` for its cross-contract calls to compile.  This is fixed.
-- The compiler failed with an internal error when a circuit needed a default value of type `Curve25519Base`, `Curve25519Scalar`, or `Curve25519Point`, such as in `none<Curve25519Point>()` or the unused side of an `Either` ([#868](https://github.com/LFDT-Minokawa/compact/issues/868)).  This is fixed.
 - When the witness-protect pass encountered a tuple used as an array, it used the first tuple element as a representative for all of the array's elements, which could give the wrong result when the elements differ ([#847](https://github.com/LFDT-Minokawa/compact/issues/847)).  This is fixed.
-- The Compact runtime's conformance check for dynamically resolved contract calls did not recognize `Secp256r1Base`, `Secp256r1Scalar`, `Secp256r1Point`, `Curve25519Base`, `Curve25519Scalar`, or `Curve25519Point`.  A call to a contract type that declares a circuit with one of these types in its signature failed to resolve.  This is fixed.
 - A circuit that returns a conditional expression whose else branch is `[]`, such as `return b ? f() : [];`, returned `undefined` from the generated JavaScript when the condition was false.  It now returns `[]`.
 - The compiler failed with an internal error on a conditional expression with an `assert` in one branch and a `[]` literal in the other, such as `b ? assert(...) : []`.  This is fixed.
