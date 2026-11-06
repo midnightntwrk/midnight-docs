@@ -12,7 +12,7 @@ toc_max_heading_level: 2
 
 # Ledger 9 upgrade
 
-On 6 November 2026, Midnight Mainnet moved from ledger 8 to ledger 9 in the ledger 9 network upgrade. Preview and Preprod stay on ledger 8 until a later upgrade.
+On 6 November 2026, Midnight Mainnet moved from ledger 8 to ledger 9 in the ledger 9 network upgrade. On the same day, Preview was reset as a new chain that runs ledger 9. Preprod stays on ledger 8 until a later upgrade.
 
 This page explains what changes on Mainnet and what you need to do, whether you build DApps, run a wallet or an indexer, or run a node. For the exact component versions, see the [compatibility matrix](./support-matrix).
 
@@ -22,12 +22,25 @@ This page explains what changes on Mainnet and what you need to do, whether you 
 | Network | Ledger | Node | What to use |
 | --- | --- | --- | --- |
 | Mainnet | 9.1.0.1 | 2.1.101 | Wallet SDK 2.0.0, Midnight.js 5.0.0, Compact toolchain 0.36.0 (`language_version` 0.28.0), Compact runtime 0.21.0, proof server 9.0.0, and indexer 4.4.101. See the [Mainnet support matrix](./support-matrix#mainnet-support-matrix). |
+| Preview | 9.1.0.1 | 2.1.101 | Reset as a new ledger 9 chain. Same versions as Mainnet. |
 | Preprod | 8.1.3 | 1.0.400 | Wallet SDK 1.2.0, Midnight.js 4.1.1, Compact toolchain 0.31.1 (`language_version` 0.23), Compact runtime 0.16.0, and proof server 8.1.3. |
-| Preview | 8.1.3 | 1.0.400 | Same as Preprod. |
 
-Until Preview and Preprod move to ledger 9, you can't test a ledger 9 DApp on a public testnet.
+To test a ledger 9 DApp on a public network before Mainnet, use Preview.
 
 The network IDs and endpoints don't change.
+
+### Preview reset
+
+On 6 November 2026, Preview was reset as a new chain that runs ledger 9. This wasn't a hard fork, so nothing carries over from the old ledger 8 chain. Its contracts, balances, DUST registrations, and transaction history are gone.
+
+Preview keeps the same endpoints and the same network ID, `preview`. To keep using Preview:
+
+1. Request tNIGHT from the Preview faucet again.
+2. Register for DUST generation again.
+3. Recompile your contracts with Compact toolchain 0.36.0 and deploy them again.
+4. Sync your wallet again against the new chain.
+
+The Mainnet upgrade steps on this page, such as the DUST replay, keeping ledger 8 contracts with `verify: 'require-if-present'`, and re-indexing from genesis, don't apply to Preview.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## What changes in ledger 9
@@ -36,7 +49,7 @@ Ledger 9 adds these features:
 
 - **Contract-to-contract calls.** A contract can call another contract within a single transaction. This first phase is limited to unshielded data.
 - **Event emission.** Contracts can emit events, and you can observe them through the indexer API. This first phase covers unshielded events only.
-- **New signature and hash support.** ECDSA signatures with public-key recovery in the Compact runtime, native Keccak hashing, and native secp256k1, all available to Compact contracts.
+- **New signature and hash support.** ECDSA signature verification in the Compact runtime, native Keccak hashing, and native secp256k1, all available to Compact contracts.
 - **ZKIR version 3.** Version 3 of the zero-knowledge intermediate representation, across the proving stack and the Compact toolchain.
 
 Ledger 9 also changes how the network calculates fees. See [DUST and fees](#dust-and-fees).
@@ -86,8 +99,8 @@ Contracts deployed before the upgrade keep their verifier keys. Whether you can 
 
 | Built with | After the upgrade |
 | --- | --- |
-| `compactc` 0.31.1 | Keeps working without a recompile. Configure your ZK config provider with `verify: 'warn'`, because 0.31.1 doesn't emit a `contract-manifest.json` file. |
-| `compactc` 0.30.0 or 0.35.0 | Refused by Midnight.js 5 with `EraMismatchError` (reason `unknown-artifact-runtime-version`). Move the contract to Compact toolchain 0.36.0 through its maintenance authority, or redeploy it. See [Recompiling a contract changes its verifier keys](#recompiling-a-contract-changes-its-verifier-keys). |
+| `compactc` 0.31.1 | Keeps working without a recompile. Configure your ZK config provider with `verify: 'require-if-present'`, because 0.31.1 doesn't emit a `contract-manifest.json` file. |
+| `compactc` 0.30.0 | Refused by Midnight.js 5 with `EraMismatchError` (reason `unknown-artifact-runtime-version`). Move the contract to Compact toolchain 0.36.0 through its maintenance authority, or redeploy it. See [Recompiling a contract changes its verifier keys](#recompiling-a-contract-changes-its-verifier-keys). |
 
 Contracts built with 0.31.1 have these limits after the upgrade:
 
@@ -136,7 +149,7 @@ Every Mainnet validator and RPC node must run node 2.1.101 before the governance
 The upgrade happens through governance, not at a set block height. The Council and the Technical Committee approve a runtime upgrade, and the new runtime takes effect at the block that applies the upgrade. Until then, a node on 2.1.101 keeps running ledger 8.
 
 1. Snapshot the node data directory. The binary upgrade is one-way: once node 2.1.101 has opened a data directory, node 1.0.400 can't start on it. To go back to 1.0.400, restore the snapshot, or wipe the data directory and resync.
-2. Install node 2.1.101 from the [node release notes](./node), either the `midnightntwrk/midnight-node:2.1.101` container image or the `midnight-node-2.1.101-linux-amd64.tar.gz` or `midnight-node-2.1.101-linux-arm64.tar.gz` binary. The release is published at [node-2.1.101](https://github.com/midnightntwrk/midnight-node/releases/tag/node-2.1.101).
+2. Install node 2.1.101 from the [node release notes](./node), either the `midnightntwrk/midnight-node:2.1.101` container image or the `midnight-node-2.1.101-linux-amd64.tar.gz` or `midnight-node-2.1.101-linux-arm64.tar.gz` binary. The public GitHub release and images follow in the next few days.
 3. Keep the default `separate` storage layout. A node set to `storage_separation=unified` that keeps its 1.0.400 data directory silently stops importing blocks. The process keeps running with no crash and no peers, so liveness checks don't flag it. To move to `unified` later, stop the node, delete the whole data directory (`chains/` and `ledger_storage/`), and resync.
 4. Restart the node with the new image or binary.
 5. After the upgrade, don't restore a snapshot or warp-sync a node until the DUST replay has ended with the `DustReapplyCompleted` event.
@@ -152,7 +165,9 @@ On Mainnet, you don't need to do anything. Every Mainnet DUST registration is ba
 
 NIGHT that arrives on Midnight after the upgrade needs a first-time registration for DUST generation, with `registerNightUtxosForDustGeneration`. See [Manage DUST](../guides/manage-dust).
 
-When Preview and Preprod upgrade later, the upgrade clears DUST registrations that aren't backed by cNIGHT, and testnet wallets and the faucet register their DUST address again. Registering again loses nothing: DUST generation is credited from when the NIGHT was created, up to the cap. Expect a gap in faucet service on each testnet during its upgrade window.
+On Preview, the reset started a new chain, so register for DUST generation again. See [Preview reset](#preview-reset).
+
+When Preprod upgrades later, the upgrade clears DUST registrations that aren't backed by cNIGHT, and Preprod wallets and the faucet register their DUST address again. Registering again loses nothing: DUST generation is credited from when the NIGHT was created, up to the cap. Expect a gap in faucet service on Preprod during its upgrade window.
 
 The DUST parameters stay the same: 5 DUST per NIGHT at the cap, and about 7 days to reach the cap.
 
