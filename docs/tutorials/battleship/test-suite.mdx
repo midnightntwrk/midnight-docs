@@ -41,24 +41,24 @@ transactions, so expect it to take several minutes.
 When it finishes, all 12 tests pass, including the ones that expect a rejection:
 
 ```
- ✓ src/test/battleship.test.ts (12 tests) 179167ms
-     ✓ deploys the contract  18225ms
-     ✓ Allows Bob to acceptGame  17155ms
-     ✓ Allows Alice to take the first shot(MISS)  17340ms
-     ✓ Allows Bob to check the board (MISS)  18665ms
-     ✓ Allows Bob to shoot(HIT)  17348ms
-     ✓ Allows Alice to check the board and report a hit  18670ms
-     ✓ Allows Alice to shoot again (HIT)  17319ms
-     ✓ Allows Bob to check the board for a HIT  17062ms
-     ✓ Allows Bob to shoot the winning shot  18644ms
-     ✓ Stops Alice from cheating  357ms
-     ✓ Allows Alice to check the board and lose  16979ms
+ ✓ src/test/battleship.test.ts (12 tests)
+     ✓ deploys the contract
+     ✓ Allows Bob to acceptGame
+     ✓ Allows Alice to take the first shot(MISS)
+     ✓ Allows Bob to check the board (MISS)
+     ✓ Allows Bob to shoot(HIT)
+     ✓ Allows Alice to check the board and report a hit
+     ✓ Allows Alice to shoot again (HIT)
+     ✓ Allows Bob to check the board for a HIT
+     ✓ Allows Bob to shoot the winning shot
+     ✓ Stops Alice from cheating
+     ✓ Allows Alice to check the board and lose
 
  Test Files  1 passed (1)
       Tests  12 passed (12)
 ```
 
-Vitest lists only tests that take longer than 300 ms, so "Stops Bob from being a cheater" passes without a line of its own. The timings tell you something: each honest move takes about 17 seconds, most of it generating a proof, while a cheat fails in well under a second. A failing `assert` stops the circuit on the cheater's own machine, so no proof is ever generated and nothing is submitted.
+Vitest lists only tests that take longer than 300 ms, so "Stops Bob from being a cheater" passes without a line of its own. Run it and the timings tell you something: each honest move takes many seconds, most of it generating a proof, while a cheat fails in well under a second. A failing `assert` stops the circuit on the cheater's own machine, so no proof is ever generated and nothing is submitted.
 
 Tear the network down when you're done:
 
@@ -80,7 +80,9 @@ test file is shared harness. It is the same in every example in midnight-example
   `.env.<network>` file.
 - **`src/wallet.ts`** builds, starts and syncs each wallet. **`src/providers.ts`** bundles the
   MidnightJS providers a player needs: public data from the indexer, private state, ZK artifacts
-  and proving, and the wallet itself.
+  and proving, and the wallet itself. MidnightJS 5 takes the wallet through
+  `createLedger9WalletProvider` and `createLedger9MidnightProvider`, and the bundle carries a `config` with the
+  network ID and the transaction time-to-live.
 
 The suite declares a wallet and a provider set for each player, and fixes their ship locations:
 
@@ -113,14 +115,18 @@ const BOB_PRIVATE_ID = 'bobPrivateState';
 ```
 
 `beforeAll` builds and syncs both wallets, then builds each player's providers. On a remote network
-it also waits until both wallets are funded. A small helper reads the contract's public ledger
-through a player's providers, and the tests use it after every call:
+it also waits until both wallets have NIGHT and at least 60 DUST (set `MIDNIGHT_MIN_DUST` to
+change that), and caches the synced wallet state in the repo-root `.wallet-state/` folder, so later
+runs only sync new blocks. A small helper reads the contract's public ledger through a player's
+providers, and the tests use it after every call. `ledgerState`, from `src/providers.ts`,
+decodes the era-tagged state that MidnightJS 5 returns (`read.contractState`, ledger 9 here) into the
+data the compiled `ledger()` decodes:
 
 ```typescript title="src/test/battleship.test.ts"
     async function queryLedger(providers: BattleshipProviders) {
         const state = await providers.publicDataProvider.queryContractState(contractAddress);
         expect(state).not.toBeNull();
-        return ledger(state!.data);
+        return ledger(ledgerState(state));
     }
 ```
 
@@ -143,7 +149,7 @@ ship locations are the constructor's arguments:
             aliceSk,
         );
 
-        const deployed: any = await (deployContract<Contract>)(aliceProviders, {
+        const deployed: any = await deployContract(aliceProviders, {
             compiledContract: CompiledBattleshipContract,
             privateStateId: ALICE_PRIVATE_ID,
             initialPrivateState: alicePrivateState,
@@ -180,7 +186,7 @@ for calling a circuit on a deployed contract:
 
 ```typescript title="src/test/battleship.test.ts"
         const txData: FinalizedCallTxData<Contract, 'acceptGame'> =
-            await (submitCallTx<Contract, 'acceptGame'>)(bobProviders, {
+            await submitCallTx(bobProviders, {
                 compiledContract: CompiledBattleshipContract,
                 contractAddress,
                 privateStateId: BOB_PRIVATE_ID,
@@ -217,7 +223,7 @@ in `expect(...).rejects.toThrow()`, which passes only if the call fails:
 
         logger.info(`Bob tries to shoot out of turn...`);
         await expect(async () => {
-            await (submitCallTx<Contract, 'player2Shoot'>)(bobProviders, {
+            await submitCallTx(bobProviders, {
                 compiledContract: CompiledBattleshipContract,
                 contractAddress,
                 privateStateId: BOB_PRIVATE_ID,
@@ -245,7 +251,7 @@ rewriting his private state so that his ships are on 15 and 16:
     it('Stops Bob from being a cheater', async () => {
 
         logger.info(`Bob realizes it is going to be a HIT and tries to cheat...`);
-        const bobPrivateState = await bobProviders.privateStateProvider.get(BOB_PRIVATE_ID);
+        const bobPrivateState = await bobProviders.privateStateProvider.forContract(contractAddress).get(BOB_PRIVATE_ID);
         const cheatBobPrivateState = createBattlePrivateState(
             BigInt(15),
             BigInt(16),
@@ -253,9 +259,9 @@ rewriting his private state so that his ships are on 15 and 16:
             ShotState.MISS,
             bobPrivateState.sk,
         );
-        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, cheatBobPrivateState);
+        await bobProviders.privateStateProvider.forContract(contractAddress).set(BOB_PRIVATE_ID, cheatBobPrivateState);
         await expect(async () => {
-            await (submitCallTx<Contract, 'checkBoard2'>)(bobProviders, {
+            await submitCallTx(bobProviders, {
                 compiledContract: CompiledBattleshipContract,
                 contractAddress,
                 privateStateId: BOB_PRIVATE_ID,
@@ -275,7 +281,7 @@ no hits recorded, and still Bob's turn to check.
 
 ```typescript title="src/test/battleship.test.ts"
         logger.info(`Bob is resetting his board to the original private state...`);
-        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, bobPrivateState);
+        await bobProviders.privateStateProvider.forContract(contractAddress).set(BOB_PRIVATE_ID, bobPrivateState);
         logger.info(`Bob successfully reverted his private state to the original!`);
 
         const state = await queryLedger(aliceProviders);
@@ -301,10 +307,10 @@ her the game. Alice tries to move that ship to square 10 before she checks:
             ShotState.MISS,
             newAlicePrivateState.sk,
         );
-        await aliceProviders.privateStateProvider.set(ALICE_PRIVATE_ID, newAlicePrivateState);
+        await aliceProviders.privateStateProvider.forContract(contractAddress).set(ALICE_PRIVATE_ID, newAlicePrivateState);
 
         await expect(async () => {
-            await (submitCallTx<Contract, 'checkBoard1'>)(aliceProviders, {
+            await submitCallTx(aliceProviders, {
                 compiledContract: CompiledBattleshipContract,
                 contractAddress,
                 privateStateId: ALICE_PRIVATE_ID,

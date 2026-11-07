@@ -18,7 +18,7 @@ This part walks through the contract in `examples/zk-loan/contract/`: the Schnor
 
 - The [set-up steps](/tutorials/zk-loan) of this tutorial, so you have midnight-examples
   installed and compiled.
-- The [Compact toolchain](/getting-started/installation) and Node.js 22.
+- The [Compact toolchain](/getting-started/installation) with compiler 0.36.0, and Node.js 22.
 
 Open `examples/zk-loan/contract/zk-loan.compact` in your editor and keep it beside this page.
 
@@ -106,10 +106,10 @@ inside a proof rather than data kept on the ledger.
 
 ### Witness-assisted reduction
 
-`transientHash` returns a value in the BLS12-381 scalar field, about 255 bits, but `ecMul` needs
-a scalar below the Jubjub order, about 252 bits. So the challenge is truncated to 248 bits.
-Division is expensive in a circuit, so a witness does it off-chain and the circuit only checks the
-answer:
+`transientHash` returns a value in the BLS12-381 scalar field, about 255 bits, which is larger
+than the Jubjub order, about 252 bits. The scheme truncates the challenge to 248 bits, and the
+off-chain signer does the same, so both sides use one challenge below the order. Division is
+expensive in a circuit, so a witness does it off-chain and the circuit only checks the answer:
 
 ```compact title="contract/schnorr.compact"
   // The witness provides the quotient and remainder of dividing the challenge
@@ -125,8 +125,8 @@ answer:
     // Truncate the challenge to 248 bits via witness-assisted division by 2^248.
     // The witness provides (quotient, remainder) such that cFull == q * 2^248 + r
     // where r : Uint<248>, guaranteeing r < 2^248 < Jubjub subgroup order.
-    // This is needed because ecMul requires scalars < JUBJUB_ORDER (~2^252.4),
-    // but transientHash returns values in BLS12-381's scalar field (~2^255).
+    // transientHash returns values in BLS12-381's scalar field (~2^255); the
+    // off-chain signer truncates the same way (c % 2^248), so both sides agree.
     const TWO_248: Field =
             452312848583266388373324160190187140051835877600158453279131187530910662656 as Field;
     const [q, cTruncated] = getSchnorrReduction(cFull);
@@ -164,9 +164,10 @@ an unconstrained challenge quotient" builds exactly that forgery and checks the 
 With the challenge `c` in hand, the circuit checks the Schnorr equation `s*G == R + c*pk`:
 
 ```compact title="contract/schnorr.compact"
-    // s*G == R + c*pk
-    const lhs: JubjubPoint = ecMulGenerator(response);
-    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c));
+    // s*G == R + c*pk. ecMul and ecMulGenerator take a JubjubScalar; the cast
+    // reduces modulo the Jubjub group order, which leaves the points unchanged.
+    const lhs: JubjubPoint = ecMulGenerator(response as JubjubScalar);
+    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c as JubjubScalar));
     // Compare coordinates, not the points: `==` on the opaque JubjubPoint
     // compiles to JS reference equality.
     assert(jubjubPointX(lhs) == jubjubPointX(rhs) && jubjubPointY(lhs) == jubjubPointY(rhs),
@@ -210,7 +211,7 @@ module. `prefix Schnorr_` namespaces every name the module exports, so `schnorrV
 `Schnorr_schnorrVerify`:
 
 ```compact title="contract/zk-loan.compact"
-pragma language_version 0.23;
+pragma language_version 0.28;
 import CompactStandardLibrary;
 
 // schnorr.compact sits next to this file; `prefix Schnorr_` namespaces every
@@ -812,14 +813,14 @@ This runs `compact compile contract/zk-loan.compact contract/managed/zk-loan`. T
 
 ```
 Compiling 8 circuits:
-  circuit "blacklistUser" (k=13, rows=2579)
-  circuit "changePin" (k=14, rows=14024)
-  circuit "registerProvider" (k=13, rows=2340)
-  circuit "removeBlacklistUser" (k=13, rows=2579)
-  circuit "removeProvider" (k=13, rows=2320)
-  circuit "requestLoan" (k=13, rows=7998)
-  circuit "respondToLoan" (k=13, rows=6222)
-  circuit "rotateAdmin" (k=13, rows=2579)
+  circuit "blacklistUser" (k=13, rows=2102)
+  circuit "changePin" (k=14, rows=12508)
+  circuit "registerProvider" (k=13, rows=2051)
+  circuit "removeBlacklistUser" (k=13, rows=2100)
+  circuit "removeProvider" (k=13, rows=2034)
+  circuit "requestLoan" (k=13, rows=7523)
+  circuit "respondToLoan" (k=13, rows=5856)
+  circuit "rotateAdmin" (k=13, rows=2100)
 Overall progress [====================] 8/8
 ```
 
