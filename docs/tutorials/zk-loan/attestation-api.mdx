@@ -86,11 +86,12 @@ two constants: the order of the Jubjub subgroup, and 2^248 for the challenge tru
 
 ```typescript title="attestation-api/signing.ts"
 import * as crypto from 'node:crypto';
-import { ecMulGenerator, type JubjubPoint } from '@midnight-ntwrk/midnight-js-protocol/compact-runtime';
+import { ecMulGenerator, type JubjubPoint } from '@midnight-ntwrk/midnight-js-protocol/v9/compact-runtime';
 import { pureCircuits, type Schnorr_SchnorrSignature } from '../contract/index.js';
 
-// Order of the Jubjub prime-order subgroup. Scalars passed to ecMulGenerator
-// must be below this or it throws "out of bounds for prime field".
+// Order of the Jubjub prime-order subgroup. ecMulGenerator reduces its scalar
+// modulo this order, but throws "out of bounds for prime field" for values at
+// or above the BLS12-381 scalar modulus, so keys and responses are reduced first.
 export const JUBJUB_ORDER = 6554484396890773809930967563523245729705921265872317281365359162392183254199n;
 // The circuit truncates the BLS12-381 challenge hash to 248 bits so it is a
 // valid Jubjub scalar; the signer must truncate the same way.
@@ -135,8 +136,9 @@ export function sign(sk: bigint, msg: bigint[]): Schnorr_SchnorrSignature {
   // pureCircuits.schnorrChallenge returns the full transientHash output; the
   // circuit reduces it mod 2^248 before the EC ops, so do the same here.
   const c = pureCircuits.schnorrChallenge(R.x, R.y, pk.x, pk.y, msg) % TWO_248;
-  // s must be reduced mod the Jubjub order (not the BLS12-381 field), because
-  // the circuit feeds it to ecMulGenerator.
+  // s must be reduced mod the Jubjub order, not left to wrap modulo the
+  // BLS12-381 field: k + c*sk can exceed the field, and the wrapped value is a
+  // different scalar.
   const s = reduce(k + c * sk);
   return { announcement: R, response: s };
 }
@@ -144,14 +146,14 @@ export function sign(sk: bigint, msg: bigint[]): Schnorr_SchnorrSignature {
 
 Step by step:
 
-1. Reduce the secret key into the Jubjub scalar field with `reduce`. `ecMulGenerator` only accepts
-   scalars below the Jubjub order, and throws "out of bounds for prime field" otherwise. So a key
-   loaded from any 32-byte value, which is usually larger than the order, still works.
+1. Reduce the secret key into the Jubjub scalar field with `reduce`. `ecMulGenerator` throws "out
+   of bounds for prime field" for values at or above the BLS12-381 scalar modulus, which many
+   32-byte values are. So a key loaded from any 32-byte value still works.
 2. Pick a fresh random nonce `k`, and compute the announcement `R = k*G`.
 3. Compute the challenge with `pureCircuits.schnorrChallenge`, the same hash the circuit uses,
    and truncate it to 248 bits.
-4. Compute the response `s = k + c*sk`, reduced modulo the Jubjub order, because the circuit
-   passes `s` to `ecMulGenerator`.
+4. Compute the response `s = k + c*sk`, reduced modulo the Jubjub order. Left unreduced, it can
+   exceed the BLS12-381 field and wrap to a different scalar, and the signature would fail.
 
 The circuit then checks `s*G == R + c*pk`. Step 3 is the critical one. Because the signer calls the
 contract's own compiled `schnorrChallenge`, it computes exactly the hash the circuit does. With any
@@ -303,7 +305,7 @@ const PROVIDER_ID = parseInt(process.env['PROVIDER_ID'] || '1', 10);
 let providerSk: bigint;
 const secretHex = process.env['PROVIDER_SECRET_KEY'];
 if (secretHex) {
-  // Reduce so any 32-byte hex value is a valid Jubjub scalar.
+  // Reduce so any 32-byte hex value is a canonical Jubjub scalar.
   providerSk = BigInt('0x' + secretHex) % JUBJUB_ORDER;
   console.log('Loaded provider secret key from environment');
 } else {
@@ -329,8 +331,8 @@ It reads four environment variables:
 - `PROVIDER_ID`: the on-chain ID the key is registered under. Default 1.
 - `PROVIDER_SECRET_KEY`: a hex Jubjub secret key. Without it the server generates a fresh key on
   every start, which then has to be registered on chain again. With it, the public key stays the
-  same across restarts. The value is reduced modulo the Jubjub order first, because most random
-  32-byte values are larger than the order.
+  same across restarts. The value is reduced modulo the Jubjub order first, so any 32-byte value
+  is a valid key.
 - `NETWORK_ID`: default `undeployed`, the local network. Set it to target another network, such
   as `preprod`.
 

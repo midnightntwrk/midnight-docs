@@ -30,7 +30,8 @@ const releases = [
     'The compiler always generates ZKIR version 3; passing `--feature-zkir-v3` is now an error (breaking)',
     'Circuits declared in a contract type cannot be `pure`, and the arguments of every cross-contract call must be disclosed (breaking)',
     'Purity is removed from the Compact runtime cross-contract API (breaking)',
-    'Contracts that make cross-contract calls must be recompiled (breaking)',
+    'Recompiling a contract whose verifier keys are ZKIR version 2 changes its keys; give the deployed contract the new keys through its maintenance authority, or redeploy it (breaking)',
+    'Contracts that make cross-contract calls must be recompiled and their keys replaced, and callers and callees upgraded together (breaking)',
     'Fixes several compiler internal errors and Compact runtime defects',
   ],
   artifacts: [
