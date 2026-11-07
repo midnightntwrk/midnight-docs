@@ -46,15 +46,15 @@ take a few minutes.
 When it finishes, all 11 tests pass, including the ones that expect a rejection:
 
 ```
- ✓ src/test/party.test.ts (11 tests) 168210ms
-     ✓ Deploys a contract (the easy way)  17109ms
-     ✓ Allows Bob to rsvp (privately)  18570ms
-     ✓ Allows Charlie to rsvp(privately)  17170ms
-     ✓ starts the party  18504ms
-     ✓ Allows Bob to check in  17351ms
-     ✓ Closes the doors to the party  18522ms
-     ✓ Allows Alice to claimFees  40580ms
-     ✓ Deploys the contract(the hard way)  18086ms
+ ✓ src/test/party.test.ts (11 tests)
+     ✓ Deploys a contract (the easy way)
+     ✓ Allows Bob to rsvp (privately)
+     ✓ Allows Charlie to rsvp(privately)
+     ✓ starts the party
+     ✓ Allows Bob to check in
+     ✓ Closes the doors to the party
+     ✓ Allows Alice to claimFees
+     ✓ Deploys the contract(the hard way)
 
  Test Files  1 passed (1)
       Tests  11 passed (11)
@@ -62,7 +62,7 @@ When it finishes, all 11 tests pass, including the ones that expect a rejection:
 
 Vitest lists only tests that take longer than 300 ms, so the three rejection tests ("Blocks
 organizers from rsvp" and the two "Blocks non-organizers" tests) pass without a line of their own.
-The timings tell you something. Each successful call takes 15–20 seconds, most of it spent
+Run it and the timings tell you something. Each successful call takes many seconds, most of it spent
 generating a proof. (`claimFees` takes longer because the test also waits for Alice's wallet to
 sync before and after, to read her balance.) A rejected call takes milliseconds. A failing
 `assert` stops the circuit on the caller's own machine, so no proof is generated and nothing is
@@ -92,7 +92,9 @@ test file is shared harness. It is the same in every example in midnight-example
   `.env.<network>` file.
 - **`src/wallet.ts`** builds, starts, and syncs each wallet. **`src/providers.ts`** bundles the
   MidnightJS providers a user needs: public data from the indexer, private state, ZK artifacts
-  and proving, and the wallet itself.
+  and proving, and the wallet itself. MidnightJS 5 takes the wallet through
+  `createLedger9WalletProvider` and `createLedger9MidnightProvider`, and the bundle carries a `config` with the
+  network ID and the transaction time-to-live.
 
 The suite declares a wallet and a provider set for each person:
 
@@ -116,15 +118,19 @@ Each person also has an ID for their entry in their private state provider:
 ```
 
 `beforeAll` builds and syncs the three wallets, then builds each person's providers. On a remote
-network it also waits until every wallet has NIGHT and DUST. Two small helpers do the rest. One
-reads the contract's public ledger, the other reads a wallet's NIGHT balance:
+network it also waits until every wallet has NIGHT and at least 60 DUST (set `MIDNIGHT_MIN_DUST`
+to change that), and caches the synced wallet state in the repo-root `.wallet-state/` folder, so
+later runs only sync new blocks. Two small helpers do the rest. One reads the contract's public
+ledger, the other reads a wallet's NIGHT balance. `ledgerState`, from `src/providers.ts`,
+decodes the era-tagged state that MidnightJS 5 returns (`read.contractState`, ledger 9 here) into the
+data the compiled `ledger()` decodes:
 
 ```typescript title="src/test/party.test.ts"
     async function queryLedger(providers: PartyProviders) {
         const state =
             await providers.publicDataProvider.queryContractState(contractAddress);
         expect(state).not.toBeNull();
-        return ledger(state!.data);
+        return ledger(ledgerState(state));
     }
 
     // NIGHT token type is the all-zero raw token type
@@ -150,8 +156,8 @@ with an entry fee of 5 STAR:
         const alicePrivateState = createPartyPrivateState(randomBytes(32));
 
         logger.info(`Deploying a contract the easy way...`);
-        const deployed: DeployedContract<Contract> = 
-            await (deployContract<Contract>)(aliceProviders, {
+        const deployed: DeployedContract<Contract> =
+            await deployContract(aliceProviders, {
                 compiledContract: CompiledPartyContract,
                 privateStateId: ALICE_PRIVATE_ID,
                 initialPrivateState: alicePrivateState,
@@ -181,9 +187,8 @@ he points his provider at the contract first:
 
 ```typescript title="src/test/party.test.ts"
         const bobInitialPrivateState = createPartyPrivateState(randomBytes(32));
-        bobProviders.privateStateProvider.setContractAddress(contractAddress);
-        await bobProviders.privateStateProvider.set(BOB_PRIVATE_ID, bobInitialPrivateState);
-        const bobPrivateState = await bobProviders.privateStateProvider.get(BOB_PRIVATE_ID);
+        await bobProviders.privateStateProvider.forContract(contractAddress).set(BOB_PRIVATE_ID, bobInitialPrivateState);
+        const bobPrivateState = await bobProviders.privateStateProvider.forContract(contractAddress).get(BOB_PRIVATE_ID);
 
         const bobUnshielded = await bobWallet.wallet.unshielded.getAddress();
         const bobAddress = { bytes: new Uint8Array(bobUnshielded.data) };
@@ -196,8 +201,8 @@ from the address's hex string with `encodeUserAddress`. Both give the same 32 by
 Then Bob calls `rsvp`:
 
 ```typescript title="src/test/party.test.ts"
-        const txData: FinalizedCallTxData<Contract, 'rsvp'> = 
-            await (submitCallTx<Contract, 'rsvp'>)(bobProviders, {
+        const txData: FinalizedCallTxData<Contract, 'rsvp'> =
+            await submitCallTx(bobProviders, {
                 compiledContract: CompiledPartyContract,
                 contractAddress,
                 privateStateId: BOB_PRIVATE_ID,
@@ -225,7 +230,7 @@ rejected. Alice tries to RSVP to her own party:
 
 ```typescript title="src/test/party.test.ts"
         await expect(async () => {
-            await (submitCallTx<Contract, 'rsvp'>)(aliceProviders, {
+            await submitCallTx(aliceProviders, {
                 compiledContract: CompiledPartyContract,
                 contractAddress,
                 privateStateId: ALICE_PRIVATE_ID,
@@ -241,7 +246,7 @@ and the test confirms the party state didn't change:
 
 ```typescript title="src/test/party.test.ts"
         await expect(async () => {
-            await (submitCallTx<Contract, 'startParty'>)(bobProviders, {
+            await submitCallTx(bobProviders, {
                 compiledContract: CompiledPartyContract,
                 contractAddress,
                 privateStateId: BOB_PRIVATE_ID,
@@ -262,8 +267,8 @@ Between the two, Alice starts the party with her secret, and the state moves to 
 Bob checks in with the same address and secret he used to RSVP:
 
 ```typescript title="src/test/party.test.ts"
-        const txData: FinalizedCallTxData<Contract, 'checkIn'> = 
-            await (submitCallTx<Contract, 'checkIn'>)(bobProviders, {
+        const txData: FinalizedCallTxData<Contract, 'checkIn'> =
+            await submitCallTx(bobProviders, {
                 compiledContract: CompiledPartyContract,
                 contractAddress,
                 privateStateId: BOB_PRIVATE_ID,
@@ -293,7 +298,7 @@ her NIGHT balance before and after:
 
         logger.info(`Alice is claiming fees...`);
         const txData: FinalizedCallTxData<Contract, 'claimFees'> =
-            await (submitCallTx<Contract, 'claimFees'>)(aliceProviders, {
+            await submitCallTx(aliceProviders, {
                 compiledContract: CompiledPartyContract,
                 contractAddress,
                 privateStateId: ALICE_PRIVATE_ID,
@@ -317,18 +322,19 @@ party with those steps spelled out, so you can see what happens in between:
 
 ```typescript title="src/test/party.test.ts"
         // Step 1: Local circuit execution
-        const unprovenData: UnsubmittedDeployTxData<Contract> = 
+        const unprovenData: Ledger9UnsubmittedDeployTxData<Contract> =
             await (createUnprovenDeployTx as any)(aliceProviders, {
                 compiledContract: CompiledPartyContract,
                 privateStateId: ALICE_PRIVATE_ID,
                 initialPrivateState: alicePrivateState,
                 args: [PARTY_SIZE, FEE, alicePrivateState.secret]
             });
-        
+
         const pendingAddress = unprovenData.public?.contractAddress;
         logger.info(`Unproven tx created. Pending contract address: ${pendingAddress}`);
 
         // Step 2: Prove (send to proof server, get ZK proof back)
+        // Midnight.js 5 providers pass transactions as era-tagged handles.
         const provenTx = await aliceProviders.proofProvider.proveTx(unprovenData.private.unprovenTx);
         logger.info('proven tx received from proof server');
 
@@ -348,7 +354,9 @@ party with those steps spelled out, so you can see what happens in between:
 1. **Run locally.** `createUnprovenDeployTx` runs the constructor on Alice's machine and builds
    an unproven transaction. The contract address is already known at this point.
 2. **Prove.** The proof provider has the proof server generate a zero-knowledge proof for each
-   circuit call in the transaction, and returns the proven transaction.
+   circuit call in the transaction, and returns the proven transaction. In MidnightJS 5 the
+   transaction goes in and comes out as a handle tagged with its ledger era (`LedgerTransaction`),
+   and the wallet provider takes it in that form.
 3. **Balance.** The wallet adds the inputs that pay for the transaction: DUST for the fee, and
    any tokens the transaction needs.
 4. **Submit.** The wallet sends the transaction to the node.
@@ -363,8 +371,7 @@ local proof server.
 
 ```typescript title="src/test/party.test.ts"
         // Store private state (normally done inside deployContract)
-        aliceProviders.privateStateProvider.setContractAddress(pendingAddress);
-        await aliceProviders.privateStateProvider.set(ALICE_PRIVATE_ID, alicePrivateState);
+        await aliceProviders.privateStateProvider.forContract(pendingAddress).set(ALICE_PRIVATE_ID, alicePrivateState);
 ```
 
 ## Test yourself
