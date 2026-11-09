@@ -20,7 +20,7 @@ const releases = [
     version: '2.1.101',
     status: 'LATEST',
     date: '6 November 2026',
-    summary: 'Node release for the ledger 9 network upgrade on Mainnet. Every Mainnet validator and RPC node must run it before the governance upgrade. Preview was reset on 6 November 2026 as a new ledger 9 chain that runs it. Preprod stays on 1.0.400.',
+    summary: 'Node release for the ledger 9 network upgrade on Mainnet. Every Mainnet validator and RPC node must run it before the governance upgrade. Preview relaunched on 7 November 2026 as a new ledger 9 chain that runs it, and Preprod moved to it on 9 November 2026.',
     details: [
       'Upgrade every Mainnet validator and RPC node from v1.0.400 or v2.1.100 directly to v2.1.101 before the governance upgrade on 6 November 2026, with block producers upgrading together. The v2.1.0 release candidates are not a supported upgrade step. A node on v1.0.400 stops at the upgrade block.',
       'Binary first, then runtime: the chain keeps running ledger 8 until a governance action applies the runtime upgrade and moves Mainnet to ledger 9.1.0.1. The binary upgrade is one-way, so snapshot the data directory first. The node runs the 2.1.100 runtime (`spec_version` 2001100), which the governance upgrade enacts.',
@@ -30,7 +30,7 @@ const releases = [
       'Removed the `smart-contracts`, `sign-address-association`, and `sign-block-producer-metadata` subcommands. The node connects to Cardano db-sync over TLS only.',
       'After the upgrade, ledger 8 transactions do not decode on Mainnet. DApps and wallets need wallet SDK 2.0.0, Midnight.js 5.0.0, and indexer 4.4.101, and indexers re-index from genesis. See the ledger 9 upgrade page at /relnotes/ledger-9.',
       'DUST resets once at the upgrade and every Mainnet registration is replayed to its full cap, so Mainnet users do not need to do anything. Transactions submitted during the replay wait in the transaction pool and are included once it ends.',
-      'Preview was reset on 6 November 2026 as a new chain that runs ledger 9, with no ledger 8 history. Start a Preview node on v2.1.101 with a fresh data directory. Preprod keeps running node v1.0.400 until a later upgrade.',
+      'Preview relaunched on 7 November 2026 as a new chain that runs ledger 9, with no history from the old chain. Start a Preview node on v2.1.101 with a fresh data directory. Preprod moved to node v2.1.101 and ledger 9 in place on 9 November 2026, so upgrade Preprod nodes the same way as Mainnet nodes.',
     ],
     artifacts: [
       { name: 'Midnight node', url: 'https://hub.docker.com/r/midnightntwrk/midnight-node' },
@@ -45,7 +45,7 @@ const releases = [
     date: '6 October 2026',
     summary: 'Security patch that moves the node to ledger 8.1.3 for the critical advisory GHSA-wr7g-rr4v-jmj8 and lets a node that syncs Mainnet from genesis get past block 1788979. The runtime stays at 1.0.300.',
     details: [
-      'Use v1.0.400 on Preprod until its ledger 9 upgrade. On Mainnet and Preview, which run ledger 9, use v2.1.101.',
+      'Superseded on every public network: Mainnet, Preview, and Preprod run ledger 9, so use v2.1.101.',
       'Security fix: moved the ledger 8 dependency from 8.1.2 to 8.1.3, which fixes the critical advisory GHSA-wr7g-rr4v-jmj8. A v1.0.400 node rejects contract calls whose transcripts contain non-canonical values or operations.',
       'Upgrade every node, starting with block producers. A v1.0.300 node accepts some contract calls that a v1.0.400 node rejects, so block producers on different versions can disagree about which blocks are valid.',
       'Binary-only upgrade: the runtime stays at 1.0.300 (`spec_version` `1_000_300`), so there is no runtime upgrade, governance action, reset, or resync. No RPC methods, configuration settings, or chain specifications change.',

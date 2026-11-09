@@ -33,7 +33,7 @@ const releases = [
       'Configures the upgrade with `forks: { v9 }` and per-ledger proving with `provers: { v8?, v9 }`.',
       'ledger-v8 now comes from `@midnightntwrk/ledger-v8`; every dependency installs from public npm (breaking).',
       'Shows replayed DUST after the upgrade\'s one-time DUST reset; Mainnet users don\'t need to act.',
-      'Needs indexer 4.4.101. Mainnet and Preview need 2.0.0; Preprod stays on 1.2.0 until a later upgrade.',
+      'Needs indexer 4.4.101. Mainnet, Preview, and Preprod need 2.0.0.',
     ],
     artifacts: [
       { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-wallet/releases/tag/%40midnightntwrk%2Fwallet-sdk%402.0.0' },

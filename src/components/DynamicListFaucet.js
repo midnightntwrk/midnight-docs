@@ -27,7 +27,7 @@ const releases = [
       "Added rate limiting for faucet requests.",
     ],
     artifacts: [
-      { name: 'Preprod faucet', url: 'https://faucet.preprod.midnight.network/' },
+      { name: 'Preprod faucet', url: 'https://midnight-tmnight-preprod.nethermind.dev/' },
       { name: 'Preview faucet', url: 'https://faucet.preview.midnight.network/' },
     ],
     link: '/relnotes/faucet/faucet-0-11-2',
