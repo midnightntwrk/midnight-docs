@@ -31,7 +31,7 @@ const releases = [
       'Every error has a stable `code` and `category`',
       'Needs indexer 4.4.101, proof server 9.0.0, Compact.js 3.0.0, and wallet SDK 2.0.0',
       'Accepts artifacts for Compact runtime 0.16 (toolchain 0.31.x) and 0.21 (toolchain 0.36.0) only',
-      'Mainnet and Preview need 5.0.0; Preprod stays on 4.1.1 until a later upgrade',
+      'Mainnet, Preview, and Preprod need 5.0.0',
     ],
     artifacts: [
       { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.0' },

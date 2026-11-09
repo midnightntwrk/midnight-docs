@@ -28,7 +28,7 @@ const releases = [
       'Adds `/v8` and `/v9` entry points so you pick the ledger era at import.',
       'Publishes as ESM only (breaking).',
       'Type surfaces are aware of the ledger era; select the era explicitly (breaking).',
-      'Preprod stays on 2.5.x until a later upgrade.',
+      'Preprod moved to ledger 9 on 9 November 2026 and uses 3.0.0 too.',
     ],
     artifacts: [
       { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/3.0.0' },
