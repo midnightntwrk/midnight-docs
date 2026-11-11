@@ -159,11 +159,11 @@ describe('access control', () => {
   });
 
   it('lets the owner withdraw', async () => {
-    await expect(contract.impureCircuits.withdraw(ctx)).resolves.toBeDefined();
+    await expect(contract.impureCircuits.withdraw({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'withdraw' } })).resolves.toBeDefined();
   });
 
   it('rejects an attacker who forges the stored owner key', async () => {
-    const attackerCtx = { ...ctx, callContext: { ...ctx.callContext, currentPrivateState: { sk: ATTACKER } } };
+    const attackerCtx = { ...ctx, callContext: { ...ctx.callContext, circuitId: 'withdraw', currentPrivateState: { sk: ATTACKER } } };
     await expect(contract.impureCircuits.withdraw(attackerCtx)).rejects.toThrow('not owner');
   });
 });
@@ -253,11 +253,11 @@ describe('group membership', () => {
   });
 
   it('lets a member act with their own path', async () => {
-    await expect(contract.impureCircuits.act(ctx, alicePath)).resolves.toBeDefined();
+    await expect(contract.impureCircuits.act({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'act' } }, alicePath)).resolves.toBeDefined();
   });
 
   it("rejects a non-member using a member's path", async () => {
-    const malloryCtx = { ...ctx, callContext: { ...ctx.callContext, currentPrivateState: { sk: MALLORY } } };
+    const malloryCtx = { ...ctx, callContext: { ...ctx.callContext, circuitId: 'act', currentPrivateState: { sk: MALLORY } } };
     await expect(contract.impureCircuits.act(malloryCtx, alicePath)).rejects.toThrow('path not bound to caller');
   });
 });
@@ -446,6 +446,7 @@ describe('deadline', () => {
     await expect(claimAt(DEADLINE - 100)).resolves.toBeDefined();
   });
   it('rejects the claim at or after the deadline', async () => {
+    await expect(claimAt(DEADLINE)).rejects.toThrow('expired');
     await expect(claimAt(DEADLINE + 100)).rejects.toThrow('expired');
   });
 });
@@ -580,7 +581,7 @@ const COIN = '0'.repeat(64);
 const ADDR = RT.sampleContractAddress();
 const key = (n) => { const a = new Uint8Array(32); a[31] = n; return a; };
 const OLD = key(1), NEW = key(2);
-const as = (ctx, sk) => ({ ...ctx, callContext: { ...ctx.callContext, currentPrivateState: { sk } } });
+const as = (ctx, sk) => ({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'withdraw', currentPrivateState: { sk } } });
 
 describe('key rotation', () => {
   let contract, ctx;
@@ -595,7 +596,7 @@ describe('key rotation', () => {
       privateState: { sk: OLD },
     });
     ctx = (await contract.impureCircuits.claimOwnership(ctx)).context;
-    ctx = (await contract.impureCircuits.rotateOwner(ctx, pureCircuits.derivePublicKey(NEW))).context;
+    ctx = (await contract.impureCircuits.rotateOwner({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'rotateOwner' } }, pureCircuits.derivePublicKey(NEW))).context;
   });
 
   it('lets the new key act after rotation', async () => {
