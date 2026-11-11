@@ -25,7 +25,7 @@ These apply to every procedure in this guide:
 - The [Compact CLI](../getting-started/installation) installed, with `compact compile` working.
 - A compiled contract. This guide compiles `private-bid.compact` from [the private-bid example](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/private-bid); any contract works, with your own names in place of the private bid's.
 - Node.js with [Vitest](https://vitest.dev/) and `@midnight-ntwrk/compact-runtime` installed.
-- A runtime version that matches your compiler. The generated code enforces this pairing at import time; check the [support matrix](../relnotes/support-matrix) when either changes. This page's samples ran with the Compact toolchain and `@midnight-ntwrk/compact-runtime` versions that the support matrix lists for Mainnet, Preview, and Preprod.
+- The Compact compiler and `@midnight-ntwrk/compact-runtime` at the versions the [support matrix](../relnotes/support-matrix) lists for Mainnet, Preview, and Preprod, with that compiler set as your default. [Update the compiler version](../getting-started/installation#update-the-compiler-version) shows how to pin it. The generated code checks the pairing at import time, so a mismatch fails with `Version mismatch`.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## What the compiler generates
@@ -190,7 +190,12 @@ Run contract logic off-chain by building a circuit context and invoking circuits
    // call.context.callProofDataTrace  -> input, output, and transcripts for proof generation, one entry per call
    ```
 
-   To run another circuit on the updated state, pass `call.context` to it.
+   To run another circuit on the updated state, pass `call.context` to it with `callContext.circuitId` set to that circuit. The runtime labels each proof data entry with the context's `circuitId`:
+
+   ```typescript
+   const next = { ...call.context, callContext: { ...call.context.callContext, circuitId: 'revealBid' } };
+   await contract.impureCircuits.revealBid(next, 250n);
+   ```
 
 3. Read the resulting ledger state with the `ledger()` helper. Scalar fields such as `minimumBid` are plain values; `Map` fields such as `bidCommitments` and `revealedBids` are views with `isEmpty()`, `size()`, `member(key)`, `lookup(key)`, and an iterator over `[key, value]` pairs:
 
@@ -224,7 +229,7 @@ const witnesses = {
 };
 
 describe('calling contract circuits', () => {
-  it('runs an impure circuit and returns the result, context, and proof data', async () => {
+  it('runs an impure circuit and returns the result and context, with proof data in the trace', async () => {
     const contract = new Contract(witnesses);
     const ctor = await contract.initialState(RT.createConstructorContext({ secretKey: key(7) }, COIN), MINIMUM_BID);
     const ctx = RT.createCircuitContext({
@@ -255,7 +260,7 @@ describe('calling contract circuits', () => {
 ```
 
 ```text
- ✓ circuits.test.ts > calling contract circuits > runs an impure circuit and returns the result, context, and proof data
+ ✓ circuits.test.ts > calling contract circuits > runs an impure circuit and returns the result and context, with proof data in the trace
  ✓ circuits.test.ts > calling contract circuits > exports no pure circuits, because derive is not exported
 
  Test Files  1 passed (1)
@@ -293,7 +298,7 @@ Test contract logic with an ordinary test framework, no node, indexer, or proof 
 2. Assert the success paths through the typed ledger view, and the failure paths against the exact `assert` messages from the Compact source. A circuit call returns a promise, so a failed `assert` rejects it: check it with `await expect(...).rejects.toThrow(...)`. To simulate an attacker, run a circuit with a context whose `callContext.currentPrivateState` holds a different secret. A reveal from a key that never bid fails the membership check:
 
    ```typescript
-   const stranger = { ...placed, callContext: { ...placed.callContext, currentPrivateState: { secretKey: key(9) } } };
+   const stranger = { ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid', currentPrivateState: { secretKey: key(9) } } };
    await expect(contract.impureCircuits.revealBid(stranger, BID)).rejects.toThrow(
      'This bidder has not placed a bid',
    );
@@ -369,7 +374,7 @@ describe('private bid contract', () => {
   it('rejects a reveal from a different secret key', async () => {
     const { contract, ctx } = await setup();
     const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
-    const stranger = { ...placed, callContext: { ...placed.callContext, currentPrivateState: { secretKey: key(9) } } };
+    const stranger = { ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid', currentPrivateState: { secretKey: key(9) } } };
     await expect(contract.impureCircuits.revealBid(stranger, BID)).rejects.toThrow(
       'This bidder has not placed a bid',
     );
@@ -378,7 +383,7 @@ describe('private bid contract', () => {
   it('rejects a reveal with the wrong amount', async () => {
     const { contract, ctx } = await setup();
     const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
-    await expect(contract.impureCircuits.revealBid(placed, 300n)).rejects.toThrow(
+    await expect(contract.impureCircuits.revealBid({ ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid' } }, 300n)).rejects.toThrow(
       'Amount does not match the committed bid',
     );
   });
@@ -386,7 +391,7 @@ describe('private bid contract', () => {
   it('reveals the committed amount under the same bidder key', async () => {
     const { contract, ctx } = await setup();
     const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
-    const revealed = await contract.impureCircuits.revealBid(placed, BID);
+    const revealed = await contract.impureCircuits.revealBid({ ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid' } }, BID);
     expect(revealed.result).toEqual([]);
     const auction = stateOf(revealed.context);
     const [[bidder, amount]] = [...auction.revealedBids];
