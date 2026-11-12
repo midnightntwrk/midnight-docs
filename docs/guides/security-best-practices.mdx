@@ -73,10 +73,10 @@ Gate a circuit so only one caller can run it, by deriving the caller's identity 
    witness secretKey(): Bytes<32>;
    ```
 
-2. Derive a public identity by hashing the secret with a domain separator. The hash is one-way, so publishing it reveals nothing about the secret:
+2. Derive a public identity by hashing the secret with a domain separator. The hash is one-way, so publishing it reveals nothing about the secret. Export the derivation so your DApp can compute an identity off-chain, such as a new owner's in [Rotating an owner key](#rotating-an-owner-key):
 
    ```compact
-   circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
+   export circuit derivePublicKey(sk: Bytes<32>): Bytes<32> {
      return persistentHash<Vector<2, Bytes<32>>>([pad(32, "myapp:owner"), sk]);
    }
    ```
@@ -145,20 +145,26 @@ const OWNER = key(1), ATTACKER = key(2);
 
 describe('access control', () => {
   let contract, ctx;
-  beforeEach(() => {
+  beforeEach(async () => {
     contract = new Contract({ secretKey: (w) => [w.privateState, w.privateState.sk] });
-    const ctor = contract.initialState(RT.createConstructorContext({ sk: OWNER }, COIN));
-    ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { sk: OWNER });
-    ctx = contract.impureCircuits.claimOwnership(ctx).context;
+    const ctor = await contract.initialState(RT.createConstructorContext({ sk: OWNER }, COIN));
+    ctx = RT.createCircuitContext({
+      circuitId: 'claimOwnership',
+      contractAddress: ADDR,
+      coinPublicKeyOrZswapState: COIN,
+      contractState: ctor.currentContractState,
+      privateState: { sk: OWNER },
+    });
+    ctx = (await contract.impureCircuits.claimOwnership(ctx)).context;
   });
 
-  it('lets the owner withdraw', () => {
-    expect(() => contract.impureCircuits.withdraw(ctx)).not.toThrow();
+  it('lets the owner withdraw', async () => {
+    await expect(contract.impureCircuits.withdraw({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'withdraw' } })).resolves.toBeDefined();
   });
 
-  it('rejects an attacker who forges the stored owner key', () => {
-    const attackerCtx = { ...ctx, currentPrivateState: { sk: ATTACKER } };
-    expect(() => contract.impureCircuits.withdraw(attackerCtx)).toThrow('not owner');
+  it('rejects an attacker who forges the stored owner key', async () => {
+    const attackerCtx = { ...ctx, callContext: { ...ctx.callContext, circuitId: 'withdraw', currentPrivateState: { sk: ATTACKER } } };
+    await expect(contract.impureCircuits.withdraw(attackerCtx)).rejects.toThrow('not owner');
   });
 });
 ```
@@ -231,22 +237,28 @@ const ALICE = key(1), MALLORY = key(2);
 
 describe('group membership', () => {
   let contract, ctx, alicePath;
-  beforeEach(() => {
+  beforeEach(async () => {
     contract = new Contract({ secretKey: (w) => [w.privateState, w.privateState.sk] });
-    const ctor = contract.initialState(RT.createConstructorContext({ sk: ALICE }, COIN));
-    ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { sk: ALICE });
-    ctx = contract.impureCircuits.addMember(ctx, pureCircuits.derivePublicKey(ALICE)).context;
-    alicePath = ledger(ctx.currentQueryContext.state)
+    const ctor = await contract.initialState(RT.createConstructorContext({ sk: ALICE }, COIN));
+    ctx = RT.createCircuitContext({
+      circuitId: 'addMember',
+      contractAddress: ADDR,
+      coinPublicKeyOrZswapState: COIN,
+      contractState: ctor.currentContractState,
+      privateState: { sk: ALICE },
+    });
+    ctx = (await contract.impureCircuits.addMember(ctx, pureCircuits.derivePublicKey(ALICE))).context;
+    alicePath = ledger(ctx.callContext.currentQueryContext.state)
       .members.findPathForLeaf(pureCircuits.derivePublicKey(ALICE));
   });
 
-  it('lets a member act with their own path', () => {
-    expect(() => contract.impureCircuits.act(ctx, alicePath)).not.toThrow();
+  it('lets a member act with their own path', async () => {
+    await expect(contract.impureCircuits.act({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'act' } }, alicePath)).resolves.toBeDefined();
   });
 
-  it("rejects a non-member using a member's path", () => {
-    const malloryCtx = { ...ctx, currentPrivateState: { sk: MALLORY } };
-    expect(() => contract.impureCircuits.act(malloryCtx, alicePath)).toThrow('path not bound to caller');
+  it("rejects a non-member using a member's path", async () => {
+    const malloryCtx = { ...ctx, callContext: { ...ctx.callContext, circuitId: 'act', currentPrivateState: { sk: MALLORY } } };
+    await expect(contract.impureCircuits.act(malloryCtx, alicePath)).rejects.toThrow('path not bound to caller');
   });
 });
 ```
@@ -315,26 +327,33 @@ import { Contract, ledger } from '../managed/arithmetic/contract/index.js';
 
 const COIN = '0'.repeat(64);
 const ADDR = RT.sampleContractAddress();
-const fresh = () => {
+const fresh = async (circuitId) => {
   const contract = new Contract({});
-  const ctor = contract.initialState(RT.createConstructorContext({}, COIN));
-  return { contract, ctx: RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, {}) };
+  const ctor = await contract.initialState(RT.createConstructorContext({}, COIN));
+  const ctx = RT.createCircuitContext({
+    circuitId,
+    contractAddress: ADDR,
+    coinPublicKeyOrZswapState: COIN,
+    contractState: ctor.currentContractState,
+    privateState: {},
+  });
+  return { contract, ctx };
 };
 
 describe('arithmetic safety', () => {
-  it('traps on subtraction underflow instead of wrapping', () => {
-    const { contract, ctx } = fresh();
-    expect(() => contract.impureCircuits.unsafeSub(ctx, 10n))
-      .toThrow('result of subtraction would be negative');
+  it('traps on subtraction underflow instead of wrapping', async () => {
+    const { contract, ctx } = await fresh('unsafeSub');
+    await expect(contract.impureCircuits.unsafeSub(ctx, 10n))
+      .rejects.toThrow('result of subtraction would be negative');
   });
-  it('rejects an over-balance amount with a clear message', () => {
-    const { contract, ctx } = fresh();
-    expect(() => contract.impureCircuits.safeSub(ctx, 10n)).toThrow('insufficient balance');
+  it('rejects an over-balance amount with a clear message', async () => {
+    const { contract, ctx } = await fresh('safeSub');
+    await expect(contract.impureCircuits.safeSub(ctx, 10n)).rejects.toThrow('insufficient balance');
   });
-  it('applies a valid subtraction', () => {
-    const { contract, ctx } = fresh();
-    const r = contract.impureCircuits.safeSub(ctx, 3n);
-    expect(ledger(r.context.currentQueryContext.state).balance).toBe(2n);
+  it('applies a valid subtraction', async () => {
+    const { contract, ctx } = await fresh('safeSub');
+    const r = await contract.impureCircuits.safeSub(ctx, 3n);
+    expect(ledger(r.context.callContext.currentQueryContext.state).balance).toBe(2n);
   });
 });
 ```
@@ -397,7 +416,7 @@ For the available predicates, see [Block-time predicates](#block-time-predicates
 
 ### Verification
 
-Set the block time in the circuit context (the seventh argument of `createCircuitContext`) to exercise both sides of the deadline.
+Set the block time with the `time` option of `createCircuitContext`, in seconds since the epoch, to exercise both sides of the deadline.
 
 ```typescript title="deadline.test.ts"
 import { describe, it, expect } from 'vitest';
@@ -408,19 +427,27 @@ const COIN = '0'.repeat(64);
 const ADDR = RT.sampleContractAddress();
 const DEADLINE = 2_000_000_000; // seconds since the epoch
 
-const claimAt = (time) => {
+const claimAt = async (time) => {
   const contract = new Contract({});
-  const ctor = contract.initialState(RT.createConstructorContext({}, COIN), BigInt(DEADLINE));
-  const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, {}, undefined, undefined, time);
-  return () => contract.impureCircuits.claim(ctx);
+  const ctor = await contract.initialState(RT.createConstructorContext({}, COIN), BigInt(DEADLINE));
+  const ctx = RT.createCircuitContext({
+    circuitId: 'claim',
+    contractAddress: ADDR,
+    coinPublicKeyOrZswapState: COIN,
+    contractState: ctor.currentContractState,
+    privateState: {},
+    time,
+  });
+  return contract.impureCircuits.claim(ctx);
 };
 
 describe('deadline', () => {
-  it('allows the claim before the deadline', () => {
-    expect(claimAt(DEADLINE - 100)).not.toThrow();
+  it('allows the claim before the deadline', async () => {
+    await expect(claimAt(DEADLINE - 100)).resolves.toBeDefined();
   });
-  it('rejects the claim at or after the deadline', () => {
-    expect(claimAt(DEADLINE + 100)).toThrow('expired');
+  it('rejects the claim at or after the deadline', async () => {
+    await expect(claimAt(DEADLINE)).rejects.toThrow('expired');
+    await expect(claimAt(DEADLINE + 100)).rejects.toThrow('expired');
   });
 });
 ```
@@ -482,21 +509,27 @@ const COIN = '0'.repeat(64);
 const ADDR = RT.sampleContractAddress();
 const SK = (() => { const a = new Uint8Array(32); a[31] = 1; return a; })();
 
-const setup = () => {
+const setup = async () => {
   const contract = new Contract({ secretKey: (w) => [w.privateState, w.privateState.sk] });
-  const ctor = contract.initialState(RT.createConstructorContext({ sk: SK }, COIN));
-  const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { sk: SK });
-  return { contract, ctx: contract.impureCircuits.act(ctx, 1n).context };
+  const ctor = await contract.initialState(RT.createConstructorContext({ sk: SK }, COIN));
+  const ctx = RT.createCircuitContext({
+    circuitId: 'act',
+    contractAddress: ADDR,
+    coinPublicKeyOrZswapState: COIN,
+    contractState: ctor.currentContractState,
+    privateState: { sk: SK },
+  });
+  return { contract, ctx: (await contract.impureCircuits.act(ctx, 1n)).context };
 };
 
 describe('replay protection', () => {
-  it('rejects a replay in the same round', () => {
-    const { contract, ctx } = setup();
-    expect(() => contract.impureCircuits.act(ctx, 1n)).toThrow('already acted this round');
+  it('rejects a replay in the same round', async () => {
+    const { contract, ctx } = await setup();
+    await expect(contract.impureCircuits.act(ctx, 1n)).rejects.toThrow('already acted this round');
   });
-  it('allows an action in a new round', () => {
-    const { contract, ctx } = setup();
-    expect(() => contract.impureCircuits.act(ctx, 2n)).not.toThrow();
+  it('allows an action in a new round', async () => {
+    const { contract, ctx } = await setup();
+    await expect(contract.impureCircuits.act(ctx, 2n)).resolves.toBeDefined();
   });
 });
 ```
@@ -548,22 +581,29 @@ const COIN = '0'.repeat(64);
 const ADDR = RT.sampleContractAddress();
 const key = (n) => { const a = new Uint8Array(32); a[31] = n; return a; };
 const OLD = key(1), NEW = key(2);
+const as = (ctx, sk) => ({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'withdraw', currentPrivateState: { sk } } });
 
 describe('key rotation', () => {
   let contract, ctx;
-  beforeEach(() => {
+  beforeEach(async () => {
     contract = new Contract({ secretKey: (w) => [w.privateState, w.privateState.sk] });
-    const ctor = contract.initialState(RT.createConstructorContext({ sk: OLD }, COIN));
-    ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { sk: OLD });
-    ctx = contract.impureCircuits.claimOwnership(ctx).context;
-    ctx = contract.impureCircuits.rotateOwner(ctx, pureCircuits.derivePublicKey(NEW)).context;
+    const ctor = await contract.initialState(RT.createConstructorContext({ sk: OLD }, COIN));
+    ctx = RT.createCircuitContext({
+      circuitId: 'claimOwnership',
+      contractAddress: ADDR,
+      coinPublicKeyOrZswapState: COIN,
+      contractState: ctor.currentContractState,
+      privateState: { sk: OLD },
+    });
+    ctx = (await contract.impureCircuits.claimOwnership(ctx)).context;
+    ctx = (await contract.impureCircuits.rotateOwner({ ...ctx, callContext: { ...ctx.callContext, circuitId: 'rotateOwner' } }, pureCircuits.derivePublicKey(NEW))).context;
   });
 
-  it('lets the new key act after rotation', () => {
-    expect(() => contract.impureCircuits.withdraw({ ...ctx, currentPrivateState: { sk: NEW } })).not.toThrow();
+  it('lets the new key act after rotation', async () => {
+    await expect(contract.impureCircuits.withdraw(as(ctx, NEW))).resolves.toBeDefined();
   });
-  it('rejects the old key after rotation', () => {
-    expect(() => contract.impureCircuits.withdraw({ ...ctx, currentPrivateState: { sk: OLD } })).toThrow('not owner');
+  it('rejects the old key after rotation', async () => {
+    await expect(contract.impureCircuits.withdraw(as(ctx, OLD))).rejects.toThrow('not owner');
   });
 });
 ```
