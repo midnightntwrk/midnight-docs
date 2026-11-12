@@ -1,83 +1,93 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: "Production deployment"
 title: "Production deployment"
-description: "Deploy a Midnight leaderboard DApp frontend to Vercel on Preprod."
+description: "Deploy a Midnight leaderboard DApp to Vercel as a static site on Preprod."
 sidebar_position: 5
 toc_max_heading_level: 2
-tags: ["deployment", "vercel", "production", "dapp", "preprod", "tutorial"]
+tags: ["deployment", "vercel", "tutorial", "leaderboard", "preprod"]
 ---
 
 # Part 4: Production deployment
 
-In this section, you deploy the leaderboard frontend to Vercel.
+The DApp has no server code. The browser talks to Lace and the indexer
+directly, so any static host can serve it. This part deploys it to Vercel.
 
 ## Vercel build configuration
 
-Create the Vercel build configuration. This tells Vercel how to build the monorepo: it compiles the contract and API packages first, then builds the Vite frontend.
+[`vercel.json`](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/leaderboard/vercel.json)
+sits in `examples/leaderboard`, which is the Vercel project's root directory:
 
-```bash
-touch vercel.json
-```
-
-The `buildCommand` chains the TypeScript compilation for each workspace package. The `outputDirectory` points to the Vite build output.
-
-```json
+```json title="vercel.json"
 {
-  "buildCommand": "cd contract && npm run build && cd ../api && npm run build && cd ../leaderboard-ui && npm run build",
-  "outputDirectory": "leaderboard-ui/dist",
-  "installCommand": "npm install",
-  "framework": null
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd ../.. && npm ci",
+  "buildCommand": "cd ui && npm run build",
+  "outputDirectory": "ui/dist"
 }
 ```
 
-### Compiled contract output
+- `installCommand` installs from the repository root. The example is one workspace of
+  midnight-examples, and its dependencies and their pinned versions come from the root
+  `package.json` and lockfile.
+- `buildCommand` builds `ui/`: a TypeScript check, then `vite build`.
+- `outputDirectory` is Vite's output. It holds the app and, through `publicDir`, the circuit keys,
+  ZKIR, and integrity manifest.
 
-Vercel does not have the Compact compiler installed. Make sure `contract/managed/` is not in your `.gitignore` so your push to GitHub includes the compiled circuit keys and TypeScript bindings.
+## Compiled contract output
 
-### Production environment file
+Vercel has no Compact compiler, so the build can't run `npm run compile`. That is why
+`contract/managed/leaderboard/` is committed: the build serves the keys from there. If you change
+the contract, run `npm run compile` (not `compile:fast`, which leaves out the proving keys) and
+commit the result before you deploy.
 
-Create the production environment file with your deployed contract address.
+## Environment variables
 
-```bash
-touch leaderboard-ui/.env.preprod
-```
+The DApp reads three variables at build time. Vite builds them into the bundle, so they are
+public once the site is live:
 
-The `leaderboard-ui` build script runs `vite build --mode preprod`, which loads `.env.preprod` instead of `.env`.
+| Variable | Required | Value |
+|---|---|---|
+| `VITE_BLOCKFROST_PROJECT_ID` | Yes | A Blockfrost **Midnight Preprod** project ID, for reading the leaderboard. |
+| `VITE_DEFAULT_CONTRACT` | No | The address of the leaderboard the page opens with. Without it, visitors deploy or join one. |
+| `VITE_NETWORK_ID` | No | The network Lace must be on. Defaults to `preprod`. |
 
-```bash
-VITE_NETWORK_ID=preprod
-VITE_INDEXER_URL=https://midnight-preprod.blockfrost.io/api/v0
-VITE_INDEXER_WS_URL=wss://midnight-preprod.blockfrost.io/api/v0/ws
-VITE_DEFAULT_CONTRACT=<your deployed contract address>
-```
+Deploy a leaderboard from your local DApp first (Part 3) and use its address as
+`VITE_DEFAULT_CONTRACT`, so the site opens on a live leaderboard.
 
-Keep the Blockfrost token out of this file, because you commit it. In the next step, you add it to Vercel as an environment variable instead.
+## Deploy to Vercel
 
-### Deploy to Vercel
-
-Import the repository and deploy it from the Vercel dashboard.
+Fork midnight-examples on GitHub, then import it from the Vercel dashboard:
 
 1. Go to [vercel.com](https://vercel.com) and sign in with GitHub.
-2. Click **Add New Project** and import your repository.
-3. Make sure the **Root Directory** setting is empty (not set to a subdirectory).
-4. Under **Environment Variables**, add `VITE_BLOCKFROST_PROJECT_ID` with your Blockfrost **Midnight Preprod** project ID. Vite reads it at build time and builds it into the bundle, so it is public once the site is live.
+2. Click **Add New Project** and import your fork of `midnight-examples`.
+3. Set **Root Directory** to `examples/leaderboard`. Vercel reads `vercel.json` from there.
+4. Under **Environment Variables**, add `VITE_BLOCKFROST_PROJECT_ID`, and optionally
+   `VITE_DEFAULT_CONTRACT`.
 5. Click **Deploy**.
+
+Vercel redeploys whenever you push to the fork's default branch, and builds a preview deployment
+for every pull request.
 
 ## Test the production deployment
 
-Visit your Vercel URL in Chrome with Lace installed. The leaderboard loads from the indexer. Connect your wallet and submit a score to verify the full pipeline works end to end.
+Open your Vercel URL in a browser with Lace installed. The leaderboard loads from the indexer
+before you connect a wallet. Connect Lace, play a round, and submit a score. When the transaction
+is confirmed, the new entry appears in the table within a few seconds. Click **Prove** on it to
+check the ownership proof end to end.
 
 ## Summary
 
-The production stack relies on the following services.
-
 | Component | Service |
 |-----------|---------|
-| Frontend | Vercel |
-| Chain and indexer | Midnight Preprod |
-| Wallet and proof generation | Lace browser extension |
+| Frontend and circuit keys | Vercel (static files) |
+| Chain | Midnight Preprod |
+| Leaderboard reads | Blockfrost's Midnight Preprod indexer |
+| Wallet, fees, and proof generation | Lace (proving is delegated to the wallet) |
 | Test tokens | Preprod faucet |
 
-This architecture scales to any Midnight DApp. The contract defines the on-chain logic. The API layer wraps it for TypeScript consumption. The frontend connects via Lace, and the wallet's proof server handles proof generation.
+This layout carries over to other Midnight DApps. The contract defines the on-chain logic, an API
+layer wraps it for TypeScript, and the frontend gets its providers from the wallet, so the site
+itself stays static.
