@@ -96,10 +96,8 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
        "start": "tsx src/index.ts"
      },
      "dependencies": {
-       "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
-       "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
-       "@midnight-ntwrk/midnight-js-utils": "4.1.1",
-       "@midnightntwrk/wallet-sdk": "1.2.0",
+       "@midnight-ntwrk/midnight-js-protocol": "5.0.0",
+       "@midnightntwrk/wallet-sdk": "2.0.0",
        "rxjs": "^7.8.1",
        "ws": "^8.19.0"
      },
@@ -127,8 +125,7 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
    import { Buffer } from 'buffer';
    import * as Rx from 'rxjs';
    import {
-     HDWallet,
-     Roles,
+     WalletSeeds,
      generateRandomSeed,
      WalletFacade,
      ShieldedWallet,
@@ -136,16 +133,15 @@ The wallet SDK ships as the single barrel package `@midnightntwrk/wallet-sdk`, w
      UnshieldedWallet,
      createKeystore,
      PublicKey,
-     NoOpTransactionHistoryStorage,
+     InMemoryTransactionHistoryStorage,
+     WalletEntrySchema,
+     mergeWalletEntries,
      DustAddress,
      MidnightBech32m,
    } from '@midnightntwrk/wallet-sdk';
-   import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-   import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
-   import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
-   import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/v9';
 
-   setNetworkId('preprod');
+   const networkId = 'preprod';
 
    // The Preprod indexer and node RPC are served by Blockfrost and need a project token.
    const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
@@ -183,59 +179,35 @@ Turn a seed into a running wallet. Midnight wallets are three sub-wallets, shiel
 
 ### Procedure
 
-1. Derive the wallet's three key roles from a seed. One seed produces the shielded (`Zswap`), unshielded (`NightExternal`), and `Dust` key sets by hierarchical deterministic derivation. Read the seed from the environment so re-runs reuse the same wallet, and generate one only on the first run:
+1. Derive the three wallets' seeds from one master seed. `WalletSeeds.fromMasterSeed` derives the shielded, unshielded, and DUST seeds by hierarchical deterministic derivation. Read the master seed from the environment so re-runs reuse the same wallet, and generate one only on the first run:
 
    :::warning Save the seed
    The seed is the only way to restore the wallet. A script that generates a fresh seed on every run creates a new, empty wallet each time and strands the funds in the previous one.
    :::
 
    ```typescript
-   const seed = process.env.WALLET_SEED ?? toHex(Buffer.from(generateRandomSeed()));
+   const seed = process.env.WALLET_SEED ?? Buffer.from(generateRandomSeed()).toString('hex');
    if (!process.env.WALLET_SEED) {
      console.log(`New wallet seed, save this and set WALLET_SEED to reuse it: ${seed}`);
    }
 
-   const deriveKeys = (seed: string) => {
-     const hd = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
-     if (hd.type !== 'seedOk') throw new Error('Invalid seed');
-     const result = hd.hdWallet
-       .selectAccount(0)
-       .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
-       .deriveKeysAt(0);
-     if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
-     hd.hdWallet.clear();
-     return result.keys;
-   };
-
-   const keys = deriveKeys(seed);
+   const seeds = WalletSeeds.fromMasterSeed(Buffer.from(seed, 'hex'));
    ```
 
-2. Build the three sub-wallets and unify them behind the `WalletFacade`. The DUST wallet requires `costParameters`: `feeBlocksMargin` sets how many blocks of finalization the fee estimate allows for, and `additionalFeeOverhead` is an optional amount that the wallet adds to every fee it declares, which defaults to `0n` if you omit it. A DUST spend has no refund, so the wallet spends the whole declared fee, overhead included:
+2. Build the three sub-wallets from one configuration, each started from its own seed, and unify them behind the `WalletFacade`. The unshielded wallet starts from the public key of a keystore made from its seed, and the keystore signs for it. The DUST wallet requires `costParameters`: `feeBlocksMargin` sets how many blocks of finalization the fee estimate allows for, and `additionalFeeOverhead` is an optional amount that the wallet adds to every fee it declares, which defaults to `0n` if you omit it. A DUST spend has no refund, so the wallet spends the whole declared fee, overhead included:
 
    ```typescript
-   const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
-   const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
-   const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+   const unshieldedKeystore = createKeystore({ kind: 'schnorr', secret: seeds.unshielded }, networkId);
 
-   const shieldedConfig = {
-     networkId: getNetworkId(),
+   const configuration = {
+     networkId,
      indexerClientConnection: {
        indexerHttpUrl: CONFIG.indexerHttpUrl,
        indexerWsUrl: CONFIG.indexerWsUrl,
      },
      provingServerUrl: new URL(CONFIG.proofServer),
      relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
-   };
-   const unshieldedConfig = {
-     networkId: getNetworkId(),
-     indexerClientConnection: {
-       indexerHttpUrl: CONFIG.indexerHttpUrl,
-       indexerWsUrl: CONFIG.indexerWsUrl,
-     },
-     txHistoryStorage: new NoOpTransactionHistoryStorage(),
-   };
-   const dustConfig = {
-     ...shieldedConfig,
+     txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
      costParameters: {
        // Optional amount added to every fee the wallet declares. A DUST spend does not return it. Defaults to 0n.
        additionalFeeOverhead: 300_000_000_000_000n, // 0.3 DUST
@@ -245,13 +217,12 @@ Turn a seed into a running wallet. Midnight wallets are three sub-wallets, shiel
    };
 
    const wallet = await WalletFacade.init({
-     configuration: { ...shieldedConfig, ...unshieldedConfig, ...dustConfig },
-     shielded: (cfg) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
-     unshielded: (cfg) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
-     dust: (cfg) =>
-       DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+     configuration,
+     shielded: (config) => ShieldedWallet(config).startWithSeed(seeds.shielded),
+     unshielded: (config) => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+     dust: (config) => DustWallet(config).startWithSeed(seeds.dust),
    });
-   await wallet.start(shieldedSecretKeys, dustSecretKey);
+   await wallet.start(seeds);
    ```
 
 ### Verification
@@ -265,8 +236,7 @@ import { WebSocket } from 'ws';
 import { Buffer } from 'buffer';
 import * as Rx from 'rxjs';
 import {
-  HDWallet,
-  Roles,
+  WalletSeeds,
   generateRandomSeed,
   WalletFacade,
   ShieldedWallet,
@@ -274,15 +244,14 @@ import {
   UnshieldedWallet,
   createKeystore,
   PublicKey,
-  NoOpTransactionHistoryStorage,
+  InMemoryTransactionHistoryStorage,
+  WalletEntrySchema,
+  mergeWalletEntries,
   DustAddress,
   MidnightBech32m,
 } from '@midnightntwrk/wallet-sdk';
-import { toHex } from '@midnight-ntwrk/midnight-js-utils';
-import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
-import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
-setNetworkId('preprod');
+const networkId = 'preprod';
 
 // The Preprod indexer and node RPC are served by Blockfrost and need a project token.
 const projectId = process.env.BLOCKFROST_PROJECT_ID?.trim();
@@ -296,98 +265,73 @@ const CONFIG = {
   proofServer: 'http://localhost:6300',
 };
 
-const deriveKeys = (seed: string) => {
-  const hd = HDWallet.fromSeed(Buffer.from(seed, 'hex'));
-  if (hd.type !== 'seedOk') throw new Error('Invalid seed');
-  const result = hd.hdWallet
-    .selectAccount(0)
-    .selectRoles([Roles.Zswap, Roles.NightExternal, Roles.Dust])
-    .deriveKeysAt(0);
-  if (result.type !== 'keysDerived') throw new Error('Key derivation failed');
-  hd.hdWallet.clear();
-  return result.keys;
-};
+const seedsOf = (seed: string) => WalletSeeds.fromMasterSeed(Buffer.from(seed, 'hex'));
+const newSeed = () => Buffer.from(generateRandomSeed()).toString('hex');
 
-let wallet: any;
+let wallet: WalletFacade | undefined;
 
 afterAll(async () => {
   if (wallet) await wallet.stop();
 });
 
 describe('building a funding wallet', () => {
-  it('derives the three key roles deterministically from one seed', () => {
-    const seed = toHex(Buffer.from(generateRandomSeed()));
-    const first = deriveKeys(seed);
-    const second = deriveKeys(seed);
-    expect(Buffer.from(first[Roles.NightExternal])).toEqual(Buffer.from(second[Roles.NightExternal]));
-    expect(Buffer.from(first[Roles.Zswap])).toEqual(Buffer.from(second[Roles.Zswap]));
-    expect(Buffer.from(first[Roles.Dust])).toEqual(Buffer.from(second[Roles.Dust]));
+  it('derives the three wallet seeds deterministically from one master seed', () => {
+    const seed = newSeed();
+    const first = seedsOf(seed);
+    const second = seedsOf(seed);
+    expect(Buffer.from(first.shielded)).toEqual(Buffer.from(second.shielded));
+    expect(Buffer.from(first.unshielded)).toEqual(Buffer.from(second.unshielded));
+    expect(Buffer.from(first.dust)).toEqual(Buffer.from(second.dust));
   });
 
   it('encodes a preprod unshielded address with the mn_addr_preprod prefix', () => {
-    const keys = deriveKeys(toHex(Buffer.from(generateRandomSeed())));
-    const keystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+    const keystore = createKeystore({ kind: 'schnorr', secret: seedsOf(newSeed()).unshielded }, networkId);
     expect(String(keystore.getBech32Address())).toMatch(/^mn_addr_preprod1/);
   });
 
   it('builds the wallet facade and connects all three wallets to preprod', { timeout: 120_000 }, async () => {
-    const keys = deriveKeys(toHex(Buffer.from(generateRandomSeed())));
-    const shieldedSecretKeys = ledger.ZswapSecretKeys.fromSeed(keys[Roles.Zswap]);
-    const dustSecretKey = ledger.DustSecretKey.fromSeed(keys[Roles.Dust]);
-    const unshieldedKeystore = createKeystore(keys[Roles.NightExternal], getNetworkId());
+    const seeds = seedsOf(newSeed());
+    const unshieldedKeystore = createKeystore({ kind: 'schnorr', secret: seeds.unshielded }, networkId);
 
-    const shieldedConfig = {
-      networkId: getNetworkId(),
+    const configuration = {
+      networkId,
       indexerClientConnection: {
         indexerHttpUrl: CONFIG.indexerHttpUrl,
         indexerWsUrl: CONFIG.indexerWsUrl,
       },
       provingServerUrl: new URL(CONFIG.proofServer),
       relayURL: new URL(CONFIG.node.replace(/^http/, 'ws')),
-    };
-    const unshieldedConfig = {
-      networkId: getNetworkId(),
-      indexerClientConnection: {
-        indexerHttpUrl: CONFIG.indexerHttpUrl,
-        indexerWsUrl: CONFIG.indexerWsUrl,
-      },
-      txHistoryStorage: new NoOpTransactionHistoryStorage(),
-    };
-    const dustConfig = {
-      ...shieldedConfig,
+      txHistoryStorage: new InMemoryTransactionHistoryStorage(WalletEntrySchema, mergeWalletEntries),
       costParameters: { additionalFeeOverhead: 300_000_000_000_000n, feeBlocksMargin: 5 },
     };
 
     wallet = await WalletFacade.init({
-      configuration: { ...shieldedConfig, ...unshieldedConfig, ...dustConfig },
-      shielded: (cfg: any) => ShieldedWallet(cfg).startWithSecretKeys(shieldedSecretKeys),
-      unshielded: (cfg: any) => UnshieldedWallet(cfg).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
-      dust: (cfg: any) => DustWallet(cfg).startWithSecretKey(dustSecretKey, ledger.LedgerParameters.initialParameters().dust),
+      configuration,
+      shielded: (config) => ShieldedWallet(config).startWithSeed(seeds.shielded),
+      unshielded: (config) => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+      dust: (config) => DustWallet(config).startWithSeed(seeds.dust),
     });
-    await wallet.start(shieldedSecretKeys, dustSecretKey);
+    await wallet.start(seeds);
 
     const connected = await Rx.firstValueFrom(
       wallet.state().pipe(
         Rx.filter(
-          (s: any) =>
-            s.shielded.state.progress.isConnected &&
-            s.unshielded.state.progress.isConnected &&
-            s.dust.state.progress.isConnected,
+          (s) => s.shielded.progress.isConnected && s.unshielded.progress.isConnected && s.dust.progress.isConnected,
         ),
       ),
     );
     expect(connected.isSynced).toBe(false);
     expect(connected.dust.balance(new Date())).toBe(0n);
 
-    const dustAddress = DustAddress.encodePublicKey(getNetworkId(), connected.dust.publicKey);
+    const dustAddress = DustAddress.encodePublicKey(networkId, connected.dust.publicKey);
     expect(String(dustAddress)).toMatch(/^mn_dust_preprod1/);
-    expect(MidnightBech32m.parse(String(dustAddress)).decode(DustAddress, getNetworkId())).toBeDefined();
+    expect(MidnightBech32m.parse(String(dustAddress)).decode(DustAddress, networkId)).toBeDefined();
   });
 });
 ```
 
 ```text
- ✓ wallet-construction.test.ts > building a funding wallet > derives the three key roles deterministically from one seed
+ ✓ wallet-construction.test.ts > building a funding wallet > derives the three wallet seeds deterministically from one master seed
  ✓ wallet-construction.test.ts > building a funding wallet > encodes a preprod unshielded address with the mn_addr_preprod prefix
  ✓ wallet-construction.test.ts > building a funding wallet > builds the wallet facade and connects all three wallets to preprod
 
@@ -442,8 +386,8 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
      console.log('All NIGHT is already registered for DUST generation.');
    } else {
      // Send the DUST elsewhere by replacing this with another wallet's address.
-     const target = String(DustAddress.encodePublicKey(getNetworkId(), state.dust.publicKey));
-     const dustReceiver = MidnightBech32m.parse(target).decode(DustAddress, getNetworkId());
+     const target = String(DustAddress.encodePublicKey(networkId, state.dust.publicKey));
+     const dustReceiver = MidnightBech32m.parse(target).decode(DustAddress, networkId);
 
      // Wait until the NIGHT has generated enough DUST to pay the registration's own fee.
      const { fee } = await wallet.estimateRegistration(unregistered);
@@ -452,7 +396,7 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
      const recipe = await wallet.registerNightUtxosForDustGeneration(
        unregistered,
        unshieldedKeystore.getPublicKey(),
-       (payload) => unshieldedKeystore.signData(payload),
+       async (payload) => unshieldedKeystore.signData(payload),
        dustReceiver,
      );
      const finalized = await wallet.finalizeRecipe(recipe);
@@ -481,16 +425,16 @@ Do from code what the Lace procedure does through the UI: fund the wallet, regis
 
 ### Verification
 
-A saved seed restores the same wallet, the denominations convert as expected, and a mistyped receiver fails before it can be registered. The assertions below come from a second test file that shares the imports, the `deriveKeys` helper, and the two formatters shown earlier in this guide:
+A saved seed restores the same wallet, the denominations convert as expected, and a mistyped receiver fails before it can be registered. The assertions below come from a second test file that shares the imports, the `networkId` constant, the `seedsOf` and `newSeed` helpers, and the two formatters shown earlier in this guide:
 
 ```typescript title="funding-helpers.test.ts"
 describe('restored capabilities', () => {
   it('restores the same wallet from a saved seed', () => {
-    const seed = toHex(Buffer.from(generateRandomSeed()));
+    const seed = newSeed();
     const addrOf = (s: string) =>
-      String(createKeystore(deriveKeys(s)[Roles.NightExternal], getNetworkId()).getBech32Address());
+      String(createKeystore({ kind: 'schnorr', secret: seedsOf(s).unshielded }, networkId).getBech32Address());
     expect(addrOf(seed)).toBe(addrOf(seed));
-    expect(addrOf(seed)).not.toBe(addrOf(toHex(Buffer.from(generateRandomSeed()))));
+    expect(addrOf(seed)).not.toBe(addrOf(newSeed()));
   });
 
   it('formats the faucet amount in NIGHT and DUST denominations', () => {
@@ -499,10 +443,10 @@ describe('restored capabilities', () => {
   });
 
   it('rejects a non-DUST address when decoding a DUST receiver', () => {
-    const keys = deriveKeys(toHex(Buffer.from(generateRandomSeed())));
-    const unshielded = String(createKeystore(keys[Roles.NightExternal], getNetworkId()).getBech32Address());
+    const keystore = createKeystore({ kind: 'schnorr', secret: seedsOf(newSeed()).unshielded }, networkId);
+    const unshielded = String(keystore.getBech32Address());
     expect(unshielded).toMatch(/^mn_addr_preprod1/);
-    expect(() => MidnightBech32m.parse(unshielded).decode(DustAddress, getNetworkId())).toThrow();
+    expect(() => MidnightBech32m.parse(unshielded).decode(DustAddress, networkId)).toThrow();
   });
 });
 ```
@@ -541,7 +485,7 @@ The failure modes readers hit most often on the funding path, and their fixes.
 | Connection refused on port 6300 | The proof server is not running; see [Run the proof server](./run-proof-server). |
 | Balance stays zero after the faucet confirms | Give it a couple of minutes; the wallet detects funds after its next sync. Confirm the address you pasted matches the printed one exactly. |
 | DUST stays zero after registration | Give the registration time to land on-chain, then confirm the proof server answers on `http://localhost:6300/health`. |
-| `Invalid dust address` when directing DUST elsewhere | DUST addresses start with `mn_dust_` plus the network name; shielded (`mn_shield-addr_...`) and unshielded (`mn_addr_...`) addresses are different types. |
+| `Expected type dust, got addr` or `Expected type dust, got shield-addr` when directing DUST elsewhere | DUST addresses start with `mn_dust_` plus the network name; shielded (`mn_shield-addr_...`) and unshielded (`mn_addr_...`) addresses are different types. A DUST address for another network fails with `Expected preprod address, got preview one`. |
 
 ## Additional resources
 
