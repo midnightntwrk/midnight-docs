@@ -19,9 +19,19 @@ import { useLocation } from '@docusaurus/router';
 // elements is used to assign a numeric `id`.
 const releases = [
   {
-  version: '0.36.0',
+  version: '0.36.1',
   compactVersion: '0.28.0',
   status: 'LATEST',
+  date: '11 November 2026',
+  summary: 'Patch release: fixes key generation for circuits using JubjubScalar or JubjubPoint, and an internal compiler error with deserialized Boolean values',
+  details: [],
+  artifacts: [],
+  link: '/relnotes/compact/toolchain-0.36.1',
+},
+  {
+  version: '0.36.0',
+  compactVersion: '0.28.0',
+  status: 'SUPPORTED',
   date: '4 November 2026',
   summary: 'Mainnet, Preview, and Preprod toolchain for ledger 9: ZKIR version 3 is the only backend, `--feature-zkir-v3` is removed, and circuits in a contract type cannot be `pure`',
   details: [
