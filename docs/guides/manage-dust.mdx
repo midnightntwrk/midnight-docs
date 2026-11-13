@@ -482,6 +482,9 @@ describe('reading the DUST balance', () => {
   const ttl = () => new Date(Date.now() + 30 * 60 * 1000);
   const current = () => Rx.firstValueFrom(wallet.state());
   const sum = (values: readonly bigint[]) => values.reduce((total, value) => total + value, 0n);
+  // After a recent transaction, the wallet can hold a new DUST UTXO that is still worth nothing, and then names it as declined.
+  const outOfDust =
+    /^Insufficient Funds: (could not balance dust|the configured coin selection declined the remaining \d+ dust coin\(s\))$/;
 
   // A transfer of 1 NIGHT to the wallet's own address, built without its fee payment.
   const transferWithoutFee = () =>
@@ -546,7 +549,7 @@ describe('reading the DUST balance', () => {
       }
     }
     expect(held.length).toBeGreaterThan(0);
-    expect(rejection.message).toBe('Insufficient Funds: could not balance dust');
+    expect(rejection.message).toMatch(outOfDust);
 
     const locked = await current();
     const lockedUtxos = state.dust.availableCoins.length - locked.dust.availableCoins.length;
@@ -558,9 +561,7 @@ describe('reading the DUST balance', () => {
 
     const unbalanced = await transferWithoutFee();
     try {
-      await expect(wallet.estimateTransactionFee(unbalanced.transaction)).rejects.toThrow(
-        'Insufficient Funds: could not balance dust',
-      );
+      await expect(wallet.estimateTransactionFee(unbalanced.transaction)).rejects.toThrow(outOfDust);
     } finally {
       await wallet.revert(unbalanced);
       for (const recipe of held) await wallet.revert(recipe);
@@ -639,7 +640,7 @@ Ask the wallet what fee a transaction declares before you commit to sending it, 
    console.log(`Fee the wallet declares: ${formatDust(estimate)} DUST`);
    ```
 
-   `estimateTransactionFee` selects DUST UTXOs the way `balanceUnprovenTransaction` does in step 4 and locks none of them. A result means that the wallet can pay the fee now. A rejection with `Insufficient Funds: could not balance dust` means that its unlocked DUST UTXOs do not cover the fee. `calculateTransactionFee` needs no DUST. Its result leaves out the fee payment, so it is not the amount the wallet declares.
+   `estimateTransactionFee` selects DUST UTXOs the way `balanceUnprovenTransaction` does in step 4 and locks none of them. A result means that the wallet can pay the fee now. A rejection with `Insufficient Funds: could not balance dust`, or `Insufficient Funds: the configured coin selection declined the remaining N dust coin(s)`, means that its unlocked DUST UTXOs do not cover the fee. `calculateTransactionFee` needs no DUST. Its result leaves out the fee payment, so it is not the amount the wallet declares.
 
    Pass `estimateTransactionFee` a transaction that has no fee payment yet: the transaction of a recipe from `transferTransaction` with `payFees: false`, or the transaction that Midnight.js passes to `balanceTx`. For a recipe that already pays its fee, such as one from `transferTransaction` with the default `payFees`, read the declared fee with `sumDeclaredFees` from step 5.
 
@@ -1110,13 +1111,15 @@ describe('redirecting or stopping DUST generation', () => {
     const finalized = await wallet.finalizeRecipe(balanced);
     await wallet.submitTransaction(finalized);
 
-    // Wait until the UTXOs that were passed are gone and every DUST UTXO of the sender is decaying.
+    // Wait until the UTXOs that were passed are gone and every DUST UTXO of the sender is decaying. The fee locks a
+    // DUST UTXO until the wallet applies the transaction, so also wait for the sender's DUST to have no pending coin.
     const isOld = (coin: NightCoin) =>
       registered.some((old) => old.utxo.intentHash === coin.utxo.intentHash && old.utxo.outputNo === coin.utxo.outputNo);
     const after = await waitFor(
       wallet,
       (state) =>
         state.unshielded.pendingCoins.length === 0 &&
+        state.dust.pendingCoins.length === 0 &&
         registeredCoins(state).length > 0 &&
         !state.unshielded.availableCoins.some(isOld) &&
         state.dust.availableCoins.every((dust) => dust.dtime !== undefined),
