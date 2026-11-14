@@ -136,9 +136,8 @@ export function sign(sk: bigint, msg: bigint[]): Schnorr_SchnorrSignature {
   // pureCircuits.schnorrChallenge returns the full transientHash output; the
   // circuit reduces it mod 2^248 before the EC ops, so do the same here.
   const c = pureCircuits.schnorrChallenge(R.x, R.y, pk.x, pk.y, msg) % TWO_248;
-  // s must be reduced mod the Jubjub order, not left to wrap modulo the
-  // BLS12-381 field: k + c*sk can exceed the field, and the wrapped value is a
-  // different scalar.
+  // s must be reduced mod the Jubjub order: the contract types the response as
+  // a JubjubScalar and rejects any value at or above the order.
   const s = reduce(k + c * sk);
   return { announcement: R, response: s };
 }
@@ -152,8 +151,9 @@ Step by step:
 2. Pick a fresh random nonce `k`, and compute the announcement `R = k*G`.
 3. Compute the challenge with `pureCircuits.schnorrChallenge`, the same hash the circuit uses,
    and truncate it to 248 bits.
-4. Compute the response `s = k + c*sk`, reduced modulo the Jubjub order. Left unreduced, it can
-   exceed the BLS12-381 field and wrap to a different scalar, and the signature would fail.
+4. Compute the response `s = k + c*sk`, reduced modulo the Jubjub order. The contract types the
+   response as a `JubjubScalar`, so any value at or above the order is rejected, even one that
+   still fits in the BLS12-381 field.
 
 The circuit then checks `s*G == R + c*pk`. Step 3 is the critical one. Because the signer calls the
 contract's own compiled `schnorrChallenge`, it computes exactly the hash the circuit does. With any
