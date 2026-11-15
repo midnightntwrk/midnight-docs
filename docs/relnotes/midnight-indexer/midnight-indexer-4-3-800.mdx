@@ -1,0 +1,257 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Midnight Indexer v4.3.800 release notes
+displayed_sidebar: sidebar
+description: Release notes for Midnight Indexer v4.3.800, the ledger-v8 patch with two security fixes, node 1.0.400 support, and a required reindex from genesis on upgrade.
+toc_max_heading_level: 2
+---
+
+* **Version**: v4.3.800
+* **Date**: November 14, 2026
+* **Paired node**: 1.0.400
+* **Paired ledger**: 8.1.3
+
+---
+
+:::caution[Reindex required for most 4.3 upgraders]
+Upgrading from any earlier `4.3` release, including `4.3.7` and `4.3.800-rc.1`: **reindex from genesis required**. Those releases stored empty unshielded balances for every contract action, and this release corrects balances only for the actions it indexes itself. See Breaking changes.
+
+Coming from `4.3.800-rc.2`: in place, no reindex. The changes since rc.2 are dependency advisory bumps and an image build workflow fix, with no new migration and no GraphQL schema change.
+
+Coming from `4.3.4` or `4.3.5`, the reindex is also forced: those builds carried `4.4.0` content and its migrations, and this release refuses to start against a database with migrations it does not know.
+
+Wipe the indexer database and the ledger DB together, make the two config changes under Breaking changes, then index from genesis.
+
+Coming from any `4.4` release: **not an upgrade path**. That line indexes the ledger-v9 hard fork, which this release does not support. Track the `4.4` line instead.
+:::
+
+---
+
+## High-level summary
+
+This release fixes two security issues, a transaction that could halt ingestion and an unbounded SPO epoch-range query that could exhaust indexer-api. It also fixes two halts on a block's first regular transaction and a ledger-DB crash loop, clears seventeen dependency advisories, and moves to node 1.0.400 with ledger 8.1.3. Upgrading from `4.3.800-rc.1` or earlier requires a reindex from genesis and two config changes; see Breaking changes.
+
+## Audience
+
+- Operators running the indexer on the ledger-v8 line.
+- Developers and wallet integrators using the indexer GraphQL API.
+
+## Dependencies
+
+- Supports node versions up to `1.0.400`. Node 1.0.400 runs runtime 1.0.300, whose metadata is byte-identical to node 1.0.300's.
+- GraphQL schema and migrations unchanged since `4.3.800-rc.2`. Migrations: 5 postgres, 6 sqlite and 1 sqlite ledger-DB.
+
+**Downstream impact (cascading effects)**: GraphQL clients that neither send `Accept-Encoding` nor select the deflate WebSocket subprotocol see unchanged responses. Contract actions from segments the ledger rolled back no longer reach the API; use `transactionResult` to tell what applied.
+
+## Tested-with versions
+
+QA-verified: the 4.3.800 test evidence records the final build run against node 1.0.400 on undeployed and qanet, with QA sign-off (#1710). The ledger version is compiled into the tested images.
+
+| Component | Tested-with version |
+| --- | --- |
+| Midnight node | [`1.0.400`](https://github.com/midnightntwrk/midnight-node/releases/tag/node-1.0.400), the node the e2e and CI suites run against |
+| Midnight ledger | `ledger-8.1.3`, pinned in `Cargo.lock` at [commit b5d3e965](https://github.com/midnightntwrk/midnight-ledger/commit/b5d3e965a18e4cac17fac4f38446fc55c524439a) |
+
+## Deployment information
+
+- **Upgrade scope**: binary only. The indexer has no on-chain runtime; replace the five images.
+- **Reset required**: Yes from `4.3.7`, `4.3.800-rc.1` or earlier 4.3 releases: wipe the indexer database and the ledger DB together and reindex from genesis, to replace the empty contract unshielded balances those releases stored. No from `4.3.800-rc.2`. Ledger 8.1.0 to 8.1.3 itself changes no serialization output and no storage encoding. A replay of mainnet and preprod history from genesis against ledger 8.1.3 indexed every block to the tip.
+- **Governance action required**: Not applicable
+- **Downtime / coordination**: The API serves incomplete data until the reindex reaches the chain tip; plan the upgrade window for a full reindex. Three index-only migrations run automatically at startup: postgres `007`, sqlite `005` and `009`. Rolling back to `4.3.7` or `4.3.800-rc.1` requires deleting `_sqlx_migrations` version `7` (postgres) or versions `5` and `9` (sqlite) first; the indexes can stay. A rolled-back build stores empty unshielded balances again for the contract actions it indexes.
+
+## Artifacts
+
+Multi-arch (`linux/amd64`, `linux/arm64`) images, also published to `ghcr.io/midnightntwrk` at the same digests:
+
+- `midnightntwrk/chain-indexer:4.3.800`: `sha256:605e0524d2320d8d8724e2778bd107f2e63f44bc846d06c312000e524b8226cc`
+- `midnightntwrk/indexer-api:4.3.800`: `sha256:4643e6ead77b326f22bad1688147710d8d186d0d0ad31289bcc99ac1e82135ae`
+- `midnightntwrk/wallet-indexer:4.3.800`: `sha256:9ac57d1559494ea54670911c82c8d456d017998a5b785bdacb86c528c8cf07c3`
+- `midnightntwrk/indexer-standalone:4.3.800`: `sha256:a3e5c6dbb627fe8aed785b9c53d62384e58b7e64975e6e292fd8213d4220d82a`
+- `midnightntwrk/spo-indexer:4.3.800`: `sha256:e359e26e9a2377790ce3913e3124260d9d9aba252b4f1fd4d16c81e3fca663a4`
+
+Each image carries a provenance attestation recording the `release` build profile. To check one:
+
+```sh
+docker buildx imagetools inspect midnightntwrk/indexer-api:4.3.800 \
+  --format '{{json .Provenance}}' | grep 'build-arg:PROFILE'
+```
+
+## What changed
+
+- Security: a single permissionless transaction could stop ingestion for a whole deployment (#1526).
+- Security: one unauthenticated request with an unbounded `toEpoch` to the SPO series resolvers could pin a database connection and drive indexer-api toward OOM (#1455).
+- Halt on a block's first regular transaction fixed for runtime 1.0.300 (#1548).
+- Halt on a first regular transaction valid only at block time fixed (#1612).
+- Ledger-DB root-count crash loop fixed (#1528).
+- Empty contract `unshieldedBalances` fixed (#1531).
+- API worker starvation fixed (#1534).
+- Standalone mode no longer reports sqlite contention as "database is locked" (#1530).
+- Contract balances now come from the indexer's own ledger state; correcting balances stored by earlier releases needs a reindex, see Breaking changes (#1616).
+- Node 1.0.300 support (#1544).
+- Node 1.0.400 support with ledger 8.1.3 (#1651).
+- HTTP and WebSocket compression back-ported from `main` (#1586).
+- Secrets from files back-ported from `main` (#1587).
+- Subscription and unshielded-query performance work back-ported from `main`; see Improvements.
+- Two config changes are needed before upgrading; see Breaking changes.
+- Dependency advisories cleared: RUSTSEC-2026-0190, RUSTSEC-2026-0204, RUSTSEC-2026-0258, RUSTSEC-2026-0274, RUSTSEC-2026-0285, RUSTSEC-2026-0346, RUSTSEC-2026-0347, RUSTSEC-2026-0348, RUSTSEC-2026-0349, RUSTSEC-2026-0381, RUSTSEC-2026-0382, RUSTSEC-2026-0383, RUSTSEC-2026-0386, RUSTSEC-2026-0391, RUSTSEC-2026-0398, RUSTSEC-2026-0403 and RUSTSEC-2026-0410; yanked `spin` and `chacha20` releases replaced.
+- Routine dependency updates: `async-nats` 0.49, `bech32` 0.12, `itertools` 0.15, `logforth` 0.30, `tower-http` 0.7 and the OpenTelemetry crates 0.32; the remaining Dependabot updates touch CI workflows only.
+- Images publish to `ghcr.io/midnightntwrk` alongside Docker Hub, each architecture built in its own job (#1591).
+- Final tags now merge their multi-arch `latest` manifest (#1690, back-ported in #1694).
+- QA test tooling only: `qa/tests` audit advisories cleared; these packages do not ship in the images (#1538).
+
+## New features
+
+### Feature node 1.0.400 support
+
+**Description**: The indexer tracks node 1.0.400 and ledger 8.1.3. Ledger 8.1.3 rejects contract call transcripts embedding non-canonical field values when decoding a transaction (#1651). Node 1.0.300 support from the same line is kept, since both nodes run runtime 1.0.300 (#1544).
+
+### Feature compressed HTTP responses and WebSockets
+
+**Description**: indexer-api compresses HTTP responses with gzip, brotli or zstd when the client sends `Accept-Encoding`. WebSocket clients can select the `graphql-transport-ws+deflate` subprotocol, which sends payloads of 256 bytes or more as zlib-compressed binary frames (#1586).
+
+### Feature merkle tree rehash before collapsed updates
+
+**Description**: Collapsed updates were built from the cached tree without rehashing, so an update could carry a stale hash for the most recently added leaf; the tree is now rehashed first (#1266, back-ported in #1584).
+
+## New features requiring configuration updates
+
+### Feature secrets from files
+
+**Required updates**: none to keep the current setup.
+
+- Optional: set `APP__X_FILE=/path` to load `APP__X` from the file at `/path` (#1074, back-ported in #1587).
+
+**Impact**: Deployments can mount secrets as files instead of passing them as environment variables.
+
+### Feature bounded ledger-DB query concurrency
+
+**Required updates**: none; the defaults apply.
+
+- Optional: `ledger_query_concurrency` (default: half of `infra.storage.max_connections`) and `max_blocking_threads` (default 64) (#1440, back-ported in #1534).
+
+**Impact**: Caps concurrent ledger-backed GraphQL queries so a burst cannot exhaust the blocking pool; startup fails if `ledger_query_concurrency` is not below `max_blocking_threads`.
+
+### Feature bounded SPO HTTP pool
+
+**Required updates**: none; the block is optional.
+
+- Optional: `infra.spo_node.http_pool` block (#1094, back-ported in #1530).
+
+**Impact**: Bounds idle Blockfrost sockets in standalone mode, which also opens sqlite in WAL mode with a 30s `busy_timeout`.
+
+## Improvements
+
+**Improvement**: subscription polling and progress caching
+
+**Description**: Progress polling gains jitter and idle backoff, the shipped `keep_wallet_alive_interval` rises from `1m` to `10m`, and concurrent subscribers for the same wallet or address share one progress query (#1233, back-ported in #1583).
+
+**Improvement**: unshielded transaction queries
+
+**Description**: Queries by unshielded address no longer use an OR-in-JOIN that could hold pool connections until the 30s statement timeout under concurrent wallet sync. Owner-leading composite indexes back the rewritten queries in postgres migration `007` and sqlite `009` (#1133, back-ported in #1583).
+
+**Improvement**: sqlite block height index
+
+**Description**: A UNIQUE index on `blocks.height` for sqlite, migration `005` (#1187, back-ported in #1583).
+
+**Improvement**: NATS reconnect logging
+
+**Description**: NATS reconnects log at info level (#1297, back-ported in #1588).
+
+## Deprecations
+
+None. The GraphQL schema is unchanged between 4.3.7 and 4.3.800 and its deprecated fields predate 4.3.7.
+
+## Breaking changes
+
+### Breaking change reindex for contract unshielded balances
+
+**What changed**: 4.3 releases up to and including `4.3.7` and `4.3.800-rc.1` wrote no unshielded balances for any contract action, so every contract's `unshieldedBalances` came back empty from the GraphQL API. The bug arrived with ledger v8 support in February 2026: when the chain-indexer read a contract's balance map it dropped every entry, so no rows reached `contract_balances`. This release reads every balance entry and takes balances from the indexer's own ledger state instead of decoding the contract state bytes the node returns (#1246, back-ported in #1531; #1616).
+
+**What breaks**: The chain-indexer computes balances only when it indexes a contract action, and the API reads only stored rows. A database indexed by an earlier 4.3 release keeps empty balances for every contract action it indexed before the upgrade. Neither fix forces a reindex on its own.
+
+**Required actions**: after upgrading from `4.3.800-rc.1` or earlier,
+
+- Wipe the indexer database and the ledger DB together, then reindex from genesis.
+
+**Code example**: None.
+
+### Breaking change ledger DB cache size key
+
+**What changed**: `ledger_db.cache_size` is renamed to `cache_max_nodes` and takes a plain integer node count instead of a byte-unit string. The default is now 100000 (#1385, back-ported in #1529).
+
+**What breaks**: A deployment that mounts its own `config.yaml` with `cache_size`, or sets `APP__INFRA__LEDGER_DB__CACHE_SIZE`, for chain-indexer, wallet-indexer, indexer-api or indexer-standalone.
+
+**Required actions**: before starting this release,
+
+- Rename `cache_size` to `cache_max_nodes` in `config.yaml` with an integer value, or rename the environment variable to `APP__INFRA__LEDGER_DB__CACHE_MAX_NODES`.
+
+**Code example**: `config.yaml`
+
+```yaml
+infra:
+  ledger_db:
+    cache_max_nodes: 100000
+```
+
+### Breaking change required progress cache config
+
+**What changed**: indexer-api and indexer-standalone require an `infra.api.subscription.progress_cache` block (#1234, back-ported in #1583).
+
+**What breaks**: A deployment that mounts its own `config.yaml` without the block fails to start.
+
+**Required actions**: before starting this release,
+
+- Add the block with `max_capacity` and `time_to_live`; the shipped config uses `10000` and `"5s"`.
+
+**Code example**: `config.yaml`
+
+```yaml
+infra:
+  api:
+    subscription:
+      progress_cache:
+        max_capacity: 10000
+        time_to_live: "5s"
+```
+
+## Known issues
+
+### Issue crypto-bigint advisory RUSTSEC-2026-0387 ignored
+
+**Description**: `cargo deny` ignores RUSTSEC-2026-0387 in `crypto-bigint` 0.5.5, which arrives through `k256`/`p256` 0.13 in the midnight-ledger and midnight-zk crates (#1700, back-ported in #1702).
+
+**Workaround (if any)**: None in the indexer; the fix needs those crates to move to `k256`/`p256` 0.14 (#1702). The ledger move to `k256` 0.14 is open in [midnightntwrk/midnight-ledger#821](https://github.com/midnightntwrk/midnight-ledger/pull/821) against the ledger-9 line only.
+
+## Links and references
+
+- **QA test coverage / test evidence**: [4.3.800 test evidence, undeployed and qanet](https://github.com/midnightntwrk/midnight-indexer/blob/f2e7050803f6104a8307bd6f9c7a9c11112cb65f/qa/tests/evidence/4.3.800/README.md)
+- **PRs**: https://github.com/midnightntwrk/midnight-indexer/compare/v4.3.7...v4.3.800
+- **Engineering docs**: https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.800/README.md
+- **Migration guides**: None
+- **SDK docs**: None
+- **Security advisories**: [GHSA-67mp-mh58-qx5h](https://github.com/midnightntwrk/midnight-indexer/security/advisories/GHSA-67mp-mh58-qx5h), [GHSA-6746-qxvv-3hwg](https://github.com/midnightntwrk/midnight-indexer/security/advisories/GHSA-6746-qxvv-3hwg)
+- **Known issues board**: https://github.com/midnightntwrk/midnight-indexer/issues?q=is%3Aopen+label%3Apriority%3Acritical%2Cpriority%3Ahigh
+- **Public schema**: https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.800/indexer-api/graphql/schema-v4.graphql
+- **API documentation**: https://github.com/midnightntwrk/midnight-indexer/blob/v4.3.800/docs/api/v4/api-documentation.md
+
+## Fixed defect list
+
+The following defects were fixed between 4.3.7 and 4.3.800.
+
+| Defect number | Description |
+| --- | --- |
+| PR #1526 | One permissionless transaction could make a block fail to build on every attempt and stop ingestion, GHSA-67mp-mh58-qx5h. Contract call entry points are now decoded lossily with NUL replaced, and actions from segments that never applied no longer drive a contract state lookup. |
+| PR #1455 | An unbounded `toEpoch` in `registeredTotalsSeries`, `registeredSpoSeries` or `registeredPresence` could pin a database connection; spans wider than 10,000 epochs are rejected, GHSA-6746-qxvv-3hwg. |
+| PR #1548 | After a runtime upgrade to 1.0.300, the indexer could reject a block's first regular transaction that the node accepted and halt. The parent-time offset now applies only to runtimes before 1.0.300. |
+| PR #1612 | Preprod block 164460 carries a first regular transaction valid only at block time, which the indexer rejected before halting. The indexer now verifies at block time and retries at the offset `tblock`. |
+| PR #1528 | `get_root_count` returned 0 or 1 whatever the stored count, so a later unpersist could crash-loop chain-indexer with "roots counts can't be negative". |
+| PR #1531 | Contract actions served an empty `unshieldedBalances`. Balances stored by earlier releases stay empty until a reindex from genesis. |
+| PR #1616 | Indexing depended on every contract state the node serves deserializing with the indexer's ledger version. Balances now come from the indexer's own ledger state; a mainnet reindex produced identical balances for all 42,599 contract actions. |
+| PR #1534 | A burst of unauthenticated ledger-backed queries could grow the blocking pool without limit and wedge the runtime, liveness probe included. |
+| PR #1530 | Sqlite contention in standalone mode surfaced as "database is locked". |
+| PR #1694 | Final release tags failed to merge the multi-arch `latest` manifest. |
+| PR #1527 | Advisories cleared before rc.2: anyhow 1.0.103 for RUSTSEC-2026-0190, rustls 0.23.45 for RUSTSEC-2026-0285, h2 0.4.17 for RUSTSEC-2026-0258, crossbeam-epoch 0.9.20 for RUSTSEC-2026-0204, and rtrb, spin and chacha20 bumps. |
+| PR #1705 | Advisories cleared for the final: rustls 0.23.46, rustls-webpki and webpki roots, tokio, and the zstd crates. |
+| PR #1538 | QA test tooling only: `ws` audit advisory GHSA-96hv-2xvq-fx4p cleared in `qa/tests`; these packages do not ship in the images. |
+| PR #1408 | QA test tooling only: `js-yaml` audit advisory GHSA-2883-xcg3-v3hh cleared in `qa/tests`; these packages do not ship in the images. |
