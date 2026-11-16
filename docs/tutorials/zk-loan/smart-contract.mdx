@@ -76,7 +76,7 @@ A signature is an announcement point `R` and a response scalar `s`:
 ```compact title="contract/schnorr.compact"
   export struct SchnorrSignature {
     announcement: JubjubPoint;  // R
-    response: Field;            // s
+    response: JubjubScalar;     // s, typed so a value >= the Jubjub order is rejected
   }
 ```
 
@@ -115,9 +115,9 @@ expensive in a circuit, so a witness does it off-chain and the circuit only chec
   // The witness provides the quotient and remainder of dividing the challenge
   // hash by 2^248, so it can be truncated to fit in Jubjub's scalar field.
   // Division is cheap off-chain and expensive in-circuit; the circuit only
-  // CHECKS the result. The quotient is Uint<7> (not Field) so the check below
-  // holds over the integers rather than modulo the field prime — see the range
-  // assert in schnorrVerify.
+  // CHECKS the result. The quotient is Uint<7> (not Field) and range-bounded in
+  // schnorrVerify so the check below holds over the integers rather than modulo
+  // the field prime.
   witness getSchnorrReduction(challengeHash: Field): [Uint<7>, Uint<248>];
 ```
 
@@ -130,17 +130,25 @@ expensive in a circuit, so a witness does it off-chain and the circuit only chec
     const TWO_248: Field =
             452312848583266388373324160190187140051835877600158453279131187530910662656 as Field;
     const [q, cTruncated] = getSchnorrReduction(cFull);
-    // Bound the quotient so the reduction equation holds over the integers, not
-    // modulo the field prime. Without this, q : Field is unconstrained and a
-    // prover could pick any cTruncated (i.e. any challenge) and solve for a
-    // matching q, forging the signature. floor((BLS12-381 scalar prime - 1) / 2^248)
-    // == 115, so an honest quotient is always in [0, 115]. The zk-loan
-    // simulator test "rejects a forged attestation ..." is the regression test.
-    assert(disclose(q) < 116, "Schnorr quotient out of range");
-    assert(disclose(q) * TWO_248 + (disclose(cTruncated) as Field) == cFull,
+    const qd = disclose(q);
+    const rd = disclose(cTruncated);
+    // The equation below only holds mod the field prime P. Typing q as Uint<7>
+    // is what stops a forgery: as a Field, a prover could pick any cTruncated
+    // (any challenge) and solve for a matching q. The bound then makes the
+    // decomposition unique. floor(P / 2^248) == 115, and q == 115 is honest
+    // only while q * 2^248 + r < P, so r must stay below P - 115 * 2^248. With a
+    // plain q < 116, about 0.06% of challenge hashes had two accepted (q, r)
+    // pairs. Simulator tests: "rejects a forged attestation ...", "accepts only
+    // one decomposition ..." and "accepts an honest signature with q == 115".
+    const R_MAX_AT_Q115: Uint<248> = // P - 115 * 2^248
+            419897588050555816515462086314444731729426576509415695503572133883854979073;
+    assert(qd < 115 || (qd == 115 && rd < R_MAX_AT_Q115),
+           "Schnorr quotient out of range");
+    assert(qd * TWO_248 + (rd as Field) == cFull,
            "Invalid challenge reduction"
            );
-    const c: Field = disclose(cTruncated) as Field;
+    // c < 2^248 is below the Jubjub order, so the cast leaves it unchanged.
+    const c: JubjubScalar = rd as JubjubScalar;
 ```
 
 This is a common ZK pattern: let the prover compute something expensive, then verify the result
@@ -151,23 +159,27 @@ The reduction equation alone is not enough. Circuit arithmetic is modulo the BLS
 prime, and 2^248 is invertible in that field. If the quotient were an unconstrained `Field`, a
 malicious prover could pick *any* truncated challenge and solve for a matching quotient, which
 would let them forge a signature without the provider's secret key. Typing the quotient as
-`Uint<7>` and asserting `q < 116` (the largest honest quotient is 115) forces the equation to hold
-over the integers, which ties the challenge to the hash. Witness values are prover-controlled
+`Uint<7>` is what stops that forgery, and bounding it makes the decomposition unique, which ties
+the challenge to the hash. The largest honest quotient is 115, but `q < 116` alone isn't tight:
+with `q == 115` and a large remainder, `q * 2^248 + r` can pass the field prime and wrap, so the
+circuit also caps the remainder in that case. Witness values are prover-controlled
 inputs: constrain them until only honest values satisfy the circuit.
 :::
 
-The simulator suite has a regression test for this: "rejects a forged attestation that exploits
-an unconstrained challenge quotient" builds exactly that forgery and checks the circuit rejects it.
+The simulator suite has regression tests for this: "rejects a forged attestation that exploits
+an unconstrained challenge quotient" builds exactly that forgery and checks the circuit rejects it,
+"accepts only one decomposition of the challenge" checks the second decomposition is rejected, and
+"accepts an honest signature with q == 115" checks the bound still lets honest challenges through.
 
 ### The verification equation
 
 With the challenge `c` in hand, the circuit checks the Schnorr equation `s*G == R + c*pk`:
 
 ```compact title="contract/schnorr.compact"
-    // s*G == R + c*pk. ecMul and ecMulGenerator take a JubjubScalar; the cast
-    // reduces modulo the Jubjub group order, which leaves the points unchanged.
-    const lhs: JubjubPoint = ecMulGenerator(response as JubjubScalar);
-    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c as JubjubScalar));
+    // s*G == R + c*pk. response is already a JubjubScalar: casting a Field here
+    // would reduce it mod the order and let s + order verify too.
+    const lhs: JubjubPoint = ecMulGenerator(response);
+    const rhs: JubjubPoint = ecAdd(announcement, ecMul(pk, c));
     // Compare coordinates, not the points: `==` on the opaque JubjubPoint
     // compiles to JS reference equality.
     assert(jubjubPointX(lhs) == jubjubPointX(rhs) && jubjubPointY(lhs) == jubjubPointY(rhs),
