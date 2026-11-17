@@ -17,8 +17,27 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '5.0.0',
+    version: '5.0.1',
     status: 'LATEST',
+    date: '2026-11-17',
+    summary: 'Patch release in the 1.1 patch: moves the ledger 9 stack to ledger 9.1.0.2 and fixes rejected contract calls, with no API change and no recompile.',
+    details: [
+      'Pins `@midnightntwrk/ledger-v9` 1.0.2, `@midnightntwrk/onchain-runtime-v4` 4.0.2, and Compact.js 3.0.2',
+      'Fixes contract calls that spend a held shielded coin and write the change back, which failed with `Custom error: 104`',
+      'Fixes contract calls whose fee is paid with a single DUST spend, which could fail with `OutsideTimeToDismiss`',
+      'Clients can load a contract\'s state again after a map write',
+      'testkit-js moves to wallet SDK 2.0.1, `@midnightntwrk/zkir-v3` 3.2.1, and proof server 9.0.2',
+      'Compact runtime stays at 0.21.0; contracts compiled with Compact toolchain 0.36.0 or 0.36.1 work unchanged',
+    ],
+    artifacts: [
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.1' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/midnight-js/v/5.0.1' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-5-0-1',
+  },
+  {
+    version: '5.0.0',
+    status: 'SUPPORTED',
     date: '2026-11-06',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet. Works across both ledger eras, with breaking provider and contract state changes.',
     details: [
