@@ -1,0 +1,97 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Ledger v9.1.0.2 release notes
+description: "Release notes for Ledger 9.1.0.2, a client-side patch fixing transcript partitioning and WASM contract state loading, with proof server 9.0.2."
+displayed_sidebar: sidebar
+---
+
+* **Version**: v9.1.0.2
+* **Date**: November 16, 2026
+
+---
+
+## High-level summary
+
+Ledger 9.1.0.2 is a client-side patch release on the `ledger-9` line. It promotes `9.1.0.2-rc.0` after QA approval. It does not change transaction validation, state hashes, or anything a node computes.
+
+It fixes two ways in which wallets and DApps built transactions that the node then rejected. Transcript partitioning now sizes the guaranteed section against the time to dismiss the final transaction will be allowed, and callers can pass the expected shape of that transaction through the new `TransactionShape`. Partitioning also rehearses each call with the widest commitment tree indices the chain could assign, so contracts that store a coin's `mt_index` declare enough written bytes.
+
+It also lets the WASM API load contract state that an ordinary map write can leave in a non-canonical trie shape, which earlier releases rejected, leaving the contract unreadable to clients.
+
+Since the release candidate, the proof server moves to ZKIR v3 `3.2.1`, which fixes proving for Compact circuits whose chip requirements earlier versions missed, and its image passes `docker run` arguments through to the server.
+
+## Audience
+
+This release note is important for:
+
+- Developers using the ledger WASM bindings, in particular wallets and DApps that partition transcripts or call `Transaction.addCalls`
+- Integrators who build transactions with the `ledger-9` Rust crates
+- Proof server operators
+- Node developers, only to note that the node needs no change and must not enable the new `storage` leniency
+
+## Released packages
+
+| **Package** | **Version** |
+|-------------|-------------|
+| npm `@midnightntwrk/ledger-v9` | `1.0.2` |
+| npm `@midnightntwrk/onchain-runtime-v4` | `4.0.2` |
+| proof server | `9.0.2` |
+| crates.io `midnight-ledger-v9` | `1.0.2` |
+| crates.io `midnight-storage` | `3.1.0` |
+| crates.io `midnight-transient-crypto` | `3.1.0` |
+
+The npm packages are also published under the legacy `@midnight-ntwrk` scope. Every other package, including `@midnightntwrk/zkir-v2`, `midnight-zswap`, and the `onchain-*` crates, is unchanged from 9.1.0.1.
+
+Build pins, read from the lockfile: `midnight-circuits` `7.3.0`, `midnight-zk-stdlib` `2.4.0`, and ZKIR v3 (`midnight-zkir`, from crates.io) `3.2.1`.
+
+## Summary of updates
+
+### Transcript partitioning
+
+- Fix: transcript partitioning sizes the guaranteed section against the predicted transaction's time-to-dismiss allowance, `max(min_time_to_dismiss, time_to_dismiss_per_byte * size)`, minus a reserve, instead of a fixed floor.
+- Fix: the predicted size and the reserve come from a mock transaction of the calls' `TransactionShape`. The reserve covers every call's proof verification, including calls that end up fully fallible, priced by each call's own public inputs. Partitioning therefore reserves more than before, and may keep fewer calls guaranteed for the same input.
+- Fix: partitioning rehearses each call with the widest commitment tree indices the chain could assign.
+- Feature: `TransactionShape` counts a transaction's non-call parts: intents, Night and non-Night unshielded spends and outputs, Dust spends, Zswap inputs, outputs and transients, and Dust registrations and deregistrations. `TransactionShape::for_calls` derives the counts of the balanced transaction from the calls.
+- Feature: `partition_transcripts_with_tx_shape` and `Transaction::add_calls_with_tx_shape` partition against a caller-supplied shape. Use them when the final transaction has more parts than the calls imply, such as a payment from several Night UTXOs. `add_calls` folds the Zswap parts it is given into the shape.
+- Feature: the WASM API exposes `TransactionShape` as a class obtained from `TransactionShape.forCalls`, with one accessor per count, and adds an optional `expectedTxShape` argument to `partitionTranscripts` and `Transaction.addCalls`.
+
+### Contract state loading
+
+- Fix: the WASM API deserializes contract state, transactions, and ledger state that contain a trie with a short `Extension` chain.
+- Feature: `storage::merkle_patricia_trie::ALLOW_SHORT_EXTENSION_CHAINS` is a scoped thread-local, unset by default. While it is set, decoding accepts a trie in which an `Extension` node shorter than 255 nibbles has an `Extension` child; every other invariant still applies. `onchain-runtime-wasm` sets it while deserializing, so both npm packages get the leniency. Nodes and consensus code must never set it.
+
+### Proof server
+
+- Fix: ZKIR v3 moves to `3.2.1`, which derives a circuit's chip architecture from every instruction rather than only its inputs and entry points. Proving failed for Compact circuits that needed a chip only through another instruction, such as a foreign-field constant. Existing proving and verifying keys remain valid.
+- Fix: the image passes trailing `docker run` arguments to the server (`docker run <image> -v` now works; previously the `bash -c` entrypoint silently dropped them). The old `midnight-proof-server ...` command forms still work.
+- Feature: the image sets `MIDNIGHT_PP=/var/cache/midnight/zk-params`; mount a volume there to skip the parameter download on restart.
+
+### Dependencies
+
+- Feature: `midnight-transient-crypto` 3.1.0 adds `PureGeneratorPedersen::smallest_representable`, which `midnight-ledger-v9` 1.0.2 requires.
+- `midnight-storage` 3.1.0 adds `ALLOW_SHORT_EXTENSION_CHAINS` and depends on `scoped-tls`.
+
+## New features requiring configuration updates
+
+None in this release. Mounting a volume at `MIDNIGHT_PP` for the proof server is optional.
+
+## Deprecations
+
+None in this release.
+
+## Breaking changes or required actions for developers
+
+None in this release. The new WASM arguments are optional, and the new Rust functions sit beside the existing ones.
+
+---
+
+## Links and references
+
+- [Compatibility matrix](/relnotes/support-matrix)
+- [Ledger v9.1.0.1 release notes](/relnotes/ledger/ledger-9-1-0-1)
+- [GitHub release: ledger-9.1.0.2](https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-9.1.0.2)
+- [GitHub release: proof-server-9.0.2](https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-9.0.2)
+- [`midnightntwrk/proof-server` on Docker Hub](https://hub.docker.com/r/midnightntwrk/proof-server)
+- [`@midnightntwrk/ledger-v9` on npm](https://www.npmjs.com/package/@midnightntwrk/ledger-v9)
+- [`@midnightntwrk/onchain-runtime-v4` on npm](https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v4)
