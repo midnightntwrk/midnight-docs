@@ -35,6 +35,20 @@ This release is relevant for developers who:
 - Test stacks move to node 2.1.101 and indexer 4.4.101.
 - The wallet SDK packages move together to the versions in the table below.
 
+### Fixes
+
+- **In-process proving of Compact 0.36 circuits** (prover-client 2.0.1). `WasmProver` now proves circuits compiled with compactc 0.36.0 or later, which emit ZKIR v3 only. Before, every such circuit failed with `expected one of 'ir-source[v2-generic]' or 'ir-source[v2]', got 'ir-source[v3-generic]'`.
+- **`Job Queue full` from a busy proof server** (capabilities 4.0.1). The HTTP prover client keeps at most 10 requests waiting at a proof server (`maxConcurrentRequests` beside `url` in `provers` changes it), and retries HTTP 429, 502, 503 and 504 with backoff for up to 5 minutes (`retrySchedule`). A transaction with many proofs no longer fails because the queue filled up.
+- **Shielded wallet never synced on an empty chain** (shielded 4.0.1). On a fresh devnet with no shielded outputs, `isSynced` never became true. It now reports synced after a single indexer query.
+- **Coins and DUST released too early after a failed submit** (facade 5.0.1). `submitTransaction` used to release every booking on any submission error, even when the transaction was already in a block, so the wallet offered spent coins until sync caught up. It now releases them only when the failure proves no block holds the transaction.
+- **DUST projections sync stopping** (dust-wallet 5.1.0). The sync no longer stops when a pass finds DUST it already applied.
+- **Bad DUST snapshots retried forever** (dust-wallet 5.1.0). Restoring a snapshot with out-of-range `pendingDust` values now fails with `SnapshotRestoreError` (`invalid-shape`) instead of restoring and throwing on every sync.
+
+### New
+
+- `dustWalletProbes(configuration)` is exported from `@midnightntwrk/wallet-sdk-dust-wallet`, so a custom composition can start its DUST where `DustWallet` would, including at the ledger 9 boundary when `skipLedgerV8DustHistory` is set.
+- Capabilities exports `classifySubmissionFailure`, `SubmissionFailure` and `Lifecycle.isCoveredBy`.
+
 ## Released packages
 
 | **Package** | **Version** |
@@ -61,7 +75,7 @@ None. This is a patch release; no migration is required from 2.0.0.
 
 ## Known issues
 
-The 2.0.1 release notes list no known issues.
+- A fresh wallet on Preprod can take hours to sync DUST, because `DustWallet` replays the ledger 8 DUST history by default. Setting `skipLedgerV8DustHistory` skips it, but the boundary search can time out on a slow indexer connection and silently fall back to the full replay. Track it in [servicedesk#319](https://github.com/midnightntwrk/servicedesk/issues/319).
 
 ---
 
