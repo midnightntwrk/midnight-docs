@@ -1254,16 +1254,16 @@ Register the cNIGHT in a Cardano wallet so that it generates DUST for a Midnight
 - A CIP-30 compatible Cardano wallet that holds the cNIGHT and at least 2.5 ADA. The registration locks 1.58608 ADA in the registration UTXO, and the rest pays the Cardano transaction fee. The locked ADA comes back to the wallet when you stop generation.
 - The DUST address that should receive the DUST: a Bech32m string that starts with `mn_dust1`. Connect the Midnight wallet that owns it, or have the address ready to paste.
 - A Blockfrost project token for Midnight Mainnet, to run the check in step 5. See [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
-- The stake address of the Cardano wallet: a Bech32 string that starts with `stake1`.
-- No registration for this wallet yet. Midnight counts a stake address as registered only while it has exactly one registration, so a second registration for the same wallet stops DUST generation for both. If you might have registered before, connect only the Cardano wallet in the DApp, which then shows that wallet's registration. Don't rely on the check in step 5 for this: it reports `registered: false` for a registration less than about 12 hours old, and for a wallet with two.
+- The stake address of the Cardano wallet: a Bech32 string that starts with `stake1`, not a receiving address that starts with `addr1`. A Cardano explorer shows the stake address for any of the wallet's `addr1q` addresses.
+- No registration for this wallet yet. Midnight counts a stake address as registered only while it has exactly one registration, so a second registration for the same wallet stops DUST generation for both. If you might have registered before, count the wallet's registrations on Cardano with the read-only `check-dust-registration.mjs` script from the [cNIGHT DUST registration runbook](https://github.com/midnightntwrk/servicedesk/blob/main/runbooks/cnight-dust-after-registration-runbook/cnight-dust-after-registration-runbook.md), run with `--cardano-only`, which needs no project token. Don't rely on the DApp or on the check in step 5 for this: the DApp can miss a registration made with another DUST address, and the check reports `registered: false` for a registration less than about 12 hours old, and for a wallet with two.
 
 ### Procedure
 
 1. Open the [cNgD DApp for Mainnet](https://midnight-dust-mainnet.nethermind.io/) and select **CONNECT CARDANO WALLET**. Connect the wallet that holds the cNIGHT.
-2. Select **CONNECT MIDNIGHT WALLET**, or select **Enter a DUST address manually** and paste the `mn_dust1` address.
+2. Select **CONNECT MIDNIGHT WALLET**, or paste the `mn_dust1` address into the field under **Enter a DUST address manually** and select **Add**.
 3. Select **PAIR ADDRESSES** and sign the transaction in your Cardano wallet. Select it once. If the DApp seems to stall after you sign, check the Cardano wallet's transaction history before you try again.
 
-   The transaction mints the registration and moves every cNIGHT UTXO in the wallet into a new UTXO, so the cNIGHT you already held starts generating DUST once Midnight sees the registration. cNIGHT that arrives at the wallet later generates DUST with no further step.
+   The transaction mints the registration and moves every cNIGHT UTXO in the wallet into a new UTXO, so the cNIGHT you already held starts generating DUST once Midnight sees the registration. cNIGHT that arrives later at an address with this wallet's stake key also generates DUST with no further step. cNIGHT sent to an address without that stake key, such as one that starts with `addr1v`, does not.
 
 4. Wait about 12 hours. Midnight acts on the registration only once its Cardano block is stable. Until then, the DApp shows **Registration Syncing** and the indexer reports `registered: false`. Don't register again while you wait.
 5. Query the Mainnet indexer for the stake address. Set `BLOCKFROST_PROJECT_ID` to your Midnight Mainnet project token and `STAKE_ADDRESS` to the `stake1` address:
@@ -1278,7 +1278,7 @@ Each Cardano wallet has its own stake address and registers on its own. To have 
 
 ### Verification
 
-Once Midnight sees the registration, the query returns `registered: true` and the DUST address you entered. The Mainnet indexer returned this for a registered stake address on 17 November 2026, with the addresses shortened here:
+Once Midnight sees the registration and counts your cNIGHT, the query returns `registered: true`, the DUST address you entered, and a `nightBalance` and `generationRate` above zero. The Mainnet indexer returned this for a registered stake address on 2026-11-17, with the addresses shortened here:
 
 ```json
 {
@@ -1298,7 +1298,7 @@ Once Midnight sees the registration, the query returns `registered: true` and th
 }
 ```
 
-A stake address with no registration that Midnight has seen returns `"registered": false`, a `null` DUST address, and zeros. If it still does more than a day after you registered, or if the `dustAddress` is not the one you entered, see the [cNIGHT DUST registration runbook](https://github.com/midnightntwrk/servicedesk/blob/main/runbooks/cnight-dust-after-registration-runbook/cnight-dust-after-registration-runbook.md). If the DApp says `Multiple registration UTXOs detected for the same stake key`, see the [duplicate registrations runbook](https://github.com/midnightntwrk/servicedesk/blob/main/runbooks/cnight-dust-duplicate-registration-runbook/cnight-dust-duplicate-registration-runbook.md). The figures follow the units in [DUST from NIGHT held on Cardano](#dust-from-night-held-on-cardano). DUST grows toward the cap of 5 DUST per NIGHT over about a week, and your Midnight wallet shows it once it has synced.
+A stake address with no registration that Midnight has seen returns `"registered": false`, a `null` DUST address, and zeros. If it still does more than a day after you registered, if `registered` is `true` but `nightBalance` stays `0`, or if the `dustAddress` is not the one you entered, see the [cNIGHT DUST registration runbook](https://github.com/midnightntwrk/servicedesk/blob/main/runbooks/cnight-dust-after-registration-runbook/cnight-dust-after-registration-runbook.md). If the DApp shows **Replicate Registrations Detected**, see the [duplicate registrations runbook](https://github.com/midnightntwrk/servicedesk/blob/main/runbooks/cnight-dust-duplicate-registration-runbook/cnight-dust-duplicate-registration-runbook.md). The figures follow the units in [DUST from NIGHT held on Cardano](#dust-from-night-held-on-cardano). DUST grows toward the cap of 5 DUST per NIGHT over about a week, and your Midnight wallet shows it once it has synced.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## DUST after the ledger 9 upgrade
