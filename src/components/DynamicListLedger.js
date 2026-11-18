@@ -17,8 +17,31 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '9.1.0.1',
+    version: '9.1.0.2',
     status: 'LATEST',
+    date: '16 November 2026',
+    summary: 'Client-side patch on the ledger 9 line: fixes transcript partitioning and WASM contract state loading, with proof server 9.0.2',
+    details: [
+      'Client-side patch release that promotes 9.1.0.2-rc.0 after QA approval. It does not change transaction validation, state hashes, or anything a node computes, and the node needs no change.',
+      'Transcript partitioning now sizes the guaranteed section against the predicted transaction time-to-dismiss allowance and rehearses each call with the widest commitment tree indices the chain could assign.',
+      'New `TransactionShape` API: callers can pass the expected shape of the final transaction through `partition_transcripts_with_tx_shape`, `Transaction::add_calls_with_tx_shape`, and the optional WASM `expectedTxShape` argument.',
+      'The WASM API now loads contract state that an ordinary map write can leave in a non-canonical trie shape, through the scoped `ALLOW_SHORT_EXTENSION_CHAINS` leniency in `midnight-storage` 3.1.0. Nodes and consensus code must never enable it.',
+      'Proof server 9.0.2 moves to ZKIR v3 3.2.1, which fixes proving for Compact circuits whose chip requirements earlier versions missed, passes `docker run` arguments through to the server, and sets `MIDNIGHT_PP=/var/cache/midnight/zk-params`.',
+      'No breaking changes, no deprecations, and no required configuration updates. The new WASM arguments are optional and the new Rust functions sit beside the existing ones.',
+      'npm packages: `@midnightntwrk/ledger-v9` 1.0.2 and `@midnightntwrk/onchain-runtime-v4` 4.0.2, also published under the legacy `@midnight-ntwrk` scope. Crates: `midnight-ledger-v9` 1.0.2, `midnight-storage` 3.1.0, and `midnight-transient-crypto` 3.1.0.',
+    ],
+    artifacts: [
+      { name: 'Ledger', url: 'https://www.npmjs.com/package/@midnightntwrk/ledger-v9' },
+      { name: 'Onchain Runtime', url: 'https://www.npmjs.com/package/@midnightntwrk/onchain-runtime-v4' },
+      { name: 'Proof Server', url: 'https://hub.docker.com/r/midnightntwrk/proof-server' },
+      { name: 'Proof server GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/proof-server-9.0.2' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-ledger/releases/tag/ledger-9.1.0.2' },
+    ],
+    link: '/relnotes/ledger/ledger-9-1-0-2',
+  },
+  {
+    version: '9.1.0.1',
+    status: 'SUPPORTED',
     date: '6 November 2026',
     summary: 'First ledger 9 release: Mainnet runs it after the ledger 9 network upgrade, with proof server 9.0.0. Builder packages carry ledger 9.1.0.0',
     details: [
