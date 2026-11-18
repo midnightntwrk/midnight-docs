@@ -1,105 +1,130 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+copyright: This file is part of midnight-examples. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: "Leaderboard overview"
 title: "Build a privacy-preserving leaderboard DApp"
-description: "Build a full-stack DApp on the Midnight Network with privacy modes, ownership verification, and Lace wallet integration."
+description: "Build a full-stack DApp on the Midnight Network with ownership proofs, a shared API layer, Lace wallet integration, and Vercel deployment."
 sidebar_position: 1
 toc_max_heading_level: 2
-tags: ["tutorial", "dapp", "leaderboard", "compact", "privacy", "lace", "typescript"]
+tags: ["tutorial", "dapp", "leaderboard", "compact", "privacy", "lace", "typescript", "vercel"]
 ---
 
 # Build a privacy-preserving leaderboard DApp
 
-This tutorial walks you through building a full-stack DApp on the Midnight Network. You write a Compact smart contract, integrate it with TypeScript, build a browser-based frontend with Lace wallet support, and deploy the finished application to production.
+This tutorial walks through a full-stack DApp on the Midnight Network: a Compact smart contract, a
+TypeScript API over it, a browser frontend that uses the Lace wallet, and a production deployment
+on Vercel.
 
-By the end, you have a working arcade-style leaderboard where players submit scores with privacy controls and prove ownership of entries using zero-knowledge proofs.
+The finished DApp is an arcade-style leaderboard. A player clicks as fast as they can for ten
+seconds, then submits the score on-chain. They choose how the entry is named: with a custom name,
+with part of their wallet address, or anonymously, as a generated name such as "Crimson Tiger".
+Later they can prove that an entry is theirs with a zero-knowledge proof.
 
 ## What you learn
 
-This tutorial covers four areas of Midnight DApp development.
-
 ### Smart contract (Compact)
 
-- Define structured on-chain data with `Map`, `Counter`, and custom structs.
-- Control what data goes on-chain with `disclose()`.
-- Use witnesses to feed private data into ZK circuits on demand.
-- Use `assert` to enforce ownership checks.
-- Hash with `persistentHash` for anonymous identity.
+- Store structured on-chain data with `Map`, `Counter`, and a custom struct.
+- Choose what goes on-chain with `disclose()`.
+- Use witnesses to feed private data into a circuit only when a branch needs it.
+- Prove ownership with `assert` over a hash commitment, without writing to the ledger.
 
 ### TypeScript integration
 
-- Compile Compact contracts and work with the generated TypeScript bindings.
-- Build a platform-agnostic API layer with `midnight-js-contracts`.
-- Create witness providers that bridge private data into the circuit.
+- Work with the compiler's generated TypeScript bindings.
+- Build one API layer with `midnight-js-contracts` that runs in the browser and in Node.
+- Decode the contract's public state from the indexer.
 
 ### Browser DApp
 
-- Connect to the Lace wallet via the DApp Connector API.
-- Initialize providers for proof generation, indexer access, wallet operations, and ZK config.
-- Read on-chain state directly from the indexer without a wallet.
-- Submit transactions through the browser with ZK proof generation.
+- Connect to the Lace wallet through the DApp Connector API.
+- Build Midnight.js providers from the wallet's configuration: proof server, indexer, wallet
+  balancing, and transaction submission.
+- Serve the circuit keys from the DApp's own origin.
+- Read on-chain state from the indexer without a wallet.
 
 ### Production deployment
 
-- Deploy the frontend to Vercel.
-- Configure environment variables for different networks.
+- Deploy the DApp to Vercel as a static site from a monorepo.
+- Ship the compiled circuit keys with the site, since Vercel has no Compact compiler.
+- Configure the network and indexer through environment variables.
 
 ## Prerequisites
 
-You need the following tools installed before starting.
-
 - [Node.js v22+](https://nodejs.org/) (use `nvm install 22` if needed).
-- [Compact toolchain](https://docs.midnight.network/getting-started/installation#install-compact).
-- [Docker](https://docs.docker.com/desktop/) (for the local proof server).
-- [Lace wallet](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk) browser extension.
+- The [Compact toolchain](/getting-started/installation#install-compact).
+- [Docker](https://docs.docker.com/desktop/), for the local proof server.
+- The [Lace wallet](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk)
+  browser extension.
+- A [Blockfrost](https://blockfrost.io/) project ID for **Midnight Preprod**. The DApp reads the
+  leaderboard from Blockfrost's Preprod indexer.
 
 ### Wallet setup
 
 1. Install the Lace extension and create a new wallet.
 2. Set the network to **Preprod**.
-3. Set the proof server to `http://localhost:6300`.
+3. Set the proof server to `http://localhost:6300`. Start one from `examples/leaderboard` with
+   `npm run proof:up`. Lace generates the DApp's proofs, and proof inputs include private data,
+   so prove locally rather than on a public proof server.
 4. Fund your wallet with tNIGHT from the [Preprod faucet](https://midnight-tmnight-preprod.nethermind.dev/).
 5. Go to Tokens, click **Generate tDUST**, and confirm the transaction.
 
-> **Note:** tDUST is required to pay transaction fees on Preprod. It is generated from your tNIGHT balance.
+> **Note:** tDUST pays transaction fees on Preprod. It is generated from your tNIGHT balance.
 
-## Project structure
-
-The finished project has three workspace packages and a Docker configuration for the proof server.
+## How it fits together
 
 ```text
-midnight-leaderboard/
-├── contract/              # Compact smart contract + TypeScript bindings
-│   ├── leaderboard.compact
-│   ├── src/
-│   │   ├── index.ts       # Compiled contract exports + witness wiring
-│   │   └── witnesses.ts   # Witness provider
-│   └── managed/           # Compiler output
-├── api/                   # Shared business logic (platform-agnostic)
+          ┌──────────────── browser ────────────────┐
+          │  React DApp (ui/)                        │
+          │    └── LeaderboardAPI (api/)             │
+          │          └── compiled contract (contract/)│
+          └───────┬─────────────┬──────────────┬─────┘
+       Lace wallet│     indexer │      static  │ keys, ZKIR
+  (balance, sign, │ (contract   │      files   │ (from Vercel)
+   submit, proofs)│  state)     │              │
+                  ▼             ▼              ▼
+           Midnight Preprod   Blockfrost     the DApp's own origin
+```
+
+- **Writes** go through Lace. The DApp builds the transaction and has it proven with the
+  circuit's keys, and Lace balances, signs, and submits it.
+- **Reads** go straight to the indexer. Anyone can view the leaderboard without a wallet.
+- **Hosting** is static. Vercel serves the built React app and the compiled circuit keys. There is
+  no server code.
+
+## Project layout
+
+```text
+examples/leaderboard/
+├── contract/
+│   ├── leaderboard.compact    # the Compact contract
+│   ├── witnesses.ts           # witnesses and private state
+│   ├── index.ts               # compiled contract exports
+│   └── managed/leaderboard/   # compiler output (committed, for Vercel)
+├── api/
+│   ├── index.ts               # LeaderboardAPI
+│   ├── common-types.ts
+│   └── utils/index.ts         # display name decoder
+├── src/                       # Node harness: wallets, providers, tests
+│   └── test/
+│       ├── leaderboard.sim.test.ts  # in-memory contract tests
+│       └── leaderboard.test.ts      # network tests
+├── ui/                        # React + Vite browser DApp
+│   ├── vite.config.ts
 │   └── src/
-│       ├── index.ts       # LeaderboardAPI class
-│       ├── common-types.ts
-│       └── utils/index.ts
-├── leaderboard-ui/        # React + Vite browser DApp
-│   └── src/
-│       ├── App.tsx         # Game UI + leaderboard + wallet connection
-│       ├── main.tsx        # Entry point with Buffer polyfill
-│       ├── contexts/       # Lace wallet provider bridge
-│       └── hooks/          # Indexer read hook
-├── proof-server/           # Docker config for the local proof server
-│   └── Dockerfile
-├── vercel.json             # Frontend deployment config
-└── package.json            # Workspace root
+│       ├── App.tsx            # game, leaderboard, wallet connection
+│       ├── contexts/          # Lace provider bridge
+│       └── hooks/             # indexer read hook
+└── vercel.json                # Vercel build settings
 ```
 
 ## Tutorial sections
 
-Each part builds on the previous one. Complete them in order.
+Each part builds on the previous one. Work through them in order.
 
 | Section | What you build |
 |---------|---------------|
-| [Part 1: Smart contract](./smart-contract.mdx) | Write the Compact contract with privacy modes and ownership verification. |
-| [Part 2: TypeScript integration](./api-layer.mdx) | Set up the contract package, witnesses, and shared API layer. |
-| [Part 3: Browser DApp](./browser-dapp.mdx) | Build the React frontend with Lace wallet and indexer reads. |
-| [Part 4: Production deployment](./deployment.mdx) | Deploy the frontend to Vercel. |
+| [Part 1: Smart contract](/tutorials/leaderboard/smart-contract) | The Compact contract and its in-memory tests. |
+| [Part 2: TypeScript integration](/tutorials/leaderboard/api-layer) | Witnesses, contract exports, and the shared API layer, tested on a live network. |
+| [Part 3: Browser DApp](/tutorials/leaderboard/browser-dapp) | The React frontend with Lace and indexer reads. |
+| [Part 4: Production deployment](/tutorials/leaderboard/deployment) | The DApp on Vercel. |

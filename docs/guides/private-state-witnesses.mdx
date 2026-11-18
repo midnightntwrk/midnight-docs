@@ -13,8 +13,8 @@ This guide covers how to declare witnesses in Compact, implement them in TypeScr
 
 ## Prerequisites
 
-- The Compact developer tools installed, with compiler 0.31.1 set as the default. [Update the compiler version](../getting-started/installation#update-the-compiler-version) shows how to pin it.
-- A Node.js project with `@midnight-ntwrk/compact-runtime@0.16.0` installed. Compiler 0.31.1 and runtime 0.16.0 are the pair in the [compatibility matrix](/relnotes/support-matrix), and the examples on this page target that pair. The generated code checks the runtime version when you import it, so a mismatched pair fails with a `Version mismatch` error.
+- The Compact developer tools installed, with the compiler version from the [compatibility matrix](/relnotes/support-matrix) set as the default. [Update the compiler version](../getting-started/installation#update-the-compiler-version) shows how to pin it.
+- A Node.js project with `@midnight-ntwrk/compact-runtime` installed at the version the matrix pairs with that compiler. The examples on this page target that pair. The generated code checks the runtime version when you import it, so a mismatched pair fails with a `Version mismatch` error.
 - Familiarity with compiling a contract and importing its generated module. [Using Compact contracts from JavaScript](./compact-javascript-runtime) covers this end to end.
 
 ## Core concepts
@@ -104,7 +104,7 @@ const witnesses = {
 const contract = new Contract(witnesses);
 ```
 
-Once instantiated, build a circuit context with the runtime helpers and call the circuit through `contract.impureCircuits`. Use `RT.createConstructorContext` and `RT.createCircuitContext` rather than assembling the context by hand: a real `CircuitContext` carries query-context state that the wrappers validate.
+Once instantiated, build a circuit context with the runtime helpers and call the circuit through `contract.impureCircuits`. `initialState` and the circuit call both return promises, so await them. Use `RT.createConstructorContext` and `RT.createCircuitContext` rather than assembling the context by hand: a real `CircuitContext` carries the call and query-context state that the wrappers read.
 
 ```typescript
 // Local scaffolding for running the circuit off-chain: a zeroed coin public key
@@ -115,21 +115,25 @@ const ADDR = RT.sampleContractAddress();
 const secretCode = new Uint8Array(32).fill(7); // any 32-byte secret
 
 // 1. Create the genesis state with the constructor
-const ctor = contract.initialState(
+const ctor = await contract.initialState(
   RT.createConstructorContext(createPrivateState(secretCode), COIN),
   secretCode,   // constructor argument: the secret key to hash and store
 );
 
-// 2. Build a circuit context from the constructor result
-const ctx = RT.createCircuitContext(
-  ADDR, COIN, ctor.currentContractState, createPrivateState(secretCode),
-);
+// 2. Build a circuit context for the circuit you call, from the constructor result
+const ctx = RT.createCircuitContext({
+  circuitId: 'increment_counter',
+  contractAddress: ADDR,
+  coinPublicKeyOrZswapState: COIN,
+  contractState: ctor.currentContractState,
+  privateState: createPrivateState(secretCode),
+});
 
 // 3. Call the impure circuit, which invokes access_witness() automatically
-const call = contract.impureCircuits.increment_counter(ctx);
+const call = await contract.impureCircuits.increment_counter(ctx);
 
 // 4. Read the resulting ledger state with the generated helper
-const state = ledger(call.context.currentQueryContext.state);
+const state = ledger(call.context.callContext.currentQueryContext.state);
 console.log('New counter value:', state.counter);
 ```
 
@@ -177,7 +181,7 @@ const witnesses = {
 
 ### 3. Failed asserts
 
-**Cause**: The private data your witness supplied did not satisfy the circuit's `assert` statements, for example a secret whose hash does not match the stored `secret_hash`. The circuit runs locally before proof generation starts, so the call throws there with the message from your contract: `failed assert: Invalid access code`.
+**Cause**: The private data your witness supplied did not satisfy the circuit's `assert` statements, for example a secret whose hash does not match the stored `secret_hash`. The circuit runs locally before proof generation starts, so the call's promise rejects there with the message from your contract: `failed assert: Invalid access code`.
 
 **Solution**: Catch the error where you call the circuit and show the reason in your UI. Because the call fails before proving, a wrong value costs no proving time. The same `assert` is part of the circuit that the proof covers, so a client that skips the local check still cannot produce a valid proof.
 

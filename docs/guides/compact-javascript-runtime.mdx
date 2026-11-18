@@ -25,7 +25,7 @@ These apply to every procedure in this guide:
 - The [Compact CLI](../getting-started/installation) installed, with `compact compile` working.
 - A compiled contract. This guide compiles `private-bid.compact` from [the private-bid example](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/private-bid); any contract works, with your own names in place of the private bid's.
 - Node.js with [Vitest](https://vitest.dev/) and `@midnight-ntwrk/compact-runtime` installed.
-- A runtime version that matches your compiler. The generated code enforces this pairing at import time; check the [support matrix](../relnotes/support-matrix) when either changes. This page's samples ran with Compact toolchain 0.31.1 (language version 0.23) and `@midnight-ntwrk/compact-runtime` 0.16.0.
+- The Compact compiler and `@midnight-ntwrk/compact-runtime` at the versions the [support matrix](../relnotes/support-matrix) lists for Mainnet, Preview, and Preprod, with that compiler set as your default. [Update the compiler version](../getting-started/installation#update-the-compiler-version) shows how to pin it. The generated code checks the pairing at import time, so a mismatch fails with `Version mismatch`.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## What the compiler generates
@@ -58,10 +58,10 @@ Load the generated module and give the contract its witnesses: the functions tha
 
 ### Procedure
 
-1. Compile the contract, giving `compact compile` the source and the target directory. The `+0.31.1` pins the toolchain this guide uses. The paths below assume the contract lives at `src/private-bid.compact`. The copy in [midnight-examples](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/private-bid) sits at `contract/private-bid.compact`, so adjust to match your layout:
+1. Compile the contract, giving `compact compile` the source and the target directory. The paths below assume the contract lives at `src/private-bid.compact`. The copy in [midnight-examples](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/private-bid) sits at `contract/private-bid.compact`, so adjust to match your layout:
 
    ```bash
-   compact compile +0.31.1 src/private-bid.compact src/managed/private-bid
+   compact compile src/private-bid.compact src/managed/private-bid
    ```
 
    ```text
@@ -108,7 +108,7 @@ Load the generated module and give the contract its witnesses: the functions tha
 
 ### Verification
 
-A complete witnesses object produces a working instance, and the generated validation rejects an incomplete one. The Compact constructor's own parameter, the minimum bid, follows the constructor context.
+A complete witnesses object produces a working instance, and the generated validation rejects an incomplete one. The Compact constructor's own parameter, the minimum bid, follows the constructor context. `initialState` returns a promise, so the test awaits it.
 
 ```typescript title="import-witnesses.test.ts"
 import { describe, it, expect } from 'vitest';
@@ -123,10 +123,10 @@ const witnesses = {
 };
 
 describe('importing the implementation', () => {
-  it('wires the witnesses into a working contract instance', () => {
+  it('wires the witnesses into a working contract instance', async () => {
     const contract = new Contract(witnesses);
     const secretKey = new Uint8Array(32);
-    const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
+    const ctor = await contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
     expect(ctor.currentContractState).toBeDefined();
   });
 
@@ -151,7 +151,7 @@ Vitest also prints a warning that the source map for `index.js` points to missin
 {/* _mod-docs-content-type: PROCEDURE */}
 ## Calling circuits from JavaScript
 
-Run contract logic off-chain by building a circuit context and invoking circuits through the instance. Build the context with the runtime helpers rather than by hand. A real `CircuitContext` carries query-context state that the wrappers check for, so hand-built objects fail validation.
+Run contract logic off-chain by building a circuit context and invoking circuits through the instance. Build the context with the runtime helpers rather than by hand. A real `CircuitContext` carries the call and query-context state that the wrappers read, so a hand-built object fails when you call a circuit with it.
 
 ### Prerequisites
 
@@ -159,7 +159,7 @@ Run contract logic off-chain by building a circuit context and invoking circuits
 
 ### Procedure
 
-1. Create the genesis state with `initialState`, then build a circuit context from it. The constructor context takes the initial private state and a coin public key; the Compact constructor's own parameters come after it, so for the private bid `initialState` also takes the minimum bid. The circuit context adds the contract address:
+1. Create the genesis state with `initialState`, then build a circuit context from it. The constructor context takes the initial private state and a coin public key; the Compact constructor's own parameters come after it, so for the private bid `initialState` also takes the minimum bid. `initialState` returns a promise. The circuit context takes an options object that adds the name of the circuit you call and the contract address:
 
    ```typescript
    import * as RT from '@midnight-ntwrk/compact-runtime';
@@ -169,25 +169,38 @@ Run contract logic off-chain by building a circuit context and invoking circuits
    const MINIMUM_BID = 100n;
    const secretKey = new Uint8Array(32);
 
-   const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
-   const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { secretKey });
+   const ctor = await contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
+   const ctx = RT.createCircuitContext({
+     circuitId: 'placeBid',
+     contractAddress: ADDR,
+     coinPublicKeyOrZswapState: COIN,
+     contractState: ctor.currentContractState,
+     privateState: { secretKey },
+   });
    ```
 
-2. Call an impure circuit with the context and its arguments. A `Uint<64>` parameter is a `bigint` on the JavaScript side, so the amount is `250n`. The wrapper validates the inputs, runs the contract logic, and returns the result together with the updated context, the proof data, and the gas cost:
+2. Call an impure circuit with the context and its arguments. A `Uint<64>` parameter is a `bigint` on the JavaScript side, so the amount is `250n`. The wrapper validates the inputs, runs the contract logic, and resolves to the result together with the updated context and the gas cost. The proof data for each call is in the context's `callProofDataTrace`:
 
    ```typescript
-   const call = contract.impureCircuits.placeBid(ctx, 250n);
+   const call = await contract.impureCircuits.placeBid(ctx, 250n);
 
-   // call.result    -> the circuit's return value ([] for placeBid)
-   // call.context   -> the updated circuit context
-   // call.proofData -> input, output, and transcripts for proof generation
-   // call.gasCost   -> cost tracking for the call
+   // call.result                      -> the circuit's return value ([] for placeBid)
+   // call.context                     -> the updated circuit context
+   // call.gasCost                     -> cost tracking for the call
+   // call.context.callProofDataTrace  -> input, output, and transcripts for proof generation, one entry per call
+   ```
+
+   To run another circuit on the updated state, pass `call.context` to it with `callContext.circuitId` set to that circuit. The runtime labels each proof data entry with the context's `circuitId`:
+
+   ```typescript
+   const next = { ...call.context, callContext: { ...call.context.callContext, circuitId: 'revealBid' } };
+   await contract.impureCircuits.revealBid(next, 250n);
    ```
 
 3. Read the resulting ledger state with the `ledger()` helper. Scalar fields such as `minimumBid` are plain values; `Map` fields such as `bidCommitments` and `revealedBids` are views with `isEmpty()`, `size()`, `member(key)`, `lookup(key)`, and an iterator over `[key, value]` pairs:
 
    ```typescript
-   const auction = ledger(call.context.currentQueryContext.state);
+   const auction = ledger(call.context.callContext.currentQueryContext.state);
    // auction.minimumBid, auction.bidCommitments, auction.revealedBids
    ```
 
@@ -199,7 +212,7 @@ Run contract logic off-chain by building a circuit context and invoking circuits
 
 ### Verification
 
-The impure circuit records a commitment and returns proof data, and the module exports no pure circuits for this contract.
+The impure circuit records a commitment and adds an entry to the proof data trace, and the module exports no pure circuits for this contract.
 
 ```typescript title="circuits.test.ts"
 import { describe, it, expect } from 'vitest';
@@ -216,17 +229,25 @@ const witnesses = {
 };
 
 describe('calling contract circuits', () => {
-  it('runs an impure circuit and returns the result, context, and proof data', () => {
+  it('runs an impure circuit and returns the result and context, with proof data in the trace', async () => {
     const contract = new Contract(witnesses);
-    const ctor = contract.initialState(RT.createConstructorContext({ secretKey: key(7) }, COIN), MINIMUM_BID);
-    const ctx = RT.createCircuitContext(ADDR, COIN, ctor.currentContractState, { secretKey: key(7) });
+    const ctor = await contract.initialState(RT.createConstructorContext({ secretKey: key(7) }, COIN), MINIMUM_BID);
+    const ctx = RT.createCircuitContext({
+      circuitId: 'placeBid',
+      contractAddress: ADDR,
+      coinPublicKeyOrZswapState: COIN,
+      contractState: ctor.currentContractState,
+      privateState: { secretKey: key(7) },
+    });
 
-    const call = contract.impureCircuits.placeBid(ctx, 250n);
+    const call = await contract.impureCircuits.placeBid(ctx, 250n);
 
     expect(call.result).toEqual([]);
-    expect(call.proofData.publicTranscript.length).toBeGreaterThan(0);
     expect(call.gasCost).toBeDefined();
-    const auction = ledger(call.context.currentQueryContext.state);
+    const [proofData] = call.context.callProofDataTrace;
+    expect(proofData.circuitId).toBe('placeBid');
+    expect(proofData.publicTranscript.length).toBeGreaterThan(0);
+    const auction = ledger(call.context.callContext.currentQueryContext.state);
     expect(auction.minimumBid).toBe(MINIMUM_BID);
     expect(auction.bidCommitments.size()).toBe(1n);
     expect(auction.revealedBids.isEmpty()).toBe(true);
@@ -239,7 +260,7 @@ describe('calling contract circuits', () => {
 ```
 
 ```text
- ✓ circuits.test.ts > calling contract circuits > runs an impure circuit and returns the result, context, and proof data
+ ✓ circuits.test.ts > calling contract circuits > runs an impure circuit and returns the result and context, with proof data in the trace
  ✓ circuits.test.ts > calling contract circuits > exports no pure circuits, because derive is not exported
 
  Test Files  1 passed (1)
@@ -260,19 +281,25 @@ Test contract logic with an ordinary test framework, no node, indexer, or proof 
 1. Write a setup helper that builds a fresh contract and context per test. Taking the contract address as a parameter lets one test check that the bidder key depends on it:
 
    ```typescript
-   const setup = (secretKey = key(7), address = ADDR) => {
+   const setup = async (secretKey = key(7), address = ADDR) => {
      const contract = new Contract(witnesses);
-     const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
-     const ctx = RT.createCircuitContext(address, COIN, ctor.currentContractState, { secretKey });
+     const ctor = await contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
+     const ctx = RT.createCircuitContext({
+       circuitId: 'placeBid',
+       contractAddress: address,
+       coinPublicKeyOrZswapState: COIN,
+       contractState: ctor.currentContractState,
+       privateState: { secretKey },
+     });
      return { contract, ctx };
    };
    ```
 
-2. Assert the success paths through the typed ledger view, and the failure paths against the exact `assert` messages from the Compact source. To simulate an attacker, run a circuit with a context whose `currentPrivateState` holds a different secret. A reveal from a key that never bid fails the membership check:
+2. Assert the success paths through the typed ledger view, and the failure paths against the exact `assert` messages from the Compact source. A circuit call returns a promise, so a failed `assert` rejects it: check it with `await expect(...).rejects.toThrow(...)`. To simulate an attacker, run a circuit with a context whose `callContext.currentPrivateState` holds a different secret. A reveal from a key that never bid fails the membership check:
 
    ```typescript
-   const stranger = { ...placed, currentPrivateState: { secretKey: key(9) } };
-   expect(() => contract.impureCircuits.revealBid(stranger, BID)).toThrow(
+   const stranger = { ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid', currentPrivateState: { secretKey: key(9) } } };
+   await expect(contract.impureCircuits.revealBid(stranger, BID)).rejects.toThrow(
      'This bidder has not placed a bid',
    );
    ```
@@ -296,31 +323,39 @@ const witnesses = {
   localSecretKey: ({ privateState }) => [privateState, privateState.secretKey],
 };
 
-const setup = (secretKey = key(7), address = ADDR) => {
+const setup = async (secretKey = key(7), address = ADDR) => {
   const contract = new Contract(witnesses);
-  const ctor = contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
-  const ctx = RT.createCircuitContext(address, COIN, ctor.currentContractState, { secretKey });
+  const ctor = await contract.initialState(RT.createConstructorContext({ secretKey }, COIN), MINIMUM_BID);
+  const ctx = RT.createCircuitContext({
+    circuitId: 'placeBid',
+    contractAddress: address,
+    coinPublicKeyOrZswapState: COIN,
+    contractState: ctor.currentContractState,
+    privateState: { secretKey },
+  });
   return { contract, ctx };
 };
 
+const stateOf = (context) => ledger(context.callContext.currentQueryContext.state);
+
 describe('private bid contract', () => {
-  it('starts with the minimum and no bids', () => {
-    const { ctx } = setup();
-    const auction = ledger(ctx.currentQueryContext.state);
+  it('starts with the minimum and no bids', async () => {
+    const { ctx } = await setup();
+    const auction = stateOf(ctx);
     expect(auction.minimumBid).toBe(MINIMUM_BID);
     expect(auction.bidCommitments.isEmpty()).toBe(true);
     expect(auction.revealedBids.isEmpty()).toBe(true);
   });
 
-  it('rejects a bid below the minimum', () => {
-    const { contract, ctx } = setup();
-    expect(() => contract.impureCircuits.placeBid(ctx, 50n)).toThrow('Bid is below the minimum');
+  it('rejects a bid below the minimum', async () => {
+    const { contract, ctx } = await setup();
+    await expect(contract.impureCircuits.placeBid(ctx, 50n)).rejects.toThrow('Bid is below the minimum');
   });
 
-  it('accepts a bid and stores a commitment, not the amount', () => {
-    const { contract, ctx } = setup();
-    const placed = contract.impureCircuits.placeBid(ctx, BID);
-    const auction = ledger(placed.context.currentQueryContext.state);
+  it('accepts a bid and stores a commitment, not the amount', async () => {
+    const { contract, ctx } = await setup();
+    const placed = await contract.impureCircuits.placeBid(ctx, BID);
+    const auction = stateOf(placed.context);
     expect(auction.bidCommitments.size()).toBe(1n);
     const [[bidder, commitment]] = [...auction.bidCommitments];
     expect(bidder).toHaveLength(32);
@@ -328,51 +363,51 @@ describe('private bid contract', () => {
     expect(auction.revealedBids.isEmpty()).toBe(true);
   });
 
-  it('rejects a second bid from the same bidder', () => {
-    const { contract, ctx } = setup();
-    const placed = contract.impureCircuits.placeBid(ctx, BID).context;
-    expect(() => contract.impureCircuits.placeBid(placed, BID + 1n)).toThrow(
+  it('rejects a second bid from the same bidder', async () => {
+    const { contract, ctx } = await setup();
+    const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
+    await expect(contract.impureCircuits.placeBid(placed, BID + 1n)).rejects.toThrow(
       'This bidder already placed a bid',
     );
   });
 
-  it('rejects a reveal from a different secret key', () => {
-    const { contract, ctx } = setup();
-    const placed = contract.impureCircuits.placeBid(ctx, BID).context;
-    const stranger = { ...placed, currentPrivateState: { secretKey: key(9) } };
-    expect(() => contract.impureCircuits.revealBid(stranger, BID)).toThrow(
+  it('rejects a reveal from a different secret key', async () => {
+    const { contract, ctx } = await setup();
+    const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
+    const stranger = { ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid', currentPrivateState: { secretKey: key(9) } } };
+    await expect(contract.impureCircuits.revealBid(stranger, BID)).rejects.toThrow(
       'This bidder has not placed a bid',
     );
   });
 
-  it('rejects a reveal with the wrong amount', () => {
-    const { contract, ctx } = setup();
-    const placed = contract.impureCircuits.placeBid(ctx, BID).context;
-    expect(() => contract.impureCircuits.revealBid(placed, 300n)).toThrow(
+  it('rejects a reveal with the wrong amount', async () => {
+    const { contract, ctx } = await setup();
+    const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
+    await expect(contract.impureCircuits.revealBid({ ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid' } }, 300n)).rejects.toThrow(
       'Amount does not match the committed bid',
     );
   });
 
-  it('reveals the committed amount under the same bidder key', () => {
-    const { contract, ctx } = setup();
-    const placed = contract.impureCircuits.placeBid(ctx, BID).context;
-    const revealed = contract.impureCircuits.revealBid(placed, BID);
+  it('reveals the committed amount under the same bidder key', async () => {
+    const { contract, ctx } = await setup();
+    const placed = (await contract.impureCircuits.placeBid(ctx, BID)).context;
+    const revealed = await contract.impureCircuits.revealBid({ ...placed, callContext: { ...placed.callContext, circuitId: 'revealBid' } }, BID);
     expect(revealed.result).toEqual([]);
-    const auction = ledger(revealed.context.currentQueryContext.state);
+    const auction = stateOf(revealed.context);
     const [[bidder, amount]] = [...auction.revealedBids];
     expect(amount).toBe(BID);
     expect(auction.bidCommitments.member(bidder)).toBe(true);
   });
 
-  it('derives a different bidder key for each contract address', () => {
-    const first = setup(key(7), ADDR);
-    const second = setup(key(7), RT.sampleContractAddress());
-    const bidderFor = ({ contract, ctx }) => {
-      const placed = contract.impureCircuits.placeBid(ctx, BID);
-      const [[bidder]] = [...ledger(placed.context.currentQueryContext.state).bidCommitments];
+  it('derives a different bidder key for each contract address', async () => {
+    const first = await setup(key(7), ADDR);
+    const second = await setup(key(7), RT.sampleContractAddress());
+    const bidderFor = async ({ contract, ctx }) => {
+      const placed = await contract.impureCircuits.placeBid(ctx, BID);
+      const [[bidder]] = [...stateOf(placed.context).bidCommitments];
       return bidder;
     };
-    expect(bidderFor(first)).not.toEqual(bidderFor(second));
+    expect(await bidderFor(first)).not.toEqual(await bidderFor(second));
   });
 });
 ```
@@ -401,7 +436,7 @@ What the module and its declaration file export, and what each export is for. Co
 | `Contract` | class | Instantiated with your witnesses; exposes `circuits`, `impureCircuits`, `provableCircuits`, and `initialState()` |
 | `pureCircuits` | object | Pure circuits callable without a circuit context; an empty object for the private bid, which exports none |
 | `ledger(state)` | function | Decodes a `StateValue` or `ChargedState` into typed per-field getters |
-| `contractReferenceLocations` | constant | Internal metadata about contract references in ledger state |
+| `expectedVk`, `circuitSignatures`, `declaredInterfaces` | constants | Metadata the runtime reads when another contract calls this one: each circuit's verifier key fingerprint and signature, and the contract types this contract calls through (none for the private bid) |
 
 The module also mirrors any exported Compact enum as a JavaScript enum with the same member names; the private bid declares none.
 
@@ -415,8 +450,8 @@ export type Witnesses<PS> = {
 // ... Circuits and ProvableCircuits types omitted ...
 
 export type ImpureCircuits<PS> = {
-  placeBid(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
-  revealBid(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): __compactRuntime.CircuitResults<PS, []>;
+  placeBid(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
+  revealBid(context: __compactRuntime.CircuitContext<PS>, amount_0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
 }
 
 export type PureCircuits = {
@@ -447,42 +482,43 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   provableCircuits: ProvableCircuits<PS>;
   constructor(witnesses: W);
   initialState(context: __compactRuntime.ConstructorContext<PS>,
-               minimum_0: bigint): __compactRuntime.ConstructorResult<PS>;
+               minimum_0: bigint): Promise<__compactRuntime.ConstructorResult<PS>>;
 }
-
-// ... ContractReferenceLocations omitted ...
 
 export declare function ledger(state: __compactRuntime.StateValue | __compactRuntime.ChargedState): Ledger;
 export declare const pureCircuits: PureCircuits;
+export declare const expectedVk: Record<string, string>;
+export declare const circuitSignatures: __compactRuntime.CircuitSignatures;
+export declare const declaredInterfaces: __compactRuntime.DeclaredInterfaces;
 ```
 
-The generic parameter `PS` is your private state type, which the witnesses read and update. Each Compact parameter appears with a `_0` suffix and its JavaScript type, so `Uint<64>` becomes `bigint` and `Bytes<32>` becomes `Uint8Array`. With these declarations, a TypeScript project gets autocomplete and compile-time checking on every circuit call.
+The generic parameter `PS` is your private state type, which the witnesses read and update. Each Compact parameter appears with a `_0` suffix and its JavaScript type, so `Uint<64>` becomes `bigint` and `Bytes<32>` becomes `Uint8Array`. `initialState` and every circuit return a promise. With these declarations, a TypeScript project gets autocomplete and compile-time checking on every circuit call.
 
 Everything else in the module, the `_descriptor_*` objects and the classes generated for composite types such as `ContractAddress` and `Either`, is internal encoding machinery. It is regenerated on every compile and its numbering shifts as the contract changes, so the exports above are the only supported surface.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Errors from the generated module
 
-The generated code validates at three points: at import time, in the `Contract` constructor, and on every circuit call. The import-time check is the version guard at the top of `index.js`:
+The generated code validates at three points: at import time, in the `Contract` constructor, and on every circuit call. The import-time check is the version guard at the top of `index.js`, which names the runtime version your compiler expects:
 
 ```javascript
 import * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
-__compactRuntime.checkRuntimeVersion('0.16.0');
+__compactRuntime.checkRuntimeVersion('<expected runtime version>');
 ```
 
 Match an error against this table before reading the generated source:
 
 | Error | Cause | Fix |
 |---|---|---|
-| `Version mismatch: compiled code expects 0.16.0, runtime is ...`, thrown at import | The installed `@midnight-ntwrk/compact-runtime` is not compatible with the version the compiler expects: for a `0.x` runtime, compatible means the same minor version and at least the expected patch | Pair the compiler and runtime using the [support matrix](../relnotes/support-matrix) |
+| `Version mismatch: compiled code expects <version>, runtime is <version>`, thrown at import | The installed `@midnight-ntwrk/compact-runtime` is not compatible with the version the compiler expects: for a `0.x` runtime, compatible means the same minor version and at least the expected patch | Pair the compiler and runtime using the [support matrix](../relnotes/support-matrix) |
 | `Contract constructor: expected 1 argument, received 0` | The constructor takes exactly one argument, the witnesses object | Pass the witnesses object, and nothing else |
 | `does not contain a function-valued field named localSecretKey` | The witnesses object is missing a witness the Compact source declares | Implement one function per declared witness, as in [Implementing witnesses for a contract](#implementing-witnesses-for-a-contract) |
 | `Contract state constructor: expected 2 arguments (as invoked from Typescript), received 1` | `initialState` takes the constructor context plus each parameter of the Compact `constructor`; the private bid's takes the minimum bid | Pass the constructor's arguments after the context, as in [Calling circuits from JavaScript](#calling-circuits-from-javascript) |
 | `placeBid: expected 2 arguments (as invoked from Typescript), received 0` | An impure circuit takes the circuit context plus each parameter in the Compact signature | Pass the context first, then the circuit's own arguments |
-| `type error: ... expected value of type CircuitContext`, citing a line in your `.compact` source | The context was built by hand, so the wrapper's check for `currentQueryContext` fails | Build contexts with `createConstructorContext` and `createCircuitContext`, as in [Calling circuits from JavaScript](#calling-circuits-from-javascript) |
+| `Cannot read properties of undefined (reading 'currentQueryContext')` | The context was built by hand, or in the shape of an older runtime, so it has no `callContext` | Build contexts with `createConstructorContext` and `createCircuitContext`, as in [Calling circuits from JavaScript](#calling-circuits-from-javascript) |
 | `type error: ... expected value of type Uint<0..18446744073709551616> but received '250'` | A `Uint<64>` parameter received a string or a number; the wrapper checks every argument against its Compact type and range | Pass a `bigint`, such as `250n` |
 | `expected instance of ChargedState` | `ledger()` received a `ContractState`, which it does not accept | Pass the state from a circuit call, or a deployed contract state's `data` field |
-| `failed assert:` followed by a message from your own Compact source | Contract logic rejected the call | Nothing to fix in the harness: this is the rejection path a test asserts with `expect(...).toThrow(...)` |
+| `failed assert:` followed by a message from your own Compact source | Contract logic rejected the call | Nothing to fix in the harness: this is the rejection path a test asserts with `await expect(...).rejects.toThrow(...)` |
 
 ## Additional resources
 
