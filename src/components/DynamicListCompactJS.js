@@ -17,8 +17,24 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '3.0.0',
+    version: '3.0.2',
     status: 'LATEST',
+    date: '2026-11-17',
+    summary: 'Patch release in the 1.1 patch: builds the ledger 9 era against the final ledger 9.1.0.2 packages, used by Midnight.js 5.0.1.',
+    details: [
+      'Declares `@midnightntwrk/ledger-v9` `^1.0.2` and `@midnightntwrk/onchain-runtime-v4` `^4.0.2`.',
+      'No source changes; Compact runtime stays at 0.21.0 and the ledger 8 era is unchanged.',
+      'Compact.js 3.0.1, released the same day against release candidates, is superseded; use 3.0.2.',
+    ],
+    artifacts: [
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnight-ntwrk/compact-js/v/3.0.2' },
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact-js/releases/tag/compact-js-v3.0.2' },
+    ],
+    link: '/relnotes/compact-js/compact-js-3-0-2',
+  },
+  {
+    version: '3.0.0',
+    status: 'SUPPORTED',
     date: '2026-11-05',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet, used by Midnight.js 5.',
     details: [
