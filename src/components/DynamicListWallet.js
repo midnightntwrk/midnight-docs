@@ -19,8 +19,24 @@ import { useLocation } from '@docusaurus/router';
 // CURRENT releases (shown on Canary/next and future versions)
 const releases = [
   {
-    version: '2.0.0',
+    version: '2.0.1',
     status: 'LATEST',
+    date: '2026-11-16',
+    summary: 'Patch release that moves to ledger-v9 1.0.2 and proof server 9.0.2; ledger-v9 key material is unchanged.',
+    details: [
+      'Upgrades `@midnightntwrk/ledger-v9` from `^1.0.0` to `1.0.2` and runs proof server 9.0.2; ledger-v9\'s key material is unchanged (circuit generation 10).',
+      'Test stacks move to node 2.1.101 and indexer 4.4.101.',
+      'Package versions move together: `wallet-sdk-dust-wallet` 5.1.0, `wallet-sdk-facade` 5.0.1, `wallet-sdk-shielded` 4.0.1, `wallet-sdk-unshielded-wallet` 4.0.1, and `wallet-sdk-indexer-client` 2.0.1.',
+    ],
+    artifacts: [
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-wallet/releases/tag/%40midnightntwrk%2Fwallet-sdk%402.0.1' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/wallet-sdk/v/2.0.1' },
+    ],
+    link: '/relnotes/wallet/wallet-sdk-2-0-1',
+  },
+  {
+    version: '2.0.0',
+    status: 'SUPPORTED',
     date: '2026-11-05',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet; wallet SDK 1.x can\'t transact on Mainnet after the upgrade.',
     details: [

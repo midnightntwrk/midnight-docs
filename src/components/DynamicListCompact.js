@@ -33,7 +33,7 @@ const releases = [
   compactVersion: '0.28.0',
   status: 'SUPPORTED',
   date: '4 November 2026',
-  summary: 'Mainnet, Preview, and Preprod toolchain for ledger 9: ZKIR version 3 is the only backend, `--feature-zkir-v3` is removed, and circuits in a contract type cannot be `pure`',
+  summary: 'First toolchain release for Mainnet, Preview, and Preprod on ledger 9: ZKIR version 3 is the only backend, `--feature-zkir-v3` is removed, and circuits in a contract type cannot be `pure`',
   details: [
     'Targets ledger 9, which runs on Mainnet after the ledger 9 network upgrade, on Preview, and on Preprod since 9 November 2026',
     'Language version 0.28.0 and Compact runtime 0.21.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.21.x',
@@ -56,7 +56,7 @@ const releases = [
   date: '29 September 2026',
   summary: 'Release for ledger 9: SHA-512 support, `kernel.caller()`, and breaking changes to the cross-contract call runtime API; ledger 9 runs on Mainnet, Preview, and Preprod',
   details: [
-    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`). Ledger 9 runs on Mainnet, Preview, and Preprod; their toolchain is 0.36.0',
+    'Targets ledger 9 (`ledger-9.1.0.0-rc.3`). Ledger 9 runs on Mainnet, Preview, and Preprod; their toolchain is 0.36.1',
     'Language version 0.27.0 and Compact runtime 0.20.0; compiled contracts require `@midnight-ntwrk/compact-runtime` 0.20.x',
     'With `--feature-zkir-v3`: the `sha512` hash circuit',
     'New `kernel.caller()` ledger operation and `PublicAddress` type; read the caller only where the call is known to come from a contract',
@@ -79,7 +79,7 @@ const releases = [
     'Builds on 0.33.0: ledger version 9, cross-contract calls, events, serialization of Compact values, ZKIR version 3',
     'Cross-contract callees can perform shielded (Zswap) coin operations',
     'Language version 0.26.0 and Compact runtime 0.19.0',
-    'Targets ledger 9, which runs on Mainnet, Preview, and Preprod; all three use toolchain 0.36.0',
+    'Targets ledger 9, which runs on Mainnet, Preview, and Preprod; all three use toolchain 0.36.1',
   ],
   artifacts: [
     { name: 'GitHub release', url: 'https://github.com/midnightntwrk/compact/releases/tag/compactc-v0.34.0' },
