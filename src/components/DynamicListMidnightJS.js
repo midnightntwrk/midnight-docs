@@ -17,8 +17,26 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '5.0.1',
+    version: '5.0.2',
     status: 'LATEST',
+    date: '2026-11-19',
+    summary: 'Maintenance patch with no API or runtime change: the packages move to npm under the @midnightntwrk scope, dependencies refresh, and releases carry test evidence.',
+    details: [
+      'Publishes to npm through OIDC trusted publishing under the `@midnightntwrk` scope; the `@midnight-ntwrk` GitHub Packages alias no longer receives new versions',
+      'Dependency refresh from the green Dependabot PRs; the ledger 9 pins stay at the 5.0.1 set (ledger-v9 1.0.2, onchain-runtime-v4 4.0.2, Compact.js 3.0.2, proof server 9.0.2)',
+      'Each GitHub release now attaches its test evidence and the sha512 integrity list for the published packages',
+      'Adds the in-repo release notes for v5.0.1 and an API documentation update',
+      'No API change, no recompile, and no contract changes',
+    ],
+    artifacts: [
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.2' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/midnight-js/v/5.0.2' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-5-0-2',
+  },
+  {
+    version: '5.0.1',
+    status: 'SUPPORTED',
     date: '2026-11-17',
     summary: 'Patch release in the 1.1 patch: moves the ledger 9 stack to ledger 9.1.0.2 and fixes rejected contract calls, with no API change and no recompile.',
     details: [
