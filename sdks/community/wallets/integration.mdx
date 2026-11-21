@@ -34,7 +34,7 @@ type InitialAPI = {
 };
 ```
 
-Do not rely on a fixed key. The v4 specification has each wallet install its Initial API under a freshly generated UUID key and expose a stable `rdns` field. Current Lace builds do this: the key changes on every page load, they do not set `mnLace`, and their `rdns` is `io.lace.wallet`. 1AM keeps the fixed key `window.midnight['1am']`, with the `rdns` `com.midnight.1am`. Discover wallets by scanning `Object.values(window.midnight)` and matching on `rdns`, and let your users choose when more than one wallet is present. Before using a wallet, check its `apiVersion` against the range your DApp supports. The spec notes event-based discovery, like Ethereum's EIP-6963, as a possible future addition, but the current mechanism is the shared `window.midnight` object. ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
+Do not rely on a fixed key. The v4 specification has each wallet install its Initial API under a freshly generated UUID key and expose a stable `rdns` field. Current Lace builds do this: the key changes on every page load, they do not set `mnLace`, and their `rdns` is `io.lace.wallet`. 1AM keeps the fixed key `window.midnight['1am']`, with the `rdns` `com.midnight.1am`. Gero installs under a new UUID key, with the `rdns` `io.gerowallet.midnight`. Discover wallets by scanning `Object.values(window.midnight)` and matching on `rdns`, and let your users choose when more than one wallet is present. Before using a wallet, check its `apiVersion` against the range your DApp supports. The spec notes event-based discovery, like Ethereum's EIP-6963, as a possible future addition, but the current mechanism is the shared `window.midnight` object. ([React wallet-connect guide](https://docs.midnight.network/guides/react-wallet-connect))
 
 ## Connect and the ConnectedAPI surface
 
@@ -79,7 +79,7 @@ You pay fees in DUST, which a wallet generates by holding NIGHT and regenerates 
 
 ## The portable integration code
 
-This works for any standard-connector wallet (Lace, 1AM). The [CLI connector](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) is a no-extension development fallback.
+This works for any standard-connector wallet (Lace, 1AM, Gero). The [CLI connector](./cli-and-mcp.mdx#develop-and-test-without-a-wallet) is a no-extension development fallback.
 
 ```ts
 import { setNetworkId } from "@midnight-ntwrk/midnight-js-network-id";
@@ -106,12 +106,12 @@ async function connect(w: InitialAPI, networkId = "preprod"): Promise<ConnectedA
 
 Handle these differences between connectors:
 
-- **Proving:** feature-detect `getProvingProvider`. 1AM has it, and so does Lace from 2.1.0, where the returned provider sends proof requests to the proof server set in the wallet. If the method is missing, fall back to the local proof server, and do not hard-code the deprecated `proverServerUri`.
+- **Proving:** feature-detect `getProvingProvider`. 1AM has it, and so do Lace from 2.1.0 and Gero from 2.7.1, where the returned provider sends proof requests to the prover set in the wallet. If the method is missing, fall back to the local proof server, and do not hard-code the deprecated `proverServerUri`.
 - **`signData`:** Lace implements it and asks your users to confirm each request in a pop-up. As the specification requires, Lace 2.4.0 and later sign `midnight_signed_message:<size>:` followed by your data, where `<size>` is the byte length of the decoded data. Verify the signature against those prefixed bytes. Feature-detect before any signature-based authentication on other wallets.
 - **Pop-up:** Lace opens an auth pop-up, so keep `connect()` synchronous. The reconnect path has no gesture, so poll `window.midnight`, then connect.
 - **Network:** always reconcile the DApp to `getConnectionStatus().networkId`.
 - **DUST:** read `getDustBalance()`, handle both `{ balance: 0n }` and the `cap`, and do not assume sponsored fees.
-- **Non-standard tiles:** Ctrl and Gero may not inject a conformant connector, so feature-detect and degrade to Lace or 1AM.
+- **Non-standard tiles:** Ctrl may not inject a conformant connector, so feature-detect and degrade to Lace, 1AM, or Gero.
 
 ## React: the production pattern
 
