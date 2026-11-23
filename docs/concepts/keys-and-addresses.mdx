@@ -1,0 +1,146 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Keys and addresses
+sidebar_label: Keys and addresses
+description: "Learn which keys a Midnight wallet derives for unshielded tokens, shielded tokens, and DUST, what each key can do, and how Midnight encodes addresses."
+sidebar_position: 10
+toc_max_heading_level: 2
+keywords: [midnight, keys, addresses, hd wallet, derivation path, bech32m, shielded address, unshielded address, dust address, viewing key, coin public key, encryption public key]
+tags: [concepts, wallet, keys, addresses]
+---
+
+# Keys and addresses
+
+A Midnight wallet is three wallets in one: an unshielded wallet for NIGHT and other unshielded tokens, a shielded wallet for shielded tokens, and a DUST wallet for transaction fees. Each one uses its own keys with its own cryptography, and all of them come from a single master seed. This page lists those keys, what someone holding each one can and can't do, and how Midnight encodes the addresses built from them.
+
+The facts on this page match Wallet SDK 2.0.1 (`@midnightntwrk/wallet-sdk-hd` 4.0.0 and `@midnightntwrk/wallet-sdk-address-format` 4.0.1) and ledger 9.
+
+## The keys at a glance
+
+| Key | Wallet | Scheme | Whoever holds it can | It can't |
+|-----|--------|--------|----------------------|----------|
+| Unshielded signing key | Unshielded | Schnorr over secp256k1 ([BIP-340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki)), or ECDSA over secp256k1 as an opt-in | Sign the unshielded inputs of a transaction, which spends the NIGHT and unshielded tokens held at its address | Spend shielded tokens or DUST |
+| Coin secret key | Shielded | 32 bytes from SHA-256 | Spend shielded coins sent to the wallet, and compute their nullifiers | Decrypt the details of incoming coins |
+| Encryption secret key, also called the viewing key | Shielded | Scalar on the Jubjub curve | Decrypt the shielded outputs sent to the wallet, which reveals its incoming shielded coins | Spend or sign anything |
+| DUST secret key | DUST | Element of the BLS12-381 scalar field | Spend the wallet's DUST to pay transaction fees | Spend NIGHT or shielded tokens |
+
+Each secret key has a public counterpart that you can share:
+
+| Public value | Derived from | Size | Used for |
+|--------------|--------------|------|----------|
+| Unshielded verifying key | Unshielded signing key | 32 bytes (Schnorr), 33 bytes (ECDSA) | Checking signatures, and deriving the unshielded address |
+| Coin public key | Coin secret key | 32 bytes | Owning shielded coins. Half of the shielded address |
+| Encryption public key | Encryption secret key | 32 bytes | Encrypting shielded outputs to the wallet. The other half of the shielded address |
+| DUST public key | DUST secret key | Up to 33 bytes when encoded | The DUST address, which receives the DUST that registered NIGHT generates |
+
+## How the keys derive from one seed
+
+The Wallet SDK derives keys with [BIP-32](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki), along a path that follows [BIP-44](https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki) and [CIP-1852](https://github.com/cardano-foundation/CIPs/blob/master/CIP-1852/README.md):
+
+```text
+m / 44' / 2400' / account' / role / index
+```
+
+`44` is the BIP-44 purpose and `2400` is Midnight's coin type. `account` and `index` follow BIP-44, and a wallet with no reason to choose otherwise uses `0` for both. The role picks the wallet:
+
+| Role | `Roles` constant | Value | What the key at this path is for |
+|------|------------------|-------|----------------------------------|
+| Unshielded, external chain | `Roles.NightExternal` | `0` | The unshielded signing key (Schnorr). This is the default unshielded role |
+| Unshielded, internal chain | `Roles.NightInternal` | `1` | Present for BIP-44 compatibility, for change addresses. The SDK doesn't use it by default |
+| DUST | `Roles.Dust` | `2` | The seed of the DUST secret key |
+| Shielded | `Roles.Zswap` | `3` | The seed of the shielded (Zswap) secret keys |
+| Unshielded, ECDSA | `Roles.EcdsaUnshielded` | `4` | The unshielded signing key when the wallet signs with ECDSA instead of Schnorr |
+
+What the SDK takes at each path is the 32-byte private key, not the extended key. Two wallets given the same master seed, account, and index arrive at the same keys and the same addresses.
+
+ECDSA keys have a role of their own so that one secret is never used under two signature schemes. An ECDSA key derives a different unshielded address from the Schnorr key at role `0`. The DUST and shielded keys are the same either way.
+
+`WalletSeeds.fromMasterSeed` derives the three wallet seeds in one call and wipes the BIP-32 root key afterwards. Pass `unshieldedRole: Roles.EcdsaUnshielded` to derive an ECDSA unshielded key instead:
+
+```typescript
+import { WalletSeeds } from '@midnightntwrk/wallet-sdk-hd';
+import { DustSecretKey, ZswapSecretKeys } from '@midnightntwrk/ledger-v9';
+
+// masterSeed is the wallet's master seed as a Uint8Array.
+const seeds = WalletSeeds.fromMasterSeed(masterSeed); // account 0, index 0, Roles.NightExternal
+
+const shieldedKeys = ZswapSecretKeys.fromSeed(seeds.shielded);
+const dustKey = DustSecretKey.fromSeed(seeds.dust);
+const unshieldedKey = { tag: 'schnorr', value: Buffer.from(seeds.unshielded).toString('hex') };
+```
+
+For the lower-level `HDWallet` API and the full wallet setup, see [Derive wallet keys](/sdks/official/wallet-dev-guide#derive-wallet-keys) in the Wallet SDK guide.
+
+## Unshielded keys
+
+The unshielded signing key is the 32-byte secret at role `0`, used as a Schnorr key over the secp256k1 curve, the same curve Bitcoin uses. Its verifying key is the 32-byte x-only public key that BIP-340 defines.
+
+The unshielded address is the SHA-256 hash of the verifying key, so it is always 32 bytes. The address doesn't reveal the public key. A transaction that spends from the address carries the verifying key and a signature, and the ledger checks both.
+
+With ECDSA, the key comes from role `4` instead. Its verifying key is the 33-byte compressed public key, and the address is the SHA-256 hash of `midnight:ecdsa:` followed by that key. The prefix keeps an ECDSA address from ever matching a Schnorr one.
+
+Unshielded tokens are public. Anyone can see the tokens held at an unshielded address and the transfers in and out of it.
+
+## Shielded keys
+
+The shielded wallet derives two secret keys from its seed, one to spend coins and one to find them.
+
+The **coin secret key** is the SHA-256 hash of the domain separator `midnight:csk` and the seed. Its **coin public key** is the SHA-256 hash of `midnight:zswap-pk[v1]` and the coin secret key. A shielded coin belongs to a coin public key. Spending the coin takes the matching coin secret key. That key also computes the coin's nullifier, the value that marks the coin as spent without revealing which coin it was.
+
+The **encryption secret key** is a scalar on Jubjub, the elliptic curve embedded in BLS12-381 that Midnight uses inside zero-knowledge circuits. Its **encryption public key** is the Jubjub point that the secret key multiplies the curve's generator into, encoded in 32 bytes. When someone sends you a shielded coin, they encrypt the coin's details to your encryption public key and attach the ciphertext to the transaction. Your wallet finds its coins by trying to decrypt outputs with the encryption secret key.
+
+So the encryption public key that Midnight.js's `getEncryptionPublicKey()` returns is a Jubjub point, and `getCoinPublicKey()` returns the 32-byte SHA-256-based coin public key.
+
+### The shielded address
+
+A shielded address is the coin public key followed by the encryption public key, 64 bytes in all. Sharing it lets anyone send you shielded coins: the coin public key says who owns the coin, and the encryption public key lets the sender encrypt its details for you.
+
+When you receive coins at a shielded address, the chain records a commitment to the coin and the encrypted details. It doesn't record the amount, the token type, or the owner. The sender knows what they sent. Other than the sender, only a holder of the encryption secret key can read the output. That's you, plus anyone you've given your viewing key to.
+
+## The viewing key
+
+A viewing key is the shielded wallet's encryption secret key, Bech32m-encoded with the `shield-esk` type, for example `mn_shield-esk_preprod1...`. Software that holds it can find and decrypt every shielded output sent to the wallet. That's what lets an indexer such as the Midnight indexer scan the chain for your shielded transactions.
+
+A viewing key is decrypt-only:
+
+- It can't spend or sign. Spending a shielded coin takes the coin secret key, which the viewing key doesn't include.
+- It can't compute nullifiers, because those take the coin secret key too. On its own, it shows which coins arrived but can't show which of them were later spent.
+- You can't rotate or revoke it. It comes from the wallet seed, so once you share it, assume the holder can read the wallet's shielded history indefinitely.
+
+For what this means when you connect to an indexer you don't run, see [Viewing keys](/guides/security-best-practices#viewing-keys) in the security guide.
+
+## DUST keys
+
+The DUST secret key is an element of the BLS12-381 scalar field, sampled from the DUST seed with the domain separator `midnight:dsk`. The DUST public key is a Poseidon hash of the secret key. Every DUST spend carries a zero-knowledge proof. Keys built from field elements and Poseidon are cheap to use inside a circuit, which is why DUST doesn't reuse the unshielded secp256k1 key.
+
+The DUST address is the DUST public key, encoded as a SCALE compact integer of up to 33 bytes. When you register NIGHT for DUST generation, the DUST it generates goes to a DUST address, which can be your own or another wallet's. The DUST secret key spends that DUST to pay fees. For the registration and redesignation steps, see [Manage DUST](/sdks/official/wallet-dev-guide#manage-dust) in the Wallet SDK guide.
+
+## Contracts don't hold wallet keys
+
+A contract has an address but no secret key of its own, so no one can sign for it. The keys that matter for a deployed contract belong to its maintenance authority. That authority is a committee of signature verifying keys with a threshold, and it can change the contract's verifier keys. The ledger accepts Schnorr and ECDSA keys over secp256k1 for the committee. Midnight.js samples a maintenance signing key at deployment unless you pass one, and that key isn't derived from your wallet seed. See [Contract updatability and the maintenance authority](/guides/deploy-and-operate#contract-updatability-and-the-maintenance-authority).
+
+## Address and key formats
+
+Midnight encodes addresses and keys in [Bech32m](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki). The human-readable prefix has up to three parts separated by underscores: `mn`, the credential type, and the network ID. Mainnet leaves the network ID out, and every other network appends its own:
+
+| Credential | Type | Mainnet | Preprod | Preview | Local (`undeployed`) |
+|------------|------|---------|---------|---------|----------------------|
+| Unshielded address | `addr` | `mn_addr1...` | `mn_addr_preprod1...` | `mn_addr_preview1...` | `mn_addr_undeployed1...` |
+| Shielded address | `shield-addr` | `mn_shield-addr1...` | `mn_shield-addr_preprod1...` | `mn_shield-addr_preview1...` | `mn_shield-addr_undeployed1...` |
+| DUST address | `dust` | `mn_dust1...` | `mn_dust_preprod1...` | `mn_dust_preview1...` | `mn_dust_undeployed1...` |
+| Viewing key | `shield-esk` | `mn_shield-esk1...` | `mn_shield-esk_preprod1...` | `mn_shield-esk_preview1...` | `mn_shield-esk_undeployed1...` |
+
+The address format package also encodes the two halves of a shielded address on their own, with the types `shield-cpk` (coin public key) and `shield-epk` (encryption public key). The DApp Connector API's `getShieldedAddresses()` returns the shielded address and both keys in Bech32m.
+
+An address decodes only for the network in its prefix, so a Preprod address fails to decode as a Mainnet one. Midnight addresses can also be longer than the 90-character limit that BIP-173 sets for Bech32 strings: a shielded address is 124 characters on Mainnet and longer on other networks. Decode them with `MidnightBech32m.parse` from `@midnightntwrk/wallet-sdk-address-format`, which doesn't apply that limit.
+
+To encode and decode each type in code, see [Address encoding](/sdks/official/wallet-dev-guide#address-encoding) in the Wallet SDK guide.
+
+## Related pages
+
+- [Midnight wallet SDK](/sdks/official/wallet-dev-guide): derive keys, build the wallet, and encode addresses in code.
+- [Viewing keys](/guides/security-best-practices#viewing-keys): the trust decision behind sharing a viewing key.
+- [Zswap](/concepts/zswap): how shielded coins, commitments, and nullifiers work.
+- [DUST architecture](/concepts/dust-architecture): how NIGHT generates DUST.
+- [Cryptography](/concepts/network-architecture/cryptography): the keys a Midnight node uses for consensus and networking, which are separate from wallet keys.
