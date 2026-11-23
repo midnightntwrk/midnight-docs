@@ -247,7 +247,11 @@ touch src/shielded/providers.ts
 It is identical to the unshielded tutorial except for the circuit name in the type, the private-state store name, and the `../` on the two shared imports:
 
 ```typescript
-import { type MidnightProviders } from '@midnight-ntwrk/midnight-js-types';
+import {
+  createLedger9MidnightProvider,
+  createLedger9WalletProvider,
+  type MidnightProviders,
+} from '@midnight-ntwrk/midnight-js-types';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
 import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
@@ -281,8 +285,12 @@ export function buildProviders(
       config.proofServer,
       zkConfigProvider,
     ),
-    walletProvider: wallet,
-    midnightProvider: wallet,
+    // Midnight.js 5 providers are tagged with the ledger eras they serve.
+    // The wallet works with ledger 9 transactions, so these wrappers lift
+    // it into the tagged interfaces.
+    walletProvider: createLedger9WalletProvider(wallet),
+    midnightProvider: createLedger9MidnightProvider((tx) => wallet.submitTx(tx)),
+    config: { networkId: config.networkId, ttlSeconds: 3600 },
   };
 }
 ```
@@ -306,10 +314,9 @@ import { WebSocket } from 'ws';
 import { firstValueFrom } from 'rxjs';
 import { filter, timeout as rxTimeout } from 'rxjs/operators';
 import pino from 'pino';
-import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import { deployContract, submitCallTx } from '@midnight-ntwrk/midnight-js-contracts';
 import { type EnvironmentConfiguration } from '@midnight-ntwrk/testkit-js';
-import { UnshieldedAddress } from '@midnight-ntwrk/wallet-sdk';
+import { UnshieldedAddress } from '@midnightntwrk/wallet-sdk';
 import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
 import { toHex } from '@midnight-ntwrk/midnight-js-utils';
 import { getConfig } from '../config.js';
@@ -333,7 +340,6 @@ This is the same funding flow as the unshielded tutorial, included here in full:
 
 ```typescript
 const config = getConfig();
-setNetworkId(config.networkId);
 
 const env: EnvironmentConfiguration = {
   walletNetworkId: config.networkId,

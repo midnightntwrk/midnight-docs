@@ -23,7 +23,7 @@ These apply to every procedure in this guide:
 
 - Node.js version 22 or higher installed.
 - Docker installed and running, for the local network and the [proof server](./run-proof-server).
-- [Vitest](https://vitest.dev/) and `@midnight-ntwrk/midnight-js-network-id` installed in your test workspace, for the verification tests.
+- [Vitest](https://vitest.dev/) and `@midnight-ntwrk/midnight-js-types` installed in your test workspace, for the verification tests.
 
 {/* _mod-docs-content-type: CONCEPT */}
 ## The Midnight networks
@@ -423,17 +423,17 @@ Point a DApp at a chosen network by setting the network ID and wiring the matchi
 
 1. Choose the target network using [Network selection at a glance](#network-selection-at-a-glance).
 
-2. Set the network ID before initializing any providers. Midnight.js reads this value when it normalizes addresses and builds transactions (the `deployContract` and `callTx` paths), so it must be set before any contract operation:
+2. Put the network ID in the provider configuration before initializing any providers. Midnight.js reads this value when it normalizes addresses and builds transactions (the `deployContract` and `callTx` paths), and it travels with the provider set as `config: { networkId, ttlSeconds }`, so build the configuration before any contract operation:
 
    ```typescript
-   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import { type MidnightConfig } from '@midnight-ntwrk/midnight-js-types';
 
-   setNetworkId('preprod');
+   const config: MidnightConfig = { networkId: 'preprod', ttlSeconds: 3600 };
 
    /** Supported network IDs: 'mainnet', 'preview', 'preprod', 'undeployed' */
    ```
 
-   There is no default: `getNetworkId()` throws `Network ID has not been configured` until you call `setNetworkId`. The call stores the string as-is, so a misspelled network name does not fail here; it surfaces later, in the components that consume the ID.
+   There is no default: a provider set built without `config` does not type-check, because `networkId` is a required field of `MidnightConfig`. The value is stored as-is, so a misspelled network name does not fail here; it surfaces later, in the components that consume the ID.
 
 3. Keep the network ID and its endpoints together in one configuration object, using the values from the [Environment reference](#environment-reference). Note that the proof server URL stays local for every network. The `preprod` endpoints need a Blockfrost token, so this example builds them with the `preprodConfig()` helper from [Passing the token](#passing-the-token):
 
@@ -469,11 +469,11 @@ Point a DApp at a chosen network by setting the network ID and wiring the matchi
 
 ### Verification
 
-Each network ID round-trips through the SDK, and the configured endpoints answer with the expected chain identity and a current block height. Blockfrost serves the `preprod` and `mainnet` endpoints, and each needs a token for its own network, so the test reads two variables: set `BLOCKFROST_PREPROD_PROJECT_ID` to your Midnight Preprod project token and `BLOCKFROST_MAINNET_PROJECT_ID` to your Midnight Mainnet project token; see [Getting a Blockfrost project token](#getting-a-blockfrost-project-token). The test skips the node and indexer checks of a network that has no token. Without either token, it reports `5 passed | 4 skipped`, so you can test `preview` without a Blockfrost account.
+Each network ID lands in the provider configuration unchanged, and the configured endpoints answer with the expected chain identity and a current block height. Blockfrost serves the `preprod` and `mainnet` endpoints, and each needs a token for its own network, so the test reads two variables: set `BLOCKFROST_PREPROD_PROJECT_ID` to your Midnight Preprod project token and `BLOCKFROST_MAINNET_PROJECT_ID` to your Midnight Mainnet project token; see [Getting a Blockfrost project token](#getting-a-blockfrost-project-token). The test skips the node and indexer checks of a network that has no token. Without either token, it reports `5 passed | 4 skipped`, so you can test `preview` without a Blockfrost account.
 
 ```typescript title="networks.test.ts"
 import { describe, it, expect } from 'vitest';
-import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+import { type MidnightConfig, type NetworkId } from '@midnight-ntwrk/midnight-js-types';
 
 const token = (name: string) => encodeURIComponent(process.env[name]?.trim() ?? '');
 const preprodToken = token('BLOCKFROST_PREPROD_PROJECT_ID');
@@ -521,8 +521,8 @@ describe.each(networks)('$id', ({ id, chain, node, indexer, projectId }) => {
   const noToken = projectId === '';
 
   it('sets the network ID', () => {
-    setNetworkId(id);
-    expect(getNetworkId()).toBe(id);
+    const config: MidnightConfig = { networkId: id as NetworkId, ttlSeconds: 3600 };
+    expect(config.networkId).toBe(id);
   });
 
   it.skipIf(noToken)('reaches the node RPC', async () => {
@@ -586,13 +586,13 @@ Move a DApp that works on a test network to the production network. The mechanic
 
 3. Create a Blockfrost project for **Midnight Mainnet** and store its token server-side, as in [Getting a Blockfrost project token](#getting-a-blockfrost-project-token). The public mainnet indexer and RPC reject requests without it, and they reject the Midnight Preprod token you used on `preprod`.
 
-4. Point the configuration at mainnet. Set the network ID and build the endpoints with the `mainnetConfig()` helper from [Passing the token](#passing-the-token). The helper adds your token to the node, node WebSocket, indexer, and indexer WebSocket URLs; nothing else in the DApp changes:
+4. Point the configuration at mainnet. Build the endpoints with the `mainnetConfig()` helper from [Passing the token](#passing-the-token), and carry the network ID in the provider set's `config` when you wire the providers in the next step. The helper adds your token to the node, node WebSocket, indexer, and indexer WebSocket URLs; nothing else in the DApp changes:
 
    ```typescript
-   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
+   import { type MidnightConfig } from '@midnight-ntwrk/midnight-js-types';
    import { mainnetConfig } from './config.js';
 
-   setNetworkId('mainnet');
+   const config: MidnightConfig = { networkId: 'mainnet', ttlSeconds: 3600 };
 
    const network = mainnetConfig();
    ```
