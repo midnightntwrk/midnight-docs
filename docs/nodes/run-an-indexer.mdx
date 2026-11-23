@@ -1,0 +1,242 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Run an indexer against your node
+sidebar_label: Run an indexer
+description: "Run the Midnight Indexer in Docker against your own Midnight node, check that it keeps up, and point your DApp at its GraphQL API."
+sidebar_position: 45
+toc_max_heading_level: 2
+keywords: [midnight, indexer, indexer-standalone, graphql, node, archive node, docker compose, self-hosted]
+tags: [node, indexer, docker, graphql, self-hosted, infrastructure]
+---
+
+# Run an indexer against your node
+
+The Midnight Indexer reads blocks from a Midnight node, stores what it finds, and serves it through the GraphQL API that wallets and DApps query. Midnight.js and the wallet SDK both talk to an indexer. A DApp that runs on its own infrastructure needs its own indexer next to its own node. This guide runs the standalone indexer in Docker against a node on the same host. It then checks that the indexer keeps up with the node and shows what to change when you upgrade it. For the queries the indexer serves, see the [Indexer API reference](/api-reference/midnight-indexer).
+
+## Prerequisites
+
+- A Midnight node that runs the node version in the [compatibility matrix](../relnotes/support-matrix), in archive mode, on a Linux host. See [Set up full node](./full-node) and its [archive node](./full-node#full-node-vs-archive-node) section.
+- The node's RPC endpoint on `ws://localhost:9944`, the default.
+- Docker Engine with the Docker Compose plugin. This guide uses Docker Compose 2.40.
+- `openssl`, to generate the indexer's secret.
+
+{/* _mod-docs-content-type: CONCEPT */}
+## How the indexer works with your node
+
+The indexer connects to the node's WebSocket RPC endpoint and fetches every block from genesis onward. It applies each block's transactions to its own copy of the ledger state. When it has processed the node's latest finalized block, it reports that it has caught up, and it keeps following the node from there.
+
+For each block it indexes, the indexer also reads state from the node at that block. A pruned full node keeps the state of recent blocks only, so the indexer fails on the first older block with `State already discarded`. Run the node as an archive node, with `--state-pruning archive` and `--blocks-pruning archive`. The node stores its pruning mode when it creates its database, so a full node needs an empty base path to become an archive node.
+
+The indexer builds its ledger state for one network, set by its network ID. The ID has to match the network that the node runs: `preview`, `preprod`, or `mainnet`. A local development node uses `undeployed`. When the IDs don't match, the indexer stops at the genesis block.
+
+The indexer comes in two forms:
+
+- **Standalone**: one container, `indexer-standalone`, that runs every indexer component and stores its data in two SQLite files. This guide uses it.
+- **Cloud**: separate `chain-indexer`, `wallet-indexer`, `indexer-api`, and `spo-indexer` containers that share a PostgreSQL database and a NATS server. You run PostgreSQL and NATS yourself. For its settings, see [Cloud mode](https://github.com/midnightntwrk/midnight-indexer/tree/v4.4.101#cloud-mode) in the indexer README.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Standalone indexer settings
+
+Use the indexer version in the [compatibility matrix](../relnotes/support-matrix). Docker Hub publishes `midnightntwrk/indexer-standalone` with a tag for each version, for `amd64` and `arm64`. Pin the version tag rather than `latest`.
+
+The indexer reads its defaults from a configuration file in the image. Override them with environment variables: each variable starts with `APP__`, and `__` separates the levels of the configuration file. To read a value from a file instead, such as a mounted secret, add `_FILE` to the variable name. Set it to the file's path.
+
+| Variable | What it sets | Default |
+|---|---|---|
+| `APP__APPLICATION__NETWORK_ID` | Network ID of the chain to index: `preview`, `preprod`, `mainnet`, or `undeployed` | `undeployed` |
+| `APP__INFRA__NODE__URL` | WebSocket RPC endpoint of the node to index | `ws://localhost:9944` |
+| `APP__INFRA__SPO_NODE__URL` | WebSocket RPC endpoint that the stake pool operator (SPO) component reads from. Set it to the same node. | `ws://localhost:9944` |
+| `APP__INFRA__SPO_NODE__BLOCKFROST_ID` | Blockfrost project ID that the SPO component uses for Cardano stake data. Required and must not be empty. If you don't need stake data, any placeholder value works. | None |
+| `APP__INFRA__SECRET` | Hex-encoded 32-byte secret that encrypts the sensitive data the indexer stores. Required. Prefer `APP__INFRA__SECRET_FILE`. | None |
+| `APP__INFRA__API__ADDRESS` | Address that the GraphQL API listens on | `0.0.0.0` |
+| `APP__INFRA__API__PORT` | Port of the GraphQL API | `8088` |
+| `APP__INFRA__STORAGE__CNN_URL` | Path of the indexer database | `/data/indexer.sqlite` |
+| `APP__INFRA__LEDGER_DB__CNN_URL` | Path of the ledger state database | `/data/ledger-db.sqlite` |
+| `APP__TELEMETRY__METRICS__ENABLED` | Serves Prometheus metrics when `true` | `false` |
+| `APP__TELEMETRY__METRICS__ADDRESS` | Address that the metrics endpoint listens on | `0.0.0.0` |
+| `APP__TELEMETRY__METRICS__PORT` | Port of the metrics endpoint | `9000` |
+
+For every other setting, see [`indexer-standalone/config.yaml`](https://github.com/midnightntwrk/midnight-indexer/blob/v4.4.101/indexer-standalone/config.yaml) in the indexer repository.
+
+The indexer serves these HTTP endpoints on its API port:
+
+| Path | What it returns |
+|---|---|
+| `/api/v4/graphql` | GraphQL queries and mutations over HTTP |
+| `/api/v4/graphql/ws` | GraphQL subscriptions over WebSocket |
+| `/live` | `200` while the indexer process is running |
+| `/ready` | `200` once the indexer has caught up with the node, and `503` with `indexer has not yet caught up with the node` before that |
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Running the standalone indexer
+
+Run the indexer in the host's network so that it reaches the node on `localhost`. The node's RPC endpoint then stays on `localhost`, as [Set up RPC node](./rpc-node) recommends, and the indexer's own API and metrics listen on `127.0.0.1` too. To serve the API to other machines, put a reverse proxy in front of it.
+
+### Procedure
+
+1. Create a directory for the indexer and move into it:
+
+   ```bash
+   mkdir -p ~/indexer && cd ~/indexer
+   ```
+
+2. Create a file named `compose.yaml`. Replace `4.4.101` with the indexer version in the [compatibility matrix](../relnotes/support-matrix) if it has changed.
+
+   ```yaml title="compose.yaml"
+   services:
+     indexer:
+       image: midnightntwrk/indexer-standalone:4.4.101
+       restart: unless-stopped
+       network_mode: host
+       volumes:
+         - indexer_data:/data
+       secrets:
+         - source: indexer_secret
+           target: indexer_secret
+           uid: "10001"
+           mode: 0400
+       environment:
+         APP__APPLICATION__NETWORK_ID: "${NETWORK_ID:?set NETWORK_ID in .env}"
+         APP__INFRA__NODE__URL: "${NODE_URL:?set NODE_URL in .env}"
+         APP__INFRA__SPO_NODE__URL: "${NODE_URL:?set NODE_URL in .env}"
+         APP__INFRA__SPO_NODE__BLOCKFROST_ID: "${BLOCKFROST_ID:-not-using-spo}"
+         APP__INFRA__SECRET_FILE: "/run/secrets/indexer_secret"
+         APP__INFRA__API__ADDRESS: "127.0.0.1"
+         APP__TELEMETRY__METRICS__ENABLED: "true"
+         APP__TELEMETRY__METRICS__ADDRESS: "127.0.0.1"
+
+   secrets:
+     indexer_secret:
+       environment: INDEXER_SECRET
+
+   volumes:
+     indexer_data:
+   ```
+
+   Docker Compose hands the secret to the container as a file under `/run/secrets`. Only the indexer's own user can read it, so the secret stays out of the container's environment. The `indexer_data` volume keeps both SQLite databases across restarts.
+
+3. Create a `.env` file next to `compose.yaml` with the network ID, the node URL, and a new secret. This example targets Preprod; use the network ID of the network your node runs.
+
+   ```bash
+   cat > .env <<EOF
+   NETWORK_ID=preprod
+   NODE_URL=ws://localhost:9944
+   INDEXER_SECRET=$(openssl rand -hex 32)
+   EOF
+   chmod 600 .env
+   ```
+
+   Keep the `.env` file and back it up. The indexer encrypts the data it stores with this secret.
+
+4. Start the indexer:
+
+   ```bash
+   docker compose up -d
+   ```
+
+   At startup, the indexer prints a warning that `APP__INFRA__SPO_NODE__BLOCKFROST_ID` is passed through the environment. The placeholder value is not a secret, so you can ignore the warning.
+
+### Verification
+
+Check that the indexer has caught up with the node. A sync from genesis on a public network takes a while, and `/ready` returns `503` until it finishes.
+
+```bash
+curl -s -w '%{http_code}\n' http://127.0.0.1:8088/ready
+curl -s http://127.0.0.1:9000/metrics | grep -E '^indexer_(block_height|node_block_height|caught_up)'
+```
+
+The metrics show the height the indexer has reached next to the node's height, so you can follow the sync. Once the indexer has caught up, `/ready` returns `200` and `indexer_caught_up` is `1`. Against a local development node, the output looks like this:
+
+```text
+200
+indexer_node_block_height 5
+indexer_block_height 5
+indexer_caught_up 1
+```
+
+Then query the latest block through the GraphQL API:
+
+```bash
+curl -s -X POST http://127.0.0.1:8088/api/v4/graphql \
+  -H 'content-type: application/json' \
+  -d '{"query":"{ block { height hash } }"}'
+```
+
+```text
+{"data":{"block":{"height":5,"hash":"42a878e7f147312de6e9ace38cdebe474ddff104f28cb24b90f4152935ddd753"}}}
+```
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Connecting your DApp to your indexer
+
+Midnight.js and the wallet SDK take the indexer's GraphQL URL and its WebSocket URL. Point them at your indexer, or at the reverse proxy in front of it, instead of a public indexer.
+
+### Procedure
+
+1. Set the indexer URLs in your DApp's configuration. With Midnight.js 5, pass them as `queryURL` and `subscriptionURL` to `indexerPublicDataProvider`:
+
+   ```typescript
+   import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
+
+   const publicDataProvider = indexerPublicDataProvider({
+     queryURL: 'http://127.0.0.1:8088/api/v4/graphql',
+     subscriptionURL: 'ws://127.0.0.1:8088/api/v4/graphql/ws',
+   });
+   ```
+
+2. Keep the network ID that your DApp sets the same as the `NETWORK_ID` of the indexer. For where a DApp sets it, see [Networks and environments](../guides/networks-and-environments).
+
+### Verification
+
+Run your DApp, or a wallet sync, against the new URLs. The indexer's `indexer_block_height` metric keeps rising with the node's, and the DApp reads the same contract state as it did through the public indexer.
+
+{/* _mod-docs-content-type: PROCEDURE */}
+## Upgrading the indexer
+
+Some indexer releases can't migrate the data that an earlier version stored, and you have to index the chain again from genesis. Moving to indexer 4.4.101 for ledger 9 is one of them. The release notes and the [compatibility matrix](../relnotes/support-matrix) say when an upgrade needs this.
+
+The standalone indexer keeps two databases that refer to each other, `indexer.sqlite` and `ledger-db.sqlite`. Always delete them together. Deleting only one of them leaves the other pointing at data that no longer exists.
+
+### Procedure
+
+1. Change the image tag in `compose.yaml` to the new version.
+
+2. If the upgrade needs a fresh index, stop the indexer and delete its volume, which holds both databases:
+
+   ```bash
+   docker compose down -v
+   ```
+
+   Skip this step for an upgrade that doesn't need a fresh index.
+
+3. Start the new version:
+
+   ```bash
+   docker compose up -d
+   ```
+
+### Verification
+
+Run the checks in [Running the standalone indexer](#running-the-standalone-indexer). After a fresh index, `/ready` returns `503` until the indexer has caught up with the node again.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Troubleshooting
+
+To read the indexer's log, run `docker compose logs indexer`.
+
+| Log message | Cause and fix |
+|---|---|
+| `malformed transaction: invalid network ID - expect 'preprod' found 'undeployed'` | `NETWORK_ID` doesn't match the network the node runs. The first network ID in the message is the indexer's, and the second is the chain's. Set `NETWORK_ID` to the chain's network ID, then run `docker compose down -v` and `docker compose up -d` to index from genesis with the right ID. |
+| `State already discarded for <block hash>` | The node prunes old state. Run it as an [archive node](./full-node#full-node-vs-archive-node), with an empty base path so that it resyncs in archive mode. |
+| The indexer exits soon after it starts, and the log names `spo-indexer` | The SPO component can't reach its node. Check that `APP__INFRA__SPO_NODE__URL` points at your node and that `APP__INFRA__SPO_NODE__BLOCKFROST_ID` isn't empty. |
+| `/ready` keeps returning `503` | The indexer hasn't caught up with the node yet. Compare `indexer_block_height` with `indexer_node_block_height` in the metrics to follow its progress. |
+
+## Additional resources
+
+- [Indexer API reference](/api-reference/midnight-indexer)
+- [Compatibility matrix](../relnotes/support-matrix)
+- [Set up full node](./full-node)
+- [Set up RPC node](./rpc-node)
+- [Networks and environments](../guides/networks-and-environments)
+- [Midnight Indexer repository](https://github.com/midnightntwrk/midnight-indexer)
