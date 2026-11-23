@@ -288,28 +288,26 @@ change. Before the second tip, the test waits for his balance to read 60, then r
 nonces of the coins now in his wallet and checks that the minted coin is gone:
 
 ```typescript title="src/test/private-tip-jar.test.ts"
-    await waitForTokenBalance(bobWallet, MINTED - FIRST_TIP);
-    const change = await tokenCoins(bobWallet);
+    await waitForShieldedBalance(bobWallet, tipColorHex, MINTED - FIRST_TIP);
+    const change = await shieldedCoins(bobWallet, tipColorHex);
     for (const c of change) bobWalletNonces.push(c.nonce);
     // The issued coin is spent; what is left is change under a new nonce.
     const issued = new Set(bobIssuedNonces.map(hex));
     expect(change.some((c) => issued.has(hex(c.nonce)))).toBe(false);
 ```
 
-`tokenCoins` reads the wallet's available shielded coins of the jar's color. The test only uses it
-to read nonces. It never passes one of these coins to `tip`:
+`shieldedCoins`, from the example's coin helpers, reads the wallet's available shielded coins of the
+jar's color. The test only uses it to read nonces. It never passes one of these coins to `tip`:
 
-```typescript title="src/test/private-tip-jar.test.ts"
-  async function tokenCoins(w: MidnightWalletProvider): Promise<ShieldedCoinArg[]> {
-    const state = await w.wallet.waitForSyncedState();
-    return state.shielded.availableCoins
-      .filter((c) => c.coin.type === tipColorHex)
-      .map((c) => ({
-        nonce: Uint8Array.from(Buffer.from(c.coin.nonce, 'hex')),
-        color: tipColorBytes,
-        value: c.coin.value,
-      }));
-  }
+```typescript title="src/test/coins.ts"
+export async function shieldedCoins(w: CoinWallet, color: TokenColor | string): Promise<ShieldedCoinArg[]> {
+  const hex = colorHex(color);
+  const bytes = encodeRawTokenType(hex);
+  const state = await w.wallet.waitForSyncedState();
+  return state.shielded.availableCoins
+    .filter((c) => c.coin.type === hex)
+    .map((c) => ({ nonce: fromHex(c.coin.nonce), color: bytes, value: c.coin.value }));
+}
 ```
 
 After both tips, the pot holds two coins. Their values are public, and each pot entry is the tip
@@ -408,7 +406,7 @@ Alice reads the pot and withdraws each coin in turn:
 
     expect((await queryLedger()).pot.isEmpty()).toBe(true);
     await syncWallet(logger, aliceWallet.wallet, syncTimeoutMs);
-    expect(await tokenBalance(aliceWallet)).toEqual(MINTED);
+    expect(await shieldedBalance(aliceWallet, tipColorHex)).toEqual(MINTED);
 ```
 
 The pot is empty, and all 100 tokens are now in Alice's shielded wallet. That is the full shielded
