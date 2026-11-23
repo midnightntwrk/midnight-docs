@@ -1,0 +1,279 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: What Compact can't do yet
+sidebar_label: What Compact can't do yet
+sidebar_position: 7
+description: Compact limits and workarounds, covering floating point, division, dates, encryption, outside proofs, recursion, and size limits, with compiler errors.
+tags: [compact, limitations, workarounds, division, floating-point, recursion, size-limits, compiler-errors, smart-contracts]
+---
+
+# What Compact can't do yet
+
+Compact compiles every circuit into a fixed-size zero-knowledge circuit. That design rules out some features you might expect from a general-purpose language. This page lists the ones developers ask about most, the error you see, and what to do instead.
+
+The examples on this page compile with Compact toolchain 0.36.1 (language version 0.28.0), the toolchain in the [support matrix](/relnotes/support-matrix). For the exact numeric and size limits, see [Implementation-specific limits](/compact/reference/compact-reference#implementation-specific-limits) in the Compact reference.
+
+## Floating point and percentages
+
+Compact has no floating-point or decimal numbers. Its numeric types are `Field`, unsigned integers (`Uint`), and a few curve and foreign field types. A decimal literal is a parse error:
+
+```compact
+pragma language_version 0.28;
+
+export circuit rate(): Field {
+  return 1.5;
+}
+```
+
+```text
+Exception: float.compact line 4 char 10:
+  parse error: found "1.5" looking for an expression sequence or ";"
+```
+
+A `Float` type doesn't exist either. Using one fails with `unbound identifier Float`.
+
+**Workaround:** use scaled integers. Store amounts in the smallest unit and express rates in a fixed scale, such as basis points (1 basis point is 0.01%, so 10,000 basis points is 100%). To apply a rate, multiply first and divide by the scale last. Division needs a witness, as the next section shows. This smart contract charges a fee in basis points:
+
+```compact
+pragma language_version 0.28;
+
+import CompactStandardLibrary;
+
+// Implemented in TypeScript: returns the quotient and remainder of scaled / 10000.
+witness divideByBasisPoints(scaled: Uint<128>): [Uint<128>, Uint<16>];
+
+export ledger lastFee: Uint<128>;
+
+export circuit chargeFee(amount: Uint<64>, feeBps: Uint<16>): [] {
+  assert(feeBps <= 10000, "Fee above 100%");
+  const scaled = amount * feeBps;
+  const [fee, remainder] = divideByBasisPoints(scaled);
+  assert(remainder < 10000, "Remainder out of range");
+  assert(fee * 10000 + remainder == scaled, "Incorrect fee");
+  lastFee = disclose(fee);
+}
+```
+
+The witness does the division in TypeScript:
+
+```typescript
+import type { WitnessContext } from '@midnight-ntwrk/compact-runtime';
+import type { Ledger, Witnesses } from './managed/fees/contract/index.js';
+
+type PrivateState = Record<string, never>;
+
+export const witnesses: Witnesses<PrivateState> = {
+  divideByBasisPoints: (
+    { privateState }: WitnessContext<Ledger, PrivateState>,
+    scaled: bigint,
+  ): [PrivateState, [bigint, bigint]] => [privateState, [scaled / 10_000n, scaled % 10_000n]],
+};
+```
+
+With an amount of `1000000` and a fee of `250` basis points, `chargeFee` stores a fee of `25000`. The fee rounds down, because the circuit drops the remainder.
+
+## Division and remainder
+
+Compact has three arithmetic operators: `+`, `-`, and `*`. It has no `/` or `%` operator:
+
+```compact
+pragma language_version 0.28;
+
+export circuit percent(amount: Uint<64>): Uint<64> {
+  return amount / 100;
+}
+```
+
+```text
+Exception: divide.compact line 4 char 17:
+  parse error: found "/" looking for ";", ",", "||", "&&", "==", "!=", "as", "+", "-", "*", "[",
+  ".", "?", "=", "+=", "-=", "<", "<=", ">=", ">", "(", "{", or a generic argument list
+```
+
+Writing `amount % 100` fails with `unexpected character '%'`.
+
+**Workaround:** let a witness compute the quotient and remainder, then check them in the circuit. The circuit can't trust a witness, so it needs both checks:
+
+- `quotient * divisor + remainder == dividend`
+- `remainder < divisor`
+
+Without the second check, a dishonest witness can return a smaller quotient with a larger remainder that still satisfies the first check. The `chargeFee` circuit in the previous section uses this pattern. If the witness returns a wrong fee, the circuit fails with `failed assert: Incorrect fee`, and no valid proof exists for the call.
+
+Run the checks on `Uint` values, as `chargeFee` does. `Field` arithmetic wraps around the field modulus, so a check on `Field` values can accept a result that is wrong as an integer. For more examples of the pattern, see the [calculator example](/examples/contracts/calculator) and the [ZK Loan tutorial](/tutorials/zk-loan/smart-contract).
+
+## Dates and times
+
+Compact has no date or time type, and a circuit can't read the current time as a value. The standard library compares the block time with a value you pass in, using `blockTimeLt`, `blockTimeLte`, `blockTimeGt`, and `blockTimeGte`. Each takes a `Uint<64>` and returns a `Boolean`.
+
+**Workaround:** convert dates to Unix time in seconds in your DApp, and store them as `Uint<64>` values. This smart contract stops accepting submissions at a deadline set when it's deployed:
+
+```compact
+pragma language_version 0.28;
+
+import CompactStandardLibrary;
+
+export ledger deadline: Uint<64>;
+
+constructor(closesAt: Uint<64>) {
+  deadline = disclose(closesAt);
+}
+
+export circuit submit(): [] {
+  assert(blockTimeLt(deadline), "Submissions are closed");
+}
+```
+
+Block time counts seconds since the Unix epoch. When you run circuits locally with `createCircuitContext` from `@midnight-ntwrk/compact-runtime`, pass the `time` option, in seconds, to test both sides of a deadline.
+
+## Encryption and decryption in a circuit
+
+The Compact standard library has no encryption or decryption functions. It has hashes and commitments (`transientHash`, `persistentHash`, `transientCommit`, and `persistentCommit`), elliptic curve operations, and signature verification, but nothing that turns ciphertext back into plaintext inside a circuit.
+
+**Workaround:** you rarely need encryption to keep data private on Midnight. Keep the data in private state on your user's machine, store only a commitment on the ledger, and prove facts about the data in a circuit:
+
+```compact
+pragma language_version 0.28;
+
+import CompactStandardLibrary;
+
+witness secretData(): Bytes<32>;
+witness secretSalt(): Bytes<32>;
+
+export ledger commitment: Bytes<32>;
+
+export circuit commit(): [] {
+  commitment = disclose(persistentCommit<Bytes<32>>(secretData(), secretSalt()));
+}
+
+export circuit proveKnowledge(): [] {
+  assert(persistentCommit<Bytes<32>>(secretData(), secretSalt()) == commitment,
+         "Data does not match the commitment");
+}
+```
+
+If you need to share data with a specific party, encrypt it in your DApp before it reaches the smart contract, and pass the ciphertext as bytes. The circuit treats the ciphertext as plain bytes and can't check what it decrypts to. For more on keeping data private, see [Keeping data private](/concepts/how-midnight-works/keeping-data-private).
+
+## Outside proofs such as Groth16
+
+A Compact smart contract can't verify a proof made by another system, such as a Groth16 proof. Verifying Groth16 proofs needs pairing operations, and the Compact standard library has none. Compact also can't import circuits written with another proving library: a smart contract's circuits come from Compact source only. A witness could check the proof in TypeScript, but the circuit can't trust what a witness returns, so that check proves nothing.
+
+**Workaround:** if you can trust a party to verify the outside proof, have that party sign the result. The smart contract then checks the signature with `jubjubSchnorrVerify`. This moves trust to the signer, so use it only when that trade-off is acceptable for your DApp.
+
+```compact
+pragma language_version 0.28;
+
+import CompactStandardLibrary;
+
+export ledger verifierKey: JubjubPoint;
+export ledger acceptedResult: Field;
+
+constructor(key: JubjubPoint) {
+  verifierKey = disclose(key);
+}
+
+export circuit acceptResult(result: Field, signature: JubjubSchnorrSignature): [] {
+  assert(jubjubSchnorrVerify<1>([result], signature, verifierKey), "Invalid attestation");
+  acceptedResult = disclose(result);
+}
+```
+
+The signer uses the matching functions in `@midnight-ntwrk/compact-runtime`:
+
+```typescript
+import {
+  CompactTypeField,
+  CompactTypeVector,
+  jubjubSchnorrSign,
+  jubjubSchnorrVerifyingKey,
+  sampleJubjubSchnorrSk,
+} from '@midnight-ntwrk/compact-runtime';
+
+const signingKey = sampleJubjubSchnorrSk();
+const verifyingKey = jubjubSchnorrVerifyingKey(signingKey); // pass to the constructor
+const result = 42n;
+const signature = jubjubSchnorrSign(new CompactTypeVector(1, CompactTypeField), [result], signingKey);
+```
+
+A signature over a different result fails with `failed assert: Invalid attestation`. The standard library also has `secp256k1EcdsaVerify` for ECDSA signatures over secp256k1.
+
+## Recursion
+
+Circuits can't call themselves, directly or through other circuits. Every circuit must unroll to a fixed size, so the compiler rejects recursion:
+
+```compact
+pragma language_version 0.28;
+
+circuit sumTo(n: Uint<8>): Field {
+  if (n == 0) {
+    return 0 as Field;
+  }
+  return sumTo((n - 1) as Uint<8>) + n;
+}
+
+export circuit run(n: Uint<8>): Field {
+  return sumTo(n);
+}
+```
+
+```text
+Exception: recursion.compact line 3 char 1:
+  recursion involving sumTo
+```
+
+**Workaround:** rewrite the recursion as a `for` loop with a constant bound, or as a `map` or `fold` over a fixed-size vector. Pick the bound as the largest input you support:
+
+```compact
+pragma language_version 0.28;
+
+circuit add(total: Field, x: Uint<32>): Field {
+  return total + x;
+}
+
+export pure circuit sum(values: Vector<8, Uint<32>>): Field {
+  return fold(add, 0 as Field, values);
+}
+```
+
+## Size limits
+
+All Compact types have a size fixed at compile time, and several limits apply on top of that.
+
+- **Vector length:** a vector or byte vector can have at most 16,777,216 elements. A longer type is a compile error, for example `vector type length 16777217 exceeds the maximum supported length 16777216`.
+- **Ledger cell size:** a single ledger value, such as one `Vector` ledger field, can be at most 32 KiB (32,768 bytes) when serialized. A larger value fails when the circuit or constructor runs, with `Cell exceeded maximum bound of 32768`.
+- **Circuit size:** every element of a vector you pass to a circuit becomes part of the circuit, so large vectors make large circuits. Large circuits take longer to compile and prove. For example, on one test machine, generating keys for a circuit that hashes a 100,000-element vector failed with `zkir returned a non-zero exit status -9`.
+
+**Workaround:** don't store large collections as one value. Use a ledger `Map`, `List`, or `MerkleTree` and update one entry per call, or store a hash of the data and keep the data off-chain:
+
+```compact
+pragma language_version 0.28;
+
+import CompactStandardLibrary;
+
+export ledger entries: Map<Uint<32>, Field>;
+
+export circuit store(key: Uint<32>, value: Field): [] {
+  entries.insert(disclose(key), disclose(value));
+}
+```
+
+### The requested length exceeds 65,536 bytes
+
+Compact doesn't produce this error. In Node.js, it's the message from `crypto.getRandomValues`, the Web Crypto function, when you ask it for more than 65,536 random bytes in one call. If your witnesses or tests generate random data for a large value, fill the buffer in chunks of 65,536 bytes or fewer, or use a smaller value.
+
+## Features that need the ledger 9 toolchain
+
+Some standard library functions exist only in the toolchains for ledger 9, such as 0.36.1. With toolchain 0.31.1, a ledger 8 toolchain, these fail with `unbound identifier`:
+
+- `keccak256`
+- `sha512`
+- `jubjubSchnorrVerify` and `JubjubSchnorrSignature`
+
+All three compile with toolchain 0.36.1. If your smart contract still builds with toolchain 0.31.1, move it to the toolchain in the [support matrix](/relnotes/support-matrix) before you use them. Recompiling changes the verifier keys of a deployed smart contract, so read the [Ledger 9 upgrade](/relnotes/ledger-9) page first.
+
+## Related content
+
+- [Compact reference](/compact/reference/compact-reference) for the full language definition
+- [Compact standard library](/compact/standard-library/exports) for every function and type
+- [Compact as a privacy-first language](/concepts/how-midnight-works/compact-privacy-first-language) for how circuits, witnesses, and the ledger fit together
+- [Troubleshoot compiler errors](/troubleshoot/compiler-errors) for other compiler messages
