@@ -1,0 +1,147 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Troubleshoot wallet sync stalls
+description: Find out why a Midnight Wallet SDK wallet never reports synced on Preprod or Mainnet, tell a slow sync from a stalled one, and fix the common causes.
+sidebar_label: Wallet sync stalls
+sidebar_position: 22
+tags: [troubleshooting, wallet, wallet-sdk, dust, preprod, indexer]
+---
+
+# Troubleshoot wallet sync stalls
+
+Use this page when a wallet built with the Wallet SDK starts but never reports synced. `waitForSyncedState()` doesn't return, or `isSynced` stays `false` on Preprod or Mainnet while the same code finishes syncing on a local network.
+
+A slow first sync often looks like a stall. Start by checking your SDK version and watching the wallet's progress, then find the symptom that matches.
+
+## Check the Wallet SDK version
+
+Preprod, Preview, and Mainnet run ledger 9. Wallets on Wallet SDK 1.x, including 1.2.0, can't transact on them. Install the Wallet SDK version listed in the [compatibility matrix](/relnotes/support-matrix) before you debug anything else:
+
+```bash
+npm ls @midnightntwrk/wallet-sdk
+```
+
+The rest of this page describes Wallet SDK 2.0.1.
+
+## What `isSynced` waits for
+
+A `WalletFacade` holds three wallets: shielded, unshielded, and DUST. `isSynced` on the facade state is `true` only when all three report that they're complete, and `waitForSyncedState()` waits for each of them. One slow wallet holds back the whole facade.
+
+Each wallet is complete when both of these hold:
+
+- It's connected to the indexer.
+- It has applied every event up to the highest one that the indexer reported as relevant to it.
+
+The unshielded wallet also checks the indexer against the node. When the configuration has a node address, the wallet compares the indexer's latest block with the node's finalized block. It doesn't report synced before the first check finishes. It also waits while the indexer is behind the node, or while the two are on different networks.
+
+## Tell a slow sync from a stalled one
+
+Log each wallet's progress once a minute. A slow sync keeps moving: the applied number grows toward the target. A stalled sync stops moving.
+
+```typescript
+import * as Rx from 'rxjs';
+
+const progressLog = wallet
+  .state()
+  .pipe(Rx.throttleTime(60_000))
+  .subscribe((s) => {
+    const shielded = s.shielded.progress;
+    const unshielded = s.unshielded.progress;
+    const dust = s.dust.progress;
+    console.log(new Date().toISOString(), {
+      synced: s.isSynced,
+      shielded: `${shielded.appliedIndex}/${shielded.highestRelevantWalletIndex} connected=${shielded.isConnected}`,
+      unshielded: `${unshielded.appliedId}/${unshielded.highestTransactionId} connected=${unshielded.isConnected} indexer=${unshielded.indexerLiveness._tag}`,
+      dust: `${dust.appliedIndex}/${dust.highestRelevantWalletIndex} connected=${dust.isConnected}`,
+    });
+  });
+```
+
+`wallet` is your `WalletFacade`. Call `progressLog.unsubscribe()` when you no longer need the log. Read the output this way:
+
+- **A number that grows between lines**: the wallet is still syncing. Leave it running. See [First sync takes hours](#first-sync-takes-hours).
+- **`indexer=Behind` or `indexer=WrongNetwork` on the unshielded wallet**: see [The unshielded wallet never reports synced](#the-unshielded-wallet-never-reports-synced).
+- **A number that stops growing for many minutes, with no error**: see [Sync stops with no error](#sync-stops-with-no-error).
+
+## First sync takes hours
+
+A new wallet on Preprod connects within seconds, its balances appear, and `isSynced` stays `false` for hours.
+
+**Cause**: The DUST wallet replays every DUST event on the chain, not only the events for your addresses. Preprod and Mainnet moved to ledger 9 in place, so their DUST history includes all the events from before the upgrade. A local network has a short history, which is why the same code syncs much sooner there.
+
+**Fix**: Keep the process running until the first sync finishes. A process that restarts without a saved wallet state syncs again from the start.
+
+For a new wallet, you can skip the DUST history from before ledger 9 with the `skipLedgerV8DustHistory` option:
+
+```typescript
+const wallet = await WalletFacade.init({
+  configuration,
+  shielded: (config) => ShieldedWallet(config).startWithSeed(seeds.shielded),
+  unshielded: (config) => UnshieldedWallet(config).startWithPublicKey(PublicKey.fromKeyStore(unshieldedKeystore)),
+  dust: (config) => DustWallet({ ...config, skipLedgerV8DustHistory: true }).startWithSeed(seeds.dust),
+});
+```
+
+The option has these limits:
+
+- It applies only to a wallet that starts from a seed. A wallet that you restore from a saved state resumes where that state left off.
+- The wallet has no DUST transaction history from before ledger 9.
+- It changes only the DUST wallet. The shielded and unshielded wallets still read the history from before ledger 9, because they need it to find the coins that they hold.
+- It's best effort. On a chain with no ledger 8 history, such as Preview, or when the indexer search finds nothing, the wallet starts as it would without the option.
+
+## Repeated `Wallet.Sync: [object Object]` messages
+
+The wallet prints `Wallet.Sync: [object Object]` again and again while it syncs.
+
+**Cause**: The indexer connection failed or closed, for example during a long first sync. The SDK turns the WebSocket error into the text `[object Object]`, so the message doesn't say what went wrong.
+
+**Fix**: Keep the process running. The wallet usually retries on its own. If your progress log shows that the applied numbers keep growing between these messages, then the sync is healthy. If the numbers stop growing, then check the indexer address and your Blockfrost project ID. Both must be for the same network as the rest of your configuration.
+
+## The unshielded wallet never reports synced
+
+The progress log shows the shielded and DUST wallets complete, but the unshielded wallet reports `indexer=Behind`, `indexer=WrongNetwork`, or `indexer=Unknown` and never completes.
+
+**Cause**: The unshielded wallet won't report synced over an indexer that it can't trust:
+
+- `Behind`: the indexer is further behind the node's finalized block than the wallet accepts.
+- `WrongNetwork`: the indexer and the node in your configuration belong to different networks.
+- `Unknown`: the wallet hasn't finished its first comparison of the indexer and the node.
+
+**Fix**: Check that `indexerClientConnection` and `relayURL` in your configuration point to the same network. For Preprod and Mainnet endpoints, see [Networks and environments](/guides/networks-and-environments). If the indexer is behind, then wait for it to catch up or point the wallet at another indexer for the same network.
+
+## Sync stops with no error
+
+The applied numbers stop growing for a long time, and no error appears. `isSynced` never becomes `true`.
+
+**Cause**: The connection to the indexer can stay open while no events arrive. The DUST wallet doesn't notice a silent connection, so it waits for events instead of reconnecting.
+
+**Fix**: Stop the wallet with `await wallet.stop()` and start it again. A wallet that starts again from its seed syncs from the start. To keep the progress that it already made, save each wallet's state first with `serializeState()`, for example `await wallet.dust.serializeState()`, and start each new wallet from its saved state with `restore()`.
+
+## A restored DUST wallet fails on its first update
+
+You start a DUST wallet from a saved state, and every sync attempt fails with an error like one of these:
+
+```text
+values inserted non-linearly into dust commitment tree; expected to insert index 118195, but received 118183.
+```
+
+```text
+received an event with a timestamp prior to the time already synced to
+```
+
+The wallet retries, but the same error comes back on every attempt and after every restart.
+
+**Cause**: The saved state records where to resume as an indexer event ID. The indexer's database assigns those IDs, so the same event can have a different ID on another indexer deployment, or after an indexer resyncs its database. When the IDs don't match, the wallet resumes at the wrong event.
+
+**Fix**: Discard the saved DUST wallet state and start the DUST wallet from its seed. On a new start, you can use `skipLedgerV8DustHistory` to shorten the replay, as described in [First sync takes hours](#first-sync-takes-hours). Keep a saved state with the indexer that it came from, and don't reuse it after you change indexer providers. For the move from the Midnight-hosted indexer to Blockfrost, see [Migrating from the Midnight-hosted endpoints](/guides/networks-and-environments#migrating-from-the-midnight-hosted-mainnet-endpoints).
+
+## Get help
+
+If none of these steps fixes the stall, then open a ticket at the [Midnight Service Desk](https://midnightntwrk.github.io/servicedesk/) or ask in [Discord](https://discord.gg/midnightnetwork). Include your Wallet SDK version, the network, and a few lines of the progress log.
+
+## Related topics
+
+- [Funding a wallet](/guides/acquire-tokens) builds the wallet that this page uses.
+- [Managing DUST](/guides/manage-dust) covers DUST generation, balances, and fees.
+- [Compatibility matrix](/relnotes/support-matrix) lists the supported versions for each network.
