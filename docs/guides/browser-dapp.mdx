@@ -18,14 +18,14 @@ import Ledger8Banner from '@site/docs/_partials/_ledger8-banner.mdx';
 
 A browser DApp does the same work as a Node.js script that deploys and calls a smart contract, with one difference: it holds no keys. The user's wallet extension owns the keys, pays the fee, and submits the transaction, and the page reaches it through the DApp Connector API. This guide takes a web page through the whole sequence. You connect to the wallet and build the Midnight.js providers from it. Then you deploy a contract, call a circuit, read the private state back, and join the same contract from a second browser.
 
-The examples use Midnight.js 5.0.1 and DApp Connector API 4.0.1 with a small counter contract and a plain TypeScript page built with Vite. Nothing in the Midnight.js code depends on a UI framework. In React or Next.js, run it in client-side code and configure your bundler for the WebAssembly packages the way this guide configures Vite. For the Node.js version of this workflow, see [Deploying and operating a contract](./deploy-and-operate).
+The examples use Midnight.js 4.1.1 and DApp Connector API 4.0.1 with a small counter contract and a plain TypeScript page built with Vite. Nothing in the Midnight.js code depends on a UI framework. In React or Next.js, run it in client-side code and configure your bundler for the WebAssembly packages the way this guide configures Vite. For the Node.js version of this workflow, see [Deploying and operating a contract](./deploy-and-operate).
 
 ## Prerequisites
 
 These apply to every procedure in this guide:
 
 - Node.js 22 or later.
-- The Compact toolchain 0.31.1. Install it with `compact update 0.31.1 --no-set-default`, which keeps your current default toolchain.
+- The Compact toolchain 0.31.1, the version the [support matrix](../relnotes/support-matrix) pairs with Midnight.js 4.1.1. Install it with `compact update 0.31.1 --no-set-default`, which keeps your current default toolchain. Newer toolchains compile for ledger 9, which Midnight.js 4.1.1 does not support.
 - A browser wallet that implements DApp Connector API 4.x, such as [Lace](https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk), set to the network you target.
 - NIGHT in that wallet, registered for DUST generation, because every deploy and call pays a fee in DUST. [Funding a wallet](./acquire-tokens) covers the faucet and the registration.
 - On Preprod, a Blockfrost project ID for the **Midnight Preprod** network, because the page reads public state from the Blockfrost indexer. See [Getting a Blockfrost project token](./networks-and-environments#getting-a-blockfrost-project-token).
@@ -49,7 +49,7 @@ A deployment follows the same path without the proving stage: creating a contrac
 Three rules follow from this split:
 
 - **The page serves the ZK files.** The `keys/` and `zkir/` folders from the compile have to be reachable over HTTP from the page's own origin.
-- **The network ID goes on the provider set.** Midnight.js reads the network ID from the providers' `config` whenever it builds a transaction, so the ID in `config: { networkId, ttlSeconds }` must be the same ID you connect the wallet with. Network IDs are lowercase: `preprod`, `preview`, `mainnet`, and `undeployed`.
+- **The network ID comes first.** Midnight.js reads the network ID whenever it builds a transaction, so call `setNetworkId` before any deploy or call. Network IDs are lowercase: `preprod`, `preview`, `mainnet`, and `undeployed`.
 - **Private state belongs to the browser profile, not to the wallet.** It lives in IndexedDB on the device. The same wallet in another browser starts with no private state for your contract.
 
 [Browser provider reference](#browser-provider-reference) maps each stage to the Midnight.js provider that implements it.
@@ -72,11 +72,11 @@ Create a Vite project, add the Midnight.js packages, compile the contract, and p
 2. Install the DApp Connector types, the Midnight.js packages, and `events`, pinned to the versions this guide uses:
 
    ```bash
-   npm install @midnight-ntwrk/dapp-connector-api@4.0.1 @midnight-ntwrk/midnight-js-contracts@5.0.1 \
-     @midnight-ntwrk/midnight-js-dapp-connector-proof-provider@5.0.1 @midnight-ntwrk/midnight-js-fetch-zk-config-provider@5.0.1 \
-     @midnight-ntwrk/midnight-js-indexer-public-data-provider@5.0.1 @midnight-ntwrk/midnight-js-level-private-state-provider@5.0.1 \
-     @midnight-ntwrk/midnight-js-protocol@5.0.1 \
-     @midnight-ntwrk/midnight-js-types@5.0.1 @midnight-ntwrk/midnight-js-utils@5.0.1 events
+   npm install @midnight-ntwrk/dapp-connector-api@4.0.1 @midnight-ntwrk/midnight-js-contracts@4.1.1 \
+     @midnight-ntwrk/midnight-js-dapp-connector-proof-provider@4.1.1 @midnight-ntwrk/midnight-js-fetch-zk-config-provider@4.1.1 \
+     @midnight-ntwrk/midnight-js-indexer-public-data-provider@4.1.1 @midnight-ntwrk/midnight-js-level-private-state-provider@4.1.1 \
+     @midnight-ntwrk/midnight-js-network-id@4.1.1 @midnight-ntwrk/midnight-js-protocol@4.1.1 \
+     @midnight-ntwrk/midnight-js-types@4.1.1 @midnight-ntwrk/midnight-js-utils@4.1.1 events
    ```
 
 3. Create `vite.config.ts` in the project root. Without the `exclude` list, the development server fails with `Cannot access '__wbindgen_start' before initialization`:
@@ -89,9 +89,8 @@ Create a Vite project, add the Midnight.js packages, compile the contract, and p
        // Vite's dev server pre-bundles dependencies, which breaks the start-up
        // order of these WebAssembly packages. Excluding them keeps it intact.
        exclude: [
-         '@midnightntwrk/ledger-v9',
-         '@midnightntwrk/onchain-runtime-v4',
-         '@midnight-ntwrk/midnight-js-protocol',
+         '@midnight-ntwrk/ledger-v8',
+         '@midnight-ntwrk/onchain-runtime-v3',
        ],
      },
    });
@@ -191,10 +190,10 @@ Find the wallet, connect to it with the network ID you target, and give Midnight
 
    ```typescript title="src/wallet.ts"
    import type { ConnectedAPI, InitialAPI } from '@midnight-ntwrk/dapp-connector-api';
-   import type { NetworkId } from '@midnight-ntwrk/midnight-js-types';
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
    // Lowercase, exactly as the wallet and Midnight.js expect it.
-   export const NETWORK_ID: NetworkId = import.meta.env.VITE_NETWORK_ID ?? 'preprod';
+   export const NETWORK_ID: string = import.meta.env.VITE_NETWORK_ID ?? 'preprod';
 
    // Every installed wallet adds an entry to window.midnight. The key is not
    // stable, so identify a wallet by its rdns and apiVersion instead.
@@ -211,8 +210,8 @@ Find the wallet, connect to it with the network ID you target, and give Midnight
        throw new Error(`The wallet is not connected to ${NETWORK_ID}.`);
      }
 
-     // The providers built from this connection carry NETWORK_ID in their
-     // config, which is where Midnight.js reads it when it builds a transaction.
+     // Midnight.js reads this value whenever it builds a transaction.
+     setNetworkId(NETWORK_ID);
      return api;
    }
    ```
@@ -308,17 +307,11 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
    import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
    import { levelPrivateStateProvider } from '@midnight-ntwrk/midnight-js-level-private-state-provider';
    import { CostModel, Transaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
-   import {
-     createLedger9MidnightProvider,
-     createLedger9WalletProvider,
-     type MidnightProvider,
-     type WalletProvider,
-   } from '@midnight-ntwrk/midnight-js-types';
+   import type { MidnightProvider, WalletProvider } from '@midnight-ntwrk/midnight-js-types';
    import { fromHex, toHex, validatePassword } from '@midnight-ntwrk/midnight-js-utils';
 
    import type { CounterCircuits, CounterPrivateState, CounterProviders } from './contract';
    import { PRIVATE_STATE_ID } from './contract';
-   import { NETWORK_ID } from './wallet';
 
    // The wallet speaks hex strings. Midnight.js speaks ledger transaction objects.
    async function walletBridge(api: ConnectedAPI): Promise<WalletProvider & MidnightProvider> {
@@ -351,7 +344,7 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
      // Fetches keys/ and zkir/ from public/counter/.
      const zkConfigProvider = new FetchZkConfigProvider<CounterCircuits>(
        `${window.location.origin}/counter`,
-       { fetchFunc: fetch.bind(window) },
+       fetch.bind(window),
      );
      const wallet = await walletBridge(api);
 
@@ -363,12 +356,8 @@ Build the six providers that every Midnight.js deploy and call takes. In a brows
        publicDataProvider: indexerPublicDataProvider(indexerUri, indexerWsUri),
        zkConfigProvider,
        proofProvider: await dappConnectorProofProvider(api, zkConfigProvider, CostModel.initialCostModel()),
-       // Midnight.js 5 providers are tagged with the ledger eras they serve.
-       // The wallet bridge works with ledger 9 transactions, so these wrappers
-       // lift it into the tagged interfaces.
-       walletProvider: createLedger9WalletProvider(wallet),
-       midnightProvider: createLedger9MidnightProvider((tx) => wallet.submitTx(tx)),
-       config: { networkId: NETWORK_ID, ttlSeconds: 3600 },
+       walletProvider: wallet,
+       midnightProvider: wallet,
      };
    }
    ```
@@ -670,7 +659,7 @@ Failures you are likely to meet on this guide's path, and their fixes. The Lace 
 | `language version 0.27.0 mismatch` or `language version 0.26.0 mismatch` from `compact compile` | The default Compact toolchain is 0.35.0 or 0.34.0, which compile for ledger 9 | Install toolchain 0.31.1 with `compact update 0.31.1 --no-set-default`, and compile with `compact compile +0.31.1` |
 | `ReferenceError: Cannot access '__wbindgen_start' before initialization`, and a blank page on the development server | Vite pre-bundled the WebAssembly packages | Add the `optimizeDeps.exclude` list from [Setting up the project](#setting-up-the-project) |
 | `TypeError: Class extends value undefined is not a constructor or null`, with a console warning that `events` has been externalized | The private state store imports the Node.js `events` module, which browsers lack | Run `npm install events` |
-| `Network ID has not been configured` | The providers were built without a `config`, or with a network ID that differs from the wallet connection | Build the providers with `config: { networkId, ttlSeconds }`, with the same ID you pass to `connect` |
+| `Network ID has not been configured. Call setNetworkId() before any wallet or contract operation.` | A deploy or call ran before `setNetworkId` | Call `setNetworkId` when you connect, with the same ID you pass to `connect` |
 | `Invalid network ID`, `Unsupported network ID`, or `Network ID mismatch` from Lace on connect | The ID passed to `connect` is misspelled, or Lace is set to another network | Pass the lowercase ID, such as `preprod`, and switch Lace to the same network |
 | `Access to wallet api denied` from Lace on connect | The user declined the connection | Let the user try again |
 | `User rejected transaction` from Lace | The user declined the transaction | Nothing was submitted. Let the user try again |

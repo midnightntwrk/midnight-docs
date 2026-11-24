@@ -70,15 +70,16 @@ Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a
      },
      "dependencies": {
        "@midnight-ntwrk/compact-runtime": "0.16.0",
-       "@midnight-ntwrk/midnight-js-contracts": "5.0.1",
-       "@midnight-ntwrk/midnight-js-http-client-proof-provider": "5.0.1",
-       "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "5.0.1",
-       "@midnight-ntwrk/midnight-js-level-private-state-provider": "5.0.1",
-       "@midnight-ntwrk/midnight-js-node-zk-config-provider": "5.0.1",
-       "@midnight-ntwrk/midnight-js-protocol": "5.0.1",
-       "@midnight-ntwrk/midnight-js-types": "5.0.1",
-       "@midnight-ntwrk/midnight-js-utils": "5.0.1",
-       "@midnightntwrk/wallet-sdk": "2.0.1",
+       "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+       "@midnight-ntwrk/midnight-js-http-client-proof-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-level-private-state-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
+       "@midnight-ntwrk/midnight-js-node-zk-config-provider": "4.1.1",
+       "@midnight-ntwrk/midnight-js-protocol": "4.1.1",
+       "@midnight-ntwrk/midnight-js-types": "4.1.1",
+       "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+       "@midnightntwrk/wallet-sdk": "1.2.0",
        "@scure/bip39": "2.4.0",
        "rxjs": "7.8.2"
      },
@@ -100,7 +101,7 @@ Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a
 
    :::warning[Keep the override]
 
-   `@midnight-ntwrk/midnight-js-protocol` and `@midnight-ntwrk/compact-runtime` 0.16.0 each bring in an onchain runtime v3 line. Without the `overrides` entry, npm can install two copies, and every circuit call fails with `expected instance of StateValue`.
+   `@midnight-ntwrk/midnight-js-protocol` 4.1.1 pins `@midnight-ntwrk/onchain-runtime-v3` to 3.0.0, while `@midnight-ntwrk/compact-runtime` 0.16.0 accepts any 3.x release. Without the `overrides` entry, npm installs two copies, and every circuit call fails with `expected instance of StateValue`.
 
    :::
 
@@ -122,20 +123,19 @@ Create a TypeScript project with the wallet SDK, the Midnight.js packages, and a
    }
    ```
 
-3. Add the network configuration. Every other file reads the network ID and the endpoints from this module: the wallet SDK takes the ID from `CONFIG.networkId`, and Midnight.js takes it from the provider set's `config`:
+3. Add the network configuration. `setNetworkId` runs when this module loads, so every other file imports it first:
 
    ```typescript title="src/config.ts"
-   import { type NetworkId } from '@midnight-ntwrk/midnight-js-types';
+   import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
    // Local network. For a public network, change the ID and the four endpoints.
-   export const NETWORK_ID: NetworkId = 'undeployed';
+   setNetworkId('undeployed');
 
    const indexerPort = process.env.INDEXER_PORT ?? '8088';
    const nodePort = process.env.NODE_PORT ?? '9944';
    const proofServerPort = process.env.PROOF_SERVER_PORT ?? '6300';
 
    export const CONFIG = {
-     networkId: NETWORK_ID,
      indexerHttpUrl: `http://127.0.0.1:${indexerPort}/api/v4/graphql`,
      indexerWsUrl: `ws://127.0.0.1:${indexerPort}/api/v4/graphql/ws`,
      node: `http://127.0.0.1:${nodePort}`,
@@ -195,7 +195,7 @@ Turn the secret your service holds into the three key sets a wallet needs. The s
    import { HDWallet, Roles, createKeystore, validateMnemonic } from '@midnightntwrk/wallet-sdk';
    import { mnemonicToSeedSync } from '@scure/bip39';
    import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
-   import { CONFIG } from './config.js';
+   import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 
    /** Turn a BIP-39 recovery phrase into the 64-byte seed the HD wallet expects. */
    export const seedFromMnemonic = (phrase: string): Uint8Array => {
@@ -232,7 +232,7 @@ Turn the secret your service holds into the three key sets a wallet needs. The s
      return {
        shieldedSecretKeys: ledger.ZswapSecretKeys.fromSeed(result.keys[Roles.Zswap]),
        dustSecretKey: ledger.DustSecretKey.fromSeed(result.keys[Roles.Dust]),
-       unshieldedKeystore: createKeystore(result.keys[Roles.NightExternal], CONFIG.networkId),
+       unshieldedKeystore: createKeystore(result.keys[Roles.NightExternal], getNetworkId()),
      };
    };
 
@@ -326,6 +326,7 @@ Start the wallet from its keys, wait until it has read the chain, and save its s
    } from '@midnightntwrk/wallet-sdk';
    import * as ledger from '@midnight-ntwrk/midnight-js-protocol/ledger';
    import { type FinalizedTransaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
+   import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
    import { CONFIG } from './config.js';
    import { type WalletKeys } from './keys.js';
 
@@ -355,7 +356,7 @@ Start the wallet from its keys, wait until it has read the chain, and save its s
 
      const wallet = await WalletFacade.init({
        configuration: {
-         networkId: CONFIG.networkId,
+         networkId: getNetworkId(),
          indexerClientConnection: {
            indexerHttpUrl: CONFIG.indexerHttpUrl,
            indexerWsUrl: CONFIG.indexerWsUrl,
@@ -528,10 +529,11 @@ Send NIGHT to the new wallet so that it can generate DUST and pay fees. On the l
 
    ```typescript title="src/fund-local.ts"
    // Local network only: send NIGHT from the pre-funded genesis wallet to an address.
+   import './config.js';
    import { Buffer } from 'node:buffer';
    import { MidnightBech32m, UnshieldedAddress } from '@midnightntwrk/wallet-sdk';
    import { unshieldedToken } from '@midnight-ntwrk/midnight-js-protocol/ledger';
-   import { CONFIG } from './config.js';
+   import { getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
    import { deriveWalletKeys } from './keys.js';
    import { buildWallet, submitWithRetry } from './wallet.js';
 
@@ -540,7 +542,7 @@ Send NIGHT to the new wallet so that it can generate DUST and pay fees. On the l
 
    const to = process.argv[2];
    if (!to) throw new Error('Usage: tsx src/fund-local.ts <mn_addr_undeployed1...>');
-   const receiverAddress = MidnightBech32m.parse(to).decode(UnshieldedAddress, CONFIG.networkId);
+   const receiverAddress = MidnightBech32m.parse(to).decode(UnshieldedAddress, getNetworkId());
 
    const genesis = deriveWalletKeys(Buffer.from(GENESIS_SEED, 'hex'));
    const wallet = await buildWallet(genesis);
@@ -612,12 +614,7 @@ Run the whole path in one script: restore the wallet, register its NIGHT for DUS
    import { NodeZkConfigProvider } from '@midnight-ntwrk/midnight-js-node-zk-config-provider';
    import { CompiledContract } from '@midnight-ntwrk/midnight-js-protocol/compact-js';
    import { type FinalizedTransaction } from '@midnight-ntwrk/midnight-js-protocol/ledger';
-   import {
-     createLedger9MidnightProvider,
-     createLedger9WalletProvider,
-     type MidnightProviders,
-     type UnboundTransaction,
-   } from '@midnight-ntwrk/midnight-js-types';
+   import { type MidnightProviders, type UnboundTransaction } from '@midnight-ntwrk/midnight-js-types';
    import { ttlOneHour } from '@midnight-ntwrk/midnight-js-utils';
    import { Contract, ledger as counterLedger } from '../contract/managed/counter/contract/index.js';
    import { deriveWalletKeys, readSeed } from './keys.js';
@@ -683,12 +680,8 @@ Run the whole path in one script: restore the wallet, register its NIGHT for DUS
      publicDataProvider: indexerPublicDataProvider(CONFIG.indexerHttpUrl, CONFIG.indexerWsUrl),
      zkConfigProvider,
      proofProvider: httpClientProofProvider(CONFIG.proofServer, zkConfigProvider),
-     // Midnight.js 5 providers are tagged with the ledger eras they serve.
-     // The wallet object works with ledger 9 transactions, so these wrappers
-     // lift it into the tagged interfaces.
-     walletProvider: createLedger9WalletProvider(walletProvider),
-     midnightProvider: createLedger9MidnightProvider((tx) => walletProvider.submitTx(tx)),
-     config: { networkId: CONFIG.networkId, ttlSeconds: 3600 },
+     walletProvider,
+     midnightProvider: walletProvider,
    };
 
    // 4. Deploy the contract and call a circuit.
