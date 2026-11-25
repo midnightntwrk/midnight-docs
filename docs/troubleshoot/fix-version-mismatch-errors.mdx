@@ -10,11 +10,8 @@ slug: /how-to/fix-version-mismatches
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import Step, { StepsProvider } from "@site/src/components/Step/Step";
-import Ledger8Banner from '@site/docs/_partials/_ledger8-banner.mdx';
 
 # Fix version mismatch errors
-
-<Ledger8Banner />
 
 Learn how to resolve version compatibility issues between Midnight components that cause build failures and runtime errors.
 
@@ -23,7 +20,7 @@ Learn how to resolve version compatibility issues between Midnight components th
 Midnight consists of multiple components that must work together in compatible versions:
 
 - **Compact toolchain**: Binaries, compiler, and formatter
-- **Runtime libraries**: `@midnight-ntwrk/compact-runtime`, `@midnight-ntwrk/ledger-v8`, `@midnight-ntwrk/onchain-runtime-v3`, and related packages
+- **Runtime libraries**: `@midnight-ntwrk/compact-runtime`, `@midnightntwrk/ledger-v9`, `@midnightntwrk/onchain-runtime-v4`, and related packages
 - **JavaScript libraries**: `@midnight-ntwrk/midnight-js` (barrel package), `@midnight-ntwrk/dapp-connector-api`, `@midnightntwrk/wallet-sdk`, and related packages
 - **Proof server**: Zero-knowledge proof generation service
 - **Indexer**: GraphQL API for querying blockchain data (optional)
@@ -33,6 +30,25 @@ When these components are out of sync, you may encounter build errors, deploymen
 :::info Check the compatibility matrix
 Always refer to the official [release compatibility matrix](../relnotes/support-matrix) to verify which versions work together.
 :::
+
+## Recognize a compiler and runtime mismatch
+
+Each Compact toolchain release expects one version of `@midnight-ntwrk/compact-runtime`. A compiled contract checks the installed runtime when it loads. If the versions don't match, importing the contract throws an error like this:
+
+```text
+CompactError: Version mismatch: compiled code expects 0.21.0, runtime is 0.16.0
+```
+
+The version after `expects` is the runtime that your toolchain needs. The version after `runtime is` is the runtime installed in `node_modules`. To fix it, recompile with the toolchain in the compatibility matrix. If your toolchain is already the one in the matrix, install the runtime that it expects.
+
+| Compact toolchain | Compact runtime it expects |
+|-------------------|----------------------------|
+| 0.36.1            | 0.21.0                     |
+| 0.35.0            | 0.20.0                     |
+| 0.34.0            | 0.19.0                     |
+| 0.31.1            | 0.16.0                     |
+
+Mainnet, Preview, and Preprod run ledger 9. Use Compact toolchain 0.36.1 with Compact runtime 0.21.0, as the [compatibility matrix](../relnotes/support-matrix) lists. If the error says the compiled code expects 0.16.0, a Compact toolchain 0.31.x compiled the contract for ledger 8. Recompile it with 0.36.1. Recompiling changes a contract's verifier keys, so for a contract that's already deployed, read [Recompiling a contract changes its verifier keys](../relnotes/ledger-9#recompiling-a-contract-changes-its-verifier-keys) first.
 
 ## Check your current versions
 
@@ -60,8 +76,8 @@ Run these commands to check the installed versions of runtime packages:
 
 ```bash
 npm list @midnight-ntwrk/compact-runtime
-npm list @midnight-ntwrk/ledger-v8
-npm list @midnight-ntwrk/onchain-runtime-v3
+npm list @midnightntwrk/ledger-v9
+npm list @midnightntwrk/onchain-runtime-v4
 ```
 
 Verify that all runtime packages use compatible version numbers as specified in the compatibility matrix.
@@ -123,16 +139,20 @@ Update your `package.json` with compatible versions from the matrix:
 {
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "x.x.x",
-    "@midnight-ntwrk/ledger-v8": "x.x.x",
-    "@midnight-ntwrk/onchain-runtime-v3": "x.x.x",
+    "@midnightntwrk/ledger-v9": "x.x.x",
+    "@midnightntwrk/onchain-runtime-v4": "x.x.x",
     "@midnightntwrk/wallet-sdk": "x.x.x"
   }
 }
 ```
 
-:::note Projects on testkit-js 4.x
-If your project uses testkit-js 4.x, keep the wallet SDK as `@midnight-ntwrk/wallet-sdk` at the matrix version. Those testkit-js releases depend on that scope, so adding `@midnightntwrk/wallet-sdk` next to them installs the wallet SDK twice. See the [npm scopes note](/sdks/official/wallet-developer-guide#installation) in the wallet SDK guide.
-:::
+The matrix doesn't list `@midnightntwrk/ledger-v9`. Use the version that your Midnight.js release depends on. For example, this command shows that Midnight.js 5.0.1 pins `@midnightntwrk/ledger-v9` 1.0.2 and `@midnight-ntwrk/compact-runtime` 0.21.0:
+
+```bash
+npm view @midnight-ntwrk/midnight-js-protocol@5.0.1 dependencies
+```
+
+The output also lists `@midnightntwrk/ledger-v8`, `@midnight-ntwrk/onchain-runtime-v3`, and `compact-runtime-ledger8` (an alias for `@midnight-ntwrk/compact-runtime` 0.16.0). Midnight.js keeps these to read data from the ledger 8 era. Ignore them when you pick versions, and don't install compact-runtime 0.16.0 for a ledger 9 contract.
 
 Install the updated packages:
 
@@ -216,7 +236,7 @@ In your `package.json`, specify exact versions without range operators such as `
 {
   "dependencies": {
     "@midnight-ntwrk/compact-runtime": "x.x.x",
-    "@midnight-ntwrk/ledger-v8": "x.x.x"
+    "@midnightntwrk/ledger-v9": "x.x.x"
   }
 }
 ```
@@ -328,7 +348,7 @@ compact compile --version || echo "❌ Compiler not found"
 echo ""
 
 echo "Runtime packages:"
-npm list --depth=0 | grep @midnight-ntwrk || echo "❌ No Midnight packages found"
+npm list --depth=0 | grep -E '@midnight-?ntwrk' || echo "❌ No Midnight packages found"
 echo ""
 
 echo "Node.js:"
