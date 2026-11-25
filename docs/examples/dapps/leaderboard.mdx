@@ -34,28 +34,27 @@ The challenge is enforcing ownership rules while giving players full privacy con
 
 ## DApp architecture
 
-The leaderboard example uses a monorepo structure with three workspace packages and a Docker configuration for the proof server.
+The leaderboard example lives in [`examples/leaderboard`](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/leaderboard) in the midnight-examples monorepo:
 
 ```text
-midnight-leaderboard/
-├── contract/                    # Compact smart contract and TypeScript bindings
+examples/leaderboard/
+├── contract/
 │   ├── leaderboard.compact      # The smart contract
-│   └── src/
-│       ├── index.ts             # Contract exports and witness wiring
-│       └── witnesses.ts         # Witness provider
+│   ├── index.ts                 # Contract exports and witness wiring
+│   ├── witnesses.ts             # Witness provider
+│   └── managed/leaderboard/     # Compiler output, committed for the Vercel build
 ├── api/                         # Shared business logic (platform-agnostic)
-│   └── src/
-│       ├── index.ts             # LeaderboardAPI class
-│       ├── common-types.ts      # Shared types and provider interfaces
-│       └── utils/index.ts       # Display name decoder
-├── leaderboard-ui/              # React and Vite browser DApp
+│   ├── index.ts                 # LeaderboardAPI class
+│   ├── common-types.ts          # Shared types and provider interfaces
+│   └── utils/index.ts           # Display name decoder
+├── src/                         # Network tests and their wallet and provider setup
+├── ui/                          # React and Vite browser DApp
 │   └── src/
 │       ├── App.tsx              # Game UI, leaderboard, and wallet connection
 │       ├── main.tsx             # Entry point with Buffer polyfill
 │       ├── contexts/            # Lace wallet provider bridge
 │       └── hooks/               # Indexer read hook
-└── proof-server/                # Docker config for the proof server
-    └── Dockerfile
+└── compose.yml                  # Local network: node, indexer, and proof server
 ```
 
 ## The leaderboard contract
@@ -146,9 +145,11 @@ The contract defines two witness functions:
 Before working with the leaderboard example, ensure that you have:
 
 - Node.js version 22 or higher
+- npm 11.10 or later. Node.js 22 ships npm 10, so run `npm install -g npm@11` first
 - Docker Desktop installed and running
-- Compact toolchain installed
+- Compact toolchain 0.36.1 installed
 - Lace wallet browser extension installed
+- A [Blockfrost](https://blockfrost.io/) project ID for Midnight Preprod. The UI reads the leaderboard from Blockfrost's Preprod indexer
 
 For more information, refer to [install the toolchain](../../getting-started/installation).
 
@@ -156,22 +157,26 @@ For more information, refer to [install the toolchain](../../getting-started/ins
 
 ### Clone the repository
 
-Get the leaderboard example from GitHub:
+Get the midnight-examples repository from GitHub:
 
 ```bash
-git clone https://github.com/midnightntwrk/midnight-leaderboard.git
-cd midnight-leaderboard
+git clone https://github.com/midnightntwrk/midnight-examples.git
+cd midnight-examples
 ```
 
 ### Install dependencies
 
-Install all required Node.js packages:
+Install all required Node.js packages from the repository root:
 
 ```bash
 npm install
 ```
 
-This command installs packages for the contract, API, and UI components.
+The repository is one npm workspace, so this command installs packages for every example, including the leaderboard contract, API, and UI. Then move into the example:
+
+```bash
+cd examples/leaderboard
+```
 
 ## Start the proof server
 
@@ -180,7 +185,7 @@ The proof server generates ZK proofs for transactions locally to protect private
 Start the proof server:
 
 ```bash
-docker run -p 6300:6300 -e MIDNIGHT_PROOF_SERVER_VERBOSE=true midnightntwrk/proof-server:8.0.3
+docker run -p 127.0.0.1:6300:6300 -e MIDNIGHT_PROOF_SERVER_VERBOSE=true midnightntwrk/proof-server:9.0.2
 ```
 
 :::tip[Keep the proof server running]
@@ -189,11 +194,10 @@ The proof server must stay active while using the DApp.
 
 ## Compile the contract
 
-Open a new terminal window at the project root and navigate to the `contract` directory:
+Open a new terminal window in `examples/leaderboard` and compile the contract with Compact toolchain 0.36.1:
 
 ```bash
-cd contract
-npm run compact
+npm run compile
 ```
 
 This command compiles the contract and generates TypeScript bindings, circuit keys, and ZKIR files in `contract/managed/leaderboard/`.
@@ -202,15 +206,6 @@ You should see the following output:
 
 ```text
 Compiling 2 circuits:
-  circuit "submitScore" (k=13, rows=4720)
-  circuit "verifyOwnership" (k=13, rows=2352)
-```
-
-Build the contract and API packages:
-
-```bash
-cd ..
-npm run build
 ```
 
 ## Set up the wallet
@@ -229,12 +224,11 @@ You need tDUST to pay transaction fees on Preprod. The wallet generates tDUST fr
 
 ## Run the browser DApp
 
-Navigate to the `leaderboard-ui` directory, install dependencies, and start the development server:
+Navigate to the `ui` directory and start the development server with your Blockfrost Preprod project ID:
 
 ```bash
-cd leaderboard-ui
-npm install
-npm run dev
+cd ui
+VITE_BLOCKFROST_PROJECT_ID=<your project id> npm run dev
 ```
 
 Open your browser at `http://localhost:3000`. The leaderboard UI loads and connects to the Preprod indexer.
@@ -243,27 +237,27 @@ Open your browser at `http://localhost:3000`. The leaderboard UI loads and conne
 
 ### Connect your wallet
 
-Click **Connect Wallet** in the top-right corner of the UI. Lace prompts you to authorize the connection. After you approve, your wallet address and tDUST balance appear in the header.
+Click **Connect Wallet** in the top-right corner of the UI. Lace prompts you to authorize the connection. After you approve, your shortened wallet address appears in the header.
 
 ### Deploy a new contract
 
-Click **Deploy Contract**. The UI calls `LeaderboardAPI.deploy()`, which submits a deployment transaction through Lace. Wait for the transaction to confirm on Preprod.
+Click **Switch**, then **Deploy New**. The UI calls `LeaderboardAPI.deploy()`, which submits a deployment transaction through Lace. Wait for the transaction to confirm on Preprod.
 
 :::note[Transaction time]
-Contract deployment typically takes 20 to 30 seconds on Preprod as the network processes your transaction and ZK proofs.
+Contract deployment can take about half a minute on Preprod while the network processes your transaction and ZK proofs.
 :::
 
 After confirmation, the contract address appears in the UI.
 
 ### Submit a score
 
-The game area displays a score counter. Play the game or enter a score manually, then choose a display name mode before submitting:
+Click **Start Game** and click as fast as you can. When the round ends, choose a display name mode before submitting:
 
 - **Custom name**: Enter a name up to 32 characters. The `getCustomName` witness supplies this value to the circuit.
 - **Public address**: The `getCustomName` witness passes your wallet address as the display name.
 - **Anonymous**: The contract does not invoke the `getCustomName` witness. Instead, the circuit stores `persistentHash(secretKey)` as the display name. The `localSecretKey` witness is still called to compute the owner commitment. The UI renders anonymous entries as generated names like "Crimson Tiger."
 
-Click **Submit Score**. The UI:
+Click **Submit to Chain**. The UI:
 
 1. Retrieves your secret key from private state via the `localSecretKey` witness.
 2. Computes your owner commitment using `ownerCommitment(secretKey)`.
@@ -281,7 +275,7 @@ The leaderboard table updates automatically after each confirmed transaction. It
 
 ### Verify entry ownership
 
-Click **Verify Ownership** next to any of your entries. The UI calls `verifyOwnership(entryId)`, which generates a ZK proof that your secret key matches the `ownerHash` stored in the entry. The circuit asserts the match on-chain without writing anything to the ledger.
+Click **Prove** next to any of your entries. The UI calls `verifyOwnership(entryId)`, which generates a ZK proof that your secret key matches the `ownerHash` stored in the entry. The circuit asserts the match on-chain without writing anything to the ledger.
 
 A success message confirms ownership. If your wallet does not hold the correct secret key for that entry, the assertion fails and the proof server rejects the transaction locally before it reaches the network.
 
@@ -291,12 +285,12 @@ Ownership verification only works from the same browser and wallet instance that
 
 ### Read state without a wallet
 
-You can view the leaderboard without connecting a wallet. The UI fetches the `scores` map directly from the indexer using the `LeaderboardIndexerProvider`. This is read-only access. Score submission and ownership verification require a wallet connection.
+You can view the leaderboard without connecting a wallet. The UI fetches the `scores` map directly from the indexer, through the `useLeaderboard` hook. This is read-only access. Score submission and ownership verification require a wallet connection.
 
 ## Next steps
 
 Now that you understand the leaderboard example:
 
-- **Explore the GitHub repository**: [Leaderboard repository](https://github.com/midnightntwrk/midnight-leaderboard)
+- **Explore the GitHub repository**: [Leaderboard example](https://github.com/midnightntwrk/midnight-examples/tree/main/examples/leaderboard)
 - **Build the contract yourself**: Follow the complete [Leaderboard tutorial](../../tutorials/leaderboard/overview) to build every layer of the DApp from scratch.
 - **Try another tutorial**: The [Tutorials](../../tutorials) page lists the other contracts and DApps you can work through step by step.

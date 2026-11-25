@@ -1,10 +1,10 @@
 ---
 SPDX-License-Identifier: Apache-2.0
-copyright: This file is part of midnight-docs. Copyright (C) 2026 Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 sidebar_label: "ZK Loan DApp"
 sidebar_position: 30
 title: ZK Loan DApp
-description: Privacy-preserving loan application on Midnight Network — credit data stays on the user's machine, only the loan outcome lands on-chain.
+description: Privacy-preserving loan application on Midnight Network. Credit data stays on the user's machine, and only the loan outcome lands on-chain.
 toc_max_heading_level: 2
 ---
 
@@ -48,12 +48,12 @@ examples/zk-loan/
 ## Prerequisites
 
 - **Node.js 22**: the SDK uses Iterator helpers, so Node 20 crashes at the first sync
-- **Corepack**, for Yarn 4: `corepack enable`
+- **npm 11.10 or later**. Node.js 22 ships npm 10, so run `npm install -g npm@11` first. The repository is one npm workspace with a single `package-lock.json`
 - **Docker and Docker Compose**, for the local network
-- **Compact toolchain**: install with the `compact` devtool, then run `compact update 0.31.1` and check with `compact compile --version`
+- **Compact toolchain**: install with the `compact` devtool, then run `compact update 0.36.1` and check with `compact compile --version`
 - **Midnight Lace wallet**, for the UI only. See the [installation guide](/getting-started/installation)
 
-The example is verified against Compact language `0.23`, compiler `0.31.1`, `@midnight-ntwrk/midnight-js-*` `4.1.1` and wallet SDK `1.2.0`. The local network in `compose.yml` runs `midnightntwrk/midnight-node:1.0.0`, `midnightntwrk/indexer-standalone:4.3.3` and `midnightntwrk/proof-server:8.1.0`.
+The example is verified against Compact language `0.28`, compiler `0.36.1`, `@midnight-ntwrk/midnight-js-*` `5.0.1` and `@midnightntwrk/wallet-sdk` `2.0.1`. These are the ledger 9 versions in the [compatibility matrix](../../relnotes/support-matrix). The local network in `compose.yml` runs `midnightntwrk/midnight-node:2.1.101`, `midnightntwrk/indexer-standalone:4.4.101` and `midnightntwrk/proof-server:9.0.2`.
 
 ## Set it up
 
@@ -62,26 +62,26 @@ The example is verified against Compact language `0.23`, compiler `0.31.1`, `@mi
 ```bash
 git clone https://github.com/midnightntwrk/midnight-examples.git
 cd midnight-examples
-yarn install && yarn compile
+npm install && npm run compile
 cd examples/zk-loan
 ```
 
-`yarn compile` generates `contract/managed/zk-loan/`: the JavaScript bindings, the prover and verifier keys, and the ZK IR.
+`npm run compile` generates `contract/managed/zk-loan/`: the JavaScript bindings, the prover and verifier keys, and the ZK IR.
 
 ### 2. Run the full flow on a local network
 
 ```bash
-yarn env:up      # node, indexer and proof server from compose.yml
-yarn wait:dust   # wait until the test wallet can pay fees
-yarn test:local
+npm run env:up      # node, indexer and proof server from compose.yml
+npm run wait:dust   # wait until the test wallet can pay fees
+npm run test:local
 ```
 
-The suite starts the attestation API in-process, then deploys the contract, registers the API's key as admin, requests loans for two borrowers across the tiers, and checks that tampered credit data, non-admin calls, blacklisted borrowers and an ex-admin are rejected. Every successful call generates a real proof, so it takes several minutes. Stop the network with `yarn env:down`.
+The suite starts the attestation API in-process, then deploys the contract, registers the API's key as admin, requests loans for two borrowers across the tiers, and checks that tampered credit data, non-admin calls, blacklisted borrowers and an ex-admin are rejected. Every successful call generates a real proof, so it takes several minutes. Stop the network with `npm run env:down`.
 
 The contract's simulator tests need no network:
 
 ```bash
-yarn test:sim
+npm run test:sim
 ```
 
 ### 3. Run the attestation API
@@ -90,7 +90,7 @@ The attestation API signs credit data with a Schnorr signature on Jubjub; the co
 
 ```bash
 PROVIDER_SECRET_KEY="$(node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')" \
-yarn attestation:start
+npm run attestation:start
 ```
 
 It listens on port `4000` (set `PORT` to change it) and prints the **Provider ID** (default `1`) and the public key's **x** and **y**: the values an admin registers on-chain with `registerProvider`. Keep the `PROVIDER_SECRET_KEY`. Without it, every restart generates a new key and invalidates the on-chain registration.
@@ -101,7 +101,7 @@ The UI in `ui/` connects through the Midnight Lace wallet, on Preprod by default
 
 ```bash
 cd ui
-yarn dev     # http://localhost:5173
+npm run dev     # http://localhost:5173
 ```
 
 The UI can deploy or join a contract, request loans (fetching the signature from the attestation API in step 3) and accept or decline proposals. It can't register the attestation provider. On a contract you deploy from the UI, nothing else can either: the admin role comes from a secret that lives only in that browser tab's memory, and the UI can't export it. So every loan request on a UI-deployed contract fails with `Attestation provider not registered`. To see a loan go through end to end, use the test suite in step 2. A page refresh drops the secret too, and with it your loans and the admin role. See the [UI README](https://github.com/midnightntwrk/midnight-examples/blob/main/examples/zk-loan/ui/README.md) for the settings and the browser-specific details.
