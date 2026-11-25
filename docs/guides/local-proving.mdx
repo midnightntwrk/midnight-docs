@@ -6,13 +6,13 @@ description: "Run a local proof server or delegate proving to the wallet, see wh
 sidebar_label: "Prove locally"
 sidebar_position: 36
 toc_max_heading_level: 2
-keywords: [midnight, proof server, local proving, proving, zero-knowledge, zk proofs, wallet proving, getProvingProvider, remote proving, TEE, MPS-0004, witness, workers]
+keywords: [midnight, proof server, local proving, proving, zero-knowledge, zk proofs, wallet proving, getProvingProvider, remote proving, TEE, MPS-0004, witness, workers, sizing, memory, hardware requirements, arm64]
 tags: [midnight, proof-server, proving, zk, dapp]
 ---
 
 # Proving transactions locally
 
-Every Midnight transaction that calls a contract, spends shielded tokens, or pays a fee in DUST carries zero-knowledge (ZK) proofs. Something has to build those proofs, and whatever builds them sees your private inputs. That is why the Midnight Foundation recommends proving on the user's own machine. This guide is for DApp developers. It shows what a proof server receives and why remote proving isn't recommended. It then walks you through connecting a DApp to a local proof server and to the wallet's proving provider. It also lists the proof server's endpoints and settings.
+Every Midnight transaction that calls a contract, spends shielded tokens, or pays a fee in DUST carries zero-knowledge (ZK) proofs. Something has to build those proofs, and whatever builds them sees your private inputs. That is why the Midnight Foundation recommends proving on the user's own machine. This guide is for DApp developers. It shows what a proof server receives and why remote proving isn't recommended. It then walks you through connecting a DApp to a local proof server and to the wallet's proving provider. It also lists the proof server's endpoints and settings, and how much memory, CPU, and disk it needs.
 
 This guide describes proof server 8.1.3, Compact toolchain 0.31.1, Midnight.js 4.1.1, DApp Connector API 4.0.1, and Lace 2.4.2. The note below says what changes on the networks that run ledger 9.
 
@@ -95,7 +95,9 @@ Start a proof server on your machine and point Midnight.js at it. This is the se
    docker run -d --name proof-server -p 127.0.0.1:6300:6300 midnightntwrk/proof-server:8.1.3
    ```
 
-   Don't add arguments after the image name. The image doesn't pass them to the proof server. To change a setting, pass an environment variable from [Proof server settings](#proof-server-settings) with `-e`.
+   On Mainnet, Preview, and Preprod, which run ledger 9, use `midnightntwrk/proof-server:9.0.2` in place of 8.1.3. The checks that follow then return `9.0.2` from `/version`.
+
+   With 8.1.3, don't add arguments after the image name, because that image doesn't pass them to the proof server. To change a setting, pass an environment variable from [Proof server settings](#proof-server-settings) with `-e`.
 
 2. Check that it answers. The first start takes longer because it downloads the public parameters.
 
@@ -330,13 +332,72 @@ The proof server proves a fixed number of requests at a time and queues the rest
 
 **Client behavior.** `httpClientProofProvider` waits up to five minutes for each request by default. It retries a request up to three times after HTTP 500 or 503. It doesn't retry after 429, so your code sees that error and decides when to try again.
 
-**Workers and speed.** More workers let more proofs run side by side. They don't make a single proof faster, and the proofs share the same processor cores and memory. Proving time and memory grow with the size of the circuit. In one test, proving a circuit with a `k` value of 17 took about 1.5 GiB of memory in the container. To size a server, time your own circuits: the proof server logs how long each request took.
+**Workers and speed.** More workers let more proofs run side by side. They don't make a single proof faster, and the proofs share the same processor cores and memory. Proving time and memory grow with the size of the circuit, as [Proof server sizing](#proof-server-sizing) shows. To size a server, time your own circuits: the proof server logs how long each request took.
 
 ```text
 POST /prove HTTP/1.1; took 0.405531s
 ```
 
 The startup line `starting service: "actix-web-service-0.0.0.0:6300", workers: 10` counts HTTP workers, which follow the number of processor cores. It isn't the number of proving workers.
+
+{/* _mod-docs-content-type: REFERENCE */}
+## Proof server sizing
+
+How big a machine the proof server needs depends on the circuits it proves. The proof server measures the size of a circuit as its `k` value. Proving time, memory, and the files the proof server downloads all grow with `k`.
+
+To find the `k` of one of your circuits, send its compiled ZKIR to a running proof server:
+
+```bash
+curl -X POST --data-binary @src/managed/vault/zkir/bump.bzkir http://localhost:6300/k
+```
+
+```text
+13
+```
+
+### Measured proving time and memory
+
+These numbers come from proof server 9.0.2 on an Apple M4 laptop with 10 cores and 16 GiB of memory. The laptop ran macOS 15.5, and Docker Desktop gave its virtual machine 10 CPUs and 7.6 GiB of memory. The image ran natively for `arm64`. Compact toolchain 0.36.1 compiled the circuits, and `httpClientProvingProvider` from Midnight.js 5.0.1 sent them to the proof server. The `k` 13 circuit is the `bump` circuit from [Delegating proving to the wallet](#delegating-proving-to-the-wallet). The larger circuits fold 4, 16, and 64 `persistentHash` calls over a witness vector.
+
+Proving time is the time in the proof server log for a proof after the first one. Peak memory is the highest resident memory of the proof server process in a fresh container, with one proof at a time. Peak memory varied by up to about 10 percent between runs. Key and file sizes are in decimal MB and GB, and memory is in binary MiB and GiB.
+
+| `k` | Prover key size | Proving time | Peak memory |
+| :---- | :---- | :---- | :---- |
+| 13 | 11 MB | 0.65 s | 194 MiB |
+| 14 | 23 MB | 1.2 s | 370 MiB |
+| 16 | 90 MB | 4.0 s | 1.3 GiB |
+| 18 | 361 MB | 17 s | 5 GiB |
+
+What these runs showed:
+
+- **Time and memory grow together.** Going from `k` 16 to `k` 18 took about four times as long and about four times as much memory.
+- **The first proof is slower.** The first proof of a circuit took up to about twice as long as the ones after it. For a `k` above 15, part of that is the download of the public parameters for that `k`.
+- **Each busy worker needs its own memory.** With `k` 16 proofs running side by side, peak memory was 2.5 GiB with two workers and 4.7 GiB with four. Plan for the peak memory of your largest circuit times the number of workers.
+- **More workers added little speed.** A single proof already used several cores for part of its run. Two `k` 16 proofs took 9.2 s with one worker and 7.6 s with two. Four took 14.7 s with four workers.
+- **The prover key travels with every request.** Midnight.js sends the circuit's prover key to the proof server with each proof, so a large circuit also means a large request.
+
+Times on other machines differ, so time your own circuits before you size a shared server.
+
+### Disk and downloads
+
+At startup, proof server 9.0.2 downloads the public parameters for `k` 10 to 15 and the keys for the built-in Zswap and DUST circuits. That came to 34 MB. The built-in circuits are `k` 13 for a DUST spend, `k` 15 for a shielded spend, `k` 14 for a shielded output, and `k` 13 for Zswap signing. The startup download already includes the parameters and keys they need.
+
+A circuit with a larger `k` makes the proof server download that `k`'s parameters the first time it proves one. The file doubles in size with each step of `k`. The proof server fetches parameters up to `k` 25.
+
+| `k` | Parameters file |
+| :---- | :---- |
+| 16 | 12.6 MB |
+| 18 | 50.3 MB |
+| 20 | 201 MB |
+| 22 | 805 MB |
+| 24 | 3.2 GB |
+| 25 | 6.4 GB |
+
+Proof server 9.0.2 keeps these files in `/var/cache/midnight/zk-params` inside the container. Mount a volume there, for example `-v midnight-zk-params:/var/cache/midnight/zk-params`, so a new container doesn't download them again.
+
+### Platforms
+
+Midnight publishes the `midnightntwrk/proof-server:9.0.2` image for `linux/amd64` and `linux/arm64`. Docker pulls the one that matches the machine, so the proof server runs natively on Apple silicon and on 64-bit Arm Linux. The Compact 0.36.1 compiler is also released for `x86_64` and `aarch64`, on both Linux and macOS.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Proof server settings
@@ -353,7 +414,7 @@ These are the settings in proof server 8.1.3. With the Docker image, set them as
 | `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS` | `--no-fetch-params` | off | Skips the downloads at startup. The server fetches each file the first time it needs it instead. |
 | `MIDNIGHT_PARAM_SOURCE` | none | `https://srs.midnight.network/` | Where the server downloads public parameters and built-in keys from. |
 
-The proof server keeps what it downloads in `/.cache/midnight` inside the container. Mount a volume there, for example `-v midnight-zk-params:/.cache/midnight`, and later containers start from the cache without downloading anything. `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS=true` skips the download at startup, but it doesn't make the proof server work offline. Anything missing from the cache downloads the first time a proof needs it.
+The proof server keeps what it downloads in `/.cache/midnight` inside the container. Mount a volume there, for example `-v midnight-zk-params:/.cache/midnight`, and later containers start from the cache without downloading anything. In proof server 9.0.2, the cache is `/var/cache/midnight/zk-params`; see [Disk and downloads](#disk-and-downloads). `MIDNIGHT_PROOF_SERVER_NO_FETCH_PARAMS=true` skips the download at startup, but it doesn't make the proof server work offline. Anything missing from the cache downloads the first time a proof needs it.
 
 {/* _mod-docs-content-type: REFERENCE */}
 ## Proof server endpoints
