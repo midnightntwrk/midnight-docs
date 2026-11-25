@@ -8,11 +8,7 @@ slug: /how-to/bun-runtime-midnight
 toc_max_heading_level: 2
 ---
 
-import Ledger8Banner from '@site/docs/_partials/_ledger8-banner.mdx';
-
 # Set up Bun for Midnight development
-
-<Ledger8Banner />
 
 Bun is a modern JavaScript runtime and toolkit that can offer significantly faster performance compared to Node.js and npm. 
 This guide walks you through using Bun with Midnight Network development, covering installation, configuration, compatibility considerations, best practices, and much more.
@@ -141,7 +137,7 @@ By default, the installer places the compact binary in `$HOME/.local/bin`
 After installation, update the Compact compiler to the version used in this tutorial:
 
 ```bash
-compact update 0.31.1
+compact update 0.36.1
 ```
 
 3. Verify the installation
@@ -155,11 +151,10 @@ compact check
 If the installation is successful, you should see output similar to the following:
 
 ```bash
-compact: aarch64-darwin -- Update Available -- 0.31.1
-compact: Latest version available: 0.35.0.
+compact: aarch64-darwin -- Up to date -- 0.36.1
 ```
 
-`Update Available` means a newer toolchain release exists, not that your installation failed. Keep the version listed in the [compatibility matrix](../relnotes/support-matrix): a newer release can target a ledger version that the public networks do not run yet.
+If you see `Update Available` instead, a newer toolchain release exists. Your installation didn't fail. Keep the version listed in the [compatibility matrix](../relnotes/support-matrix): a newer release can target a ledger version that the public networks don't run yet.
 
 4. Fix “command not found” (PATH issue)
 
@@ -204,7 +199,7 @@ mkdir src contracts
 Install a specific version to avoid compatibility issues:
 
 ```bash
-bun add @midnight-ntwrk/compact-runtime@0.16.0
+bun add @midnight-ntwrk/compact-runtime@0.21.0
 ```
 
 This gives you everything you need to:
@@ -254,7 +249,7 @@ Update your `package.json` with the Bun-specific scripts below:
     "test": "bun test",
     "install:midnight": "bun install",
     "compile:contract": "compact compile contracts/message.compact contracts/managed",
-    "build:contract": "bun run compile:contract && bun build src/index.ts --outdir dist"
+    "build:contract": "bun run compile:contract && bun build src/index.ts --outdir dist --packages external"
   },
 ```
 
@@ -270,7 +265,7 @@ Script explanations:
 
 - compile:contract: Compiles the Compact smart contract `message.compact` into the contracts/managed output directory.
 
-- build:contract: First compiles the smart contract, then bundles the app entry file into the dist folder for production.
+- build:contract: First compiles the smart contract, then bundles the app entry file into the dist folder for production. The `--packages external` flag leaves npm dependencies, including the Midnight packages, out of the bundle, so they load from `node_modules` at runtime. Without it, the bundled runtime fails to load its WebAssembly module and `bun run start` exits with an error.
 
 ## Create smart contract with Compact
 
@@ -287,7 +282,7 @@ touch contracts/message.compact
 2. Add the code below to the file:
 
 ```compact title="message.compact"
-pragma language_version 0.23;
+pragma language_version 0.28;
 
 import CompactStandardLibrary;
 
@@ -304,8 +299,8 @@ export circuit storeMessage(customMessage: Opaque<"string">): [] {
 
 Explanation:
 
-- `pragma language_version 0.23;`
-  Specifies the Compact language version that this smart contract requires. Toolchain 0.31.1 supports language version 0.23, and the code it generates runs on the runtime version 0.16.0 that you installed earlier.
+- `pragma language_version 0.28;`
+  Specifies the Compact language version that this smart contract requires. Toolchain 0.36.1 supports language version 0.28, and the code it generates runs on the runtime version 0.21.0 that you installed earlier.
 - `import CompactStandardLibrary;`
   Loads standard functions and types provided by Midnight for contracts.
 - `export ledger message: Opaque<"string">;`
@@ -535,7 +530,7 @@ Cannot find module `'@midnight-ntwrk/compact-runtime’`
 Solution:
 
 ```bash
-bun add @midnight-ntwrk/compact-runtime@0.16.0
+bun add @midnight-ntwrk/compact-runtime@0.21.0
 ```
 
 2. Version mismatch errors
@@ -543,11 +538,11 @@ bun add @midnight-ntwrk/compact-runtime@0.16.0
 Problem:
 
 ```bash
-CompactError: Version mismatch: compiled code expects 0.16.0, runtime is 0.9.0
+CompactError: Version mismatch: compiled code expects 0.21.0, runtime is 0.20.0
 ```
 
 :::note
-The Compact compiler and runtime versions must match exactly. Always check [version compatibility](../relnotes/support-matrix) before compiling.
+Each Compact toolchain version pairs with one runtime version. Toolchain 0.36.1 pairs with runtime 0.21.0. Always check [version compatibility](../relnotes/support-matrix) before compiling.
 :::
 
 Solution:
@@ -555,7 +550,7 @@ Solution:
 Install the matching runtime version:
 
 ```bash
-bun add @midnight-ntwrk/compact-runtime@0.16.0
+bun add @midnight-ntwrk/compact-runtime@0.21.0
 ```
 
 Then recompile your smart contracts:
@@ -570,15 +565,15 @@ Problem:
 
 ```bash
 Exception: message.compact line 1 char 1:
-  language version 0.27.0 mismatch
+  language version 0.28.0 mismatch
 ```
 
 Solution:
 
-The version in this message is the language version that your compiler supports, not the version in your smart contract. For example, toolchain 0.35.0 reports `0.27.0`. The contract in this guide declares `pragma language_version 0.23;`, which toolchain 0.31.1 supports. Install that toolchain version:
+The version in this message is the language version that your compiler supports, not the version in your smart contract. For example, toolchain 0.36.1 reports `0.28.0` when it compiles a contract that declares `pragma language_version 0.23;`. The contract in this guide declares `pragma language_version 0.28;`, which toolchain 0.36.1 supports. Install that toolchain version:
 
 ```bash
-compact update 0.31.1
+compact update 0.36.1
 ```
 
 Then recompile your smart contracts:
