@@ -17,8 +17,27 @@ import { useLocation } from '@docusaurus/router';
 
 const releases = [
   {
-    version: '5.0.2',
+    version: '5.0.3',
     status: 'LATEST',
+    date: '2026-11-24',
+    summary: 'Patch release for the ledger 9 stack: the proof provider also retries 429 responses, honors Retry-After, and refuses redirects, and a scoped call segment collision is fixed.',
+    details: [
+      'The HTTP proof provider also retries 429 responses, honors `Retry-After`, and refuses proof server redirects; a redirect now fails with `ProofServerError`',
+      'Scoped contract calls move colliding segment identifiers before merging',
+      'Contract calls refuse an unknown ledger era instead of treating it as the current era',
+      'The repository end-to-end test stacks move to node 2.1.101 and indexer 4.4.101',
+      'Dependency refresh; the ledger 9 pins stay at the 5.0.1 set (ledger-v9 1.0.2, onchain-runtime-v4 4.0.2, Compact.js 3.0.2, proof server 9.0.2)',
+      'No API change, no recompile, and no contract changes; set the final proof server URL if yours redirects',
+    ],
+    artifacts: [
+      { name: 'GitHub release', url: 'https://github.com/midnightntwrk/midnight-js/releases/tag/v5.0.3' },
+      { name: 'NPM Package', url: 'https://www.npmjs.com/package/@midnightntwrk/midnight-js/v/5.0.3' },
+    ],
+    link: '/relnotes/midnight-js/midnight-js-5-0-3',
+  },
+  {
+    version: '5.0.2',
+    status: 'SUPPORTED',
     date: '2026-11-19',
     summary: 'Maintenance patch with no API or runtime change: the packages move to npm under the @midnightntwrk scope, dependencies refresh, and releases carry test evidence.',
     details: [
@@ -55,7 +74,7 @@ const releases = [
   },
   {
     version: '5.0.0',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '2026-11-06',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet. Works across both ledger eras, with breaking provider and contract state changes.',
     details: [
