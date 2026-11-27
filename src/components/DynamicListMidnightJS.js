@@ -74,7 +74,7 @@ const releases = [
   },
   {
     version: '5.0.0',
-    status: 'SUPPORTED',
+    status: 'UNSUPPORTED',
     date: '2026-11-06',
     summary: 'Major release for the ledger 9 network upgrade on Mainnet. Works across both ledger eras, with breaking provider and contract state changes.',
     details: [
